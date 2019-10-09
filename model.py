@@ -10,7 +10,7 @@ class Model:
   def nll(self,data,bg,mcdata):
     ln_data = tf.reduce_sum(tf.math.log(self.Amp(data)))
     ln_bg = tf.reduce_sum(tf.math.log(self.Amp(bg)))
-    int_mc = tf.reduce_mean(self.Amp(mcdata))
+    int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
     n_data = data[0].shape[0]
     n_bg = bg[0].shape[0]
     n_mc = mcdata[0].shape[0]
