@@ -134,17 +134,17 @@ def main():
   data = []
   bg = []
   mcdata = []
-  with open("../RooAllAmplitude/data/PHSP_ang.json") as f:
+  with open("./data/PHSP_ang.json") as f:
     tmp = json.load(f)
     for i in param_list:
       tmp_data = tf.Variable(tmp[i],name=i)
       mcdata.append(tmp_data)
-  with open("../RooAllAmplitude/data/data_ang.json") as f:
+  with open("./data/data_ang.json") as f:
     tmp = json.load(f)
     for i in param_list:
       tmp_data = tf.Variable(tmp[i],name=i)
       data.append(tmp_data)
-  with open("../RooAllAmplitude/data/bg_ang.json") as f:
+  with open("./data/bg_ang.json") as f:
     tmp = json.load(f)
     for i in param_list:
       tmp_data = tf.Variable(tmp[i],name=i)
