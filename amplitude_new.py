@@ -1,15 +1,22 @@
 import tensorflow as tf
-from cg import get_cg_coef
-from d_function import d_function_cos
+from cg_new import get_cg_coef
+from d_function_new import d_function_cos
+
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 
 def cg_coef(j1,j2,m1,m2,j,m):
     return get_cg_coef(j1,j2,m1,m2,j,m)
 
 def dfunction(j,m1,m2,cos):
-    return d_function_cos(j,m1,m2)(cos)
+    try:
+        d_function_cos(j,m1,m2)(cos)
+        return d_function_cos(j,m1,m2)(cos)
+    except:
+        return d_function_cos(j,m1.numpy(),m2.numpy())(cos)
 
 def Dfunction(j,m1,m2,alpha,cos_beta,gamma):
-    return dfunction(j,m1,m2,cos_beta) * tf.exp(tf.complex(0.,-m1*alpha-m2*gamma))
+    return tf.cast(dfunction(j,m1,m2,cos_beta),dtype=tf.complex64) * tf.exp(tf.complex(0.,-m1*alpha-m2*gamma))
 
 def Getq(m,m1,m2):
     ms = m1+m2
@@ -110,8 +117,8 @@ class AllAmplitude(tf.keras.Model): # Model(data)
         s_max = J2+J3
         minL = 10000
         # faster? list_s = tf.range(s_min,s_max+1,1)
-        for s in tf.range(s_min,s_max+1,1):
-            for l in tf.range(abs(J1-s),J1+s+1,1):
+        for s in tf.range(s_min,s_max+1,1.):
+            for l in tf.range(abs(J1-s),J1+s+1,1.):
                 if l%2==dl:
                     minL = tf.minimum(l,minL)
         return minL
@@ -153,12 +160,12 @@ class AllAmplitude(tf.keras.Model): # Model(data)
         s_max = J2+J3
         DynamicF = tf.complex(0.,0.)
         ptr = 0
-        for s in tf.range(s_min,s_max+1,1):
-            for l in tf.range(abs(J1-s),J1+s+1,1):
+        for s in tf.range(s_min,s_max+1,1.):
+            for l in tf.range(abs(J1-s),J1+s+1,1.):
                 if l%2==dl:
                     gls = self.coef[reson][layer][ptr] # 'gls' are the fitting parameters
                     ptr+=1
-                    DynamicF+= gls * tf.sqrt((2*l+1)/(2*J1+1)) * cg_coef(J2,J3,lmd2,-lmd3,s,lmd2-lmd3) * cg_coef(l,s,0,lmd2-lmd3,J1,lmd2-lmd3) * q**l * Bprime(l,q,q0,d)
+                    DynamicF += gls * tf.complex(tf.sqrt((2*l+1)/(2*J1+1)) * cg_coef(J2,J3,lmd2,-lmd3,s,lmd2-lmd3) * cg_coef(l,s,0,lmd2-lmd3,J1,lmd2-lmd3) * q**l * Bprime(l,q,q0,d),0.)
         return DynamicF
 
     def GetAmp_sq( self,
@@ -166,57 +173,68 @@ class AllAmplitude(tf.keras.Model): # Model(data)
             m_BD, phi_BD, cos_BD, phi_B_BD, cos_B_BD, alpha_B_BD, cosbeta_B_BD, gamma_B_BD, alpha_D_BD, cosbeta_D_BD, gamma_D_BD,
             m_CD, phi_CD, cos_CD, phi_D_CD, cos_D_CD, alpha_D_CD, cosbeta_D_CD, gamma_D_CD ):
         
-        # Amp_sq_tot = 0.
+        Amp_sq_tot = 0.
         BWreson = self.GetBWreson(m_BC,m_BD,m_CD)
         lmd_A = tf.range(-1,2,2.) # gamma only has -1 and 1
         lmd_B = tf.range(-self.JB,self.JB+1,1.)
         lmd_C = tf.range(-self.JC,self.JC+1,1.)
         lmd_D = tf.range(-self.JD,self.JD+1,1.)
-        Amp_com = 0 # Amp inside the absolute value sign
-        for reson in self.resons:
-            chain = self.resons[reson]["Chain"]
-            J_reson = self.resons[reson]["J"]
-            P_reson = self.resons[reson]["Par"]
-            lmd_reson = tf.range(-J_reson,J_reson+1,1.)
-            
-            if chain<0:
-                Lmd_A,Lmd_B,Lmd_C,Lmd_D,Lmd_BD,Lmd_B_BD,Lmd_D_BD = tf.meshgrid(lmd_A,lmd_B,lmd_C,lmd_D,lmd_reson,lmd_B,lmd_D)
-                q_rt = Getq(self.Ecom,self.m0_C,m_BD)
-                q0_rt = Getq(self.Ecom,self.m0_C,m0)
-                q_nd = Getq(m_BD, self.m0_B, self.m0_D)
-                q0_nd = Getq(m0, self.m0_B, self.m0_C)
-                Amp =   GetDynamicF(reson,0, self.JA,J_reson,self.JC, self.ParA,P_reson,self.ParC, Lmd_BD,Lmd_C, q_rt,q0_rt,d=3.) * Dfunction(self.JA,Lmd_A,Lmd_BD-Lmd_C, phi_BD,cos_BD,0.) * \
-                        GetDynamicF(reson,1, J_reson,self.JB,self.JD, P_reson,self.ParB,self.ParD, Lmd_B_BD,Lmd_D_BD, q_nd,q0_nd,d=3.) * Dfunction(J_reson,Lmd_BD,Lmd_B_BD-Lmd_D_BD, phi_B_BD,cos_B_BD,0.) * \
-                        Dfunction(self.JB,Lmd_B_BD,Lmd_B, alpha_B_BD,cosbeta_B_BD,gamma_B_BD) * \
-                        Dfunction(self.JD,Lmd_D_BD,Lmd_D, alpha_D_BD,cosbeta_D_BD,gamma_D_BD)
-                Amp_reson = tf.reduce_sum(Amp,[4,5,6])
-            
-            elif chain>0 and chain<100:
-                Lmd_A,Lmd_B,Lmd_C,Lmd_D,Lmd_BC,Lmd_B_BC = tf.meshgrid(lmd_A,lmd_B,lmd_C,lmd_D,lmd_reson,lmd_B)
-                q_rt = Getq(self.Ecom,self.m0_D,m_BC)
-                q0_rt = Getq(self.Ecom,self.m0_D,m0)
-                q_nd = Getq(m_BC, self.m0_B, self.m0_C)
-                q0_nd = Getq(m0, self.m0_B, self.m0_C)
-                Amp =   GetDynamicF(reson,0, self.JA,J_reson,self.JD, self.ParA,P_reson,self.ParD, Lmd_BC,Lmd_D, q_rt,q0_rt,d=3.) * Dfunction(self.JA,Lmd_A,Lmd_BC-Lmd_D, phi_BC,cos_BC,0.) * \
-                        GetDynamicF(reson,1, J_reson,self.JB,self.JC, P_reson,self.ParB,self.ParC, Lmd_B_BC,0, q_nd,q0_nd,d=3.) * Dfunction(J_reson,Lmd_BC,Lmd_B_BC-0, phi_B_BC,cos_B_BC,0.) * \
-                        Dfunction(self.JB,Lmd_B_BC,Lmd_B, alpha_B_BC,cosbeta_B_BC,gamma_B_BC)
-                Amp_reson = tf.reduce_sum(Amp,[4,5])
-            
-            elif chain>100 and chain<200:
-                Lmd_A,Lmd_B,Lmd_C,Lmd_D,Lmd_CD,Lmd_D_CD = tf.meshgrid(lmd_A,lmd_B,lmd_C,lmd_D,lmd_reson,lmd_D)
-                q_rt = Getq(self.Ecom,self.m0_B,m_CD)
-                q0_rt = Getq(self.Ecom,self.m0_B,m0)
-                q_nd = Getq(m_CD, self.m0_C, self.m0_D)
-                q0_nd = Getq(m0, self.m0_C, self.m0_D)
-                Amp =   GetDynamicF(reson,0, self.JA,J_reson,self.JB, self.ParA,P_reson,self.ParB, Lmd_CD,Lmd_B, q_rt,q0_rt,d=3.) * Dfunction(self.JA,Lmd_A,Lmd_CD-Lmd_B, phi_CD,cos_CD,0.) * \
-                        GetDynamicF(reson,1, J_reson,self.JC,self.JD, P_reson,self.ParC,self.ParD, Lmd_D_CD,0, q_nd,q0_nd,d=3.) * Dfunction(J_reson,Lmd_CD,Lmd_D_CD-0, phi_D_CD,cos_D_CD,0.) * \
-                        Dfunction(self.JD,Lmd_D_CD,Lmd_D, alpha_D_CD,cosbeta_D_CD,gamma_D_CD)
-                Amp_reson = tf.reduce_sum(Amp,[4,5])
+        for Lmd_A in lmd_A:
+            for Lmd_B in lmd_B:
+                for Lmd_C in lmd_C:
+                    for Lmd_D in lmd_D:
+                        Amp_com = 0 # Amp inside the absolute value sign
+                        for reson in self.resons:
+      	                    chain = self.resons[reson]["Chain"]
+      	                    m0 = self.resons[reson]["m0"]
+      	                    J_reson = self.resons[reson]["J"]
+      	                    P_reson = self.resons[reson]["Par"]
+      	                    lmd_reson = tf.range(-J_reson,J_reson+1,1.)
+      	                    Amp_reson = tf.complex(0.,0.)
+      	                    
+      	                    if chain<0:
+                                for Lmd_BD in lmd_reson:
+                                    for Lmd_B_BD in lmd_B:
+                                        for Lmd_D_BD in lmd_D:
+                                            q_rt = Getq(self.Ecom,self.m0_C,m_BD)
+                                            q0_rt = Getq(self.Ecom,self.m0_C,m0)
+                                            q_nd = Getq(m_BD, self.m0_B, self.m0_D)
+                                            q0_nd = Getq(m0, self.m0_B, self.m0_C)
+                                            Amp =   self.GetDynamicF(reson,0, self.JA,J_reson,self.JC, self.ParA,P_reson,self.ParC, Lmd_BD,Lmd_C, q_rt,q0_rt,d=3.) * Dfunction(self.JA,Lmd_A,Lmd_BD-Lmd_C, phi_BD,cos_BD,0.) * \
+                                                    self.GetDynamicF(reson,1, J_reson,self.JB,self.JD, P_reson,self.ParB,self.ParD, Lmd_B_BD,Lmd_D_BD, q_nd,q0_nd,d=3.) * Dfunction(J_reson,Lmd_BD,Lmd_B_BD-Lmd_D_BD, phi_B_BD,cos_B_BD,0.) * \
+                                                    Dfunction(self.JB,Lmd_B_BD,Lmd_B, alpha_B_BD,cosbeta_B_BD,gamma_B_BD) * \
+                                                    Dfunction(self.JD,Lmd_D_BD,Lmd_D, alpha_D_BD,cosbeta_D_BD,gamma_D_BD)
+                                            Amp_reson += Amp
+      	                    
+      	                    elif chain>0 and chain<100:
+                                for Lmd_BC in lmd_reson:
+                                    for Lmd_B_BC in lmd_B:
+                                        q_rt = Getq(self.Ecom,self.m0_D,m_BC)
+                                        q0_rt = Getq(self.Ecom,self.m0_D,m0)
+                                        q_nd = Getq(m_BC, self.m0_B, self.m0_C)
+                                        q0_nd = Getq(m0, self.m0_B, self.m0_C)
+                                        Amp =   self.GetDynamicF(reson,0, self.JA,J_reson,self.JD, self.ParA,P_reson,self.ParD, Lmd_BC,Lmd_D, q_rt,q0_rt,d=3.) * Dfunction(self.JA,Lmd_A,Lmd_BC-Lmd_D, phi_BC,cos_BC,0.) * \
+                                                self.GetDynamicF(reson,1, J_reson,self.JB,self.JC, P_reson,self.ParB,self.ParC, Lmd_B_BC,0, q_nd,q0_nd,d=3.) * Dfunction(J_reson,Lmd_BC,Lmd_B_BC-0, phi_B_BC,cos_B_BC,0.) * \
+                                                Dfunction(self.JB,Lmd_B_BC,Lmd_B, alpha_B_BC,cosbeta_B_BC,gamma_B_BC)
+                                        Amp_reson += Amp
+      	                    
+      	                    elif chain>100 and chain<200:
+                                for Lmd_CD in lmd_reson:
+                                    for Lmd_D_CD in lmd_D:
+                                        q_rt = Getq(self.Ecom,self.m0_B,m_CD)
+                                        q0_rt = Getq(self.Ecom,self.m0_B,m0)
+                                        q_nd = Getq(m_CD, self.m0_C, self.m0_D)
+                                        q0_nd = Getq(m0, self.m0_C, self.m0_D)
+                                        Amp =   self.GetDynamicF(reson,0, self.JA,J_reson,self.JB, self.ParA,P_reson,self.ParB, Lmd_CD,Lmd_B, q_rt,q0_rt,d=3.) * Dfunction(self.JA,Lmd_A,Lmd_CD-Lmd_B, phi_CD,cos_CD,0.) * \
+                                                self.GetDynamicF(reson,1, J_reson,self.JC,self.JD, P_reson,self.ParC,self.ParD, Lmd_D_CD,0, q_nd,q0_nd,d=3.) * Dfunction(J_reson,Lmd_CD,Lmd_D_CD-0, phi_D_CD,cos_D_CD,0.) * \
+                                                Dfunction(self.JD,Lmd_D_CD,Lmd_D, alpha_D_CD,cosbeta_D_CD,gamma_D_CD)
+                                        Amp_reson += Amp
 
-            Amp_com += Amp_reson
+      	                    Amp_com += Amp_reson*BWreson[reson]
 
-        Amp_sq = tf.square(tf.abs(Amp_com))
-        Amp_sq_tot = tf.reduce_sum(Amp_sq)
+                        Amp_sq = tf.square(tf.abs(Amp_com))
+                        Amp_sq_tot += Amp_sq
+
         return Amp_sq_tot
 
     def call(self,var):
