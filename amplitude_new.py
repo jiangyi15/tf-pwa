@@ -6,14 +6,15 @@ import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 
 def cg_coef(j1,j2,m1,m2,j,m):
-    return get_cg_coef(j1,j2,m1,m2,j,m)
+    return get_cg_coef(int(j1),int(j2),int(m1),int(m2),int(j),int(m))
 
 def dfunction(j,m1,m2,cos):
     try:
-        d_function_cos(j,m1,m2)(cos)
-        return d_function_cos(j,m1,m2)(cos)
+        m1 = m1.numpy()
+        m2 = m2.numpy()
     except:
-        return d_function_cos(j,m1.numpy(),m2.numpy())(cos)
+        pass
+    return d_function_cos(j,m1,m2)(cos)
 
 def Dfunction(j,m1,m2,alpha,cos_beta,gamma):
     return tf.cast(dfunction(j,m1,m2,cos_beta),dtype=tf.complex64) * tf.exp(tf.complex(0.,-m1*alpha-m2*gamma))
@@ -108,7 +109,7 @@ class AllAmplitude(tf.keras.Model): # Model(data)
                     coef_name = "{header}GLS_{l}_{s}".format(header=header,l=l,s=s)
                     temp_r = self.add_weight(name=coef_name+"_r")
                     temp_i = self.add_weight(name=coef_name+"_i")
-                    coef_list.append(tf.complex(temp_r,temp_i))
+                    coef_list.append([temp_r,temp_i])
         return coef_list
 
     def GetMinL(self,J1,J2,J3,P1,P2,P3):
@@ -163,9 +164,10 @@ class AllAmplitude(tf.keras.Model): # Model(data)
         for s in tf.range(s_min,s_max+1,1.):
             for l in tf.range(abs(J1-s),J1+s+1,1.):
                 if l%2==dl:
-                    gls = self.coef[reson][layer][ptr] # 'gls' are the fitting parameters
+                    gls_r = self.coef[reson][layer][ptr][0] # 'gls' are the fitting parameters
+                    gls_i = self.coef[reson][layer][ptr][1]
                     ptr+=1
-                    DynamicF += gls * tf.complex(tf.sqrt((2*l+1)/(2*J1+1)) * cg_coef(J2,J3,lmd2,-lmd3,s,lmd2-lmd3) * cg_coef(l,s,0,lmd2-lmd3,J1,lmd2-lmd3) * q**l * Bprime(l,q,q0,d),0.)
+                    DynamicF += tf.complex(gls_r,gls_i) * tf.complex(tf.sqrt((2*l+1)/(2*J1+1)) * cg_coef(J2,J3,lmd2,-lmd3,s,lmd2-lmd3) * cg_coef(l,s,0,lmd2-lmd3,J1,lmd2-lmd3) * q**l * Bprime(l,q,q0,d),0.)
         return DynamicF
 
     def GetAmp_sq( self,

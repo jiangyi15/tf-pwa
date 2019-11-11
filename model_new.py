@@ -151,7 +151,7 @@ def main():
     for i in param_list:
       tmp_data = tf.Variable(tmp[i],name=i)
       bg.append(tmp_data)
-  #print(data,bg,mcdata)
+  #print("data,bg,mcdata",data,bg,mcdata)
   data_set = tf.data.Dataset.from_tensor_slices(tuple(data))
   data_set = data_set.shuffle(10000).batch(800)
   data_set_it = iter(data_set)
@@ -166,7 +166,7 @@ def main():
     print("NLL0:",a.nll(data,bg,mcdata))#.collect_params())
   optimizer = tf.keras.optimizers.Adagrad()
   t2 = t.time()
-  for i in range(3):
+  for i in range(50):
     try :
       data_i = data_set_it.get_next()
       bg_i = bg_set_it.get_next()
@@ -241,6 +241,7 @@ def main():
       locals()["weight_%s"%i] = locals()["w_%s"%i].numpy()
       locals()["nn_%s"%i] = plt.hist(locals()[var_name],bins=50,weights=locals()["weight_%s"%i],range=(xbinmin,xbinmax))
       plt.title(locals()["reson_%s"%i])
+      plt.savefig("fig/"+locals()["reson_%s"%i]+"_"+var_name)
       plt.clf()
       
   xbin = []
@@ -251,18 +252,19 @@ def main():
   (counts, bins) = np.histogram(locals()[var_name+"_bg"],bins=50,range=(xbinmin,xbinmax))
   plt.hist(bins[:-1],bins,weights=bgw*counts)
   ybin = nn[0]*(ndata-bgw*nbg)/nmcwei + bgw*counts
-  plt.plot(xbin,ybin)
+  plt.plot(xbin,ybin,label="total")
   plt.title(var_name)
 
   for i in range(1,n_reson+1):
       locals()["ybin_%s"%i] = locals()["nn_%s"%i][0]*(ndata-bgw*nbg)/nmcwei
-      plt.plot(xbin,locals()["ybin_%s"%i])
+      plt.plot(xbin,locals()["ybin_%s"%i],label=locals()["reson_%s"%i])
 
-  plt.savefig(var_name)    
+  plt.legend()
+  plt.savefig("fig/"+var_name)    
   plt.clf()
 
-'''  # for m_BD variable
-  var_name,var_num = "m_BD",1
+  # for m_BD variable
+  var_name,var_num = "m_BD",8
   locals()[var_name] = mcdata[var_num].numpy()
   locals()[var_name+"_data"] = data[var_num].numpy()
   locals()[var_name+"_bg"] = bg[var_num].numpy()
@@ -278,6 +280,7 @@ def main():
       locals()["weight_%s"%i] = locals()["w_%s"%i].numpy()
       locals()["nn_%s"%i] = plt.hist(locals()[var_name],bins=50,weights=locals()["weight_%s"%i],range=(xbinmin,xbinmax))
       plt.title(locals()["reson_%s"%i])
+      plt.savefig("fig/"+locals()["reson_%s"%i]+"_"+var_name)
       plt.clf()
       
   xbin = []
@@ -288,18 +291,19 @@ def main():
   (counts, bins) = np.histogram(locals()[var_name+"_bg"],bins=50,range=(xbinmin,xbinmax))
   plt.hist(bins[:-1],bins,weights=bgw*counts)
   ybin = nn[0]*(ndata-bgw*nbg)/nmcwei + bgw*counts
-  plt.plot(xbin,ybin)
+  plt.plot(xbin,ybin,label="total")
   plt.title(var_name)
 
   for i in range(1,n_reson+1):
       locals()["ybin_%s"%i] = locals()["nn_%s"%i][0]*(ndata-bgw*nbg)/nmcwei
-      plt.plot(xbin,locals()["ybin_%s"%i])
+      plt.plot(xbin,locals()["ybin_%s"%i],label=locals()["reson_%s"%i])
 
-  plt.savefig(var_name)    
+  plt.legend()
+  plt.savefig("fig/"+var_name)    
   plt.clf()
 
   # for m_CD variable
-  var_name,var_num = "m_CD",2
+  var_name,var_num = "m_CD",19
   locals()[var_name] = mcdata[var_num].numpy()
   locals()[var_name+"_data"] = data[var_num].numpy()
   locals()[var_name+"_bg"] = bg[var_num].numpy()
@@ -315,6 +319,7 @@ def main():
       locals()["weight_%s"%i] = locals()["w_%s"%i].numpy()
       locals()["nn_%s"%i] = plt.hist(locals()[var_name],bins=50,weights=locals()["weight_%s"%i],range=(xbinmin,xbinmax))
       plt.title(locals()["reson_%s"%i])
+      plt.savefig("fig/"+locals()["reson_%s"%i]+"_"+var_name)
       plt.clf()
       
   xbin = []
@@ -325,17 +330,18 @@ def main():
   (counts, bins) = np.histogram(locals()[var_name+"_bg"],bins=50,range=(xbinmin,xbinmax))
   plt.hist(bins[:-1],bins,weights=bgw*counts)
   ybin = nn[0]*(ndata-bgw*nbg)/nmcwei + bgw*counts
-  plt.plot(xbin,ybin)
+  plt.plot(xbin,ybin,label="total")
   plt.title(var_name)
 
   for i in range(1,n_reson+1):
       locals()["ybin_%s"%i] = locals()["nn_%s"%i][0]*(ndata-bgw*nbg)/nmcwei
-      plt.plot(xbin,locals()["ybin_%s"%i])
+      plt.plot(xbin,locals()["ybin_%s"%i],label=locals()["reson_%s"%i])
 
-  plt.savefig(var_name)    
+  plt.legend()
+  plt.savefig("fig/"+var_name)    
   plt.clf()
 
-  # for cosTheta_BC variable
+  '''# for cosTheta_BC variable
   var_name,var_num = "cosTheta_BC",3
   locals()[var_name] = mcdata[var_num].numpy()
   locals()[var_name+"_data"] = data[var_num].numpy()

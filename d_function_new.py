@@ -82,6 +82,7 @@ d_fun_table_cos = {
 
 def d_function_cos(j,m1,m2):
   try:
+    d_fun_table_cos[j][m1][m2]
     return d_fun_table_cos[j][m1][m2]
   except:
     return lambda x:0.
