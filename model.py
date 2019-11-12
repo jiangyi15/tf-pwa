@@ -62,17 +62,26 @@ class Model:
         for j in range(n_variables):
           g[j] += a[j]
     return nll,g
+  
+  def get_params(self):
+    ret = {}
+    for i in self.Amp.trainable_variables:
+      tmp = i.numpy()
+      ret[i.name] = float(tmp)
+    return ret
+  
+  def set_params(self,param):
+    for i in self.Amp.trainable_variables:
+      tmp = param[i.name]
+      i.assign(tmp)
 
 param_list = [
-  "m_BC","m_BD","m_CD",
-  "cosTheta_BC","cosTheta_B_BC",
-  "phi_BC", "phi_B_BC",
-  "cosTheta_BD","cosTheta_D_BD",
-  "phi_D_BD",
-  "cosTheta_CD","cosTheta_C_CD",
-  "phi_CD","phi_C_CD",
-  "cosTheta1","cosTheta2",
-  "phi1","phi2"
+  "m_BC", "m_BD", "m_CD", 
+  "cos_BC", "cos_B_BC", "phi_BC", "phi_B_BC",
+  "cos_BD", "cos_B_BD", "phi_BD", "phi_B_BD", 
+  "cos_CD", "cos_D_CD", "phi_CD", "phi_D_CD",
+  "cosbeta_B_BD","cosbeta_B_BC","cosbeta_D_BD","cosbeta_D_CD",
+  "alpha_B_BD","gamma_B_BD","alpha_B_BC","gamma_B_BC","alpha_D_BD","gamma_D_BD","alpha_D_CD","gamma_D_CD"
 ]
 
 
@@ -144,28 +153,33 @@ def main():
   set_gpu_mem_growth()
   with open("Resonances.json") as f:  
     config_list = json.load(f)
-  a = Model(config_list,0.8)
-  data = []
-  bg = []
-  mcdata = []
-  with open("./data/PHSP_ang.json") as f:
-    tmp = json.load(f)
-    for i in param_list:
-      tmp_data = tf.Variable(tmp[i],name=i)
-      mcdata.append(tmp_data)
-  with open("./data/data_ang.json") as f:
-    tmp = json.load(f)
-    for i in param_list:
-      tmp_data = tf.Variable(tmp[i],name=i)
-      data.append(tmp_data)
-  with open("./data/bg_ang.json") as f:
-    tmp = json.load(f)
-    for i in param_list:
-      tmp_data = tf.Variable(tmp[i],name=i)
-      bg.append(tmp_data)
+  a = Model(config_list,0.768331)
+  #with open("test.json") as f:  
+    #param = json.load(f)
+    #a.set_params(param)
+  s = json.dumps(a.get_params(),indent=2)
+  print(s)
+  def load_data(fname):
+    dat = []
+    with open(fname) as f:
+      tmp = json.load(f)
+      for i in param_list:
+        tmp_data = tf.Variable(tmp[i],name=i)
+        dat.append(tmp_data)
+    return dat
+  data = load_data("./data/data_ang_n4.json")
+  bg = load_data("./data/bg_ang_n4.json")
+  mcdata = load_data("./data/PHSP_ang_n4.json")
   #print(data,bg,mcdata)
+  #a.Amp(data)
+  #exit()
+  #print(a.get_params())
+  #t = time.time()
+  #with tf.device('/device:GPU:0'):
+    #print("NLL:",a.nll(data,bg,mcdata))#.collect_params())
+  #print("Time:",time.time()-t)
   import iminuit 
-  f = fcn(a,data,bg,mcdata,27648)# 1356*18
+  f = fcn(a,data,bg,mcdata,6780)# 1356*18
   args = {}
   args_name = []
   for i in a.Amp.trainable_variables:
