@@ -31,7 +31,7 @@ class Complex_F:
     if type(other) is Complex_F:
       rho = other.rho2()
       r = self.r * other.r + self.i * other.i
-      i = self.r * other.i - self.i * other.r
+      i = -self.r * other.i + self.i * other.r
       return Complex_F(self.F,r/rho,i/rho)
     if type(other) is complex:
       rho = other.rho2()
@@ -43,6 +43,9 @@ class Complex_F:
     return Complex_F(self.F,self.r,-self.i)
   def rho2(self):
     return self.r * self.r + self.i * self.i
+  def inverse(self):
+    rho = self.rho2()
+    return Complex_F(self.F,self.r/rho,-self.i/rho)
   def exp(self):
     rho = self.F.exp(self.r)
     r = self.F.cos(self.i)

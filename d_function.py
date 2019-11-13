@@ -49,6 +49,6 @@ def d_function_cos(j,m1,m2):
   if m1<0:
     m1,m2 = -m1,-m2
   try :
-    return d_fun_table_cos[str(j)][str(m1)][str(m2)]
+    return sign * d_fun_table_cos[str(j)][str(m1)][str(m2)]
   except:
     return lambda x:1.0

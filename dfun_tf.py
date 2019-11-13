@@ -1,4 +1,7 @@
+import tensorflow as tf
+import math
 import numpy as np
+import functools
 
 def float2int(x):
   return np.floor(x+0.001).astype(np.int64)
@@ -13,7 +16,7 @@ class dfunctionJ(object):
     self.j2 = j2
     self.m1 = list(range(-self.j2,self.j2+1,2))
     self.m2 = list(range(-self.j2,self.j2+1,2))
-    self.w = self.init_w(self.j2).reshape(((self.j2+1)**2),self.j2+1)
+    self.w = tf.reshape(tf.constant(self.init_w(self.j2)),((self.j2+1)**2,self.j2+1))
     self.sc = None
   
   def get_right_spin(self,x):
@@ -36,13 +39,13 @@ class dfunctionJ(object):
     """
     ret = np.zeros(shape=(j+1,j+1,j+1))
     def f(x):
-      return np.math.factorial(x>>1)
+      return math.factorial(x>>1)
     for m in range(-j,j+1,2):
       for n in range(-j,j+1,2):
         for k in range(max(0,n-m),min(j-m,j+n)+1,2):
           l = (2*k + (m - n))//2
           sign = (-1)**((k+m-n)//2)
-          tmp = sign * np.sqrt(1.0*f(j+m)*f(j-m)*f(j+n)*f(j-n))
+          tmp = sign * math.sqrt(1.0*f(j+m)*f(j-m)*f(j+n)*f(j-n))
           tmp /= f(j-m-k)*f(j+n-k)*f(k+m-n)*f(k)
           ret[(m+j)//2][(n+j)//2][l] = tmp
     return ret
@@ -59,22 +62,33 @@ class dfunctionJ(object):
         return self.lazy_call(m1,m2)
     m1 = self.get_right_spin(m1)
     m2 = self.get_right_spin(m2)
-    a = np.arange(0,self.j2+1,1)
-    sintheta = np.sin(theta/2)
-    costheta = np.cos(theta/2)
-    a = np.tile(a,(len(theta),1)).T
-    s = np.power(np.tile(sintheta,(self.j2+1,1)),a)
-    c = np.power(np.tile(costheta,(self.j2+1,1)),self.j2-a)
+    a = tf.range(0,self.j2+1,1)
+    sintheta = tf.sin(theta/2)
+    costheta = tf.cos(theta/2)
+    a = tf.reshape(a,(-1,1))
+    a = tf.cast(tf.tile(a,[1,theta.shape[0]]),dtype=theta.dtype)
+    s = tf.pow(tf.reshape(tf.tile(sintheta,[self.j2+1]),(self.j2+1,-1)),a)
+    c = tf.pow(tf.reshape(tf.tile(costheta,[self.j2+1]),(self.j2+1,-1)),self.j2-a)
     self.sc = s*c
-    return np.dot(self.w[self.get_index(m1,m2)],self.sc)
+    sp = False
+    tmpw = tf.gather(self.w,self.get_index(m1,m2))
+    tmpw = tf.cast(tmpw,self.sc.dtype)
+    if len(tmpw.shape) == 1:
+      tmpw = tf.reshape(tmpw,(1,-1))
+      sp = True
+    ret = tf.matmul(tmpw ,self.sc)
+    if sp:
+      return tf.reshape(ret,self.sc.shape[1:])
+    return ret
   
   def lazy_init(self,theta):
-    a = np.arange(0,self.j2+1,1)
-    sintheta = np.sin(theta/2)
-    costheta = np.cos(theta/2)
-    a = np.tile(a,(theta.shape[0],1)).T
-    s = np.power(np.tile(sintheta,(self.j2+1,1)),a)
-    c = np.power(np.tile(costheta,(self.j2+1,1)),self.j2-a)
+    a = tf.range(0,self.j2+1)
+    sintheta = tf.sin(theta/2)
+    costheta = tf.cos(theta/2)
+    a = tf.reshape(a,(-1,1))
+    a = tf.cast(tf.tile(a,[1,theta.shape[0]]),dtype=theta.dtype)
+    s = tf.pow(tf.reshape(tf.tile(sintheta,[self.j2+1]),(self.j2+1,-1)),a)
+    c = tf.pow(tf.reshape(tf.tile(costheta,[self.j2+1]),(self.j2+1,-1)),self.j2-a)
     self.sc = s*c
     return self
   
@@ -83,11 +97,19 @@ class dfunctionJ(object):
     i_m2 = (m2+self.j2)//2
     return i_m1 * (self.j2+1) + i_m2
 
-  
   def lazy_call(self,m1,m2):
     m1 = self.get_right_spin(m1)
     m2 = self.get_right_spin(m2)
-    return np.dot(self.w[self.get_index(m1,m2)],self.sc)
+    tmpw = tf.gather(self.w,self.get_index(m1,m2))
+    tmpw = tf.cast(tmpw,self.sc.dtype)
+    sp = False
+    if len(tmpw.shape) == 1:
+      tmpw = tf.reshape(tmpw,(1,-1))
+      sp = True
+    ret = tf.matmul(tmpw ,self.sc)
+    if sp:
+      return tf.constant(tf.reshape(ret,self.sc.shape[1:]))
+    return tf.constant(ret)
 
 if __name__ == "__main__":
   a = dfunctionJ(3)

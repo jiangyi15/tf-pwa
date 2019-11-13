@@ -15,12 +15,14 @@ class Model:
     n_data = data[0].shape[0]
     n_bg = bg[0].shape[0]
     n_mc = mcdata[0].shape[0]
-    return -(ln_data - self.w_bkg * ln_bg - (n_data - self.w_bkg*n_bg) * int_mc)
+    alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
+    return - alpha *(ln_data - self.w_bkg * ln_bg - (n_data - self.w_bkg*n_bg) * int_mc)
   
   def nll_gradient(self,data,bg,mcdata,batch):
     n_data = data[0].shape[0]
     n_bg = bg[0].shape[0]
     n_mc = mcdata[0].shape[0]
+    alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
     N = len(data)
     data_warp = [tf.concat([data[i],bg[i]],0) for i in range(N)]
     data_weight = tf.concat([tf.ones(shape=(n_data,),dtype="float32"),-tf.ones(shape=(n_bg,),dtype="float32")*self.w_bkg],0)
@@ -28,8 +30,8 @@ class Model:
     nll,g = self.sum_gradient(data_warp,data_weight,batch,func=tf.math.log)
     s,g2 = self.sum_gradient(mcdata,1/n_mc,batch)
     for i in range(len(g)):
-      g[i] = -g[i] + sum_w * g2[i]/s
-    return -nll+sum_w*tf.math.log(s),g
+      g[i] = -alpha* (g[i] - sum_w * g2[i]/s)
+    return -alpha*(nll - sum_w*tf.math.log(s)),g
   
   def sum_gradient(self,data,weight=1.0,batch=1536,func = lambda x:x):
     data_i = []
@@ -124,9 +126,9 @@ class fcn(object):
     for i in range(n_var):
       train_vars[i].assign(x[i])
     nll,g = self.model.nll_gradient(self.data,self.bg,self.mc,self.batch)
-    self.grads = [ self.alpha * i.numpy() for i in g]
-    print("nll:",self.alpha * nll," time :",time.time() - now)
-    return self.alpha * nll
+    self.grads = [ i.numpy() for i in g]
+    print("nll:", nll," time :",time.time() - now)
+    return nll
   
   @functools.lru_cache()
   def grad(self,*x):
@@ -154,9 +156,9 @@ def main():
   with open("Resonances.json") as f:  
     config_list = json.load(f)
   a = Model(config_list,0.768331)
-  #with open("test.json") as f:  
-    #param = json.load(f)
-    #a.set_params(param)
+  with open("test.json") as f:  
+    param = json.load(f)
+    a.set_params(param)
   s = json.dumps(a.get_params(),indent=2)
   print(s)
   def load_data(fname):
@@ -174,10 +176,10 @@ def main():
   #a.Amp(data)
   #exit()
   #print(a.get_params())
-  #t = time.time()
-  #with tf.device('/device:GPU:0'):
-    #print("NLL:",a.nll(data,bg,mcdata))#.collect_params())
-  #print("Time:",time.time()-t)
+  t = time.time()
+  with tf.device('/device:GPU:0'):
+    print("NLL:",a.nll(data,bg,mcdata))#.collect_params())
+  print("Time:",time.time()-t)
   import iminuit 
   f = fcn(a,data,bg,mcdata,6780)# 1356*18
   args = {}
