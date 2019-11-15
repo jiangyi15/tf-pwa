@@ -116,6 +116,7 @@ class fcn(object):
     n_data = data[0].shape[0]
     n_bg = bg[0].shape[0]
     self.alpha = (n_data - w_bkg * n_bg)/(n_data + w_bkg**2 * n_bg)
+    
   def __call__(self,*x):
     now = time.time()
     if (not self.x is None) and self.x == x:
@@ -172,8 +173,14 @@ def main():
   data = load_data("./data/data_ang_n4.json")
   bg = load_data("./data/bg_ang_n4.json")
   mcdata = load_data("./data/PHSP_ang_n4.json")
+  data_cache = a.Amp.cache_data(*data)
+  bg_cache = a.Amp.cache_data(*bg)
+  mcdata_cache = a.Amp.cache_data(*mcdata)
+  
   #print(data,bg,mcdata)
-  #a.Amp(data)
+  t = time.time()
+  print(a.Amp(data_cache,cached=True))
+  print("Time:",time.time()-t)
   #exit()
   #print(a.get_params())
   t = time.time()

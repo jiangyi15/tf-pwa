@@ -318,5 +318,94 @@ class AllAmplitude(tf.keras.Model):
       sum_A = sum_A + sum_B
     return sum_A
   
-  def call(self,x):
+  def cache_data(self,m_BC, m_BD, m_CD, 
+      cosTheta_BC,cosTheta_B_BC, phi_BC, phi_B_BC,
+      cosTheta_BD,cosTheta_B_BD,phi_BD, phi_B_BD, 
+      cosTheta_CD,cosTheta_D_CD, phi_CD,phi_D_CD,
+      cosTheta_BD_B,cosTheta_BC_B,cosTheta_BD_D,cosTheta_CD_D,
+      phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2,split=None):
+    ang_BD_B = D_fun_Cache(phi_BD_B,tf.acos(cosTheta_BD_B), phi_BD_B2)
+    ang_BD_D = D_fun_Cache(phi_BD_D,tf.acos(cosTheta_BD_D), phi_BD_D2)
+    ang_BD = D_fun_Cache(phi_BD,tf.acos(cosTheta_BD), 0.0)
+    ang_B_BD = D_fun_Cache(phi_B_BD,tf.acos(cosTheta_B_BD), 0.0)
+    ang_BC_B = D_fun_Cache(phi_BC_B, tf.acos(cosTheta_BC_B),phi_BC_B2)
+    ang_BC = D_fun_Cache(phi_BC, tf.acos(cosTheta_BC),0.0)
+    ang_B_BC = D_fun_Cache(phi_B_BC, tf.acos(cosTheta_B_BC),0.0)
+    ang_CD_D = D_fun_Cache(phi_CD_D, tf.acos(cosTheta_CD_D),phi_CD_D2)
+    ang_CD = D_fun_Cache(phi_CD, tf.acos(cosTheta_CD),0.0)
+    ang_D_CD = D_fun_Cache(phi_D_CD, tf.acos(cosTheta_D_CD),0.0)
+    return [m_BC, m_BD, m_CD,ang_BD,ang_B_BD,ang_BD_B,ang_BD_D,ang_BC,ang_B_BC,ang_BC_B,ang_CD,ang_D_CD,ang_CD_D]
+  
+  def get_amp2s_cache(self,m_BC, m_BD, m_CD,ang_BD,ang_B_BD,ang_BD_B,ang_BD_D,ang_BC,ang_B_BC,ang_BC_B,ang_CD,ang_D_CD,ang_CD_D):
+    
+    res_cache = self.Get_BWReson(m_BC,m_BD,m_CD)
+    sum_A= 0.0#tf.zeros(shape=m_BC.shape)
+    for i_lambda_A in range(-self.JA,self.JA+1,2):
+      sum_B = 0.0#tf.zeros(shape=m_BC.shape)
+      for i_lambda_B in range(-self.JB,self.JB+1):
+        sum_C = 0.0#tf.zeros(shape=m_BC.shape)
+        for i_lambda_C in range(-self.JC,self.JC+1):
+          sum_D = 0.0#tf.zeros(shape=m_BC.shape)
+          for i_lambda_D in range( -self.JD,self.JD+1):
+            amp = complex(0.0,0.0)#zeros.copy()
+            for i in self.res:
+              amp_reson = complex(0.0,0.0)
+              # if(res[i]==0)continue;
+              chain = self.res[i]["Chain"]
+              if chain == 0:
+                continue
+              JReson = self.res[i]["J"]
+              ParReson = self.res[i]["Par"]
+              if chain < 0: # A->(DB)C
+                for i_lambda_BD in range(-JReson,JReson+1):
+                  for i_lambda_B_BD in range(-self.JB,self.JB+1):
+                    for i_lambda_D_BD in range(-self.JD,self.JD+1):
+                      angle_aligned = ang_BD_B(self.JB, i_lambda_B_BD, i_lambda_B) *\
+                                      ang_BD_D(self.JD, i_lambda_D_BD, i_lambda_D)#, phi_BD_D,cosTheta_BD_D, phi_BD_D2)
+                      H_A_DB_C = self.GetA2BC_LS(i, self.JA, JReson, self.JC, self.ParA, ParReson, self.ParC,
+                                    i_lambda_BD, i_lambda_C, 0,res_cache[i][0],res_cache[i][1],3.0)
+                      H_DB_D_B = self.GetA2BC_LS(i, JReson, self.JB, self.JD, ParReson, self.ParB, self.ParD,
+                                    i_lambda_B_BD, i_lambda_D_BD, 1,res_cache[i][2],res_cache[i][3],3.0)
+                      amp_reson = amp_reson + angle_aligned * \
+                          H_A_DB_C * ang_BD(self.JA, i_lambda_A, i_lambda_BD - i_lambda_C) * \
+                          H_DB_D_B * ang_B_BD(JReson, i_lambda_BD, i_lambda_B_BD - i_lambda_D_BD)#, phi_B_BD,cosTheta_B_BD,0.0)
+              elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
+                for i_lambda_B_BC in range(-self.JB,self.JB+1):
+                  for i_lambda_BC in range(-JReson,JReson+1):
+                    angle_aligned = ang_BC_B(self.JB, i_lambda_B_BC, i_lambda_B)#,phi_BC_B, cosTheta_BC_B,phi_BC_B2)
+
+                    H_A_BC_D = self.GetA2BC_LS(i, self.JA, JReson, self.JD, self.ParA, ParReson, self.ParD,
+                                  i_lambda_BC, i_lambda_D,0,res_cache[i][0],res_cache[i][1],3.0)
+                    H_BC_B_C = self.GetA2BC_LS(i, JReson, self.JB, self.JC, ParReson, self.ParB, self.ParC,
+                                  i_lambda_B_BC, i_lambda_C,1,res_cache[i][2],res_cache[i][3],3.0)
+                    amp_reson = amp_reson + angle_aligned * \
+                          H_A_BC_D * ang_BC(self.JA, i_lambda_A, i_lambda_BC - i_lambda_D) *\
+                          H_BC_B_C * ang_B_BC(JReson, i_lambda_BC, i_lambda_B_BC - i_lambda_C)
+                    #print(H_A_BC_D,Dfun_cos(self.JA, i_lambda_A, i_lambda_BC - i_lambda_D,phi_BC, cosTheta_BC,0.0))
+              elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
+                for i_lambda_CD in  range(-JReson,JReson+1):
+                  for i_lambda_D_CD in range(-self.JD,self.JD+1):
+                    angle_aligned = ang_CD_D(self.JD, i_lambda_D_CD, i_lambda_D)#,phi_CD_D, cosTheta_CD_D,phi_CD_D2)
+                    H_A_CD_B = self.GetA2BC_LS(i, self.JA, JReson, self.JB, self.ParA, ParReson, self.ParB,
+                                  i_lambda_CD, i_lambda_B, 0,res_cache[i][0],res_cache[i][1],3.0)
+                    H_CD_C_D = self.GetA2BC_LS(i, JReson, self.JD, self.JC, ParReson, self.ParD, self.ParC,
+                                  i_lambda_D_CD, i_lambda_C, 1,res_cache[i][2],res_cache[i][3],3.0)
+                    amp_reson = amp_reson + angle_aligned * \
+                          H_A_CD_B * ang_CD(self.JA, i_lambda_A, i_lambda_CD - i_lambda_B) * \
+                          H_CD_C_D * ang_D_CD(JReson, i_lambda_CD, i_lambda_D_CD - i_lambda_C)#,phi_D_CD,cosTheta_D_CD,0.0)
+              else:
+                pass
+                #std::cerr << "unknown chain" << std::endl;
+              #print(i,amp_reson , res_cache[i][-1])
+              amp = amp + amp_reson * res_cache[i][-1]
+            amp2 = amp.rho2()
+            sum_D = sum_D + amp2
+          sum_C = sum_C + sum_D
+        sum_B = sum_B + sum_C
+      sum_A = sum_A + sum_B
+    return sum_A
+  
+  def call(self,x,cached=False):
+    if cached:
+      return self.get_amp2s_cache(*x)
     return self.get_amp2s(*x)
