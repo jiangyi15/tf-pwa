@@ -33,6 +33,9 @@ class Vector3(object):
   def Unit(self):
     p = np.where(self.Norm() == 0.,self.data,self.data/self.Norm())
     return Vector3(p[0],p[1],p[2])
+  def ang_from(self,x,y):
+    return np.arctan2(self.Dot(y),self.Dot(x))
+
   def __repr__(self):
     return str(self.data)+"\n"
 
@@ -84,7 +87,8 @@ class LorentzVector(object):
     return LorentzVector(self.X-o.X,self.Y-o.Y,self.Z-o.Z,self.T-o.T)
   def __repr__(self):
     return str(self.p)+"\n"+str(self.e)+"\n"
-  
+
+
 class EularAngle(object):
   def __init__(self,alpha=0.0,beta=0.0,gamma=0.0):
     self.alpha = alpha
@@ -92,34 +96,35 @@ class EularAngle(object):
     self.gamma = gamma
 
   @staticmethod
-  def angle_zy_zy(z1,y1,z2,y2):
+  def angle_zx_zx(z1,x1,z2,x2):
     u_z1 = z1.Unit()
     u_z2 = z2.Unit()
-    u_x1 = y1.Cross(z1).Unit()
-    u_xr = z1.Cross(z2).Unit()
-    u_y1 = z1.Cross(u_x1).Unit()
-    u_yr = z1.Cross(u_xr).Unit()
-    u_x2 = y2.Cross(z2).Unit()
-    u_y2 = z2.Cross(u_x2).Unit()
-    alpha = np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
-    beta  = np.arctan2(u_z2.Dot(-u_yr),u_z2.Dot(u_z1))
-    gamma = -np.arctan2(u_xr.Dot(u_y2),u_xr.Dot(u_x2))
+    u_y1 = z1.Cross(x1).Unit()
+    u_x1 = u_y1.Cross(z1).Unit()
+    u_yr = z1.Cross(z2).Unit()
+    u_xr = u_yr.Cross(z1).Unit()
+    u_y2 = z2.Cross(x2).Unit()
+    u_x2 = u_y2.Cross(z2).Unit()
+    alpha = u_xr.ang_from(u_x1,u_y1)#np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
+    beta  = u_z2.ang_from(u_z1,u_xr)#np.arctan2(u_z2.Dot(u_xr),u_z2.Dot(u_z1))
+    gamma = -u_yr.ang_from(u_y2,-u_x2)#np.arctan2(u_xr.Dot(u_y2),u_xr.Dot(u_x2))
     return EularAngle(alpha,beta,gamma)
 
   
   @staticmethod
-  def angle_zy_z_gety(z1,y1,z2):
+  @pysnooper.snoop()
+  def angle_zx_z_gety(z1,x1,z2):
     u_z1 = z1.Unit()
-    u_x1 = y1.Cross(z1).Unit()
-    u_y1 = z1.Cross(u_x1).Unit()
-    u_xr = z1.Cross(z2).Unit()
-    u_yr = z1.Cross(u_xr).Unit()
     u_z2 = z2.Unit()
-    alpha = np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
-    beta  = np.arctan2(u_z2.Dot(-u_yr),u_z2.Dot(u_z1))
+    u_y1 = z1.Cross(x1).Unit()
+    u_x1 = u_y1.Cross(z1).Unit()
+    u_yr = z1.Cross(z2).Unit()
+    u_xr = u_yr.Cross(z1).Unit()
+    alpha = u_xr.ang_from(u_x1,u_y1)#np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
+    beta  = u_z2.ang_from(u_z1,u_xr)#np.arctan2(u_z2.Dot(u_xr),u_z2.Dot(u_z1))
     gamma = np.zeros_like(beta)
-    u_y2 = z2.Cross(u_xr).Unit()
-    return (EularAngle(alpha,beta,gamma),u_y2)
+    u_x2 = u_yr.Cross(u_z2).Unit()
+    return (EularAngle(alpha,beta,gamma),u_x2)
   def __repr__(self):
     return """{{
 "alpha":{},
@@ -147,18 +152,18 @@ def cal_angle_rest(p4_B,p4_C,p4_D):
   zeros = np.zeros_like(p4_B.e)
   ones = np.ones_like(p4_B.e)
   u_z = Vector3(zeros,zeros,ones)
-  u_y = Vector3(-ones,zeros,zeros)
-  ang_BC,y_BC = EularAngle.angle_zy_z_gety(u_z,u_y,p4_BC.Vect())
-  ang_B_BC,y_B_BC = EularAngle.angle_zy_z_gety(p4_BC.Vect(),y_BC,p4_B_BC.Vect())
-  ang_BD,y_BD = EularAngle.angle_zy_z_gety(u_z,u_y,p4_BD.Vect())
-  ang_B_BD,y_B_BD = EularAngle.angle_zy_z_gety(p4_BD.Vect(),y_BD,p4_B_BD.Vect())
-  ang_CD,y_CD = EularAngle.angle_zy_z_gety(u_z,u_y,p4_CD.Vect())
-  ang_D_CD,y_D_CD = EularAngle.angle_zy_z_gety(p4_CD.Vect(),y_CD,p4_D_CD.Vect())
+  u_x = Vector3(ones,zeros,zeros)
+  ang_BC,x_BC = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BC.Vect())
+  ang_B_BC,x_B_BC = EularAngle.angle_zx_z_gety(p4_BC.Vect(),x_BC,p4_B_BC.Vect())
+  ang_BD,x_BD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BD.Vect())
+  ang_B_BD,x_B_BD = EularAngle.angle_zx_z_gety(p4_BD.Vect(),x_BD,p4_B_BD.Vect())
+  ang_CD,x_CD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_CD.Vect())
+  ang_D_CD,x_D_CD = EularAngle.angle_zx_z_gety(p4_CD.Vect(),x_CD,p4_D_CD.Vect())
   
-  ang_BD_B = EularAngle.angle_zy_zy(p4_B_BD.Vect(),y_B_BD,p4_B.Vect(),-y_CD)
-  ang_BC_B = EularAngle.angle_zy_zy(p4_B_BC.Vect(),y_B_BC,p4_B.Vect(),-y_CD)
-  ang_BD_D = EularAngle.angle_zy_zy(-p4_B_BD.Vect(),-y_B_BD,p4_D.Vect(),-y_BC)
-  ang_CD_D = EularAngle.angle_zy_zy(p4_D_CD.Vect(),y_D_CD,p4_D.Vect(),-y_BC)
+  ang_BD_B = EularAngle.angle_zx_zx(p4_B_BD.Vect(),x_B_BD,p4_B.Vect(),-x_CD)
+  ang_BC_B = EularAngle.angle_zx_zx(p4_B_BC.Vect(),x_B_BC,p4_B.Vect(),-x_CD)
+  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect(),-x_B_BD,p4_D.Vect(),-x_BC)
+  ang_CD_D = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_D_CD,p4_D.Vect(),-x_BC)
   
   return {
     "ang_BC":ang_BC,  
@@ -190,6 +195,7 @@ if __name__ == "__main__":
   data = {}
   for i in range(3):
     data[t[i]] = cal_ang_file(f[i])
+  #print(data["data"])
   import json
   class MyEncoder(json.JSONEncoder):
     def default(self, obj):
