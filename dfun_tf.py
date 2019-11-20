@@ -4,6 +4,8 @@ import numpy as np
 import functools
 
 def float2int(x):
+  if x.dtype == np.int64 or x.dtype == np.int32:
+    return x
   return np.floor(x+0.001).astype(np.int64)
   
 class dfunctionJ(object):

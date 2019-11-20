@@ -18,20 +18,29 @@ class Model:
     alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
     return - alpha *(ln_data - self.w_bkg * ln_bg - (n_data - self.w_bkg*n_bg) * int_mc)
   
-  def nll_gradient(self,data,bg,mcdata,batch):
-    n_data = data[0].shape[0]
-    n_bg = bg[0].shape[0]
-    n_mc = mcdata[0].shape[0]
-    alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
-    N = len(data)
-    data_warp = [tf.concat([data[i],bg[i]],0) for i in range(N)]
-    data_weight = tf.concat([tf.ones(shape=(n_data,),dtype="float32"),-tf.ones(shape=(n_bg,),dtype="float32")*self.w_bkg],0)
-    sum_w = n_data - self.w_bkg * n_bg
-    nll,g = self.sum_gradient(data_warp,data_weight,batch,func=tf.math.log)
-    s,g2 = self.sum_gradient(mcdata,1/n_mc,batch)
-    for i in range(len(g)):
-      g[i] = -alpha* (g[i] - sum_w * g2[i]/s)
-    return -alpha*(nll - sum_w*tf.math.log(s)),g
+  def nll_gradient(self,data,bg,mcdata,batch,cached=False,n_data=None,n_bg=None,alpha=1.0):
+    if not cached:
+      n_data = data[0].shape[0]
+      n_bg = bg[0].shape[0]
+      n_mc = mcdata[0].shape[0]
+      alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
+      N = len(data)
+      data_warp = [tf.concat([data[i],bg[i]],0) for i in range(N)]
+      data_weight = tf.concat([tf.ones(shape=(n_data,),dtype="float32"),-tf.ones(shape=(n_bg,),dtype="float32")*self.w_bkg],0)
+      sum_w = n_data - self.w_bkg * n_bg
+      nll,g = self.sum_gradient(data_warp,data_weight,batch,func=tf.math.log)
+      s,g2 = self.sum_gradient(mcdata,1/n_mc,batch)
+      for i in range(len(g)):
+        g[i] = -alpha* (g[i] - sum_w * g2[i]/s)
+      return -alpha*(nll - sum_w*tf.math.log(s)),g
+    else:
+      with tf.GradientTape() as tape:
+        ln_data = tf.reduce_sum(tf.math.log(self.Amp(data,cached)))
+        ln_bg = tf.reduce_sum(tf.math.log(self.Amp(bg,cached)))
+        int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata,cached)))
+        nll = - alpha *(ln_data - self.w_bkg * ln_bg - (n_data - self.w_bkg*n_bg) * int_mc)
+      g = tape.gradient(nll,self.Amp.trainable_variables)
+      return nll,g
   
   def sum_gradient(self,data,weight=1.0,batch=1536,func = lambda x:x):
     data_i = []
@@ -103,7 +112,7 @@ class fcn(object):
   """
   provide FCN function and gradient for minuit
   """
-  def __init__(self,model,data,bg,mc,batch=16384):
+  def __init__(self,model,data,bg,mc,batch=16384,cached = True):
     self.model = model
     self.data = data
     self.bg = bg
@@ -113,9 +122,14 @@ class fcn(object):
     self.x = None
     self.nll = 0.0
     w_bkg = model.w_bkg
-    n_data = data[0].shape[0]
-    n_bg = bg[0].shape[0]
-    self.alpha = (n_data - w_bkg * n_bg)/(n_data + w_bkg**2 * n_bg)
+    self.n_data = data[0].shape[0]
+    self.n_bg = bg[0].shape[0]
+    self.alpha = (self.n_data - w_bkg * self.n_bg)/(self.n_data + w_bkg**2 * self.n_bg)
+    self.cached = cached
+    if cached:
+      self.data = model.Amp.cache_data(*data)
+      self.bg = model.Amp.cache_data(*bg)
+      self.mc = model.Amp.cache_data(*mc)
     
   def __call__(self,*x):
     now = time.time()
@@ -126,7 +140,7 @@ class fcn(object):
     n_var = len(train_vars)
     for i in range(n_var):
       train_vars[i].assign(x[i])
-    nll,g = self.model.nll_gradient(self.data,self.bg,self.mc,self.batch)
+    nll,g = self.model.nll_gradient(self.data,self.bg,self.mc,self.batch,self.cached,self.n_data,self.n_bg,self.alpha)
     self.grads = [ i.numpy() for i in g]
     print("nll:", nll," time :",time.time() - now)
     return nll
@@ -180,13 +194,14 @@ def main():
   #print(data,bg,mcdata)
   t = time.time()
   print(a.Amp(data_cache,cached=True))
+  #exit()
   print("Time:",time.time()-t)
   #exit()
   #print(a.get_params())
-  t = time.time()
-  with tf.device('/device:GPU:0'):
-    print("NLL:",a.nll(data,bg,mcdata))#.collect_params())
-  print("Time:",time.time()-t)
+  #t = time.time()
+  #with tf.device('/device:GPU:0'):
+    #print("NLL:",a.nll(data,bg,mcdata))#.collect_params())
+  #print("Time:",time.time()-t)
   import iminuit 
   f = fcn(a,data,bg,mcdata,6780)# 1356*18
   args = {}
