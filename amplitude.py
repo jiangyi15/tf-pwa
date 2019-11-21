@@ -573,7 +573,7 @@ class AllAmplitude(tf.keras.Model):
         aligned_B = ang_BD_B(1)
         aligned_D = ang_BD_D(1)
         s = tf.einsum("rci,bdi,arci,rbdi,bxi,dyi->axcyi",H_0,H_1,df_a,df_b,aligned_B,aligned_D)
-        ret.append(s)
+        ret.append(s*res_cache[i][-1])
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -582,7 +582,7 @@ class AllAmplitude(tf.keras.Model):
         df_b = ang_B_BC.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
         aligned_B = ang_BC_B(1)
         s = tf.einsum("rdi,bci,ardi,rbci,bxi->axcdi",H_0,H_1,df_a,df_b,aligned_B)
-        ret.append(s)
+        ret.append(s*res_cache[i][-1])
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -591,7 +591,7 @@ class AllAmplitude(tf.keras.Model):
         df_b = ang_D_CD.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
         aligned_D = ang_CD_D(1)
         s = tf.einsum("rbi,dci,arbi,rdci,dyi->abcyi",H_0,H_1,df_a,df_b,aligned_D)
-        ret.append(s)
+        ret.append(s*res_cache[i][-1])
       else:
         pass
         #std::cerr << "unknown chain" << std::endl
