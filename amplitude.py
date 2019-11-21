@@ -292,7 +292,8 @@ class AllAmplitude(tf.keras.Model):
         q0 = Getp(m, self.m0_B, self.m0_D)
         l = GetMinL(J_reson, self.JB, self.JD,
                     P_reson, self.ParB, self.ParD)
-        ret[i] = [p,p0,q,q0,BW(m_BD, m, g, q, q0, l, 3.0)]
+        bw = BW(m_BD, m, g, q, q0, l, 3.0)
+        ret[i] = [p,p0,q,q0,tf.complex(bw.r,bw.i)]
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         p = Getp(self.m0_A, m_BC, self.m0_D)
         p0 = Getp(self.m0_A, m, self.m0_D)
@@ -300,7 +301,8 @@ class AllAmplitude(tf.keras.Model):
         q0 = Getp(m, self.m0_B, self.m0_C)
         l = GetMinL(J_reson, self.JB, self.JC,
                     P_reson, self.ParB, self.ParC)
-        ret[i] = [p,p0,q,q0,BW(m_BC, m, g, q, q0, l, 3.0)]
+        bw = BW(m_BC, m, g, q, q0, l, 3.0)
+        ret[i] = [p,p0,q,q0,tf.complex(bw.r,bw.i)]
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         p = Getp(self.m0_A, m_CD, self.m0_B)
         p0 = Getp(self.m0_A, m, self.m0_B)
@@ -308,7 +310,8 @@ class AllAmplitude(tf.keras.Model):
         q0 = Getp(m, self.m0_C, self.m0_D)
         l = GetMinL(J_reson, self.JC, self.JD,
                     P_reson, self.ParC, self.ParD)
-        ret[i] = [p,p0,q,q0,BW(m_CD, m, g, q, q0, l, 3.0)]
+        bw = BW(m_CD, m, g, q, q0, l, 3.0)
+        ret[i] = [p,p0,q,q0,tf.complex(bw.r,bw.i)]
       else :
         raise "unknown chain"
         ret[i]= complex(0, 0);
@@ -572,8 +575,8 @@ class AllAmplitude(tf.keras.Model):
         df_b = ang_B_BD.get_lambda(JReson,lambda_BD,[-1,0,1],[-1,0,1])
         aligned_B = ang_BD_B(1)
         aligned_D = ang_BD_D(1)
-        s = tf.einsum("rci,bdi,arci,rbdi,bxi,dyi->axcyi",H_0,H_1,df_a,df_b,aligned_B,aligned_D)
-        ret.append(s*res_cache[i][-1])
+        s = tf.einsum("rci,bdi,arci,rbdi,bxi,dyi,i->axcyi",H_0,H_1,df_a,df_b,aligned_B,aligned_D,res_cache[i][-1])
+        ret.append(s)
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -581,8 +584,8 @@ class AllAmplitude(tf.keras.Model):
         df_a = ang_BC.get_lambda(1,[-1,1],lambda_BD,[-1,0,1])
         df_b = ang_B_BC.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
         aligned_B = ang_BC_B(1)
-        s = tf.einsum("rdi,bci,ardi,rbci,bxi->axcdi",H_0,H_1,df_a,df_b,aligned_B)
-        ret.append(s*res_cache[i][-1])
+        s = tf.einsum("rdi,bci,ardi,rbci,bxi,i->axcdi",H_0,H_1,df_a,df_b,aligned_B,res_cache[i][-1])
+        ret.append(s)
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -590,11 +593,13 @@ class AllAmplitude(tf.keras.Model):
         df_a = ang_CD.get_lambda(1,[-1,1],lambda_BD,[-1,0,1])
         df_b = ang_D_CD.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
         aligned_D = ang_CD_D(1)
-        s = tf.einsum("rbi,dci,arbi,rdci,dyi->abcyi",H_0,H_1,df_a,df_b,aligned_D)
-        ret.append(s*res_cache[i][-1])
+        s = tf.einsum("rbi,dci,arbi,rdci,dyi,i->abcyi",H_0,H_1,df_a,df_b,aligned_D,res_cache[i][-1])
+        ret.append(s)
       else:
         pass
         #std::cerr << "unknown chain" << std::endl
+    ret = tf.stack(ret)
+    print(ret)
     amp = tf.reduce_sum(ret,axis=0)
     amp2s = tf.pow(tf.abs(amp),2)
     sum_A = tf.reduce_sum(amp2s,[0,1,2,3])
