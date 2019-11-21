@@ -128,8 +128,8 @@ def Dfun_all(j,alpha,beta,gamma):
   m = tf.range(-j,j+1)
   m1,m2=tf.meshgrid(m,m)
   d = d_fun(m1,m2,beta)
-  expi_alpha = tf.reshape(ExpI_all(j,gamma),(2*j+1,1,-1))
-  expi_gamma = tf.reshape(ExpI_all(j,alpha),(1,2*j+1,-1))
+  expi_alpha = tf.reshape(ExpI_all(j,alpha),(2*j+1,1,-1))
+  expi_gamma = tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1))
   a = tf.tile(expi_alpha,[1,2*j+1,1])
   b = tf.tile(expi_gamma,[2*j+1,1,1])
   return a*b * tf.complex(d,0.0)
@@ -599,7 +599,6 @@ class AllAmplitude(tf.keras.Model):
         pass
         #std::cerr << "unknown chain" << std::endl
     ret = tf.stack(ret)
-    print(ret)
     amp = tf.reduce_sum(ret,axis=0)
     amp2s = tf.pow(tf.abs(amp),2)
     sum_A = tf.reduce_sum(amp2s,[0,1,2,3])

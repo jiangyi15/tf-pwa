@@ -37,10 +37,16 @@ class Model:
       with tf.GradientTape() as tape:
         ln_data = tf.reduce_sum(tf.math.log(self.Amp(data,cached)))
         ln_bg = tf.reduce_sum(tf.math.log(self.Amp(bg,cached)))
+        nll_1 = - alpha *(ln_data - self.w_bkg * ln_bg)
+      g_1 = tape.gradient(nll_1,self.Amp.trainable_variables)
+      with tf.GradientTape() as tape:
         int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata,cached)))
-        nll = - alpha *(ln_data - self.w_bkg * ln_bg - (n_data - self.w_bkg*n_bg) * int_mc)
-      g = tape.gradient(nll,self.Amp.trainable_variables)
-      return nll,g
+        nll_2 = alpha * (n_data - self.w_bkg*n_bg) * int_mc
+      g_2 = tape.gradient(nll_2,self.Amp.trainable_variables)
+      g = [None]*len(g_1)
+      for i in range(len(g_1)):
+        g[i] = g_1[i] + g_2[i]
+      return nll_1 + nll_2,g
   
   def sum_gradient(self,data,weight=1.0,batch=1536,func = lambda x:x):
     data_i = []
