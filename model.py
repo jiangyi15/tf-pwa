@@ -18,7 +18,7 @@ class Model:
     alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
     return - alpha *(ln_data - self.w_bkg * ln_bg - (n_data - self.w_bkg*n_bg) * int_mc)
   
-  def nll_gradient(self,data,bg,mcdata,batch,cached=False,n_data=None,n_bg=None,alpha=1.0):
+  def nll_gradient(self,data,bg,mcdata,batch,cached=False,n_data=None,n_bg=None,n_mc=None,alpha=1.0):
     if not cached:
       n_data = data[0].shape[0]
       n_bg = bg[0].shape[0]
@@ -34,21 +34,29 @@ class Model:
         g[i] = -alpha* (g[i] - sum_w * g2[i]/s)
       return -alpha*(nll - sum_w*tf.math.log(s)),g
     else:
-      with tf.GradientTape() as tape:
+      val = self.Amp.trainable_variables
+      with tf.GradientTape() as tape1:
         ln_data = tf.reduce_sum(tf.math.log(self.Amp(data,cached)))
         ln_bg = tf.reduce_sum(tf.math.log(self.Amp(bg,cached)))
         nll_1 = - alpha *(ln_data - self.w_bkg * ln_bg)
-      g_1 = tape.gradient(nll_1,self.Amp.trainable_variables)
-      with tf.GradientTape() as tape:
-        int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata,cached)))
-        nll_2 = alpha * (n_data - self.w_bkg*n_bg) * int_mc
-      g_2 = tape.gradient(nll_2,self.Amp.trainable_variables)
-      g = [None]*len(g_1)
-      for i in range(len(g_1)):
-        g[i] = g_1[i] + g_2[i]
-      return nll_1 + nll_2,g
+      g = tape1.gradient(nll_1,val)
+      int_mc = 0.0
+      g_1 = [0.0]*len(g)
+      for mcdata_i in mcdata:
+        with tf.GradientTape() as tape2:
+          amp2s = self.Amp(mcdata_i,cached)/n_mc
+          int_mc_i = tf.reduce_sum(amp2s)
+        g_2 = tape2.gradient(int_mc_i,val)
+        int_mc = int_mc + int_mc_i
+        for i in range(len(g_1)):
+          g_1[i] = g_1[i] +  g_2[i]
+      sum_w = alpha * (n_data - self.w_bkg * n_bg)
+      norm_mc = int_mc
+      for i in range(len(g)):
+          g[i] = g[i] + sum_w * g_1[i]/norm_mc
+      return nll_1 + sum_w *tf.math.log(norm_mc),g
   
-  def sum_gradient(self,data,weight=1.0,batch=1536,func = lambda x:x):
+  def sum_gradient(self,data,weight=1.0,batch=1536,func = lambda x:x,cached=False):
     data_i = []
     N = len(data)
     n_data = data[0].shape[0]
@@ -130,33 +138,35 @@ class fcn(object):
     w_bkg = model.w_bkg
     self.n_data = data[0].shape[0]
     self.n_bg = bg[0].shape[0]
+    self.n_mc = mc[0].shape[0]
     self.alpha = (self.n_data - w_bkg * self.n_bg)/(self.n_data + w_bkg**2 * self.n_bg)
     self.cached = cached
     if cached:
       self.data = model.Amp.cache_data(*data)
       self.bg = model.Amp.cache_data(*bg)
-      self.mc = model.Amp.cache_data(*mc)
+      self.mc = model.Amp.cache_data(*mc,split=1)
     
   def __call__(self,*x):
     now = time.time()
-    if (not self.x is None) and self.x == x:
+    if (not self.x is None) and self.x is x:
       return self.nll
     self.x = x
     train_vars = self.model.Amp.trainable_variables
     n_var = len(train_vars)
     for i in range(n_var):
       train_vars[i].assign(x[i])
-    nll,g = self.model.nll_gradient(self.data,self.bg,self.mc,self.batch,self.cached,self.n_data,self.n_bg,self.alpha)
+    nll,g = self.model.nll_gradient(self.data,self.bg,self.mc,self.batch,self.cached,self.n_data,self.n_bg,self.n_mc,self.alpha)
     self.grads = [ i.numpy() for i in g]
     print("nll:", nll," time :",time.time() - now)
     return nll
   
-  @functools.lru_cache()
+
   def grad(self,*x):
-    if (not self.x is None) and self.x == x:
-      return self.grads
+    print("grad:", self.grads)
+    if (not self.x is None) and self.x is x:
+      return tuple(self.grads)
     self(*x)
-    return self.grads
+    return tuple(self.grads)
   
 def set_gpu_mem_growth():
   gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -195,34 +205,38 @@ def main():
   mcdata = load_data("./data/PHSP_ang_n4.json")
   data_cache = a.Amp.cache_data(*data)
   bg_cache = a.Amp.cache_data(*bg)
-  mcdata_cache = a.Amp.cache_data(*mcdata)
-  
+  mcdata_cache = a.Amp.cache_data(*mcdata,split=3)
   #print(data,bg,mcdata)
   t = time.time()
-  print(a.Amp(data_cache,cached=True))
+  print(a.Amp(mcdata_cache[0],cached=True))
   #exit()
   print("Time:",time.time()-t)
   #exit()
   #print(a.get_params())
   #t = time.time()
-  #with tf.device('/device:GPU:0'):
-    #print("NLL:",a.nll(data,bg,mcdata))#.collect_params())
+  #with tf.device('/device:CPU:0'):
+      #with tf.GradientTape() as tape:
+        #nll = a.nll(data,bg,mcdata)
+      #g = tape.gradient(nll,a.Amp.trainable_variables)
   #print("Time:",time.time()-t)
+  #print(nll,g)
   import iminuit 
   f = fcn(a,data,bg,mcdata,6780)# 1356*18
   args = {}
   args_name = []
+  x0 = []
   for i in a.Amp.trainable_variables:
     args[i.name] = i.numpy()
+    x0.append(i.numpy())
     args_name.append(i.name)
     args["error_"+i.name] = 0.1
-  m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,print_level=2,grad=f.grad,**args)
+  m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,**args)
   now = time.time()
   with tf.device('/device:GPU:0'):
     m.migrad()
   print(time.time() - now)
   m.get_param_states()
-  m.hesse()
+  m.minos()
   m.get_param_states()
   with tf.device('/device:GPU:0'):
     print(a.nll(data,bg,mcdata))#.collect_params())
