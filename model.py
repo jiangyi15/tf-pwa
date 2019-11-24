@@ -144,9 +144,10 @@ class fcn(object):
     if cached:
       self.data = model.Amp.cache_data(*data)
       self.bg = model.Amp.cache_data(*bg)
-      self.mc = model.Amp.cache_data(*mc,split=1)
+      self.mc = model.Amp.cache_data(*mc,split=2)
     
   def __call__(self,*x):
+    #print(x)
     now = time.time()
     if (not self.x is None) and self.x is x:
       return self.nll
@@ -162,7 +163,7 @@ class fcn(object):
   
 
   def grad(self,*x):
-    print("grad:", self.grads)
+    #print("grad:", self.grads)
     if (not self.x is None) and self.x is x:
       return tuple(self.grads)
     self(*x)
@@ -183,13 +184,15 @@ def set_gpu_mem_growth():
 
 def main():
   import json
+  dtype = "float64"
   set_gpu_mem_growth()
+  tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
   a = Model(config_list,0.768331)
-  with open("test.json") as f:  
-    param = json.load(f)
-    a.set_params(param)
+  #with open("test.json") as f:  
+    #param = json.load(f)
+    #a.set_params(param)
   s = json.dumps(a.get_params(),indent=2)
   print(s)
   def load_data(fname):
@@ -197,7 +200,7 @@ def main():
     with open(fname) as f:
       tmp = json.load(f)
       for i in param_list:
-        tmp_data = tf.Variable(tmp[i],name=i)
+        tmp_data = tf.Variable(tmp[i],name=i,dtype=dtype)
         dat.append(tmp_data)
     return dat
   data = load_data("./data/data_ang_n4.json")
@@ -230,10 +233,11 @@ def main():
     x0.append(i.numpy())
     args_name.append(i.name)
     args["error_"+i.name] = 0.1
+  args["limit_Zc_4160_m0:0"] = (4.1,4.22)
   m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,**args)
   now = time.time()
   with tf.device('/device:GPU:0'):
-    m.migrad()
+    m.migrad(ncall=500,precision=5e-7)
   print(time.time() - now)
   m.get_param_states()
   m.minos()

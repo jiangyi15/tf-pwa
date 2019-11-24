@@ -32,16 +32,16 @@ def Getp(M_0, M_1, M_2) :
 def BW(m, m0,g0,q,q0,L,d):
   gamma = Gamma(m, g0, q, q0, L, m0, d)
   num = complex(1, 0)
-  denom = complex((m0 + m) * (m0 - m), -m0 * gamma)
-  return denom.inverse()
+  denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
+  return 1.0/denom
 
 def Gamma(m, gamma0, q, q0, L, m0,d):
-  gammaM = gamma0 * (q / q0)**(2 * L + 1) * (m0 / m) * Bprime(L, q, q0, d)**2
+  gammaM = gamma0 * (q / tf.cast(q0,q.dtype))**(2 * L + 1) * (tf.cast(m0,m.dtype) / m) * Bprime(L, q, q0, d)**2
   return gammaM
 
 def Bprime(L, q, q0, d):
   z = (q * d)**2
-  z0 = (q0 * d)**2
+  z0 = (tf.cast(q0,q.dtype) * d)**2
   if L == 0:
     return 1.0
   if L == 1:
@@ -118,6 +118,8 @@ def ExpI_all(maxJ,phi):
   a = tf.range(-maxJ,maxJ+1,1.0)
   a = tf.reshape(a,(-1,1))
   phi = tf.reshape(phi,(1,-1))
+  if not isinstance(phi,float):
+    a = tf.cast(a,phi.dtype)
   mphi = tf.matmul(a,phi)
   sinphi = tf.sin(mphi)
   cosphi = tf.cos(mphi)
@@ -129,10 +131,10 @@ def Dfun_all(j,alpha,beta,gamma):
   m1,m2=tf.meshgrid(m,m)
   d = d_fun(m1,m2,beta)
   expi_alpha = tf.reshape(ExpI_all(j,alpha),(2*j+1,1,-1))
-  expi_gamma = tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1))
+  expi_gamma = tf.cast(tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1)),expi_alpha.dtype)
   #a = tf.tile(expi_alpha,[1,2*j+1,1])
   #b = tf.tile(expi_gamma,[2*j+1,1,1])
-  return expi_alpha*expi_gamma * tf.complex(d,0.0)
+  return expi_alpha*expi_gamma * tf.complex(d,tf.zeros_like(d))
 
 def delta_D_trans(j,la,lb,lc):
   """
@@ -173,6 +175,14 @@ class D_Cache(object):
     d = self(j)
     return Dfun_delta(j,la,lb,lc,d)
 
+def fix_value(x):
+  def f(shape=None,dtype=None):
+    if dtype is not None:
+      return tf.Variable(x,dtype=dtype)
+    return x
+  return f
+
+
 class AllAmplitude(tf.keras.Model):
   def __init__(self,res):
     super(AllAmplitude,self).__init__()
@@ -193,6 +203,7 @@ class AllAmplitude(tf.keras.Model):
     self.C = Particle("C",self.m0_C,0,self.JC,self.ParC)
     self.D = Particle("D",self.m0_D,0,self.JD,self.ParD)
     self.res = res.copy()
+    self.res["Zc_4160"]["m0"] = self.add_weight(name="Zc_4160_m0",initializer=fix_value(self.res["Zc_4160"]["m0"]))
     self.res_decay = self.init_res_decay()
     self.coef = {}
     self.res_cache = {}
@@ -293,7 +304,7 @@ class AllAmplitude(tf.keras.Model):
         l = GetMinL(J_reson, self.JB, self.JD,
                     P_reson, self.ParB, self.ParD)
         bw = BW(m_BD, m, g, q, q0, l, 3.0)
-        ret[i] = [p,p0,q,q0,tf.complex(bw.r,bw.i)]
+        ret[i] = [p,p0,q,q0,bw]
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         p = Getp(self.m0_A, m_BC, self.m0_D)
         p0 = Getp(self.m0_A, m, self.m0_D)
@@ -302,7 +313,7 @@ class AllAmplitude(tf.keras.Model):
         l = GetMinL(J_reson, self.JB, self.JC,
                     P_reson, self.ParB, self.ParC)
         bw = BW(m_BC, m, g, q, q0, l, 3.0)
-        ret[i] = [p,p0,q,q0,tf.complex(bw.r,bw.i)]
+        ret[i] = [p,p0,q,q0,bw]
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         p = Getp(self.m0_A, m_CD, self.m0_B)
         p0 = Getp(self.m0_A, m, self.m0_B)
@@ -311,7 +322,7 @@ class AllAmplitude(tf.keras.Model):
         l = GetMinL(J_reson, self.JC, self.JD,
                     P_reson, self.ParC, self.ParD)
         bw = BW(m_CD, m, g, q, q0, l, 3.0)
-        ret[i] = [p,p0,q,q0,tf.complex(bw.r,bw.i)]
+        ret[i] = [p,p0,q,q0,bw]
       else :
         raise "unknown chain"
         ret[i]= complex(0, 0);
