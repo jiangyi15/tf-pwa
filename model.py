@@ -26,7 +26,7 @@ class Model:
       alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
       N = len(data)
       data_warp = [tf.concat([data[i],bg[i]],0) for i in range(N)]
-      data_weight = tf.concat([tf.ones(shape=(n_data,),dtype="float32"),-tf.ones(shape=(n_bg,),dtype="float32")*self.w_bkg],0)
+      data_weight = tf.concat([tf.ones(shape=(n_data,),dtype=data[0].dtype),-tf.ones(shape=(n_bg,),dtype=data[0].dtype)*self.w_bkg],0)
       sum_w = n_data - self.w_bkg * n_bg
       nll,g = self.sum_gradient(data_warp,data_weight,batch,func=tf.math.log)
       s,g2 = self.sum_gradient(mcdata,1/n_mc,batch)
@@ -78,7 +78,7 @@ class Model:
       with tf.GradientTape() as tape:
         amp2s = self.Amp(data_i[i])
         l_a = func(amp2s)
-        p_nll = tf.reduce_sum(data_wi[i] * l_a)
+        p_nll = tf.reduce_sum(tf.cast(data_wi[i],l_a.dtype) * l_a)
       nll += p_nll
       a = tape.gradient(p_nll,self.Amp.trainable_variables)
       if g is None:
@@ -97,8 +97,10 @@ class Model:
   
   def set_params(self,param):
     for i in self.Amp.trainable_variables:
-      tmp = param[i.name]
-      i.assign(tmp)
+      for j in param:
+        if j == i.name:
+          tmp = param[i.name]
+          i.assign(tmp)
 
 param_list = [
   "m_BC", "m_BD", "m_CD", 
@@ -184,15 +186,15 @@ def set_gpu_mem_growth():
 
 def main():
   import json
-  dtype = "float64"
+  dtype = "float32"
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
   a = Model(config_list,0.768331)
-  #with open("test.json") as f:  
-    #param = json.load(f)
-    #a.set_params(param)
+  with open("test.json") as f:  
+    param = json.load(f)
+    a.set_params(param)
   s = json.dumps(a.get_params(),indent=2)
   print(s)
   def load_data(fname):
@@ -222,7 +224,8 @@ def main():
         #nll = a.nll(data,bg,mcdata)
       #g = tape.gradient(nll,a.Amp.trainable_variables)
   #print("Time:",time.time()-t)
-  #print(nll,g)
+  #print(nll,list(zip([i.name for i in a.Amp.trainable_variables],[i.numpy() for i in g])))
+  #exit()
   import iminuit 
   f = fcn(a,data,bg,mcdata,6780)# 1356*18
   args = {}
@@ -239,9 +242,14 @@ def main():
   with tf.device('/device:GPU:0'):
     m.migrad(ncall=500,precision=5e-7)
   print(time.time() - now)
-  m.get_param_states()
-  m.minos()
-  m.get_param_states()
+  print(m.get_param_states())
+  with open("final_params.json","w") as f:
+    json.dump(a.get_params(),f,indent=2)
+  try :
+    print(m.minos())
+  except:
+    pass
+  print(m.get_param_states())
   with tf.device('/device:GPU:0'):
     print(a.nll(data,bg,mcdata))#.collect_params())
   print(a.Amp.trainable_variables)

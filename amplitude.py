@@ -432,8 +432,14 @@ class AllAmplitude(tf.keras.Model):
         aligned_D = ang_BD_D(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        s = tf.einsum("arci,rbdi,bxi,dyi,i->axcyi",HD1,HD2,aligned_B,aligned_D,res_cache[i][-1])
-        ret.append(s)
+        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,3,-1))
+        abcdi = tf.reduce_sum(arbcdi,1)
+        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
+        abcdi = tf.reduce_sum(abxcdi,1)
+        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
+        abcdi = tf.reduce_sum(abcdyi,3)
+        #s = tf.einsum("abcdi,bxi,dyi,i->axcyi",ad,aligned_B,aligned_D,res_cache[i][-1])
+        ret.append(abcdi*res_cache[i][-1])
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -443,8 +449,12 @@ class AllAmplitude(tf.keras.Model):
         aligned_B = ang_BC_B(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        s = tf.einsum("ardi,rbci,bxi,i->axcdi",HD1,HD2,aligned_B,res_cache[i][-1])
-        ret.append(s)
+        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,3,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,1,-1))
+        abcdi = tf.reduce_sum(arbcdi,1)
+        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
+        abcdi = tf.reduce_sum(abxcdi,1)
+        #s = tf.einsum("ardi,rbci,bxi,i->axcdi",HD1,HD2,aligned_B,res_cache[i][-1])
+        ret.append(abcdi*res_cache[i][-1])
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -454,14 +464,18 @@ class AllAmplitude(tf.keras.Model):
         aligned_D = ang_CD_D(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        s = tf.einsum("arbi,rdci,dyi,i->abcyi",HD1,HD2,aligned_D,res_cache[i][-1])
-        ret.append(s)
+        arbcdi = tf.reshape(HD1,(2,JReson*2+1,3,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,1,1,3,-1))
+        abcdi = tf.reduce_sum(arbcdi,1)
+        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
+        abcdi = tf.reduce_sum(abcdyi,3)
+        #s = tf.einsum("arbi,rdci,dyi,i->abcyi",HD1,HD2,aligned_D,res_cache[i][-1])
+        ret.append(abcdi*res_cache[i][-1])
       else:
         pass
         #std::cerr << "unknown chain" << std::endl
     ret = tf.stack(ret)
     amp = tf.reduce_sum(ret,axis=0)
-    amp2s = tf.pow(tf.abs(amp),2)
+    amp2s = tf.math.real(amp*tf.math.conj(amp))
     sum_A = tf.reduce_sum(amp2s,[0,1,2,3])
     return sum_A
   
@@ -521,7 +535,14 @@ class AllAmplitude(tf.keras.Model):
         aligned_D = ang_BD_D(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        s = tf.einsum("arci,rbdi,bxi,dyi->axcyi",HD1,HD2,aligned_B,aligned_D)
+        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,3,-1))
+        abcdi = tf.reduce_sum(arbcdi,1)
+        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
+        abcdi = tf.reduce_sum(abxcdi,1)
+        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
+        abcdi = tf.reduce_sum(abcdyi,3)
+        s = abcdi
+        #s = tf.einsum("arci,rbdi,bxi,dyi->axcyi",HD1,HD2,aligned_B,aligned_D)
         ret.append(s*res_cache[i][-1])
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         lambda_BD = list(range(-JReson,JReson+1))
@@ -532,7 +553,12 @@ class AllAmplitude(tf.keras.Model):
         aligned_B = ang_BC_B(1)        
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        s = tf.einsum("ardi,rbci,bxi->axcdi",HD1,HD2,aligned_B)
+        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,3,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,1,-1))
+        abcdi = tf.reduce_sum(arbcdi,1)
+        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
+        abcdi = tf.reduce_sum(abxcdi,1)
+        s = abcdi
+        #s = tf.einsum("ardi,rbci,bxi->axcdi",HD1,HD2,aligned_B)
         ret.append(s*res_cache[i][-1])
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_BD = list(range(-JReson,JReson+1))
@@ -543,7 +569,12 @@ class AllAmplitude(tf.keras.Model):
         aligned_D = ang_CD_D(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        s = tf.einsum("arbi,rdci,dyi->abcyi",HD1,HD2,aligned_D)
+        arbcdi = tf.reshape(HD1,(2,JReson*2+1,3,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,1,1,3,-1))
+        abcdi = tf.reduce_sum(arbcdi,1)
+        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
+        abcdi = tf.reduce_sum(abcdyi,3)
+        s = abcdi 
+        #s = tf.einsum("arbi,rdci,dyi->abcyi",HD1,HD2,aligned_D)
         ret.append(s*res_cache[i][-1])
       else:
         pass
