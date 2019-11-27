@@ -4,6 +4,7 @@ from model import *
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import interpolate
 
 def config_split(config):
   ret = {}
@@ -11,10 +12,14 @@ def config_split(config):
     ret[i] = {i:config[i]}
   return ret
 
-def hist_line(data,weights,bins,range=None):
-  y,x = np.histogram(data,bins=bins,range=range,weights=weights)
+def hist_line(data,weights,bins,xrange=None,inter = 1):
+  y,x = np.histogram(data,bins=bins,range=xrange,weights=weights)
   x = (x[:-1] + x[1:])/2
-  return x,y
+  func = interpolate.interp1d(x,y,kind="quadratic")
+  delta = (xrange[1]-xrange[0])/bins/inter
+  xnew = np.arange(x[0],x[-1],delta)
+  ynew = func(xnew)
+  return xnew,ynew
 
 def pprint(dicts):
   s = json.dumps(dicts,indent=2)
@@ -22,19 +27,19 @@ def pprint(dicts):
 
 params_config = {
   "m_BC":{
-    "range":(2.15,2.65),
+    "xrange":(2.15,2.65),
     "display":"$m_{ {D*}^{-}\pi^{+} }$",
     "bins":50,
     "units":"Gev",
   },
   "m_BD":{
-    "range":(4.0,4.47),
+    "xrange":(4.0,4.47),
     "display":"$m_{ {D*}^{-}{D*}^{0} }$",
     "bins":47,
     "units":"GeV"
   },
   "m_CD":{
-    "range":(2.15,2.65),
+    "xrange":(2.15,2.65),
     "display":"$m_{ {D*}^{0}\pi^{+} }$",
     "bins":50,
     "units":"GeV"
@@ -88,23 +93,27 @@ def main(params_file="final_params.json"):
     fitFrac[i] = a_weight[i].sum()/(n_data - w_bkg*n_bg)
   print("FitFractions:")
   pprint(fitFrac)
-  def plot_params(name,bins=None,range=None,idx=0,display=None,units="GeV"):
+  def plot_params(name,bins=None,xrange=None,idx=0,display=None,units="GeV"):
+    inter = 2
     if display is None: display=name
     plt.clf()
-    plt.hist(data[idx].numpy(),range=range,bins=bins,histtype="step",label="data")
-    plt.hist(bg[idx].numpy(),range=range,bins=bins,histtype="step",weights=[w_bkg]*n_bg,label="bg")
+    plt.hist(data[idx].numpy(),range=xrange,bins=bins,histtype="step",label="data")
+    plt.hist(bg[idx].numpy(),range=xrange,bins=bins,histtype="step",weights=[w_bkg]*n_bg,label="bg")
     mc_bg = np.append(bg[idx].numpy(),mcdata[idx].numpy())
     mc_bg_w = np.append([w_bkg]*n_bg,total.numpy()*norm_int)
-    x_mc,y_mc = hist_line(mc_bg,mc_bg_w,bins,range)
+    x_mc,y_mc = hist_line(mc_bg,mc_bg_w,bins,xrange)
     plt.plot(x_mc,y_mc,label="total fit")
     for i in config_res:
       weights = a_weight[i]
-      x,y = hist_line(mcdata[idx].numpy(),weights,bins,range)
+      x,y = hist_line(mcdata[idx].numpy(),weights,bins,xrange,inter)
       y = y#/2 #TODO
       plt.plot(x,y,label=i)
     plt.legend()
     plt.ylabel("events/({:.3f} {})".format((x_mc[1]-x_mc[0]),units))
     plt.xlabel("{} {}".format(display,units))
+    if xrange is not None:
+      plt.xlim(xrange[0], xrange[1])
+    plt.ylim(0, None)
     plt.title(display)
     plt.savefig(name)
   for i in params_config:
@@ -112,4 +121,5 @@ def main(params_file="final_params.json"):
   
   
 if __name__=="__main__":
-  main()
+  with tf.device("/device:CPU:0"):
+    main()

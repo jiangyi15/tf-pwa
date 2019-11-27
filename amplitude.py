@@ -4,7 +4,7 @@ from cg import get_cg_coef
 from d_function_new import d_function_cos
 from complex_F import Complex_F
 from res_cache import Particle,Decay
-
+from variable import Vars
 from dfun_tf import dfunctionJ
 import os
 import pysnooper
@@ -202,12 +202,14 @@ class AllAmplitude(tf.keras.Model):
     self.B = Particle("B",self.m0_B,0,self.JB,self.ParB)
     self.C = Particle("C",self.m0_C,0,self.JC,self.ParC)
     self.D = Particle("D",self.m0_D,0,self.JD,self.ParD)
+    self.add_var = Vars(self)
     self.res = res.copy()
     #if "Zc_4160" in self.res:
       #self.res["Zc_4160"]["m0"] = self.add_weight(name="Zc_4160_m0",initializer=fix_value(self.res["Zc_4160"]["m0"]))
     #
     self.res_decay = self.init_res_decay()
     self.coef = {}
+    self.coef_norm = {}
     self.res_cache = {}
     self.init_res_param()
     
@@ -247,16 +249,26 @@ class AllAmplitude(tf.keras.Model):
     self.res_cache[head]["ls"] = []
     self.coef[head] = []
     chain = config["Chain"]
+    coef_head = head
+    if "coef_head" in config:
+      coef_head = config["coef_head"]
     if chain < 0:
         jc,jd,je = self.JC,self.JB,self.JD
     elif chain>0 and chain< 100:
         jc,jd,je = self.JD,self.JB,self.JC
     elif chain>100 :
         jc,jd,je = self.JB,self.JD,self.JC
-    ls,arg = self.gen_coef(head+"_",self.JA,config["J"],jc,self.ParA,config["Par"],-1,const_first)
+    if const_first:
+      r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=True),
+      i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
+    else:
+      r = self.add_var(name=coef_head+"r")
+      i = self.add_var(name=head+"i")
+    self.coef_norm[head] = [r,i]
+    ls,arg = self.gen_coef(coef_head+"_",self.JA,config["J"],jc,self.ParA,config["Par"],-1,True)
     self.coef[head].append(arg)
     self.res_cache[head]["ls"].append(ls)
-    ls,arg = self.gen_coef(head+"_d_",config["J"],jd,je,config["Par"],-1,-1,True)
+    ls,arg = self.gen_coef(coef_head+"_d_",config["J"],jd,je,config["Par"],-1,-1,True)
     self.coef[head].append(arg)
     self.res_cache[head]["ls"].append(ls)
     
@@ -272,14 +284,14 @@ class AllAmplitude(tf.keras.Model):
           ls.append((l,s))
           name = "{head}BLS_{l}_{s}".format(head=head,l=l,s=s)
           if const_first:
-            tmp_r = self.add_weight(name=name+"r",initializer=fix_value(1.0),trainable=False)
-            tmp_i = self.add_weight(name=name+"i",initializer=fix_value(0.0),trainable=False)
-            arg_list.append(complex(tmp_r,tmp_i))
+            tmp_r = self.add_var(name=name+"r",initializer=fix_value(1.0),trainable=False)
+            tmp_i = self.add_var(name=name+"i",initializer=fix_value(0.0),trainable=False)
+            arg_list.append([tmp_r,tmp_i])
             const_first = False
           else :
-            tmp_r = self.add_weight(name=name+"r")
-            tmp_i = self.add_weight(name=name+"i")
-            arg_list.append(complex(tmp_r,tmp_i))
+            tmp_r = self.add_var(name=name+"r")
+            tmp_i = self.add_var(name=name+"i")
+            arg_list.append([tmp_r,tmp_i])
     return ls,arg_list
   
   def init_res_chain(self):
@@ -364,9 +376,9 @@ class AllAmplitude(tf.keras.Model):
     jc = self.res_decay[idx][layer].outs[1].J
     M_r = []
     M_i = []
-    for i in self.coef[idx][layer]:
-      M_r.append(i.r)#*tf.cos(i.i))
-      M_i.append(i.i)#*tf.sin(i.i))
+    for r,i in self.coef[idx][layer]:
+      M_r.append(r*tf.cos(i))
+      M_i.append(r*tf.sin(i))
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
     l_s = self.res_decay[idx][layer].get_l_list()
@@ -381,6 +393,12 @@ class AllAmplitude(tf.keras.Model):
     H_i = tf.matmul(cg_trans,mdep_i)
     ret = tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
     return ret
+  
+  def get_res_total(self,idx):
+    r,i =  self.coef_norm[idx]
+    M_r = r*tf.cos(i)
+    M_i = r*tf.sin(i)
+    return tf.complex(M_r,M_i) 
 
   
   @staticmethod
@@ -545,7 +563,7 @@ class AllAmplitude(tf.keras.Model):
         abcdi = tf.reduce_sum(abcdyi,3)
         s = abcdi
         #s = tf.einsum("arci,rbdi,bxi,dyi->axcyi",HD1,HD2,aligned_B,aligned_D)
-        ret.append(s*res_cache[i][-1])
+        ret.append(s*res_cache[i][-1]*self.get_res_total(i))
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -561,7 +579,7 @@ class AllAmplitude(tf.keras.Model):
         abcdi = tf.reduce_sum(abxcdi,1)
         s = abcdi
         #s = tf.einsum("ardi,rbci,bxi->axcdi",HD1,HD2,aligned_B)
-        ret.append(s*res_cache[i][-1])
+        ret.append(s*res_cache[i][-1]*self.get_res_total(i))
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -577,7 +595,7 @@ class AllAmplitude(tf.keras.Model):
         abcdi = tf.reduce_sum(abcdyi,3)
         s = abcdi 
         #s = tf.einsum("arbi,rdci,dyi->abcyi",HD1,HD2,aligned_D)
-        ret.append(s*res_cache[i][-1])
+        ret.append(s*res_cache[i][-1]*self.get_res_total(i))
       else:
         pass
         #std::cerr << "unknown chain" << std::endl

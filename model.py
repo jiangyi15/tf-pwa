@@ -193,6 +193,7 @@ def main():
   with open("Resonances.json") as f:  
     config_list = json.load(f)
   a = Model(config_list,0.768331)
+  print(a.Amp.coef)
   with open("test.json") as f:  
     param = json.load(f)
     a.set_params(param)
@@ -237,7 +238,7 @@ def main():
     x0.append(i.numpy())
     args_name.append(i.name)
     args["error_"+i.name] = 0.1
-  args["limit_Zc_4160_m0:0"] = (4.1,4.22)
+  #args["limit_Zc_4160_m0:0"] = (4.1,4.22)
   m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,use_array_call=True,**args)
   now = time.time()
   with tf.device('/device:GPU:0'):
