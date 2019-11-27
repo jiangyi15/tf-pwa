@@ -203,7 +203,9 @@ class AllAmplitude(tf.keras.Model):
     self.C = Particle("C",self.m0_C,0,self.JC,self.ParC)
     self.D = Particle("D",self.m0_D,0,self.JD,self.ParD)
     self.res = res.copy()
-    self.res["Zc_4160"]["m0"] = self.add_weight(name="Zc_4160_m0",initializer=fix_value(self.res["Zc_4160"]["m0"]))
+    #if "Zc_4160" in self.res:
+      #self.res["Zc_4160"]["m0"] = self.add_weight(name="Zc_4160_m0",initializer=fix_value(self.res["Zc_4160"]["m0"]))
+    #
     self.res_decay = self.init_res_decay()
     self.coef = {}
     self.res_cache = {}
@@ -270,8 +272,8 @@ class AllAmplitude(tf.keras.Model):
           ls.append((l,s))
           name = "{head}BLS_{l}_{s}".format(head=head,l=l,s=s)
           if const_first:
-            tmp_r = self.add_weight(name=name+"r",initializer='ones',trainable=False)
-            tmp_i = self.add_weight(name=name+"i",initializer='zeros',trainable=False)
+            tmp_r = self.add_weight(name=name+"r",initializer=fix_value(1.0),trainable=False)
+            tmp_i = self.add_weight(name=name+"i",initializer=fix_value(0.0),trainable=False)
             arg_list.append(complex(tmp_r,tmp_i))
             const_first = False
           else :
@@ -325,7 +327,6 @@ class AllAmplitude(tf.keras.Model):
         ret[i] = [p,p0,q,q0,bw]
       else :
         raise "unknown chain"
-        ret[i]= complex(0, 0);
     return ret
   
   def GetA2BC_LS(self,idx,ja,jb,jc,pa,pb,pc,lambda_b,lambda_c,layer,q,q0,d):
@@ -378,7 +379,8 @@ class AllAmplitude(tf.keras.Model):
     cg_trans = tf.cast(self.res_decay[idx][layer].cg_matrix(),M_r.dtype)
     H_r = tf.matmul(cg_trans,mdep_r)
     H_i = tf.matmul(cg_trans,mdep_i)
-    return tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
+    ret = tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
+    return ret
 
   
   @staticmethod

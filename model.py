@@ -2,6 +2,7 @@ import tensorflow as tf
 from amplitude import AllAmplitude
 import time 
 import functools
+import numpy as np
 
 class Model:
   def __init__(self,res,w_bkg = 0):
@@ -90,13 +91,13 @@ class Model:
   
   def get_params(self):
     ret = {}
-    for i in self.Amp.trainable_variables:
+    for i in self.Amp.variables:
       tmp = i.numpy()
       ret[i.name] = float(tmp)
     return ret
   
   def set_params(self,param):
-    for i in self.Amp.trainable_variables:
+    for i in self.Amp.variables:
       for j in param:
         if j == i.name:
           tmp = param[i.name]
@@ -146,9 +147,9 @@ class fcn(object):
     if cached:
       self.data = model.Amp.cache_data(*data)
       self.bg = model.Amp.cache_data(*bg)
-      self.mc = model.Amp.cache_data(*mc,split=2)
+      self.mc = model.Amp.cache_data(*mc,split=3)
     
-  def __call__(self,*x):
+  def __call__(self,x):
     #print(x)
     now = time.time()
     if (not self.x is None) and self.x is x:
@@ -161,15 +162,15 @@ class fcn(object):
     nll,g = self.model.nll_gradient(self.data,self.bg,self.mc,self.batch,self.cached,self.n_data,self.n_bg,self.n_mc,self.alpha)
     self.grads = [ i.numpy() for i in g]
     print("nll:", nll," time :",time.time() - now)
-    return nll
+    return nll.numpy()
   
 
-  def grad(self,*x):
+  def grad(self,x):
     #print("grad:", self.grads)
     if (not self.x is None) and self.x is x:
-      return tuple(self.grads)
-    self(*x)
-    return tuple(self.grads)
+      return np.array(self.grads)
+    self(x)
+    return np.array(self.grads)
   
 def set_gpu_mem_growth():
   gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -237,7 +238,7 @@ def main():
     args_name.append(i.name)
     args["error_"+i.name] = 0.1
   args["limit_Zc_4160_m0:0"] = (4.1,4.22)
-  m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,**args)
+  m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,use_array_call=True,**args)
   now = time.time()
   with tf.device('/device:GPU:0'):
     m.migrad(ncall=500,precision=5e-7)
