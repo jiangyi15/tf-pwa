@@ -43,6 +43,12 @@ params_config = {
     "display":"$m_{ {D*}^{0}\pi^{+} }$",
     "bins":50,
     "units":"GeV"
+  },
+  "cos_B_BD":{
+    "xrange":(-1,1),
+    "display":r"$\cos \theta^{ {D*}^{-} }_{ {D*}^{0} {D*}^{-} }$",
+    "bins":50,
+    "units":""
   }
 }
 
@@ -93,31 +99,39 @@ def main(params_file="final_params.json"):
     fitFrac[i] = a_weight[i].sum()/(n_data - w_bkg*n_bg)
   print("FitFractions:")
   pprint(fitFrac)
-  def plot_params(name,bins=None,xrange=None,idx=0,display=None,units="GeV"):
+  def plot_params(ax,name,bins=None,xrange=None,idx=0,display=None,units="GeV"):
     inter = 2
     if display is None: display=name
-    plt.clf()
-    plt.hist(data[idx].numpy(),range=xrange,bins=bins,histtype="step",label="data")
-    plt.hist(bg[idx].numpy(),range=xrange,bins=bins,histtype="step",weights=[w_bkg]*n_bg,label="bg")
+    data_hist = ax.hist(data[idx].numpy(),range=xrange,bins=bins,histtype="step",label="data")
+    data_y ,data_x,_ = data_hist
+    data_x = (data_x[:-1]+data_x[1:])/2
+    data_err = np.sqrt(data_y)
+    ax.errorbar(data_x,data_y,yerr=data_err,fmt="none")
+    ax.hist(bg[idx].numpy(),range=xrange,bins=bins,histtype="step",weights=[w_bkg]*n_bg,label="bg")
     mc_bg = np.append(bg[idx].numpy(),mcdata[idx].numpy())
     mc_bg_w = np.append([w_bkg]*n_bg,total.numpy()*norm_int)
     x_mc,y_mc = hist_line(mc_bg,mc_bg_w,bins,xrange)
-    plt.plot(x_mc,y_mc,label="total fit")
+    ax.plot(x_mc,y_mc,label="total fit")
     for i in config_res:
       weights = a_weight[i]
       x,y = hist_line(mcdata[idx].numpy(),weights,bins,xrange,inter)
       y = y#/2 #TODO
-      plt.plot(x,y,label=i)
-    plt.legend()
-    plt.ylabel("events/({:.3f} {})".format((x_mc[1]-x_mc[0]),units))
-    plt.xlabel("{} {}".format(display,units))
+      ax.plot(x,y,label=i)
+    ax.legend()
+    ax.set_ylabel("events/({:.3f} {})".format((x_mc[1]-x_mc[0]),units))
+    ax.set_xlabel("{} {}".format(display,units))
     if xrange is not None:
-      plt.xlim(xrange[0], xrange[1])
-    plt.ylim(0, None)
-    plt.title(display)
-    plt.savefig(name)
-  for i in params_config:
-    plot_params(i,**params_config[i])
+      ax.set_xlim(xrange[0], xrange[1])
+    ax.set_ylim(0, None)
+    ax.set_title(display)
+  plot_list = ["m_BC","m_BD","m_CD"]
+  n = len(plot_list)
+  for i in range(n):
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    name = plot_list[i]
+    plot_params(ax,name,**params_config[name])
+    fig.savefig(name)
   
   
 if __name__=="__main__":

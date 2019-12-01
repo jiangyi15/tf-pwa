@@ -134,7 +134,8 @@ def Dfun_all(j,alpha,beta,gamma):
   expi_gamma = tf.cast(tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1)),expi_alpha.dtype)
   #a = tf.tile(expi_alpha,[1,2*j+1,1])
   #b = tf.tile(expi_gamma,[2*j+1,1,1])
-  return expi_alpha*expi_gamma * tf.complex(d,tf.zeros_like(d))
+  dc = tf.complex(d,tf.zeros_like(d))
+  return tf.cast(expi_alpha*expi_gamma,dc.dtype) * dc
 
 def delta_D_trans(j,la,lb,lc):
   """
@@ -258,8 +259,8 @@ class AllAmplitude(tf.keras.Model):
         jc,jd,je = self.JD,self.JB,self.JC
     elif chain>100 :
         jc,jd,je = self.JB,self.JD,self.JC
-    if const_first:
-      r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=True),
+    if head == "Zc_4025":
+      r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=False),
       i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
     else:
       r = self.add_var(name=coef_head+"r")
@@ -459,7 +460,7 @@ class AllAmplitude(tf.keras.Model):
         abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
         abcdi = tf.reduce_sum(abcdyi,3)
         #s = tf.einsum("abcdi,bxi,dyi,i->axcyi",ad,aligned_B,aligned_D,res_cache[i][-1])
-        ret.append(abcdi*res_cache[i][-1])
+        ret.append(abcdi*res_cache[i][-1]*self.get_res_total(i))
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -474,7 +475,7 @@ class AllAmplitude(tf.keras.Model):
         abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
         abcdi = tf.reduce_sum(abxcdi,1)
         #s = tf.einsum("ardi,rbci,bxi,i->axcdi",HD1,HD2,aligned_B,res_cache[i][-1])
-        ret.append(abcdi*res_cache[i][-1])
+        ret.append(abcdi*res_cache[i][-1]*self.get_res_total(i))
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_BD = list(range(-JReson,JReson+1))
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
@@ -489,7 +490,7 @@ class AllAmplitude(tf.keras.Model):
         abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
         abcdi = tf.reduce_sum(abcdyi,3)
         #s = tf.einsum("arbi,rdci,dyi,i->abcyi",HD1,HD2,aligned_D,res_cache[i][-1])
-        ret.append(abcdi*res_cache[i][-1])
+        ret.append(abcdi*res_cache[i][-1]*self.get_res_total(i))
       else:
         pass
         #std::cerr << "unknown chain" << std::endl
