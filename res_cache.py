@@ -33,8 +33,8 @@ class Decay(object):
     self.mother = mother
     self.outs = outs
   
-  @property
-  def ls_list(self):
+  @functools.lru_cache()
+  def get_ls_list(self):
     ja = self.mother.J
     jb = self.outs[0].J
     jc = self.outs[1].J
@@ -43,9 +43,9 @@ class Decay(object):
     pc = self.outs[1].P
     return GetA2BC_LS_list(ja,jb,jc,pa,pb,pc)
   
-  @property
-  def l_list(self):
-    return [ l for l,s in self.ls_list ]
+  @functools.lru_cache()
+  def get_l_list(self):
+    return [ l for l,s in self.get_ls_list() ]
   
   def generate_params(self,ls=True):
     ret = []
@@ -55,14 +55,14 @@ class Decay(object):
       ret.append((name_r,name_i))
     return ret
   
-  @property
-  def cg_matrix(self):
+  @functools.lru_cache()
+  def get_cg_matrix(self):
     """
     [(l,s),(lambda_b,lambda_c)]
     cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) *
     cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
     """
-    ls = self.ls_list
+    ls = self.get_ls_list()
     m = len(ls) 
     ja = self.mother.J
     jb = self.outs[0].J

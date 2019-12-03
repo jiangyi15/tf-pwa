@@ -358,7 +358,7 @@ class AllAmplitude(tf.keras.Model):
       M_i.append(i.i)
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
-    l_s = self.res_decay[idx][layer].l_list
+    l_s = self.res_decay[idx][layer].get_l_list()
     
     ls_norm = tf.linalg.diag(M_r * tf.sqrt((2*tf.cast(l_s,M_r.dtype)+1.0)/(2*ja+1.0)))
     mdep = tf.matmul(ls_norm,barrier_factor(l_s,q,q0,d))
@@ -385,13 +385,13 @@ class AllAmplitude(tf.keras.Model):
       M_i.append(i)
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
-    l_s = self.res_decay[idx][layer].l_list
+    l_s = self.res_decay[idx][layer].get_l_list()
     bf = barrier_factor(l_s,q,q0,d)
     norm_r = tf.linalg.diag(M_r*tf.cos(M_i))
     norm_i = tf.linalg.diag(M_r*tf.sin(M_i))
     mdep_r = tf.matmul(norm_r,bf)
     mdep_i = tf.matmul(norm_i,bf)
-    cg_trans = tf.cast(self.res_decay[idx][layer].cg_matrix,M_r.dtype)
+    cg_trans = tf.cast(self.res_decay[idx][layer].get_cg_matrix(),M_r.dtype)
     H_r = tf.matmul(cg_trans,mdep_r)
     H_i = tf.matmul(cg_trans,mdep_i)
     ret = tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
