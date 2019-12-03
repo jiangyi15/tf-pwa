@@ -7,7 +7,7 @@ from res_cache import Particle,Decay
 from variable import Vars
 from dfun_tf import dfunctionJ
 import os
-import pysnooper
+from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 import functools
@@ -27,6 +27,7 @@ def Getp(M_0, M_1, M_2) :
   M12D = M_1 - M_2
   p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
   q = (p + tf.abs(p))/2
+  #print(M_0,M_1,M_2,tf.sqrt(p) / (2 * M_0))
   return tf.sqrt(q) / (2 * M_0)
 
 def BW(m, m0,g0,q,q0,L,d):
@@ -66,6 +67,7 @@ def barrier_factor(l,q,q0,d=3.0):
   ret = []
   for i in l:
     tmp = q**i * Bprime(i,q,q0,d)
+    #print(Bprime(i,q,q0,d))
     ret.append(tmp)
   return tf.stack(ret)
 
@@ -259,7 +261,7 @@ class AllAmplitude(tf.keras.Model):
         jc,jd,je = self.JD,self.JB,self.JC
     elif chain>100 :
         jc,jd,je = self.JB,self.JD,self.JC
-    if head == "Zc_4025":
+    if const_first:
       r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=False),
       i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
     else:
@@ -371,6 +373,7 @@ class AllAmplitude(tf.keras.Model):
     
     return ret
   
+  #@snoop()
   def GetA2BC_LS_mat(self,idx,layer,q,q0,d):
     ja = self.res_decay[idx][layer].mother.J
     jb = self.res_decay[idx][layer].outs[0].J
@@ -378,20 +381,21 @@ class AllAmplitude(tf.keras.Model):
     M_r = []
     M_i = []
     for r,i in self.coef[idx][layer]:
-      M_r.append(r*tf.cos(i))
-      M_i.append(r*tf.sin(i))
+      M_r.append(r)
+      M_i.append(i)
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
     l_s = self.res_decay[idx][layer].l_list
     bf = barrier_factor(l_s,q,q0,d)
-    norm_r = tf.linalg.diag(M_r)
-    norm_i = tf.linalg.diag(M_i)
+    norm_r = tf.linalg.diag(M_r*tf.cos(M_i))
+    norm_i = tf.linalg.diag(M_r*tf.sin(M_i))
     mdep_r = tf.matmul(norm_r,bf)
     mdep_i = tf.matmul(norm_i,bf)
     cg_trans = tf.cast(self.res_decay[idx][layer].cg_matrix,M_r.dtype)
     H_r = tf.matmul(cg_trans,mdep_r)
     H_i = tf.matmul(cg_trans,mdep_i)
     ret = tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
+    #print(idx,layer,ret)
     return ret
   
   def get_res_total(self,idx):

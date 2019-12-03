@@ -18,6 +18,14 @@ def array_split(data,batch=None):
   return ret
 
 
+def time_print(f):
+  @functools.wraps(f)
+  def g(*args,**kwargs):
+    now = time.time()
+    ret = f(*args,**kwargs)
+    print(f.__name__ ," cost time:",time.time()-now)
+    return ret
+  return g
 
 class Model(object):
   def __init__(self,configs,w_bkg = 0,args=(),kwargs={}):
@@ -77,6 +85,36 @@ class Model(object):
       nll = - nll_0 + sw * tf.math.log(int_mc/n_mc)
       g = [ -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
       return nll,g
+  
+  def sum_hessian(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
+    n_variables = len(self.Amp.trainable_variables)
+    g = None
+    h = None
+    nll = 0.0
+    if isinstance(weight,float):
+      weight = [weight] * len(data)
+    for i in range(len(data)):
+      #print(i,min(i*batch+batch,n_data))
+      with tf.GradientTape(persistent=True) as tape0:
+        with tf.GradientTape() as tape:
+          amp2s = self.Amp(data[i],*args,**kwargs)
+          l_a = func(amp2s)
+          p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
+        nll += p_nll
+        a = tape.gradient(p_nll,self.Amp.trainable_variables)
+      he = []
+      for gi in a:
+        he.append(tape0.gradient(gi,self.Amp.trainable_variables,unconnected_gradients="zero"))
+      del tape0
+      if g is None:
+        g = a
+        h = he
+      else :
+        for j in range(n_variables):
+          g[j] += a[j]
+          for k in range(n_variables):
+            h[j][k] += he[j][k]
+    return nll,g,h
   
   def sum_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
     n_variables = len(self.Amp.trainable_variables)
@@ -160,7 +198,7 @@ class Cache_Model(Model):
       nll += p_nll
     return nll
   
-  def cal_nll_gradient(self,params):
+  def cal_nll_gradient(self,params={}):
     if isinstance(params,dict):
       self.set_params(params)
     else:
@@ -172,8 +210,43 @@ class Cache_Model(Model):
     nll = - nll_0 + sw * tf.math.log(int_mc/self.n_mc)
     g = [ -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
     return nll, g
+  
+  def cal_nll_hessian(self,params={}):
+    if isinstance(params,dict):
+      self.set_params(params)
+    else:
+      for i,j in zip(self.t_var,params):
+        i.assign(j)
+    nll_0,g0,h0 = self.sum_hessian(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
+    int_mc,g1,h1 = self.sum_hessian(self.mc,kwargs={"cached":True})
     
+    sw = tf.cast(self.sw,nll_0.dtype)
+    nll = - nll_0 + sw * tf.math.log(int_mc/self.n_mc)
+    g = [ -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
+    n = len(g0)
+    h0 = np.array([[j.numpy() for j in i] for i in h0])
+    h1 = np.array([[j.numpy() for j in i] for i in h1])
+    g1 = np.array([i.numpy() for i in g1])/int_mc
+    h = - h0 - sw *np.outer(g1,g1) + sw / int_mc * h1
+    return nll, g, h
     
+class FCN(object):
+  def __init__(self,cache_model):
+    self.model = cache_model
+  #@time_print
+  def __call__(self,x):
+    nll = self.model.cal_nll(x)
+    return nll
+  @time_print
+  def grad(self,x):
+    nll,g = self.model.cal_nll_gradient(x)
+    return g
+  
+  @time_print
+  def hessian(self,x):
+    nll,g,h = self.model.cal_nll_hessian(x)
+    return h
+
     
 param_list = [
   "m_BC", "m_BD", "m_CD", 

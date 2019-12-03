@@ -2,16 +2,7 @@
 
 import json
 from model import *
-from functools import wraps
 
-def time_print(f):
-  @wraps(f)
-  def g(*args,**kwargs):
-    now = time.time()
-    ret = f(*args,**kwargs)
-    print(f.__name__ ," cost time:",time.time()-now)
-    return ret
-  return g
 
 class fcn(object):
   def __init__(self,model,data,mcdata,batch=5000,bg=None):
@@ -42,19 +33,6 @@ class fcn(object):
     print("nll:", nll," time :",time.time() - now)
     return np.array(self.grads)
 
-class fcn2(object):
-  def __init__(self,cache_model):
-    self.model = cache_model
-  #@time_print
-  def __call__(self,x):
-    nll = self.model.cal_nll(x)
-    return nll
-  @time_print
-  def grad(self,x):
-    now = time.time()
-    nll,g = self.model.cal_nll_gradient(x)
-    return g
-
 def train_one_step(model, optimizer):
   nll,grads = model.cal_nll_gradient({})
   optimizer.apply_gradients(zip(grads, model.Amp.trainable_variables))
@@ -80,28 +58,44 @@ def main():
     mcdata = load_data("./data/PHSP_ang_n4.json")
     a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
   #print(a.Amp.coef)
-  with open("test.json") as f:  
-    param = json.load(f)
-    a.set_params(param)
+  
+  try :
+    with open("need.json") as f:  
+      param = json.load(f)
+      a.set_params(param)
+  except:
+    pass
   s = json.dumps(a.get_params(),indent=2)
-  data_w,weights = a.get_weight_data(data,bg)
+  print(s)
+  #a.Amp(data)
+  #exit()
+  data_w,weights = data,1.0#a.get_weight_data(data,bg)
   t = time.time()
-  nll,g = a.nll_gradient(data_w,mcdata,weight=weights,batch=50000)
+  nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
   print("Time:",time.time()-t)
   print(nll)
+  #he = np.array([[j.numpy() for j in i] for i in h])
+  #print(he)
+  #ihe = np.linalg.inv(he)
+  #print(ihe)
   if False: #check gradient
     print(g)
+    ptr = 0
     for i in a.Amp.trainable_variables:
       tmp = i.numpy()
       i.assign(tmp+1e-3)
-      nll_0,_ = a.nll_gradient(data_w,mcdata,weight=weights,batch=50000)
+      nll_0,g0 = a.nll_gradient(data_w,mcdata,weight=weights,batch=50000)
       i.assign(tmp-1e-3)
-      nll_1,_ = a.nll_gradient(data_w,mcdata,weight=weights,batch=50000)
+      nll_1,g1 = a.nll_gradient(data_w,mcdata,weight=weights,batch=50000)
       i.assign(tmp)
       print(i,(nll_0-nll_1).numpy()/2e-3)
+      print(he[ptr])
+      ptr+=1
+      for j in range(len(g0)):
+        print((g0[j]-g1[j]).numpy()/2e-3)
   
   import iminuit 
-  f = fcn2(a)
+  f = FCN(a)
   args = {}
   args_name = []
   x0 = []
@@ -127,6 +121,12 @@ def main():
   #with tf.device('/device:GPU:0'):
     #print(a.nll(data,bg,mcdata))#.collect_params())
   #print(a.Amp.trainable_variables)
+  #t = time.time()
+  #nll,g,h = a.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
+  #print("Time:",time.time()-t)
+  #print(nll)
+  #print(g)
+  #print(h)
   
 if __name__=="__main__":
   main()
