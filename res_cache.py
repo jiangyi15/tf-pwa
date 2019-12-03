@@ -33,8 +33,8 @@ class Decay(object):
     self.mother = mother
     self.outs = outs
   
-  @functools.lru_cache()
-  def get_ls_list(self):
+  @property
+  def ls_list(self):
     ja = self.mother.J
     jb = self.outs[0].J
     jc = self.outs[1].J
@@ -43,9 +43,9 @@ class Decay(object):
     pc = self.outs[1].P
     return GetA2BC_LS_list(ja,jb,jc,pa,pb,pc)
   
-  @functools.lru_cache()
-  def get_l_list(self):
-    return [ l for l,s in self.get_ls_list() ]
+  @property
+  def l_list(self):
+    return [ l for l,s in self.ls_list ]
   
   def generate_params(self,ls=True):
     ret = []
@@ -54,14 +54,15 @@ class Decay(object):
       name_i = "{name}_ls_{l}_{s}_i".format(l,s)
       ret.append((name_r,name_i))
     return ret
-  @functools.lru_cache()
+  
+  @property
   def cg_matrix(self):
     """
     [(l,s),(lambda_b,lambda_c)]
     cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) *
     cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
     """
-    ls = self.get_ls_list()
+    ls = self.ls_list
     m = len(ls) 
     ja = self.mother.J
     jb = self.outs[0].J
@@ -73,7 +74,9 @@ class Decay(object):
       j = 0
       for lambda_b in range(-jb,jb+1):
         for lambda_c in range(-jc,jc+1):
-          ret[j][i] = cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
+          ret[j][i] = np.sqrt((2*l+1)/(2*ja+1)) \
+                      * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
+                      * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
           j += 1
     return ret
   
