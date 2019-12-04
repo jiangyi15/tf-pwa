@@ -7,7 +7,7 @@ from res_cache import Particle,Decay
 from variable import Vars
 from dfun_tf import dfunctionJ
 import os
-import pysnooper
+from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 import functools
@@ -27,13 +27,14 @@ def Getp(M_0, M_1, M_2) :
   M12D = M_1 - M_2
   p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
   q = (p + tf.abs(p))/2
+  #print(M_0,M_1,M_2,tf.sqrt(p) / (2 * M_0))
   return tf.sqrt(q) / (2 * M_0)
 
 def BW(m, m0,g0,q,q0,L,d):
   gamma = Gamma(m, g0, q, q0, L, m0, d)
-  num = complex(1, 0)
+  num = 1.0
   denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
-  return 1.0/denom
+  return num/denom
 
 def Gamma(m, gamma0, q, q0, L, m0,d):
   gammaM = gamma0 * (q / tf.cast(q0,q.dtype))**(2 * L + 1) * (tf.cast(m0,m.dtype) / m) * Bprime(L, q, q0, d)**2
@@ -66,6 +67,7 @@ def barrier_factor(l,q,q0,d=3.0):
   ret = []
   for i in l:
     tmp = q**i * Bprime(i,q,q0,d)
+    #print(Bprime(i,q,q0,d))
     ret.append(tmp)
   return tf.stack(ret)
 
@@ -207,7 +209,7 @@ class AllAmplitude(tf.keras.Model):
     self.res = res.copy()
     #if "Zc_4160" in self.res:
       #self.res["Zc_4160"]["m0"] = self.add_weight(name="Zc_4160_m0",initializer=fix_value(self.res["Zc_4160"]["m0"]))
-    #
+    
     self.res_decay = self.init_res_decay()
     self.coef = {}
     self.coef_norm = {}
@@ -259,7 +261,7 @@ class AllAmplitude(tf.keras.Model):
         jc,jd,je = self.JD,self.JB,self.JC
     elif chain>100 :
         jc,jd,je = self.JB,self.JD,self.JC
-    if head == "Zc_4025":
+    if const_first:
       r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=False),
       i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
     else:
@@ -360,7 +362,7 @@ class AllAmplitude(tf.keras.Model):
     
     ls_norm = tf.linalg.diag(M_r * tf.sqrt((2*tf.cast(l_s,M_r.dtype)+1.0)/(2*ja+1.0)))
     mdep = tf.matmul(ls_norm,barrier_factor(l_s,q,q0,d))
-    cg_trans = tf.cast(self.res_decay[idx][layer].cg_matrix(),M_r.dtype)
+    cg_trans = tf.cast(self.res_decay[idx][layer].cg_matrix,M_r.dtype)
     for l,s in self.res_cache[idx]["ls"][layer]:
       M = self.coef[idx][layer][ptr]
       ptr += 1
@@ -371,6 +373,7 @@ class AllAmplitude(tf.keras.Model):
     
     return ret
   
+  #@snoop()
   def GetA2BC_LS_mat(self,idx,layer,q,q0,d):
     ja = self.res_decay[idx][layer].mother.J
     jb = self.res_decay[idx][layer].outs[0].J
@@ -378,21 +381,21 @@ class AllAmplitude(tf.keras.Model):
     M_r = []
     M_i = []
     for r,i in self.coef[idx][layer]:
-      M_r.append(r*tf.cos(i))
-      M_i.append(r*tf.sin(i))
+      M_r.append(r)
+      M_i.append(i)
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
     l_s = self.res_decay[idx][layer].get_l_list()
     bf = barrier_factor(l_s,q,q0,d)
-    norm = tf.sqrt((2*tf.cast(l_s,M_r.dtype)+1.0)/(2*ja+1.0))
-    norm_r = tf.linalg.diag(M_r * norm)
-    norm_i = tf.linalg.diag(M_i * norm)
+    norm_r = tf.linalg.diag(M_r*tf.cos(M_i))
+    norm_i = tf.linalg.diag(M_r*tf.sin(M_i))
     mdep_r = tf.matmul(norm_r,bf)
     mdep_i = tf.matmul(norm_i,bf)
-    cg_trans = tf.cast(self.res_decay[idx][layer].cg_matrix(),M_r.dtype)
+    cg_trans = tf.cast(self.res_decay[idx][layer].get_cg_matrix(),M_r.dtype)
     H_r = tf.matmul(cg_trans,mdep_r)
     H_i = tf.matmul(cg_trans,mdep_i)
     ret = tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
+    #print(idx,layer,ret)
     return ret
   
   def get_res_total(self,idx):
@@ -505,9 +508,9 @@ class AllAmplitude(tf.keras.Model):
       cosTheta_BD,cosTheta_B_BD,phi_BD, phi_B_BD, 
       cosTheta_CD,cosTheta_D_CD, phi_CD,phi_D_CD,
       cosTheta_BD_B,cosTheta_BC_B,cosTheta_BD_D,cosTheta_CD_D,
-      phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2,split=None):
+      phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2,split=None,batch=None):
     D_fun_Cache = D_Cache
-    if split is None:
+    if split is None and batch is None:
       ang_BD_B = D_fun_Cache(phi_BD_B,tf.acos(cosTheta_BD_B), phi_BD_B2)
       ang_BD_D = D_fun_Cache(phi_BD_D,tf.acos(cosTheta_BD_D), phi_BD_D2)
       ang_BD = D_fun_Cache(phi_BD,tf.acos(cosTheta_BD), 0.0)
@@ -527,7 +530,11 @@ class AllAmplitude(tf.keras.Model):
       cosTheta_BD_B,cosTheta_BC_B,cosTheta_BD_D,cosTheta_CD_D,
       phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2]
       n = m_BC.shape[0]
-      l = (n+split-1) // split
+      if batch is None:
+        l = (n+split-1) // split
+      else:
+        l = batch
+        split = (n +batch-1)//batch
       ret = []
       for i in range(split):
         data_part = [ arg[i*l:min(i*l+l,n)] for arg in data]

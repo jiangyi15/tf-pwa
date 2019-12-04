@@ -54,8 +54,9 @@ class Decay(object):
       name_i = "{name}_ls_{l}_{s}_i".format(l,s)
       ret.append((name_r,name_i))
     return ret
+  
   @functools.lru_cache()
-  def cg_matrix(self):
+  def get_cg_matrix(self):
     """
     [(l,s),(lambda_b,lambda_c)]
     cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) *
@@ -73,7 +74,9 @@ class Decay(object):
       j = 0
       for lambda_b in range(-jb,jb+1):
         for lambda_c in range(-jc,jc+1):
-          ret[j][i] = cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
+          ret[j][i] = np.sqrt((2*l+1)/(2*ja+1)) \
+                      * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
+                      * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
           j += 1
     return ret
   
