@@ -90,9 +90,9 @@ def main():
     args_name.append(i.name)
     args["error_"+i.name] = 0.1
   now = time.time()
-  callback = lambda x: print(list(zip(args_name,x)))
+  callback = None#lambda x: print(list(zip(args_name,x)))
   with tf.device('/device:GPU:0'):
-    s = minimize(f,np.array(x0),method="BFGS",jac=f.grad,callback=callback,options={"disp":True})
+    s = minimize(f,np.array(x0),method="BFGS",jac=f.grad,callback=callback,options={"disp":1})
   print(s)
   print(time.time()-now)
   with open("final_params.json","w") as f:
