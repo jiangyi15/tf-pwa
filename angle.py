@@ -81,6 +81,9 @@ class LorentzVector(object):
   def M2(self):
     return self.e * self.e - np.sum(self.p *self.p,0)
   
+  def M(self):
+    return np.sqrt(self.M2())
+  
   def __add__(self,o):
     return LorentzVector(self.X+o.X,self.Y+o.Y,self.Z+o.Z,self.T+o.T)
   def __sub__(self,o):
@@ -112,7 +115,7 @@ class EularAngle(object):
 
   
   @staticmethod
-  @pysnooper.snoop()
+  #@pysnooper.snoop()
   def angle_zx_z_gety(z1,x1,z2):
     u_z1 = z1.Unit()
     u_z2 = z2.Unit()
@@ -180,13 +183,16 @@ def cal_angle_rest(p4_B,p4_C,p4_D):
   
 def cal_ang_file(fname,dtype="float64"):
   data = np.loadtxt(fname,dtype=dtype)
-  pb = data[0::3]
-  lpb = LorentzVector(pb[:,1],pb[:,2],pb[:,3],pb[:,0])
-  pd = data[1::3]
+  pd = data[0::3]
   lpd = LorentzVector(pd[:,1],pd[:,2],pd[:,3],pd[:,0])
+  pb = data[1::3]
+  lpb = LorentzVector(pb[:,1],pb[:,2],pb[:,3],pb[:,0])
   pc = data[2::3]
   lpc = LorentzVector(pc[:,1],pc[:,2],pc[:,3],pc[:,0])
-  ret = cal_angle(lpd,lpc,lpb)
+  ret = cal_angle(lpb,lpc,lpd)
+  ret["m_BC"] = (lpb+lpc).M()
+  ret["m_BD"] = (lpb+lpd).M()
+  ret["m_CD"] = (lpc+lpd).M()
   return ret
 
 if __name__ == "__main__":

@@ -30,7 +30,10 @@ def time_print(f):
 class Model(object):
   def __init__(self,configs,w_bkg = 0,args=(),kwargs={}):
     self.w_bkg = w_bkg
-    self.Amp = AllAmplitude(configs,*args,**kwargs)
+    if callable(configs):
+      self.Amp = configs
+    else :
+      self.Amp = AllAmplitude(configs,*args,**kwargs)
   
   def get_weight_data(self,data,bg):
     n_data = data[0].shape[0]
