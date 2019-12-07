@@ -251,6 +251,14 @@ def cal_ang_file(fname,dtype="float64"):
   pc = data[2::3]
   lpc = LorentzVector(pc[:,1],pc[:,2],pc[:,3],pc[:,0])
   ret = cal_angle(lpd,lpc,lpb)
+  
+  ret["m_BC"] = (lpb + lpc).M()
+  ret["m_CD"] = (lpd + lpc).M()
+  ret["m_BD"] = (lpb + lpd).M()
+  ret["m_A"] = (lpb + lpc + lpd).M()
+  ret["m_B"] = lpb.M()
+  ret["m_C"] = lpc.M()
+  ret["m_D"] = lpd.M()
   return ret
 
 def cal_ang_file4(fname,dst_fname,dtype="float64"):
