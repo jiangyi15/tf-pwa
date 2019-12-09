@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 from model import Cache_Model,set_gpu_mem_growth,param_list,FCN
-from fit import fcn
 import tensorflow as tf
 import time
 import numpy as np
 import json
-from scipy.optimize import minimize
+from scipy.optimize import minimize,BFGS,basinhopping
 from angle import cal_ang_file,EularAngle
 
 def flatten_np_data(data):
@@ -56,7 +55,6 @@ def main():
     bg = load_data("bg")
     mcdata = load_data("PHSP")
     a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
-  #print(a.Amp.coef)
   
   try :
     with open("2need.json") as f:  
@@ -68,9 +66,8 @@ def main():
   print(s)
   #print(data,bg,mcdata)
   t = time.time()
-  print(a.cal_nll())
-  #exit()
-  print("Time:",time.time()-t)
+  nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
+  print("nll:",nll,"Time:",time.time()-t)
   #exit()
   #print(a.get_params())
   #t = time.time()
@@ -80,23 +77,38 @@ def main():
       #g = tape.gradient(nll,a.Amp.trainable_variables)
   #print("Time:",time.time()-t)
   #print(nll,g)
-  f = FCN(a)# 1356*18
+  
+  fcn = FCN(a)# 1356*18
+  #a_h = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
+  #a_h.set_params(a.get_params())
+  #f_h = FCN(a_h)
   args = {}
   args_name = []
   x0 = []
+  bnds = []
+  bounds_dict = {
+      "Zc_4160_m0:0":(4.1,4.22),
+      "Zc_4160_g0:0":(0,None)
+  }
   for i in a.Amp.trainable_variables:
     args[i.name] = i.numpy()
     x0.append(i.numpy())
     args_name.append(i.name)
+    if i.name in bounds_dict:
+      bnds.append(bounds_dict[i.name])
+    else:
+      bnds.append((None,None))
     args["error_"+i.name] = 0.1
   now = time.time()
   callback = None#lambda x: print(list(zip(args_name,x)))
   with tf.device('/device:GPU:0'):
-    s = minimize(f,np.array(x0),method="BFGS",jac=f.grad,callback=callback,options={"disp":1})
+    #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
+    s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":80})
   print(s)
   print(time.time()-now)
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
+  print("\nend\n")
 
 if __name__ == "__main__":
   main()

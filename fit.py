@@ -4,35 +4,6 @@ import json
 from model import *
 from angle import cal_ang_file,EularAngle
 
-class fcn(object):
-  def __init__(self,model,data,mcdata,batch=5000,bg=None):
-    self.model = model
-    if bg is None:
-      self.data, self.weight = data, 1.0
-    else:
-      self.data, self.weight = model.get_weight_data(data,bg)
-    self.mcdata = mcdata
-    self.batch = batch
-    
-  def __call__(self,x):
-    train_vars = self.model.Amp.trainable_variables
-    n_var = len(train_vars)
-    for i in range(n_var):
-      train_vars[i].assign(x[i])
-    nll,g = self.model.nll_gradient(self.data,self.mcdata,self.weight,batch=self.batch)
-    return nll.numpy()
-  
-  def grad(self,x):
-    now = time.time()
-    train_vars = self.model.Amp.trainable_variables
-    n_var = len(train_vars)
-    for i in range(n_var):
-      train_vars[i].assign(x[i])
-    nll,g = self.model.nll_gradient(self.data,self.mcdata,self.weight,batch=self.batch)
-    self.grads = [ i.numpy() for i in g]
-    print("nll:", nll," time :",time.time() - now)
-    return np.array(self.grads)
-
 def train_one_step(model, optimizer):
   nll,grads = model.cal_nll_gradient({})
   optimizer.apply_gradients(zip(grads, model.Amp.trainable_variables))
@@ -89,7 +60,7 @@ def main():
   #print(a.Amp.coef)
   
   try :
-    with open("need.json") as f:  
+    with open("finalss_params.json") as f:  
       param = json.load(f)
       a.set_params(param)
   except:
@@ -133,14 +104,20 @@ def main():
     x0.append(i.numpy())
     args_name.append(i.name)
     args["error_"+i.name] = 0.1
-  #args["limit_Zc_4160_m0:0"] = (4.1,4.22)
+  bounds_dict = {
+      "Zc_4160_m0:0":(4.1,4.22),
+      "Zc_4160_g0:0":(0,10)
+  }
+  for i in bounds_dict:
+    if i in args_name:
+      args["limit_{}".format(i)] = bounds_dict[i]
   m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,use_array_call=True,**args)
   now = time.time()
   with tf.device('/device:GPU:0'):
     print(m.migrad(ncall=10000))#,precision=5e-7))
   print(time.time() - now)
   print(m.get_param_states())
-  with open("final_params2.json","w") as f:
+  with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
   #try :
     #print(m.minos())
@@ -150,12 +127,15 @@ def main():
   #with tf.device('/device:GPU:0'):
     #print(a.nll(data,bg,mcdata))#.collect_params())
   #print(a.Amp.trainable_variables)
-  #t = time.time()
-  #nll,g,h = a.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
-  #print("Time:",time.time()-t)
-  #print(nll)
-  #print(g)
-  #print(h)
+  t = time.time()
+  a_h = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
+  a_h.set_params(a.get_params())
+  nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
+  print("Time:",time.time()-t)
+  print(nll)
+  print([i.numpy() for i in g])
+  print(h.numpy())
+  print(np.linalg.inv(h.numpy()))
   
 if __name__=="__main__":
   main()
