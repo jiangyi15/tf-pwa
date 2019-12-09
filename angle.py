@@ -81,6 +81,9 @@ class LorentzVector(object):
   def M2(self):
     return self.e * self.e - np.sum(self.p *self.p,0)
   
+  def M(self):
+    return np.sqrt(self.e * self.e - np.sum(self.p *self.p,0))
+  
   def __add__(self,o):
     return LorentzVector(self.X+o.X,self.Y+o.Y,self.Z+o.Z,self.T+o.T)
   def __sub__(self,o):
@@ -112,7 +115,7 @@ class EularAngle(object):
 
   
   @staticmethod
-  @pysnooper.snoop()
+  #@pysnooper.snoop()
   def angle_zx_z_gety(z1,x1,z2):
     u_z1 = z1.Unit()
     u_z2 = z2.Unit()
@@ -125,12 +128,10 @@ class EularAngle(object):
     gamma = np.zeros_like(beta)
     u_x2 = u_yr.Cross(u_z2).Unit()
     return (EularAngle(alpha,beta,gamma),u_x2)
+  def as_dict(self):
+    return {"alpha":self.alpha,"beta":self.beta,"gamma":self.gamma}
   def __repr__(self):
-    return """{{
-"alpha":{},
-"beta" :{},
-"gamma":{}
-}}""".format(self.alpha,self.beta,self.gamma)
+    return str(self.as_dict())
 
 #@pysnooper.snoop()
 def cal_angle(p_B,p_C,p_D):
@@ -164,6 +165,65 @@ def cal_angle_rest(p4_B,p4_C,p4_D):
   ang_BC_B = EularAngle.angle_zx_zx(p4_B_BC.Vect(),x_B_BC,p4_B.Vect(),-x_CD)
   ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect(),-x_B_BD,p4_D.Vect(),-x_BC)
   ang_CD_D = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_D_CD,p4_D.Vect(),-x_BC)
+    
+  return {
+    "ang_BC":ang_BC,  
+    "ang_BD":ang_BD,
+    "ang_CD":ang_CD,
+    "ang_B_BC":ang_B_BC,
+    "ang_B_BD":ang_B_BD,
+    "ang_D_CD":ang_D_CD,
+    "ang_BD_B":ang_BD_B,
+    "ang_BD_D":ang_BD_D,
+    "ang_BC_B":ang_BC_B,
+    "ang_CD_D":ang_CD_D,
+  }
+
+def cal_angle4(p_B,p_C,p_E,p_F):
+  p_D = p_E + p_F
+  p_A = p_B + p_C + p_D
+  p_B_A = p_A.Rest_Vector(p_B)
+  p_C_A = p_A.Rest_Vector(p_C)
+  p_E_A = p_A.Rest_Vector(p_E)
+  p_F_A = p_A.Rest_Vector(p_F)
+  return  cal_angle_rest4(p_B_A,p_C_A,p_E_A,p_F_A)
+
+def cal_angle_rest4(p4_B,p4_C,p4_E,p4_F):
+  p4_D = p4_E + p4_F
+  p4_BD = p4_B + p4_D
+  p4_BC = p4_B + p4_C
+  p4_CD = p4_C + p4_D
+  p4_B_BD = p4_BD.Rest_Vector(p4_B)
+  p4_D_BD = p4_BD.Rest_Vector(p4_D)
+  p4_B_BC = p4_BC.Rest_Vector(p4_B)
+  p4_D_CD = p4_CD.Rest_Vector(p4_D)
+  
+  p4_E_CD = p4_CD.Rest_Vector(p4_E)
+  p4_E_CD = p4_D_CD.Rest_Vector(p4_E_CD)
+  p4_E_BD = p4_BD.Rest_Vector(p4_E)
+  p4_E_BD = p4_D_BD.Rest_Vector(p4_E_BD)
+  
+  p4_E_BC = p4_D.Rest_Vector(p4_E)
+  
+  zeros = np.zeros_like(p4_B.e)
+  ones = np.ones_like(p4_B.e)
+  u_z = Vector3(zeros,zeros,ones)
+  u_x = Vector3(ones,zeros,zeros)
+  ang_BC,x_BC = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BC.Vect())
+  ang_B_BC,x_B_BC = EularAngle.angle_zx_z_gety(p4_BC.Vect(),x_BC,p4_B_BC.Vect())
+  ang_BD,x_BD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BD.Vect())
+  ang_B_BD,x_B_BD = EularAngle.angle_zx_z_gety(p4_BD.Vect(),x_BD,p4_B_BD.Vect())
+  ang_CD,x_CD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_CD.Vect())
+  ang_D_CD,x_D_CD = EularAngle.angle_zx_z_gety(p4_CD.Vect(),x_CD,p4_D_CD.Vect())
+  
+  ang_BD_B = EularAngle.angle_zx_zx(p4_B_BD.Vect(),x_B_BD,p4_B.Vect(),-x_CD)
+  ang_BC_B = EularAngle.angle_zx_zx(p4_B_BC.Vect(),x_B_BC,p4_B.Vect(),-x_CD)
+  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect(),-x_B_BD,p4_D.Vect(),-x_BC)
+  ang_CD_D = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_D_CD,p4_D.Vect(),-x_BC)
+
+  ang_E_BC,x_E_BC = EularAngle.angle_zx_z_gety(p4_D.Vect(),-x_BC,p4_E_BC.Vect())
+  ang_E_BD = EularAngle.angle_zx_zx(p4_D_BD.Vect(),-x_BD,p4_E_BD.Vect(),x_E_BC)
+  ang_E_CD = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_CD,p4_E_CD.Vect(),x_E_BC)
   
   return {
     "ang_BC":ang_BC,  
@@ -175,9 +235,13 @@ def cal_angle_rest(p4_B,p4_C,p4_D):
     "ang_BD_B":ang_BD_B,
     "ang_BD_D":ang_BD_D,
     "ang_BC_B":ang_BC_B,
-    "ang_CD_D":ang_CD_D
+    "ang_CD_D":ang_CD_D,
+    "ang_E_BC":ang_E_BC,
+    "ang_E_BD":ang_E_BD,
+    "ang_E_CD":ang_E_CD
   }
-  
+ 
+
 def cal_ang_file(fname,dtype="float64"):
   data = np.loadtxt(fname,dtype=dtype)
   pb = data[0::3]
@@ -187,6 +251,39 @@ def cal_ang_file(fname,dtype="float64"):
   pc = data[2::3]
   lpc = LorentzVector(pc[:,1],pc[:,2],pc[:,3],pc[:,0])
   ret = cal_angle(lpd,lpc,lpb)
+  
+  ret["m_BC"] = (lpb + lpc).M()
+  ret["m_CD"] = (lpd + lpc).M()
+  ret["m_BD"] = (lpb + lpd).M()
+  ret["m_A"] = (lpb + lpc + lpd).M()
+  ret["m_B"] = lpb.M()
+  ret["m_C"] = lpc.M()
+  ret["m_D"] = lpd.M()
+  return ret
+
+def cal_ang_file4(fname,dst_fname,dtype="float64"):
+  data = np.loadtxt(fname,dtype=dtype)
+  data2 = np.loadtxt(dst_fname,dtype=dtype)
+  pb = data[1::3]
+  lpb = LorentzVector(pb[:,1],pb[:,2],pb[:,3],pb[:,0])
+  pc = data[2::3]
+  lpc = LorentzVector(pc[:,1],pc[:,2],pc[:,3],pc[:,0])
+  pd = data[0::3]
+  lpd = LorentzVector(pd[:,1],pd[:,2],pd[:,3],pd[:,0])
+  pe = data2[0::2]
+  lpe = LorentzVector(pe[:,1],pe[:,2],pe[:,3],pe[:,0])
+  pf = data2[1::2]
+  lpf = LorentzVector(pf[:,1],pf[:,2],pf[:,3],pf[:,0])
+  ret = cal_angle4_2(lpb,lpc,lpe,lpf)
+  
+  ret["m_BC"] = (lpb + lpc).M()
+  ret["m_CD"] = (lpd + lpc).M()
+  ret["m_BD"] = (lpb + lpd).M()
+  
+  ret["m_A"] = (lpb + lpc + lpd).M()
+  ret["m_B"] = lpb.M()
+  ret["m_C"] = lpc.M()
+  ret["m_D"] = lpd.M()
   return ret
 
 if __name__ == "__main__":

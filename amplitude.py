@@ -419,23 +419,23 @@ class AllAmplitude(tf.keras.Model):
     return ret
   
   def get_amp2s(self,m_BC, m_BD, m_CD, 
-      cosTheta_BC,cosTheta_B_BC, phi_BC, phi_B_BC,
-      cosTheta_BD,cosTheta_B_BD,phi_BD, phi_B_BD, 
-      cosTheta_CD,cosTheta_D_CD, phi_CD,phi_D_CD,
-      cosTheta_BD_B,cosTheta_BC_B,cosTheta_BD_D,cosTheta_CD_D,
+      Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
+      Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
+      Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
+      Theta_BD_B,Theta_BC_B,Theta_BD_D,Theta_CD_D,
       phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2):
     D_fun_Cache = D_Cache
     res_cache = self.Get_BWReson(m_BC,m_BD,m_CD)
-    ang_BD_B = D_fun_Cache(phi_BD_B,tf.acos(cosTheta_BD_B), phi_BD_B2)
-    ang_BD_D = D_fun_Cache(phi_BD_D,tf.acos(cosTheta_BD_D), phi_BD_D2)
-    ang_BD = D_fun_Cache(phi_BD,tf.acos(cosTheta_BD), 0.0)
-    ang_B_BD = D_fun_Cache(phi_B_BD,tf.acos(cosTheta_B_BD), 0.0)
-    ang_BC_B = D_fun_Cache(phi_BC_B, tf.acos(cosTheta_BC_B),phi_BC_B2)
-    ang_BC = D_fun_Cache(phi_BC, tf.acos(cosTheta_BC),0.0)
-    ang_B_BC = D_fun_Cache(phi_B_BC, tf.acos(cosTheta_B_BC),0.0)
-    ang_CD_D = D_fun_Cache(phi_CD_D, tf.acos(cosTheta_CD_D),phi_CD_D2)
-    ang_CD = D_fun_Cache(phi_CD, tf.acos(cosTheta_CD),0.0)
-    ang_D_CD = D_fun_Cache(phi_D_CD, tf.acos(cosTheta_D_CD),0.0)
+    ang_BD_B = D_fun_Cache(phi_BD_B,Theta_BD_B, phi_BD_B2)
+    ang_BD_D = D_fun_Cache(phi_BD_D,Theta_BD_D, phi_BD_D2)
+    ang_BD = D_fun_Cache(phi_BD,Theta_BD, 0.0)
+    ang_B_BD = D_fun_Cache(phi_B_BD,Theta_B_BD, 0.0)
+    ang_BC_B = D_fun_Cache(phi_BC_B, Theta_BC_B,phi_BC_B2)
+    ang_BC = D_fun_Cache(phi_BC, Theta_BC,0.0)
+    ang_B_BC = D_fun_Cache(phi_B_BC, Theta_B_BC,0.0)
+    ang_CD_D = D_fun_Cache(phi_CD_D, Theta_CD_D,phi_CD_D2)
+    ang_CD = D_fun_Cache(phi_CD, Theta_CD,0.0)
+    ang_D_CD = D_fun_Cache(phi_D_CD, Theta_D_CD,0.0)
     d = 3.0
     sum_A = 0.1
     ret = []
@@ -504,30 +504,30 @@ class AllAmplitude(tf.keras.Model):
     return sum_A
   
   def cache_data(self,m_BC, m_BD, m_CD, 
-      cosTheta_BC,cosTheta_B_BC, phi_BC, phi_B_BC,
-      cosTheta_BD,cosTheta_B_BD,phi_BD, phi_B_BD, 
-      cosTheta_CD,cosTheta_D_CD, phi_CD,phi_D_CD,
-      cosTheta_BD_B,cosTheta_BC_B,cosTheta_BD_D,cosTheta_CD_D,
+      Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
+      Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
+      Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
+      Theta_BD_B,Theta_BC_B,Theta_BD_D,Theta_CD_D,
       phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2,split=None,batch=None):
     D_fun_Cache = D_Cache
     if split is None and batch is None:
-      ang_BD_B = D_fun_Cache(phi_BD_B,tf.acos(cosTheta_BD_B), phi_BD_B2)
-      ang_BD_D = D_fun_Cache(phi_BD_D,tf.acos(cosTheta_BD_D), phi_BD_D2)
-      ang_BD = D_fun_Cache(phi_BD,tf.acos(cosTheta_BD), 0.0)
-      ang_B_BD = D_fun_Cache(phi_B_BD,tf.acos(cosTheta_B_BD), 0.0)
-      ang_BC_B = D_fun_Cache(phi_BC_B, tf.acos(cosTheta_BC_B),phi_BC_B2)
-      ang_BC = D_fun_Cache(phi_BC, tf.acos(cosTheta_BC),0.0)
-      ang_B_BC = D_fun_Cache(phi_B_BC, tf.acos(cosTheta_B_BC),0.0)
-      ang_CD_D = D_fun_Cache(phi_CD_D, tf.acos(cosTheta_CD_D),phi_CD_D2)
-      ang_CD = D_fun_Cache(phi_CD, tf.acos(cosTheta_CD),0.0)
-      ang_D_CD = D_fun_Cache(phi_D_CD, tf.acos(cosTheta_D_CD),0.0)
+      ang_BD_B = D_fun_Cache(phi_BD_B,Theta_BD_B, phi_BD_B2)
+      ang_BD_D = D_fun_Cache(phi_BD_D,Theta_BD_D, phi_BD_D2)
+      ang_BD = D_fun_Cache(phi_BD,Theta_BD, 0.0)
+      ang_B_BD = D_fun_Cache(phi_B_BD,Theta_B_BD, 0.0)
+      ang_BC_B = D_fun_Cache(phi_BC_B, Theta_BC_B,phi_BC_B2)
+      ang_BC = D_fun_Cache(phi_BC, Theta_BC,0.0)
+      ang_B_BC = D_fun_Cache(phi_B_BC, Theta_B_BC,0.0)
+      ang_CD_D = D_fun_Cache(phi_CD_D, Theta_CD_D,phi_CD_D2)
+      ang_CD = D_fun_Cache(phi_CD, Theta_CD,0.0)
+      ang_D_CD = D_fun_Cache(phi_D_CD, Theta_D_CD,0.0)
       return [m_BC, m_BD, m_CD,ang_BD,ang_B_BD,ang_BD_B,ang_BD_D,ang_BC,ang_B_BC,ang_BC_B,ang_CD,ang_D_CD,ang_CD_D]
     else :
       data = [m_BC, m_BD, m_CD, 
-      cosTheta_BC,cosTheta_B_BC, phi_BC, phi_B_BC,
-      cosTheta_BD,cosTheta_B_BD,phi_BD, phi_B_BD, 
-      cosTheta_CD,cosTheta_D_CD, phi_CD,phi_D_CD,
-      cosTheta_BD_B,cosTheta_BC_B,cosTheta_BD_D,cosTheta_CD_D,
+      Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
+      Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
+      Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
+      Theta_BD_B,Theta_BC_B,Theta_BD_D,Theta_CD_D,
       phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2]
       n = m_BC.shape[0]
       if batch is None:

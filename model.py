@@ -30,7 +30,10 @@ def time_print(f):
 class Model(object):
   def __init__(self,configs,w_bkg = 0,args=(),kwargs={}):
     self.w_bkg = w_bkg
-    self.Amp = AllAmplitude(configs,*args,**kwargs)
+    if callable(configs):
+      self.Amp = configs
+    else :
+      self.Amp = AllAmplitude(configs,*args,**kwargs)
   
   def get_weight_data(self,data,bg):
     n_data = data[0].shape[0]
@@ -173,7 +176,7 @@ class Cache_Model(Model):
     self.t_var = self.Amp.trainable_variables
     self.t_var_name = [i.name for i in self.t_var]
     
-  def cal_nll(self,params):
+  def cal_nll(self,params={}):
     if isinstance(params,dict):
       self.set_params(params)
     else:
@@ -240,7 +243,7 @@ class FCN(object):
   @time_print
   def grad(self,x):
     nll,g = self.model.cal_nll_gradient(x)
-    return g
+    return np.array([i.numpy() for i in g])
   
   @time_print
   def hessian(self,x):
