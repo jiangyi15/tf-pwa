@@ -30,6 +30,10 @@ param_list = [
   "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
 ]
 
+def pprint(x):
+  s = json.dumps(x,indent=2)
+  print(s)
+
 def main():
   dtype = "float64"
   set_gpu_mem_growth()
@@ -44,7 +48,10 @@ def main():
   data_np = {}
   for i in range(3):
     data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
-    
+  m0_A = (data_np["data"]["m_A"]).mean()
+  m0_B = (data_np["data"]["m_B"]).mean()
+  m0_C = (data_np["data"]["m_C"]).mean()
+  m0_D = (data_np["data"]["m_D"]).mean()
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -58,15 +65,18 @@ def main():
     mcdata = load_data("PHSP")
     a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
   #print(a.Amp.coef)
+  a.Amp.m0_A = m0_A
+  a.Amp.m0_B = m0_B
+  a.Amp.m0_C = m0_C
+  a.Amp.m0_D = m0_D
   
   try :
-    with open("finalss_params.json") as f:  
+    with open("final_params.json") as f:  
       param = json.load(f)
       a.set_params(param)
   except:
     pass
-  s = json.dumps(a.get_params(),indent=2)
-  print(s)
+  pprint(a.get_params())
   #a.Amp(data)
   #exit()
   data_w,weights = data,1.0#a.get_weight_data(data,bg)
@@ -119,6 +129,7 @@ def main():
   print(m.get_param_states())
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
+  #print(m.covariance)
   #try :
     #print(m.minos())
   #except RuntimeError as e:
@@ -128,14 +139,16 @@ def main():
     #print(a.nll(data,bg,mcdata))#.collect_params())
   #print(a.Amp.trainable_variables)
   t = time.time()
-  a_h = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
+  a_h = Cache_Model(a.Amp,0.768331,data,mcdata,bg=bg,batch=26000)
   a_h.set_params(a.get_params())
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
   print("Time:",time.time()-t)
   print(nll)
   print([i.numpy() for i in g])
-  print(h.numpy())
-  print(np.linalg.inv(h.numpy()))
+  #print(h.numpy())
+  inv_he = np.linalg.inv(h.numpy())
+  print("hesse error:")
+  pprint(dict(zip(args_name,np.sqrt(inv_he.diagonal()).tolist())))
   
 if __name__=="__main__":
   main()
