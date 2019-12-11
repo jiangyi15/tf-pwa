@@ -128,11 +128,12 @@ class Model(object):
     for i in range(len(data)):
       #print(i,min(i*batch+batch,n_data))
       with tf.GradientTape() as tape:
+        tape.watch(self.Amp.trainable_variables)
         amp2s = self.Amp(data[i],*args,**kwargs)
         l_a = func(amp2s)
         p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-      nll += p_nll
       a = tape.gradient(p_nll,self.Amp.trainable_variables)
+      nll += p_nll
       if g is None:
         g = a
       else :
@@ -148,8 +149,8 @@ class Model(object):
     return ret
   
   def set_params(self,param):
-    for i in self.Amp.variables:
-      for j in param:
+    for j in param:
+      for i in self.Amp.variables:
         if j == i.name:
           tmp = param[i.name]
           i.assign(tmp)
@@ -205,7 +206,7 @@ class Cache_Model(Model):
     if isinstance(params,dict):
       self.set_params(params)
     else:
-      for i,j in zip(self.t_var,params):
+      for i,j in zip(self.Amp.trainable_variables,params):
         i.assign(j)
     nll_0,g0 = self.sum_gradient(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
     int_mc,g1 = self.sum_gradient(self.mc,kwargs={"cached":True})
@@ -236,19 +237,34 @@ class Cache_Model(Model):
 class FCN(object):
   def __init__(self,cache_model):
     self.model = cache_model
+    self.ncall = 0
+    self.n_grad = 0
   #@time_print
   def __call__(self,x):
     nll = self.model.cal_nll(x)
+    self.ncall += 1
     return nll
-  @time_print
+  
+  #@time_print
   def grad(self,x):
     nll,g = self.model.cal_nll_gradient(x)
+    self.n_grad += 1
     return np.array([i.numpy() for i in g])
   
-  @time_print
+  #@time_print
+  def nll_grad(self,x):
+    nll,g = self.model.cal_nll_gradient(x)
+    return nll.numpy().astype("float64"), np.array([i.numpy() for i in g]).astype("float64")
+  
+  
+  #@time_print
   def hessian(self,x):
     nll,g,h = self.model.cal_nll_hessian(x)
     return h
+  
+  def nll_grad_hessian(self,x):
+    nll,g,h = self.model.cal_nll_hessian(x)
+    return nll,g,h
 
     
 param_list = [

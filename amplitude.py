@@ -208,8 +208,8 @@ class AllAmplitude(tf.keras.Model):
     self.add_var = Vars(self)
     self.res = res.copy()
     #if "Zc_4160" in self.res:
-      #self.res["Zc_4160"]["m0"] = self.add_weight(name="Zc_4160_m0",initializer=fix_value(self.res["Zc_4160"]["m0"]))
-    
+      #self.res["Zc_4160"]["m0"] = self.add_var(name="Zc_4160_m0",var = self.res["Zc_4160"]["m0"],trainable=True)
+      #self.res["Zc_4160"]["g0"] = self.add_var(name="Zc_4160_g0",var = self.res["Zc_4160"]["g0"],trainable=True)
     self.res_decay = self.init_res_decay()
     self.coef = {}
     self.coef_norm = {}
@@ -265,8 +265,8 @@ class AllAmplitude(tf.keras.Model):
       r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=False),
       i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
     else:
-      r = self.add_var(name=coef_head+"r")
-      i = self.add_var(name=head+"i")
+      r = self.add_var(name=coef_head+"r",size=2.0)
+      i = self.add_var(name=head+"i",size=6.28)
     self.coef_norm[head] = [r,i]
     ls,arg = self.gen_coef(coef_head+"_",self.JA,config["J"],jc,self.ParA,config["Par"],-1,True)
     self.coef[head].append(arg)
@@ -292,8 +292,8 @@ class AllAmplitude(tf.keras.Model):
             arg_list.append([tmp_r,tmp_i])
             const_first = False
           else :
-            tmp_r = self.add_var(name=name+"r")
-            tmp_i = self.add_var(name=name+"i")
+            tmp_r = self.add_var(name=name+"r",size=2.0)
+            tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
             arg_list.append([tmp_r,tmp_i])
     return ls,arg_list
   
@@ -313,7 +313,7 @@ class AllAmplitude(tf.keras.Model):
       J_reson = self.res[i]["J"]
       P_reson = self.res[i]["Par"]
       chain = self.res[i]["Chain"]
-      if (chain < 0) : # A->(DB)C
+      if (chain < 0) : # A->(BD)C
         p = Getp(self.m0_A, m_BD, self.m0_C)
         p0 = Getp(self.m0_A, m, self.m0_C)
         q = Getp(m_BD, self.m0_B, self.m0_D)

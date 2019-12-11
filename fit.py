@@ -4,35 +4,6 @@ import json
 from model import *
 from angle import cal_ang_file,EularAngle
 
-class fcn(object):
-  def __init__(self,model,data,mcdata,batch=5000,bg=None):
-    self.model = model
-    if bg is None:
-      self.data, self.weight = data, 1.0
-    else:
-      self.data, self.weight = model.get_weight_data(data,bg)
-    self.mcdata = mcdata
-    self.batch = batch
-    
-  def __call__(self,x):
-    train_vars = self.model.Amp.trainable_variables
-    n_var = len(train_vars)
-    for i in range(n_var):
-      train_vars[i].assign(x[i])
-    nll,g = self.model.nll_gradient(self.data,self.mcdata,self.weight,batch=self.batch)
-    return nll.numpy()
-  
-  def grad(self,x):
-    now = time.time()
-    train_vars = self.model.Amp.trainable_variables
-    n_var = len(train_vars)
-    for i in range(n_var):
-      train_vars[i].assign(x[i])
-    nll,g = self.model.nll_gradient(self.data,self.mcdata,self.weight,batch=self.batch)
-    self.grads = [ i.numpy() for i in g]
-    print("nll:", nll," time :",time.time() - now)
-    return np.array(self.grads)
-
 def train_one_step(model, optimizer):
   nll,grads = model.cal_nll_gradient({})
   optimizer.apply_gradients(zip(grads, model.Amp.trainable_variables))
@@ -59,6 +30,10 @@ param_list = [
   "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
 ]
 
+def pprint(x):
+  s = json.dumps(x,indent=2)
+  print(s)
+
 def main():
   dtype = "float64"
   set_gpu_mem_growth()
@@ -73,7 +48,10 @@ def main():
   data_np = {}
   for i in range(3):
     data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
-    
+  m0_A = (data_np["data"]["m_A"]).mean()
+  m0_B = (data_np["data"]["m_B"]).mean()
+  m0_C = (data_np["data"]["m_C"]).mean()
+  m0_D = (data_np["data"]["m_D"]).mean()
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -87,15 +65,18 @@ def main():
     mcdata = load_data("PHSP")
     a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
   #print(a.Amp.coef)
+  a.Amp.m0_A = m0_A
+  a.Amp.m0_B = m0_B
+  a.Amp.m0_C = m0_C
+  a.Amp.m0_D = m0_D
   
   try :
-    with open("need.json") as f:  
+    with open("final_params.json") as f:  
       param = json.load(f)
       a.set_params(param)
   except:
     pass
-  s = json.dumps(a.get_params(),indent=2)
-  print(s)
+  pprint(a.get_params())
   #a.Amp(data)
   #exit()
   data_w,weights = data,1.0#a.get_weight_data(data,bg)
@@ -133,15 +114,22 @@ def main():
     x0.append(i.numpy())
     args_name.append(i.name)
     args["error_"+i.name] = 0.1
-  #args["limit_Zc_4160_m0:0"] = (4.1,4.22)
+  bounds_dict = {
+      "Zc_4160_m0:0":(4.1,4.22),
+      "Zc_4160_g0:0":(0,10)
+  }
+  for i in bounds_dict:
+    if i in args_name:
+      args["limit_{}".format(i)] = bounds_dict[i]
   m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,use_array_call=True,**args)
   now = time.time()
   with tf.device('/device:GPU:0'):
     print(m.migrad(ncall=10000))#,precision=5e-7))
   print(time.time() - now)
   print(m.get_param_states())
-  with open("final_params2.json","w") as f:
+  with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
+  #print(m.covariance)
   #try :
     #print(m.minos())
   #except RuntimeError as e:
@@ -150,12 +138,17 @@ def main():
   #with tf.device('/device:GPU:0'):
     #print(a.nll(data,bg,mcdata))#.collect_params())
   #print(a.Amp.trainable_variables)
-  #t = time.time()
-  #nll,g,h = a.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
-  #print("Time:",time.time()-t)
-  #print(nll)
-  #print(g)
-  #print(h)
+  t = time.time()
+  a_h = Cache_Model(a.Amp,0.768331,data,mcdata,bg=bg,batch=26000)
+  a_h.set_params(a.get_params())
+  nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
+  print("Time:",time.time()-t)
+  print(nll)
+  print([i.numpy() for i in g])
+  #print(h.numpy())
+  inv_he = np.linalg.inv(h.numpy())
+  print("hesse error:")
+  pprint(dict(zip(args_name,np.sqrt(inv_he.diagonal()).tolist())))
   
 if __name__=="__main__":
   main()
