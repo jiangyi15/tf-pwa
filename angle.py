@@ -161,10 +161,10 @@ def cal_angle_rest(p4_B,p4_C,p4_D):
   ang_CD,x_CD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_CD.Vect())
   ang_D_CD,x_D_CD = EularAngle.angle_zx_z_gety(p4_CD.Vect(),x_CD,p4_D_CD.Vect())
   
-  ang_BD_B = EularAngle.angle_zx_zx(p4_B_BD.Vect(),x_B_BD,p4_B.Vect(),-x_CD)
-  ang_BC_B = EularAngle.angle_zx_zx(p4_B_BC.Vect(),x_B_BC,p4_B.Vect(),-x_CD)
-  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect(),-x_B_BD,p4_D.Vect(),-x_BC)
-  ang_CD_D = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_D_CD,p4_D.Vect(),-x_BC)
+  ang_BD_B = EularAngle.angle_zx_zx( p4_B_BD.Vect() , x_B_BD, p4_B.Vect(), x_CD)
+  ang_BC_B = EularAngle.angle_zx_zx( p4_B_BC.Vect() , x_B_BC, p4_B.Vect(), x_CD)
+  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect() , x_B_BD, p4_D.Vect(), x_BC)
+  ang_CD_D = EularAngle.angle_zx_zx( p4_D_CD.Vect() , x_D_CD, p4_D.Vect(), x_BC)
     
   return {
     "ang_BC":ang_BC,  

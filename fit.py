@@ -36,6 +36,7 @@ def pprint(x):
 
 def main():
   dtype = "float64"
+  w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
@@ -63,7 +64,8 @@ def main():
     data = load_data("data")
     bg = load_data("bg")
     mcdata = load_data("PHSP")
-    a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
+    a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
+  #print(data)
   #print(a.Amp.coef)
   a.Amp.m0_A = m0_A
   a.Amp.m0_B = m0_B
@@ -80,14 +82,23 @@ def main():
   #a.Amp(data)
   #exit()
   data_w,weights = data,1.0#a.get_weight_data(data,bg)
+  
+  
   t = time.time()
+  #print(a.Amp(data))
+  #print(a.Amp(bg))
+  #print(a.Amp(mcdata)
+  #print(tf.reduce_sum(tf.math.log(a.Amp(data))))
   nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
+  
+    
   print("Time:",time.time()-t)
-  print(nll)
+  #print(nll)
   #he = np.array([[j.numpy() for j in i] for i in h])
   #print(he)
   #ihe = np.linalg.inv(he)
   #print(ihe)
+  #exit()
   if False: #check gradient
     print(g)
     ptr = 0

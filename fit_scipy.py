@@ -7,6 +7,32 @@ import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from angle import cal_ang_file,EularAngle
 
+import math
+
+def error_print(x,err=None):
+  if err is None:
+    return ("{}").format(x)
+  if err <= 0 or math.isnan(err):
+    return ("{} ? {}").format(x,err)
+  d = math.ceil(math.log10(err))
+  b = 10**d
+  b_err = err/b
+  b_val = x/b
+  if b_err < 0.355: #0.100 ~ 0.354
+    dig = 2
+  elif b_err < 0.950: #0.355 ~ 0.949
+    dig = 1
+  else: # 0.950 ~ 0.999
+    dig = 0
+  err = round(b_err,dig) * b
+  x = round(b_val,dig)*b
+  d_p = dig - d
+  if d_p > 0:
+    return ("{0:.%df} +/- {1:.%df}"%(d_p,d_p)).format(x,err)
+  return ("{0:.0f} +/- {1:.0f}").format(x,err)
+
+  
+
 def flatten_np_data(data):
   ret = {}
   for i in data:
@@ -113,14 +139,16 @@ def main():
   callback = None#lambda x: print(list(zip(args_name,x)))
   with tf.device('/device:GPU:0'):
     #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-    s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":80})
+    s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
   print(s)
   print(time.time()-now)
+  val = dict(zip(args_name,s.x))
+  a.set_params(val)
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
   
   a_h = Cache_Model(a.Amp,0.768331,data,mcdata,bg=bg,batch=26000)
-  a_h.set_params(a.get_params())
+  a_h.set_params(val)
   t = time.time()
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
   print("Time:",time.time()-t)
@@ -128,16 +156,20 @@ def main():
   #print([i.numpy() for i in g])
   #print(h.numpy())
   inv_he = np.linalg.inv(h.numpy())
-  print("hesse error:")
-  hesse_error = np.sqrt(inv_he.diagonal()).tolist()
-  pprint(dict(zip(args_name,hesse_error)))
+  diag_he = inv_he.diagonal()
+  diag_he_abs = (np.fabs(diag_he) + diag_he)/2
+  hesse_error = np.sqrt(diag_he_abs).tolist()
+  err = dict(zip(args_name,hesse_error))
+  print("fit value:")
+  for i in err:
+    print("  ",i,":",error_print(val[i],err[i]))
   int_total = a.Amp(mcdata).numpy().sum()
   res_list = [i for i in config_list]
   fitFrac = {}
   for i in range(len(res_list)):
     name = res_list[i]
     a_sig = Cache_Model({name:config_list[name]},0.768331,data,mcdata)
-    a_sig.set_params(a.get_params())
+    a_sig.set_params(val)
     a_weight = a_sig.Amp(mcdata).numpy()
     fitFrac[name] = a_weight.sum()/int_total
   print("FitFractions:")
