@@ -62,12 +62,12 @@ def Bprime(L, q, q0, d):
         (z * (z * (z * (z * (z + 15.) + 315.) + 6300.) + 99225.) + 893025.));
   return 1.0
 
-
+#@snoop()
 def barrier_factor(l,q,q0,d=3.0):
   ret = []
   for i in l:
     tmp = q**i * Bprime(i,q,q0,d)
-    #print(Bprime(i,q,q0,d))
+    #print(q**i,Bprime(i,q,q0,d))
     ret.append(tmp)
   return tf.stack(ret)
 
@@ -131,7 +131,7 @@ def Dfun_all(j,alpha,beta,gamma):
   d_fun = dfunctionJ(j)
   m = tf.range(-j,j+1)
   m1,m2=tf.meshgrid(m,m)
-  d = d_fun(m1,m2,beta)
+  d = d_fun(m2,m1,beta)
   expi_alpha = tf.reshape(ExpI_all(j,alpha),(2*j+1,1,-1))
   expi_gamma = tf.cast(tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1)),expi_alpha.dtype)
   #a = tf.tile(expi_alpha,[1,2*j+1,1])
@@ -424,83 +424,13 @@ class AllAmplitude(tf.keras.Model):
       Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
       Theta_BD_B,Theta_BC_B,Theta_BD_D,Theta_CD_D,
       phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2):
-    D_fun_Cache = D_Cache
-    res_cache = self.Get_BWReson(m_BC,m_BD,m_CD)
-    ang_BD_B = D_fun_Cache(phi_BD_B,Theta_BD_B, phi_BD_B2)
-    ang_BD_D = D_fun_Cache(phi_BD_D,Theta_BD_D, phi_BD_D2)
-    ang_BD = D_fun_Cache(phi_BD,Theta_BD, 0.0)
-    ang_B_BD = D_fun_Cache(phi_B_BD,Theta_B_BD, 0.0)
-    ang_BC_B = D_fun_Cache(phi_BC_B, Theta_BC_B,phi_BC_B2)
-    ang_BC = D_fun_Cache(phi_BC, Theta_BC,0.0)
-    ang_B_BC = D_fun_Cache(phi_B_BC, Theta_B_BC,0.0)
-    ang_CD_D = D_fun_Cache(phi_CD_D, Theta_CD_D,phi_CD_D2)
-    ang_CD = D_fun_Cache(phi_CD, Theta_CD,0.0)
-    ang_D_CD = D_fun_Cache(phi_D_CD, Theta_D_CD,0.0)
-    d = 3.0
-    sum_A = 0.1
-    ret = []
-    for i in self.res:
-      chain = self.res[i]["Chain"]
-      if chain == 0:
-        continue
-      JReson = self.res[i]["J"]
-      ParReson = self.res[i]["Par"]
-      if chain < 0: # A->(DB)C
-        lambda_BD = list(range(-JReson,JReson+1))
-        H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
-        #print(i,H_0,H_1)
-        H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
-        df_a = ang_BD.get_lambda(1,[-1,1],lambda_BD,[0])
-        df_b = ang_B_BD.get_lambda(JReson,lambda_BD,[-1,0,1],[-1,0,1])
-        aligned_B = ang_BD_B(1)
-        aligned_D = ang_BD_D(1)
-        HD1 = H_0*df_a
-        HD2 = H_1*df_b
-        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,3,-1))
-        abcdi = tf.reduce_sum(arbcdi,1)
-        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
-        abcdi = tf.reduce_sum(abxcdi,1)
-        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
-        abcdi = tf.reduce_sum(abcdyi,3)
-        #s = tf.einsum("abcdi,bxi,dyi,i->axcyi",ad,aligned_B,aligned_D,res_cache[i][-1])
-        ret.append(abcdi*res_cache[i][-1]*self.get_res_total(i))
-      elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
-        lambda_BD = list(range(-JReson,JReson+1))
-        H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
-        H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
-        df_a = ang_BC.get_lambda(1,[-1,1],lambda_BD,[-1,0,1])
-        df_b = ang_B_BC.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
-        aligned_B = ang_BC_B(1)
-        HD1 = H_0*df_a
-        HD2 = H_1*df_b
-        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,3,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,1,-1))
-        abcdi = tf.reduce_sum(arbcdi,1)
-        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
-        abcdi = tf.reduce_sum(abxcdi,1)
-        #s = tf.einsum("ardi,rbci,bxi,i->axcdi",HD1,HD2,aligned_B,res_cache[i][-1])
-        ret.append(abcdi*res_cache[i][-1]*self.get_res_total(i))
-      elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
-        lambda_BD = list(range(-JReson,JReson+1))
-        H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
-        H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
-        df_a = ang_CD.get_lambda(1,[-1,1],lambda_BD,[-1,0,1])
-        df_b = ang_D_CD.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
-        aligned_D = ang_CD_D(1)
-        HD1 = H_0*df_a
-        HD2 = H_1*df_b
-        arbcdi = tf.reshape(HD1,(2,JReson*2+1,3,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,1,1,3,-1))
-        abcdi = tf.reduce_sum(arbcdi,1)
-        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
-        abcdi = tf.reduce_sum(abcdyi,3)
-        #s = tf.einsum("arbi,rdci,dyi,i->abcyi",HD1,HD2,aligned_D,res_cache[i][-1])
-        ret.append(abcdi*res_cache[i][-1]*self.get_res_total(i))
-      else:
-        pass
-        #std::cerr << "unknown chain" << std::endl
-    ret = tf.stack(ret)
-    amp = tf.reduce_sum(ret,axis=0)
-    amp2s = tf.math.real(amp*tf.math.conj(amp))
-    sum_A = tf.reduce_sum(amp2s,[0,1,2,3])
+    data = self.cache_data(m_BC, m_BD, m_CD, 
+      Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
+      Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
+      Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
+      Theta_BD_B,Theta_BC_B,Theta_BD_D,Theta_CD_D,
+      phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2)
+    sum_A = self.get_amp2s_matrix(*data)
     return sum_A
   
   def cache_data(self,m_BC, m_BD, m_CD, 
@@ -578,15 +508,18 @@ class AllAmplitude(tf.keras.Model):
         H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
         df_a = ang_BC.get_lambda(1,[-1,1],lambda_BD,[-1,0,1])
         df_b = ang_B_BC.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
-        aligned_B = ang_BC_B(1)        
+        aligned_B = ang_BC_B(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
         arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,3,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,1,-1))
+        #print(arbcdi)
         abcdi = tf.reduce_sum(arbcdi,1)
+        #print(tf.reshape(abcdi,(2,JReson*2+1,3,1,1,3,-1)) * tf.reshape((aligned_B),(1,1,3,3,1,1,-1)))
         abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
         abcdi = tf.reduce_sum(abxcdi,1)
         s = abcdi
         #s = tf.einsum("ardi,rbci,bxi->axcdi",HD1,HD2,aligned_B)
+        #print(res_cache[i][-1],self.get_res_total(i))
         ret.append(s*res_cache[i][-1]*self.get_res_total(i))
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_BD = list(range(-JReson,JReson+1))
