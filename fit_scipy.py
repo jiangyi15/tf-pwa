@@ -46,7 +46,7 @@ def flatten_np_data(data):
   return ret
 
 param_list = [
-  "m_BC", "m_BD", "m_CD", 
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
   "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
   "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
   "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
@@ -64,9 +64,9 @@ def main():
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
-  fname = [["data/data4600_new.dat","data/Dst0_data4600_new.dat"],
-       ["data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
-       ["data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
+  fname = [["../RooAllAmplitude/data/data4600_new.dat","data/Dst0_data4600_new.dat"],
+       ["../RooAllAmplitude/data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
+       ["../RooAllAmplitude/data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}
@@ -136,7 +136,7 @@ def main():
       bnds.append((None,None))
     args["error_"+i.name] = 0.1
   now = time.time()
-  callback = None#lambda x: print(list(zip(args_name,x)))
+  callback = lambda x: print(list(zip(args_name,x)))
   with tf.device('/device:GPU:0'):
     #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
     s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
@@ -158,6 +158,7 @@ def main():
   inv_he = np.linalg.inv(h.numpy())
   diag_he = inv_he.diagonal()
   diag_he_abs = (np.fabs(diag_he) + diag_he)/2
+  np.save("error_matrix",inv_he)
   hesse_error = np.sqrt(diag_he_abs).tolist()
   err = dict(zip(args_name,hesse_error))
   print("fit value:")

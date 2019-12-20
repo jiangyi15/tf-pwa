@@ -36,7 +36,7 @@ def pprint(dicts):
   print(s)
 
 param_list = [
-  "m_BC", "m_BD", "m_CD", 
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
   "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
   "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
   "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
@@ -287,4 +287,4 @@ if __name__=="__main__":
     ["D2_2460","D2_2460p"],
   ]
   with tf.device("/device:CPU:0"):
-    plot("final_params.json",res_list=None)
+    plot("final_params_frac.json",res_list=None)
