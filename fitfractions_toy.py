@@ -75,9 +75,9 @@ def main():
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
-  fname = [["../RooAllAmplitude/data/data4600_new.dat","data/Dst0_data4600_new.dat"],
-       ["../RooAllAmplitude/data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
-       ["../RooAllAmplitude/data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
+  fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
+       ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
+       ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}

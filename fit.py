@@ -22,7 +22,7 @@ def flatten_np_data(data):
   return ret
 
 param_list = [
-  "m_BC", "m_BD", "m_CD", 
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
   "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
   "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
   "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
@@ -41,9 +41,9 @@ def main():
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
-  fname = [["data/data4600_new.dat","data/Dst0_data4600_new.dat"],
-       ["data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
-       ["data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
+  fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
+       ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
+       ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}
@@ -73,7 +73,7 @@ def main():
   a.Amp.m0_D = m0_D
   
   try :
-    with open("final_params.json") as f:  
+    with open("final_params_frac.json") as f:  
       param = json.load(f)
       a.set_params(param)
   except:
@@ -140,7 +140,7 @@ def main():
   print(m.get_param_states())
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
-  #print(m.covariance)
+  np.save("error_matrix",m.np_covariance())
   #try :
     #print(m.minos())
   #except RuntimeError as e:
