@@ -30,6 +30,7 @@ def trans_a(x,a):
 def g_trans_a(x,y,a):
   return x/(y+1-a)
 def trans_inv_a(y,a):
+  if y<=a : return 0.0
   return np.sqrt((y+1-a)**2-1)
 
 def trans_b(x,b):
@@ -37,6 +38,7 @@ def trans_b(x,b):
 def g_trans_b(x,y,b):
   return x/(y-b-1)
 def trans_inv_b(y,b):
+  if y>=b : return 0.0
   return np.sqrt((-y+1+b)**2-1)
 
 def trans_ab(x,a,b):
@@ -44,6 +46,9 @@ def trans_ab(x,a,b):
 def g_trans_ab(x,y,a,b):
   return (b-a)/2*np.cos(x)
 def trans_inv_ab(y,a,b):
+  if y<=a : return -1.0
+  if y>=b : return 1.0
+  if a==b : return 0.0
   return np.arcsin((y-a)/(b-a)*2-1)
 
 

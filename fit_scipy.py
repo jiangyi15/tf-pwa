@@ -61,6 +61,7 @@ def pprint(x):
 
 def main():
   dtype = "float64"
+  w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
@@ -73,10 +74,6 @@ def main():
   data_np = {}
   for i in range(3):
     data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
-  m0_A = (data_np["data"]["m_A"]).mean()
-  m0_B = (data_np["data"]["m_B"]).mean()
-  m0_C = (data_np["data"]["m_C"]).mean()
-  m0_D = (data_np["data"]["m_D"]).mean()  
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -88,11 +85,7 @@ def main():
     data = load_data("data")
     bg = load_data("bg")
     mcdata = load_data("PHSP")
-    a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
-  a.Amp.m0_A = m0_A
-  a.Amp.m0_B = m0_B
-  a.Amp.m0_C = m0_C
-  a.Amp.m0_D = m0_D
+    a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
   try :
     with open("init_params.json") as f:  
       param = json.load(f)
@@ -144,15 +137,17 @@ def main():
   callback = lambda x: print(dict(zip(args_name,bd.get_y(x))))
   with tf.device('/device:GPU:0'):
     #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-    s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+    #s = minimize(fcn.nll_grad,x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+    s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1,"maxcor":100})
+    xn = bd.get_y(s.x)
   print(s)
   print(time.time()-now)
-  val = dict(zip(args_name,bd.get_y(s.x)))
+  val = dict(zip(args_name,xn))
   a.set_params(val)
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
   
-  a_h = Cache_Model(a.Amp,0.768331,data,mcdata,bg=bg,batch=26000)
+  a_h = Cache_Model(a.Amp,w_bkg,data,mcdata,bg=bg,batch=26000)
   a_h.set_params(val)
   t = time.time()
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
@@ -175,7 +170,7 @@ def main():
   fitFrac = {}
   for i in range(len(res_list)):
     name = res_list[i]
-    a_sig = Cache_Model({name:config_list[name]},0.768331,data,mcdata)
+    a_sig = Cache_Model({name:config_list[name]},w_bkg,data,mcdata)
     a_sig.set_params(val)
     a_weight = a_sig.Amp(mcdata).numpy()
     fitFrac[name] = a_weight.sum()/int_total
