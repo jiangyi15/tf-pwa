@@ -287,4 +287,4 @@ if __name__=="__main__":
     ["D2_2460","D2_2460p"],
   ]
   with tf.device("/device:CPU:0"):
-    plot("final_params_frac.json",res_list=None)
+    plot("final_params.json",res_list=None)

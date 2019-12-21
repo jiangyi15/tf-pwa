@@ -73,7 +73,7 @@ def main():
   a.Amp.m0_D = m0_D
   
   try :
-    with open("final_params_frac.json") as f:  
+    with open("init_params.json") as f:  
       param = json.load(f)
       a.set_params(param)
   except:

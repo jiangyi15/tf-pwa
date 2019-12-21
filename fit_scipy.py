@@ -8,6 +8,7 @@ from scipy.optimize import minimize,BFGS,basinhopping
 from angle import cal_ang_file,EularAngle
 
 import math
+from bounds import Bounds
 
 def error_print(x,err=None):
   if err is None:
@@ -93,7 +94,7 @@ def main():
   a.Amp.m0_C = m0_C
   a.Amp.m0_D = m0_D
   try :
-    with open("final_params.json") as f:  
+    with open("init_params.json") as f:  
       param = json.load(f)
       a.set_params(param)
   except:
@@ -126,6 +127,7 @@ def main():
       "Zc_4160_m0:0":(4.1,4.22),
       "Zc_4160_g0:0":(0,None)
   }
+  import math
   for i in a.Amp.trainable_variables:
     args[i.name] = i.numpy()
     x0.append(i.numpy())
@@ -136,13 +138,16 @@ def main():
       bnds.append((None,None))
     args["error_"+i.name] = 0.1
   now = time.time()
-  callback = lambda x: print(list(zip(args_name,x)))
+  
+  bd = Bounds(bnds)
+  f_g = bd.trans_f_g(fcn.nll_grad)
+  callback = lambda x: print(dict(zip(args_name,bd.get_y(x))))
   with tf.device('/device:GPU:0'):
     #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-    s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+    s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
   print(s)
   print(time.time()-now)
-  val = dict(zip(args_name,s.x))
+  val = dict(zip(args_name,bd.get_y(s.x)))
   a.set_params(val)
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
@@ -159,6 +164,7 @@ def main():
   diag_he = inv_he.diagonal()
   diag_he_abs = (np.fabs(diag_he) + diag_he)/2
   np.save("error_matrix",inv_he)
+  #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
   hesse_error = np.sqrt(diag_he_abs).tolist()
   err = dict(zip(args_name,hesse_error))
   print("fit value:")
