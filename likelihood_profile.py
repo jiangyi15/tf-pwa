@@ -5,14 +5,16 @@ import time
 import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
+import iminuit
 from angle import cal_ang_file,EularAngle
-from fit_scipy import error_print,flatten_np_data,pprint,param_list
+from fit import flatten_np_data,pprint,param_list
 import matplotlib.pyplot as plt
 import math
 
 
-def main():
+def main(param_name,x,method):
   dtype = "float64"
+  w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
@@ -36,11 +38,11 @@ def main():
       tmp_data = tf.Variable(tmp[i],name=i,dtype=dtype)
       dat.append(tmp_data)
     return dat
-  with tf.device('/device:CPU:0'):
+  with tf.device('/device:GPU:0'):
     data = load_data("data")
     bg = load_data("bg")
     mcdata = load_data("PHSP")
-    a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
+    a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
   a.Amp.m0_A = m0_A
   a.Amp.m0_B = m0_B
   a.Amp.m0_C = m0_C
@@ -57,92 +59,41 @@ def main():
   t = time.time()
   nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
   print("nll:",nll,"Time:",time.time()-t)
-  #exit()
-  #print(a.get_params())
-  #t = time.time()
-  #with tf.device('/device:CPU:0'):
-      #with tf.GradientTape() as tape:
-        #nll = a.nll(data,bg,mcdata)
-      #g = tape.gradient(nll,a.Amp.trainable_variables)
-  #print("Time:",time.time()-t)
-  #print(nll,g)
-  
   fcn = FCN(a)# 1356*18
-  #a_h = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
-  #a_h.set_params(a.get_params())
-  #f_h = FCN(a_h)
   
-  def lklhd_prfl(fixed_var):
+  def LP_minuit(param_name,fixed_var):
+    args = {}
+    args_name = []
+    x0 = []
+    for i in a.Amp.trainable_variables:
+      args[i.name] = i.numpy()
+      x0.append(i.numpy())
+      args_name.append(i.name)
+      args["error_"+i.name] = 0.1
+    bounds_dict = {
+        param_name: (fixed_var,fixed_var),
+
+	"Zc_4160_m0:0":(4.1,4.22),
+        "Zc_4160_g0:0":(0,10)
+    }
+    for i in bounds_dict:
+      if i in args_name:
+        args["limit_{}".format(i)] = bounds_dict[i]
+    m = iminuit.Minuit(fcn,forced_parameters=args_name,errordef = 0.5,grad=fcn.grad,print_level=2,use_array_call=True,**args)
+    now = time.time()
+    with tf.device('/device:GPU:0'):
+      print(m.migrad(ncall=10000))#,precision=5e-7))
+    print(time.time() - now)
+    print(m.get_param_states())
+    return m
+
+  def LP_sp(param_name,fixed_var):
     args = {}
     args_name = []
     x0 = []
     bnds = []
     bounds_dict = {
-        "D1_2420_BLS_2_1r:0": (None,None),#(6.1,6.1),
-        "D1_2420_BLS_2_1i:0": (None,None),#(-1.9,-1.9),
-        "D1_2420_BLS_2_2r:0": (None,None),#(8,8),
-        "D1_2420_BLS_2_2i:0": (None,None),#(2.3,2.3),
-        "D1_2420_d_BLS_2_1r:0": (None,None),#(2.9,2.9),
-        "D1_2420_d_BLS_2_1i:0": (None,None),#(2.8,2.8),
-        "D1_2430_BLS_2_1r:0": (None,None),#(2,2.),
-        "D1_2430_BLS_2_1i:0": (None,None),#(2.9,2.9),
-        "D1_2430_BLS_2_2r:0": (None,None),#(-2.6,-2.6),
-        "D1_2430_BLS_2_2i:0": (None,None),#(4.2,4.2),
-        "D1_2430_d_BLS_2_1r:0": (None,None),#(-0.2,-0.2),
-        "D1_2430_d_BLS_2_1i:0": (None,None),#(-1,-1),
-        "D2_2460_BLS_2_1r:0": (None,None),#(10,10),
-        "D2_2460_BLS_2_1i:0": (None,None),#(0.8,0.8),
-        "D2_2460_BLS_2_2r:0": (None,None),#(5,5),
-        "D2_2460_BLS_2_2i:0": (None,None),#(4.3,4.3),
-        "D2_2460_BLS_2_3r:0": (None,None),#(8,8),
-        "D2_2460_BLS_2_3i:0": (None,None),#(1.1,1.1),
-        "D2_2460_BLS_4_3r:0": (None,None),#(7,7),
-        "D2_2460_BLS_4_3i:0": (None,None),#(6.5,6.5),
-        "Zc_4025_BLS_2_1r:0": (None,None),#(-2,-2),
-        "Zc_4025_BLS_2_1i:0": (None,None),#(0.9,0.9),
-        "Zc_4025_d_BLS_2_1r:0": (None,None),#(20,20),
-        "Zc_4025_d_BLS_2_1i:0": (None,None),#(-0.8,-0.8),
-        "Zc_4025_d_BLS_2_2r:0": (None,None),#(32,32),
-        "Zc_4025_d_BLS_2_2i:0": (None,None),#(-0.1,-0.1),
-        "Zc_4160_BLS_2_1r:0": (None,None),#(1.5,1.5),
-        "Zc_4160_BLS_2_1i:0": (None,None),#(7.1,7.1),
-        "Zc_4160_d_BLS_2_1r:0": (None,None),#(2.0,2.0),
-        "Zc_4160_d_BLS_2_1i:0": (None,None),#(0.24,0.24),
-        "Zc_4160_d_BLS_2_2r:0": (None,None),#(0.1,0.1),
-        "Zc_4160_d_BLS_2_2i:0": (None,None),#(2.8,2.8),
-        "D1_2420_BLS_0_1r:0": 1.0,
-        "D1_2420_BLS_0_1i:0": 0.0,
-        "D1_2420_d_BLS_0_1r:0": 1.0,
-        "D1_2420_d_BLS_0_1i:0": 0.0,
-        "D1_2430_BLS_0_1r:0": 1.0,
-        "D1_2430_BLS_0_1i:0": 0.0,
-        "D1_2430_d_BLS_0_1r:0": 1.0,
-        "D1_2430_d_BLS_0_1i:0": 0.0,
-        "D2_2460_BLS_0_1r:0": 1.0,
-        "D2_2460_BLS_0_1i:0": 0.0,
-        "D2_2460_d_BLS_2_1r:0": 1.0,
-        "D2_2460_d_BLS_2_1i:0": 0.0,
-        "Zc_4025_BLS_0_1r:0": 1.0,
-        "Zc_4025_BLS_0_1i:0": 0.0,
-        "Zc_4025_d_BLS_0_1r:0": 1.0,
-        "Zc_4025_d_BLS_0_1i:0": 0.0,
-        "Zc_4160_BLS_0_1r:0": 1.0,
-        "Zc_4160_BLS_0_1i:0": 0.0,
-        "Zc_4160_d_BLS_0_1r:0": 1.0,
-        "Zc_4160_d_BLS_0_1i:0": 0.0,
-        "D1_2420r:0": (None,None),#(0.11,0.11),
-        "D1_2420i:0": (None,None),#(5.4,5.4),
-        "D1_2420pi:0": (None,None),#(2,2),
-        "D1_2430r:0": (None,None),#(1.2,1.2),
-        "D1_2430i:0": (None,None),#(9,9),
-        "D1_2430pi:0": (None,None),#(4.5,4.5),
-        "D2_2460pi:0": (None,None),#(2.4,2.4),
-        "Zc_4025r:0": (fixed_var,fixed_var),#(0.51,0.51),
-        "Zc_4025i:0": (None,None),#(-0.1,-0.1),
-        "Zc_4160r:0": (None,None),#(2,2),
-        "Zc_4160i:0": (None,None),#(4.1,4.1),
-        "D2_2460r:0": 1.0,
-        "D2_2460i:0": 0.0,
+        param_name: (fixed_var,fixed_var),
         
         "Zc_4160_m0:0":(4.1,4.22),
         "Zc_4160_g0:0":(0,None)
@@ -156,43 +107,40 @@ def main():
       else:
         bnds.append((None,None))
       args["error_"+i.name] = 0.1
-    
-    '''for i in a.Amp.trainable_variables:
-      if i.name == "Zc_4025r:0":
-          print(i)
-          i.assign(2.00)'''
-    
     now = time.time()
     callback = None#lambda x: print(list(zip(args_name,x)))
     with tf.device('/device:GPU:0'):
       #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
       # 优化器
       s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
-    print(s)
-    
-    '''a_h = Cache_Model(a.Amp,0.768331,data,mcdata,bg=bg,batch=26000)
-    a_h.set_params(val)
-    t = time.time()
-    nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
-    print("Time:",time.time()-t)
-    #print(nll)
-    #print([i.numpy() for i in g])
-    #print(h.numpy())'''
-    return s#.fun
+    return s
 
-  x=np.arange(0,1,0.1)
+  #x=np.arange(0.51,0.52,0.01)
   y=[]
-  for v in x:
-    y.append(lklhd_prfl(v).fun)
-  print(x)
-  print(y)
-  plt.plot(x,y)
-  plt.savefig("lklhd_prfl.png")
-  plt.clf()
+  if method=="scipy":
+    for v in x:
+      y.append(LP_sp(param_name,v).fun)
+  elif method=="iminuit":
+    for v in x:
+      y.append(LP_minuit(param_name,v).get_fmin().fval)
+  print("lklhdx",x)
+  print("lklhdy",y)
+  #plt.plot(x,y)
+  #plt.savefig("lklhd_prfl.png")
+  #plt.clf()
   print("\nend\n")
 
 if __name__ == "__main__":
+  param_name="Zc_4025r:0" ###
+  with open("final_params.json") as f:
+    params = json.load(f)
+  x_mean = params[param_name]
+  #x_sigma = 
+  x_sigma = 0.1
+  x=np.arange(x_mean-5*x_sigma,x_mean+6*x_sigma,x_sigma)
+  method="scipy" ###
   t1=time.time()
-  main()
+  main(param_name,x,method)
   t2=time.time()
-  print("*"*10,t2-t1)
+  print("#"*10,t2-t1)
+
