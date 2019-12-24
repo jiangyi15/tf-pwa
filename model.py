@@ -239,41 +239,49 @@ class FCN(object):
     self.model = cache_model
     self.ncall = 0
     self.n_grad = 0
+    self.cached_nll = None
   #@time_print
   def __call__(self,x):
     nll = self.model.cal_nll(x)
+    self.cached_nll = nll
     self.ncall += 1
     return nll
   
   #@time_print
   def grad(self,x):
     nll,g = self.model.cal_nll_gradient(x)
+    self.cached_nll = nll
     self.n_grad += 1
     return np.array([i.numpy() for i in g])
   
   #@time_print
   def nll_grad(self,x):
     nll,g = self.model.cal_nll_gradient(x)
+    self.cached_nll = nll
+    self.ncall += 1
+    self.n_grad += 1
     return nll.numpy().astype("float64"), np.array([i.numpy() for i in g]).astype("float64")
   
   
   #@time_print
   def hessian(self,x):
     nll,g,h = self.model.cal_nll_hessian(x)
+    self.cached_nll = nll
     return h
   
   def nll_grad_hessian(self,x):
     nll,g,h = self.model.cal_nll_hessian(x)
+    self.cached_nll = nll
     return nll,g,h
-
+  
     
 param_list = [
-  "m_BC", "m_BD", "m_CD", 
-  "cos_BC", "cos_B_BC", "phi_BC", "phi_B_BC",
-  "cos_BD", "cos_B_BD", "phi_BD", "phi_B_BD", 
-  "cos_CD", "cos_D_CD", "phi_CD", "phi_D_CD",
-  "cosbeta_B_BD","cosbeta_B_BC","cosbeta_D_BD","cosbeta_D_CD",
-  "alpha_B_BD","gamma_B_BD","alpha_B_BC","gamma_B_BC","alpha_D_BD","gamma_D_BD","alpha_D_CD","gamma_D_CD"
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
+  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
+  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
+  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
+  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
+  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
 ]
 
 
