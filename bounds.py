@@ -54,59 +54,56 @@ def trans_inv_ab(y,a,b):
 
 def get_trans_f(bnds):
   fun_t = []
-  for ai,bi in bnds:
-    a,b = ai,bi
+  for a,b in bnds:
     if a is None:
       if b is None:
         # (-inf,inf)
         fun_t.append(trans_non)
       else:
         # (-inf,b)
-        fun_t.append(lambda x:trans_b(x,b))
+        fun_t.append(lambda x,b=b:trans_b(x,b))
     else :
       if b is None:
         # (a,inf)
-        fun_t.append(lambda x:trans_a(x,a))
+        fun_t.append(lambda x,a=a:trans_a(x,a))
       else:
-        fun_t.append(lambda x:trans_ab(x,a,b))
+        fun_t.append(lambda x,a=a,b=b:trans_ab(x,a,b))
   return fun_t
 
 def get_trans_f_inv(bnds):
   fun_inv_t = []
-  for ai,bi in bnds:
-    a,b = ai,bi
+  for a,b in bnds:
     if a is None:
       if b is None:
         # (-inf,inf)
         fun_inv_t.append(lambda y:trans_inv_non(y))
       else:
         # (-inf,b)
-        fun_inv_t.append(lambda y:trans_inv_b(y,b))
+        fun_inv_t.append(lambda y,b=b:trans_inv_b(y,b))
     else :
       if b is None:
         # (a,inf)
-        fun_inv_t.append(lambda y:trans_inv_a(y,a))
+        fun_inv_t.append(lambda y,a=a:trans_inv_a(y,a))
       else:
-        fun_inv_t.append(lambda y:trans_inv_ab(y,a,b))
+        fun_inv_t.append(lambda y,a=a,b=b:trans_inv_ab(y,a,b))
   return fun_inv_t
 
 def get_trans_f_g(bnds):
   fun_t = []
-  for ai,bi in bnds:
-    a,b = ai,bi
+  for a,b in bnds:
     if a is None:
       if b is None:
         # (-inf,inf)
         fun_t.append(lambda x,y:g_trans_non(x,y))
       else:
         # (-inf,b)
-        fun_t.append(lambda x,y:g_trans_b(x,y,b))
+        fun_t.append(lambda x,y,b=b:g_trans_b(x,y,b))
     else :
       if b is None:
         # (a,inf)
-        fun_t.append(lambda x,y:g_trans_a(x,y,a))
+        fun_t.append(lambda x,y,a=a:g_trans_a(x,y,a))
       else:
-        fun_t.append(lambda x,y:g_trans_ab(x,y,a,b))
+        fun_t.append(lambda x,y,a=a,b=b:g_trans_ab(x,y,a,b))
   return fun_t
 
 class Bounds(object):

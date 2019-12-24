@@ -11,6 +11,9 @@ from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 import functools
+from breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
+
+#print(bw_dict)
 
 complex = lambda x,y:Complex_F(tf,x,y)
 
@@ -29,47 +32,6 @@ def Getp(M_0, M_1, M_2) :
   q = (p + tf.abs(p))/2
   #print(M_0,M_1,M_2,tf.sqrt(p) / (2 * M_0))
   return tf.sqrt(q) / (2 * M_0)
-
-def BW(m, m0,g0,q,q0,L,d):
-  gamma = Gamma(m, g0, q, q0, L, m0, d)
-  num = 1.0
-  denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
-  return num/denom
-
-def Gamma(m, gamma0, q, q0, L, m0,d):
-  gammaM = gamma0 * (q / tf.cast(q0,q.dtype))**(2 * L + 1) * (tf.cast(m0,m.dtype) / m) * Bprime(L, q, q0, d)**2
-  return gammaM
-
-def Bprime(L, q, q0, d):
-  z = (q * d)**2
-  z0 = (tf.cast(q0,q.dtype) * d)**2
-  if L == 0:
-    return 1.0
-  if L == 1:
-    return tf.sqrt((1.0 + z0) / (1.0 + z))
-  if L == 2:
-    return tf.sqrt((9. + (3. + z0) * z0) / (9. + (3. + z) * z))
-  if L == 3:
-    return tf.sqrt((z0 * (z0 * (z0 + 6.) + 45.) + 225.) /
-                (z * (z * (z + 6.) + 45.) + 225.))
-  if L == 4:
-    return tf.sqrt((z0 * (z0 * (z0 * (z0 + 10.) + 135.) + 1575.) + 11025.) /
-                (z * (z * (z * (z + 10.) + 135.) + 1575.) + 11025.));
-  if L == 5:
-    return tf.sqrt(
-        (z0 * (z0 * (z0 * (z0 * (z0 + 15.) + 315.) + 6300.) + 99225.) +
-         893025.) /
-        (z * (z * (z * (z * (z + 15.) + 315.) + 6300.) + 99225.) + 893025.));
-  return 1.0
-
-#@snoop()
-def barrier_factor(l,q,q0,d=3.0):
-  ret = []
-  for i in l:
-    tmp = q**i * Bprime(i,q,q0,d)
-    #print(q**i,Bprime(i,q,q0,d))
-    ret.append(tmp)
-  return tf.stack(ret)
 
 def GetMinL(J1,J2,J3,P1,P2,P3):
   dl = not (P1*P2*P3==1)
@@ -185,7 +147,6 @@ def fix_value(x):
     return x
   return f
 
-
 class AllAmplitude(tf.keras.Model):
   def __init__(self,res):
     super(AllAmplitude,self).__init__()
@@ -224,6 +185,10 @@ class AllAmplitude(tf.keras.Model):
       m0 = self.res[i]["m0"]
       g0 = self.res[i]["g0"]
       chain = self.res[i]["Chain"]
+      if "bw" in self.res[i]:
+        self.res[i]["bwf"] = bw_dict[self.res[i]["bw"]]
+      else:
+        self.res[i]["bwf"] = bw_dict["default"]
       tmp = Particle(i,m0,g0,J_reson,P_reson)
       if (chain < 0) : # A->(DB)C
         d_tmp_0 = Decay(i+"_0",self.A,[tmp,self.C])
@@ -320,7 +285,7 @@ class AllAmplitude(tf.keras.Model):
         q0 = Getp(m, m_B, m_D)
         l = GetMinL(J_reson, self.JB, self.JD,
                     P_reson, self.ParB, self.ParD)
-        bw = BW(m_BD, m, g, q, q0, l, 3.0)
+        bw = self.res[i]["bwf"](m_BD, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         p = Getp(m_A, m_BC, m_D)
@@ -329,7 +294,7 @@ class AllAmplitude(tf.keras.Model):
         q0 = Getp(m, m_B, m_C)
         l = GetMinL(J_reson, self.JB, self.JC,
                     P_reson, self.ParB, self.ParC)
-        bw = BW(m_BC, m, g, q, q0, l, 3.0)
+        bw = self.res[i]["bwf"](m_BC, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         p = Getp(m_A, m_CD, m_B)
@@ -338,7 +303,7 @@ class AllAmplitude(tf.keras.Model):
         q0 = Getp(m, m_C, m_D)
         l = GetMinL(J_reson, self.JC, self.JD,
                     P_reson, self.ParC, self.ParD)
-        bw = BW(m_CD, m, g, q, q0, l, 3.0)
+        bw = self.res[i]["bwf"](m_CD, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       else :
         raise "unknown chain"
