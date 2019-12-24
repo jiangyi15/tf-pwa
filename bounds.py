@@ -54,7 +54,8 @@ def trans_inv_ab(y,a,b):
 
 def get_trans_f(bnds):
   fun_t = []
-  for a,b in bnds:
+  for ai,bi in bnds:
+    a,b = ai,bi
     if a is None:
       if b is None:
         # (-inf,inf)
@@ -72,7 +73,8 @@ def get_trans_f(bnds):
 
 def get_trans_f_inv(bnds):
   fun_inv_t = []
-  for a,b in bnds:
+  for ai,bi in bnds:
+    a,b = ai,bi
     if a is None:
       if b is None:
         # (-inf,inf)
@@ -90,7 +92,8 @@ def get_trans_f_inv(bnds):
 
 def get_trans_f_g(bnds):
   fun_t = []
-  for a,b in bnds:
+  for ai,bi in bnds:
+    a,b = ai,bi
     if a is None:
       if b is None:
         # (-inf,inf)

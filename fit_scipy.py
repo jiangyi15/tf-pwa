@@ -134,7 +134,7 @@ def main():
   
   bd = Bounds(bnds)
   f_g = bd.trans_f_g(fcn.nll_grad)
-  callback = lambda x: print(dict(zip(args_name,bd.get_y(x))))
+  callback = lambda x: print(fcn.cached_nll)
   with tf.device('/device:GPU:0'):
     #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
     #s = minimize(fcn.nll_grad,x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
@@ -147,7 +147,7 @@ def main():
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
   
-  a_h = Cache_Model(a.Amp,w_bkg,data,mcdata,bg=bg,batch=26000)
+  a_h = Cache_Model(a.Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
   a_h.set_params(val)
   t = time.time()
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
@@ -173,7 +173,7 @@ def main():
     a_sig = Cache_Model({name:config_list[name]},w_bkg,data,mcdata)
     a_sig.set_params(val)
     a_weight = a_sig.Amp(mcdata).numpy()
-    fitFrac[name] = a_weight.sum()/int_total
+    fitFrac[name] = float(a_weight.sum()/int_total)
   print("FitFractions:")
   pprint(fitFrac)
   
