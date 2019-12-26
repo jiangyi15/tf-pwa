@@ -9,6 +9,7 @@ import iminuit
 from angle import cal_ang_file,EularAngle
 from fit import flatten_np_data,pprint,param_list
 import matplotlib.pyplot as plt
+from bounds import Bounds
 import math
 
 
@@ -65,17 +66,19 @@ def main(param_name,x,method):
     args = {}
     args_name = []
     x0 = []
-    for i in a.Amp.trainable_variables:
-      args[i.name] = i.numpy()
-      x0.append(i.numpy())
-      args_name.append(i.name)
-      args["error_"+i.name] = 0.1
     bounds_dict = {
         param_name: (fixed_var,fixed_var),
 
 	"Zc_4160_m0:0":(4.1,4.22),
         "Zc_4160_g0:0":(0,10)
     }
+    for i in a.Amp.trainable_variables:
+      args[i.name] = i.numpy()
+      x0.append(i.numpy())
+      args_name.append(i.name)
+      args["error_"+i.name] = 0.1
+      if i.name not in bounds_dict:
+        bounds_dict[i.name]=(0.,None)
     for i in bounds_dict:
       if i in args_name:
         args["limit_{}".format(i)] = bounds_dict[i]
@@ -105,14 +108,17 @@ def main(param_name,x,method):
       if i.name in bounds_dict:
         bnds.append(bounds_dict[i.name])
       else:
-        bnds.append((None,None))
+        bnds.append((0.,None))
       args["error_"+i.name] = 0.1
     now = time.time()
-    callback = None#lambda x: print(list(zip(args_name,x)))
+    bd = Bounds(bnds)
+    f_g = bd.trans_f_g(fcn.nll_grad)
+    callback = lambda x: print(fcn.cached_nll)
     with tf.device('/device:GPU:0'):
       #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
       # 优化器
-      s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+      #s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+      s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1})
     return s
 
   #x=np.arange(0.51,0.52,0.01)
@@ -129,18 +135,25 @@ def main(param_name,x,method):
   #plt.savefig("lklhd_prfl.png")
   #plt.clf()
   print("\nend\n")
+  return y
 
 if __name__ == "__main__":
-  param_name="Zc_4025r:0" ###
+  param_name="D1_2420_BLS_2_1r:0" ###
   with open("final_params.json") as f:
     params = json.load(f)
   x_mean = params[param_name]
   #x_sigma = 
-  x_sigma = 0.1
-  x=np.arange(x_mean-5*x_sigma,x_mean+6*x_sigma,x_sigma)
+  x=np.arange(0.,10,0.5) ###
   method="scipy" ###
   t1=time.time()
-  main(param_name,x,method)
+  yf=main(param_name,x,method)
   t2=time.time()
-  print("#"*10,t2-t1)
+  yb=main(param_name,x[::-1],method)
+  t3=time.time()
+  print("#"*10,t2-t1,"#"*10,t3-t2)
+  plt.plot(x,yf,"*-",x,yb,"*-")
+  plt.title(param_name)
+  plt.legend(["forward","backward"])
+  plt.savefig("lklhd_prfl")
+  plt.clf()
 
