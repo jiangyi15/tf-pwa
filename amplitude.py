@@ -11,6 +11,9 @@ from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 import functools
+from breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
+
+#print(bw_dict)
 
 complex = lambda x,y:Complex_F(tf,x,y)
 
@@ -29,47 +32,6 @@ def Getp(M_0, M_1, M_2) :
   q = (p + tf.abs(p))/2
   #print(M_0,M_1,M_2,tf.sqrt(p) / (2 * M_0))
   return tf.sqrt(q) / (2 * M_0)
-
-def BW(m, m0,g0,q,q0,L,d):
-  gamma = Gamma(m, g0, q, q0, L, m0, d)
-  num = 1.0
-  denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
-  return num/denom
-
-def Gamma(m, gamma0, q, q0, L, m0,d):
-  gammaM = gamma0 * (q / tf.cast(q0,q.dtype))**(2 * L + 1) * (tf.cast(m0,m.dtype) / m) * Bprime(L, q, q0, d)**2
-  return gammaM
-
-def Bprime(L, q, q0, d):
-  z = (q * d)**2
-  z0 = (tf.cast(q0,q.dtype) * d)**2
-  if L == 0:
-    return 1.0
-  if L == 1:
-    return tf.sqrt((1.0 + z0) / (1.0 + z))
-  if L == 2:
-    return tf.sqrt((9. + (3. + z0) * z0) / (9. + (3. + z) * z))
-  if L == 3:
-    return tf.sqrt((z0 * (z0 * (z0 + 6.) + 45.) + 225.) /
-                (z * (z * (z + 6.) + 45.) + 225.))
-  if L == 4:
-    return tf.sqrt((z0 * (z0 * (z0 * (z0 + 10.) + 135.) + 1575.) + 11025.) /
-                (z * (z * (z * (z + 10.) + 135.) + 1575.) + 11025.));
-  if L == 5:
-    return tf.sqrt(
-        (z0 * (z0 * (z0 * (z0 * (z0 + 15.) + 315.) + 6300.) + 99225.) +
-         893025.) /
-        (z * (z * (z * (z * (z + 15.) + 315.) + 6300.) + 99225.) + 893025.));
-  return 1.0
-
-#@snoop()
-def barrier_factor(l,q,q0,d=3.0):
-  ret = []
-  for i in l:
-    tmp = q**i * Bprime(i,q,q0,d)
-    #print(q**i,Bprime(i,q,q0,d))
-    ret.append(tmp)
-  return tf.stack(ret)
 
 def GetMinL(J1,J2,J3,P1,P2,P3):
   dl = not (P1*P2*P3==1)
@@ -185,7 +147,6 @@ def fix_value(x):
     return x
   return f
 
-
 class AllAmplitude(tf.keras.Model):
   def __init__(self,res):
     super(AllAmplitude,self).__init__()
@@ -224,6 +185,10 @@ class AllAmplitude(tf.keras.Model):
       m0 = self.res[i]["m0"]
       g0 = self.res[i]["g0"]
       chain = self.res[i]["Chain"]
+      if "bw" in self.res[i]:
+        self.res[i]["bwf"] = bw_dict[self.res[i]["bw"]]
+      else:
+        self.res[i]["bwf"] = bw_dict["default"]
       tmp = Particle(i,m0,g0,J_reson,P_reson)
       if (chain < 0) : # A->(DB)C
         d_tmp_0 = Decay(i+"_0",self.A,[tmp,self.C])
@@ -305,7 +270,7 @@ class AllAmplitude(tf.keras.Model):
       
       
   
-  def Get_BWReson(self,m_BC,m_BD,m_CD):
+  def Get_BWReson(self,m_A,m_B,m_C,m_D,m_BC,m_BD,m_CD):
     ret = {}
     for i in self.res:
       m = self.res[i]["m0"]
@@ -314,31 +279,31 @@ class AllAmplitude(tf.keras.Model):
       P_reson = self.res[i]["Par"]
       chain = self.res[i]["Chain"]
       if (chain < 0) : # A->(BD)C
-        p = Getp(self.m0_A, m_BD, self.m0_C)
-        p0 = Getp(self.m0_A, m, self.m0_C)
-        q = Getp(m_BD, self.m0_B, self.m0_D)
-        q0 = Getp(m, self.m0_B, self.m0_D)
+        p = Getp(m_A, m_BD, m_C)
+        p0 = Getp(m_A, m, m_C)
+        q = Getp(m_BD, m_B, m_D)
+        q0 = Getp(m, m_B, m_D)
         l = GetMinL(J_reson, self.JB, self.JD,
                     P_reson, self.ParB, self.ParD)
-        bw = BW(m_BD, m, g, q, q0, l, 3.0)
+        bw = self.res[i]["bwf"](m_BD, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
-        p = Getp(self.m0_A, m_BC, self.m0_D)
-        p0 = Getp(self.m0_A, m, self.m0_D)
-        q = Getp(m_BC, self.m0_B, self.m0_C)
-        q0 = Getp(m, self.m0_B, self.m0_C)
+        p = Getp(m_A, m_BC, m_D)
+        p0 = Getp(m_A, m, m_D)
+        q = Getp(m_BC, m_B, m_C)
+        q0 = Getp(m, m_B, m_C)
         l = GetMinL(J_reson, self.JB, self.JC,
                     P_reson, self.ParB, self.ParC)
-        bw = BW(m_BC, m, g, q, q0, l, 3.0)
+        bw = self.res[i]["bwf"](m_BC, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
-        p = Getp(self.m0_A, m_CD, self.m0_B)
-        p0 = Getp(self.m0_A, m, self.m0_B)
-        q = Getp(m_CD, self.m0_C, self.m0_D)
-        q0 = Getp(m, self.m0_C, self.m0_D)
+        p = Getp(m_A, m_CD, m_B)
+        p0 = Getp(m_A, m, m_B)
+        q = Getp(m_CD, m_C, m_D)
+        q0 = Getp(m, m_C, m_D)
         l = GetMinL(J_reson, self.JC, self.JD,
                     P_reson, self.ParC, self.ParD)
-        bw = BW(m_CD, m, g, q, q0, l, 3.0)
+        bw = self.res[i]["bwf"](m_CD, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       else :
         raise "unknown chain"
@@ -418,22 +383,12 @@ class AllAmplitude(tf.keras.Model):
           ret.append((l,s))
     return ret
   
-  def get_amp2s(self,m_BC, m_BD, m_CD, 
-      Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
-      Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
-      Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
-      Theta_BD_B,Theta_BC_B,Theta_BD_D,Theta_CD_D,
-      phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2):
-    data = self.cache_data(m_BC, m_BD, m_CD, 
-      Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
-      Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
-      Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
-      Theta_BD_B,Theta_BC_B,Theta_BD_D,Theta_CD_D,
-      phi_BD_B,phi_BD_B2,phi_BC_B,phi_BC_B2,phi_BD_D,phi_BD_D2,phi_CD_D,phi_CD_D2)
+  def get_amp2s(self,*x):
+    data = self.cache_data(*x)
     sum_A = self.get_amp2s_matrix(*data)
     return sum_A
   
-  def cache_data(self,m_BC, m_BD, m_CD, 
+  def cache_data(self,m_A,m_B,m_C,m_D,m_BC, m_BD, m_CD, 
       Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
       Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
       Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
@@ -451,9 +406,9 @@ class AllAmplitude(tf.keras.Model):
       ang_CD_D = D_fun_Cache(phi_CD_D, Theta_CD_D,phi_CD_D2)
       ang_CD = D_fun_Cache(phi_CD, Theta_CD,0.0)
       ang_D_CD = D_fun_Cache(phi_D_CD, Theta_D_CD,0.0)
-      return [m_BC, m_BD, m_CD,ang_BD,ang_B_BD,ang_BD_B,ang_BD_D,ang_BC,ang_B_BC,ang_BC_B,ang_CD,ang_D_CD,ang_CD_D]
+      return [m_A,m_B,m_C,m_D,m_BC, m_BD, m_CD,ang_BD,ang_B_BD,ang_BD_B,ang_BD_D,ang_BC,ang_B_BC,ang_BC_B,ang_CD,ang_D_CD,ang_CD_D]
     else :
-      data = [m_BC, m_BD, m_CD, 
+      data = [m_A,m_B,m_C,m_D,m_BC, m_BD, m_CD, 
       Theta_BC,Theta_B_BC, phi_BC, phi_B_BC,
       Theta_BD,Theta_B_BD,phi_BD, phi_B_BD, 
       Theta_CD,Theta_D_CD, phi_CD,phi_D_CD,
@@ -471,9 +426,9 @@ class AllAmplitude(tf.keras.Model):
         ret.append(self.cache_data(*data_part))
       return ret
   
-  def get_amp2s_matrix(self,m_BC, m_BD, m_CD,ang_BD,ang_B_BD,ang_BD_B,ang_BD_D,ang_BC,ang_B_BC,ang_BC_B,ang_CD,ang_D_CD,ang_CD_D):
+  def get_amp2s_matrix(self,m_A,m_B,m_C,m_D,m_BC, m_BD, m_CD,ang_BD,ang_B_BD,ang_BD_B,ang_BD_D,ang_BC,ang_B_BC,ang_BC_B,ang_CD,ang_D_CD,ang_CD_D):
     d = 3.0
-    res_cache = self.Get_BWReson(m_BC,m_BD,m_CD)
+    res_cache = self.Get_BWReson(m_A,m_B,m_C,m_D,m_BC,m_BD,m_CD)
     sum_A = 0.1
     ret = []
     for i in self.res:
@@ -551,3 +506,17 @@ class AllAmplitude(tf.keras.Model):
     if cached:
       return self.get_amp2s_matrix(*x)
     return self.get_amp2s(*x)
+  
+  def get_params(self):
+    ret = {}
+    for i in self.variables:
+      tmp = i.numpy()
+      ret[i.name] = float(tmp)
+    return ret
+  
+  def set_params(self,param):
+    for j in param:
+      for i in self.variables:
+        if j == i.name:
+          tmp = param[i.name]
+          i.assign(tmp)

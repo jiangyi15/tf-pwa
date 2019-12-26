@@ -48,7 +48,7 @@ def flatten_np_data(data):
   return ret
 
 param_list = [
-  "m_BC", "m_BD", "m_CD", 
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
   "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
   "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
   "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
@@ -75,9 +75,9 @@ def main():
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
-  fname = [["../RooAllAmplitude/data/data4600_new.dat","data/Dst0_data4600_new.dat"],
-       ["../RooAllAmplitude/data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
-       ["../RooAllAmplitude/data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
+  fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
+       ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
+       ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}
@@ -125,7 +125,7 @@ def main():
   values = a.Amp.trainable_variables
   mean = [i.numpy() for i in values]
   cov = Vij
-  num = 100
+  num = 1000
   toy_params = np.random.multivariate_normal(mean,cov,num)
   print("toy_params:",toy_params)
   def cal_fitfractions(params):

@@ -8,6 +8,7 @@ from scipy.optimize import minimize,BFGS,basinhopping
 from angle import cal_ang_file,EularAngle
 
 import math
+from bounds import Bounds
 
 def error_print(x,err=None):
   if err is None:
@@ -46,7 +47,7 @@ def flatten_np_data(data):
   return ret
 
 param_list = [
-  "m_BC", "m_BD", "m_CD", 
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
   "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
   "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
   "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
@@ -60,22 +61,19 @@ def pprint(x):
 
 def main():
   dtype = "float64"
+  w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
-  fname = [["data/data4600_new.dat","data/Dst0_data4600_new.dat"],
-       ["data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
-       ["data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
+  fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
+       ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
+       ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}
   for i in range(3):
     data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
-  m0_A = (data_np["data"]["m_A"]).mean()
-  m0_B = (data_np["data"]["m_B"]).mean()
-  m0_C = (data_np["data"]["m_C"]).mean()
-  m0_D = (data_np["data"]["m_D"]).mean()  
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -87,13 +85,9 @@ def main():
     data = load_data("data")
     bg = load_data("bg")
     mcdata = load_data("PHSP")
-    a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=65000)
-  a.Amp.m0_A = m0_A
-  a.Amp.m0_B = m0_B
-  a.Amp.m0_C = m0_C
-  a.Amp.m0_D = m0_D
+    a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
   try :
-    with open("final_params.json") as f:  
+    with open("init_params.json") as f:  
       param = json.load(f)
       a.set_params(param)
   except:
@@ -126,6 +120,7 @@ def main():
       "Zc_4160_m0:0":(4.1,4.22),
       "Zc_4160_g0:0":(0,None)
   }
+  import math
   for i in a.Amp.trainable_variables:
     args[i.name] = i.numpy()
     x0.append(i.numpy())
@@ -136,18 +131,23 @@ def main():
       bnds.append((None,None))
     args["error_"+i.name] = 0.1
   now = time.time()
-  callback = None#lambda x: print(list(zip(args_name,x)))
+  
+  bd = Bounds(bnds)
+  f_g = bd.trans_f_g(fcn.nll_grad)
+  callback = lambda x: print(fcn.cached_nll)
   with tf.device('/device:GPU:0'):
     #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-    s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+    #s = minimize(fcn.nll_grad,x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+    s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1,"maxcor":100})
+    xn = bd.get_y(s.x)
   print(s)
   print(time.time()-now)
-  val = dict(zip(args_name,s.x))
+  val = dict(zip(args_name,xn))
   a.set_params(val)
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
   
-  a_h = Cache_Model(a.Amp,0.768331,data,mcdata,bg=bg,batch=26000)
+  a_h = Cache_Model(a.Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
   a_h.set_params(val)
   t = time.time()
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
@@ -158,6 +158,8 @@ def main():
   inv_he = np.linalg.inv(h.numpy())
   diag_he = inv_he.diagonal()
   diag_he_abs = (np.fabs(diag_he) + diag_he)/2
+  np.save("error_matrix",inv_he)
+  #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
   hesse_error = np.sqrt(diag_he_abs).tolist()
   err = dict(zip(args_name,hesse_error))
   print("fit value:")
@@ -168,10 +170,10 @@ def main():
   fitFrac = {}
   for i in range(len(res_list)):
     name = res_list[i]
-    a_sig = Cache_Model({name:config_list[name]},0.768331,data,mcdata)
+    a_sig = Cache_Model({name:config_list[name]},w_bkg,data,mcdata)
     a_sig.set_params(val)
     a_weight = a_sig.Amp(mcdata).numpy()
-    fitFrac[name] = a_weight.sum()/int_total
+    fitFrac[name] = float(a_weight.sum()/int_total)
   print("FitFractions:")
   pprint(fitFrac)
   

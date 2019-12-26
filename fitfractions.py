@@ -48,7 +48,7 @@ def flatten_np_data(data):
   return ret
 
 param_list = [
-  "m_BC", "m_BD", "m_CD", 
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
   "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
   "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
   "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
@@ -75,9 +75,9 @@ def main():
   tf.keras.backend.set_floatx(dtype)
   with open("Resonances.json") as f:  
     config_list = json.load(f)
-  fname = [["../RooAllAmplitude/data/data4600_new.dat","data/Dst0_data4600_new.dat"],
-       ["../RooAllAmplitude/data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
-       ["../RooAllAmplitude/data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
+  fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
+       ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
+       ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}
@@ -122,9 +122,10 @@ def main():
     inv_he = np.linalg.inv(h.numpy())
     Vij = inv_he
   mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
-  #print(Vij.tolist())
+  
   int_mc,g_int_mc = sum_gradient(a.Amp,mcdata_cached,kwargs={"cached":True})
   allvar = [i.name for i in a.Amp.trainable_variables]
+  print(dict(zip(allvar,np.sqrt(np.diag(Vij).tolist()))))
   res = [i for i in config_list]
   n_res = len(res)
   fitFrac = {}
