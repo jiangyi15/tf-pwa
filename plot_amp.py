@@ -275,7 +275,7 @@ def plot(params_file="final_params.json",res_file="Resonances.json",res_list=Non
     ax = fig.add_subplot(1,1,1)
     name = plot_list[i]
     plot_params(ax,name,**params_config[name])
-    fig.savefig(name)
+    fig.savefig("figure/"+name)
   
   
 if __name__=="__main__":
