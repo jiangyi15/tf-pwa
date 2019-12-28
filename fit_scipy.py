@@ -140,7 +140,7 @@ def main():
     if i.name in bounds_dict:
       bnds.append(bounds_dict[i.name])
     else:
-      bnds.append((None,None))
+      bnds.append((0.,None))
     args["error_"+i.name] = 0.1
   now = time.time()
   
@@ -149,7 +149,7 @@ def main():
   callback = lambda x: print(fcn.cached_nll)
   #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
   #s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
-  s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1,"maxcor":100})
+  s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1})
   #xn = s.x
   xn = bd.get_y(s.x)
   print(s)
