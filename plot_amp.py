@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
 from functools import reduce
+from angle import cal_ang_file,EularAngle
+import os
 
 def config_split(config):
   ret = {}
@@ -146,7 +148,6 @@ for i in range(len(param_list)):
   if name in params_config:
     params_config[name]["idx"] = i
 
-from angle import cal_ang_file,EularAngle
 
 def flatten_np_data(data):
   ret = {}
@@ -270,6 +271,8 @@ def plot(params_file="final_params.json",res_file="Resonances.json",res_list=Non
     "alpha_CD","cosbeta_CD","alpha_D_CD","cosbeta_D_CD"
   ]
   n = len(plot_list)
+  if not os.path.exists("figure"):
+    os.mkdir("figure")
   for i in range(n):
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)

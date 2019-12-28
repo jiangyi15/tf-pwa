@@ -231,7 +231,7 @@ class AllAmplitude(tf.keras.Model):
       i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
     else:
       r = self.add_var(name=coef_head+"r",size=2.0)
-      i = self.add_var(name=head+"i",size=6.28)
+      i = self.add_var(name=head+"i",size=6.283185307179586)
     self.coef_norm[head] = [r,i]
     ls,arg = self.gen_coef(coef_head+"_",self.JA,config["J"],jc,self.ParA,config["Par"],-1,True)
     self.coef[head].append(arg)

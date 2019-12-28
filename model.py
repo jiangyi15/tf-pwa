@@ -4,6 +4,10 @@ import time
 import functools
 import numpy as np
 
+tf_version = int(tf.__version__.split(".")[0])
+if tf_version < 2:
+  tf.compat.v1.enable_eager_execution()
+
 def array_split(data,batch=None):
   if batch is None:
     return [data]
@@ -28,16 +32,92 @@ def time_print(f):
   return g
 
 class Model(object):
-  def __init__(self,configs,w_bkg = 0,args=(),kwargs={}):
+  """
+  simple negative log likelihood model
+  
+  """
+  def __init__(self,configs,w_bkg = 0,constrain={},args=(),kwargs={}):
     self.w_bkg = w_bkg
     if callable(configs):
       self.Amp = configs
     else :
       self.Amp = AllAmplitude(configs,*args,**kwargs)
+    self.constrain = constrain
+  
+  def get_constrain_term(self):
+    """
+    constrain: Gauss(mean,sigma) 
+      by add a term $\\frac{(x-\\bar{x})^2}{2\sigam^2}$
+    
+    """
+    t_var = self.Amp.trainable_variables
+    t_var_name = [i.name for i in t_var]
+    var_dict = dict(zip(t_var_name,t_var))
+    nll = 0.0
+    for i in self.constrain:
+      if not i in var_dict:
+        break
+      pi = self.constrain[i]
+      if isinstance(pi,tuple) and len(pi)==2:
+        mean, sigma = pi
+        var = var_dict[i]
+        nll += (var - mean)**2/(sigma**2)/2
+    return nll
+  
+  def get_constrain_grad(self):
+    """
+    constrain: Gauss(mean,sigma) 
+      by add a term $\\frac{d}{dx}\\frac{(x-\\bar{x})^2}{2\\sigam^2} = \frac{x-\\bar{x}}{\\sigma^2}$
+    
+    """
+    t_var = self.Amp.trainable_variables
+    t_var_name = [i.name for i in t_var]
+    var_dict = dict(zip(t_var_name,t_var))
+    g_dict = {}
+    for i in self.constrain:
+      if not i in var_dict:
+        break
+      pi = self.constrain[i]
+      if isinstance(pi,tuple) and len(pi)==2:
+        mean, sigma = pi
+        var = var_dict[i]
+        g_dict[i] = (var - mean)/(sigma**2)
+    nll_g = []
+    for i in t_var_name:
+      if i in g_dict:
+        nll_g.append(g_dict[i])
+      else:
+        nll_g.append(0.0)
+    return nll_g
+  
+  def get_constrain_hessian(self):
+    t_var = self.Amp.trainable_variables
+    t_var_name = [i.name for i in t_var]
+    var_dict = dict(zip(t_var_name,t_var))
+    g_dict = {}
+    for i in self.constrain:
+      if not i in var_dict:
+        break
+      pi = self.constrain[i]
+      if isinstance(pi,tuple) and len(pi)==2:
+        mean, sigma = pi
+        var = var_dict[i]
+        g_dict[i] = 1/(sigma**2)
+    nll_g = []
+    for i in t_var_name:
+      if i in g_dict:
+        nll_g.append(g_dict[i])
+      else:
+        nll_g.append(0.0)
+    return np.diag(nll_g)
   
   def get_weight_data(self,data,bg):
-    n_data = data[0].shape[0]
-    n_bg = bg[0].shape[0]
+    if tf_version < 2:
+      n_data = data[0].shape[0].value
+      n_bg = bg[0].shape[0].value
+    else :
+      n_data = data[0].shape[0]
+      n_bg = bg[0].shape[0]
     alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
     weight = [alpha]*n_data + [-self.w_bkg * alpha] * n_bg
     n_param  = len(data)
@@ -58,7 +138,8 @@ class Model(object):
       ]
     weights = tf.cast(weights,ln_data.dtype)
     nll_0 = - tf.reduce_sum(weights * ln_data)
-    return nll_0 + sw * int_mc 
+    cons = self.get_constrain_term()
+    return nll_0 + sw * int_mc + cons
   
   def nll_gradient(self,data,mcdata,weight=1.0,batch=None,args=(),kwargs={}):
     t_var = self.Amp.trainable_variables
@@ -85,8 +166,10 @@ class Model(object):
       nll_0,g0 = self.sum_gradient(data,weights,lambda x:tf.math.log(x))
       int_mc,g1 = self.sum_gradient(mcdata)
       sw = tf.cast(sw,nll_0.dtype)
-      nll = - nll_0 + sw * tf.math.log(int_mc/n_mc)
-      g = [ -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
+      cons_grad = self.get_constrain_grad()
+      cons = self.get_constrain_term()
+      nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(n_mc,int_mc.dtype)) + cons
+      g = [ cons_grad[i] - g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
       return nll,g
   
   def sum_hessian(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
@@ -156,8 +239,8 @@ class Model(object):
           i.assign(tmp)
 
 class Cache_Model(Model):
-  def __init__(self,configs,w_bkg,data,mc,bg=None,batch=50000,args=(),kwargs={}):
-    super(Cache_Model,self).__init__(configs,w_bkg,*args,**kwargs)
+  def __init__(self,configs,w_bkg,data,mc,bg=None,batch=50000,constrain={},args=(),kwargs={}):
+    super(Cache_Model,self).__init__(configs,w_bkg,constrain=constrain,*args,**kwargs)
     n_data = data[0].shape[0]
     self.n_mc = mc[0].shape[0]
     self.batch = batch
@@ -186,8 +269,9 @@ class Cache_Model(Model):
     nll_0 = self.sum_no_gradient(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
     int_mc = self.sum_no_gradient(self.mc,kwargs={"cached":True})
     sw = tf.cast(self.sw,nll_0.dtype)
-    nll = - nll_0 + sw * tf.math.log(int_mc/self.n_mc)
-    return nll
+    nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
+    cons = self.get_constrain_term()
+    return nll + cons
   
   def sum_no_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
     n_variables = len(self.Amp.trainable_variables)
@@ -211,9 +295,11 @@ class Cache_Model(Model):
     nll_0,g0 = self.sum_gradient(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
     int_mc,g1 = self.sum_gradient(self.mc,kwargs={"cached":True})
     sw = tf.cast(self.sw,nll_0.dtype)
-    nll = - nll_0 + sw * tf.math.log(int_mc/self.n_mc)
-    g = [ -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
-    return nll, g
+    nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
+    cons = self.get_constrain_term()
+    cons_grad = self.get_constrain_grad()
+    g = [ cons_grad[i] -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
+    return nll + cons, g
   
   def cal_nll_hessian(self,params={}):
     if isinstance(params,dict):
@@ -223,15 +309,18 @@ class Cache_Model(Model):
         i.assign(j)
     nll_0,g0,h0 = self.sum_hessian(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
     int_mc,g1,h1 = self.sum_hessian(self.mc,kwargs={"cached":True})
-    
+    cons = self.get_constrain_term()
+    cons_grad = self.get_constrain_grad()
+    cons_hessian = self.get_constrain_hessian()
     sw = tf.cast(self.sw,nll_0.dtype)
-    nll = - nll_0 + sw * tf.math.log(int_mc/self.n_mc)
-    g = [ -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
+    nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
+    nll += cons
+    g = [ cons_grad[i] - g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
     n = len(g0)
     h0 = np.array([[j.numpy() for j in i] for i in h0])
     h1 = np.array([[j.numpy() for j in i] for i in h1])
     g1 = np.array([i.numpy() for i in g1])/int_mc
-    h = - h0 - sw *np.outer(g1,g1) + sw / int_mc * h1
+    h = - h0 - sw *np.outer(g1,g1) + sw / int_mc * h1 + cons_hessian
     return nll, g, h
     
 class FCN(object):
@@ -247,7 +336,7 @@ class FCN(object):
     self.ncall += 1
     return nll
   
-  #@time_print
+  @time_print
   def grad(self,x):
     nll,g = self.model.cal_nll_gradient(x)
     self.cached_nll = nll
