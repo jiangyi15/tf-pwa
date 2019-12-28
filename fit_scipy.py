@@ -10,6 +10,12 @@ from angle import cal_ang_file,EularAngle
 import math
 from bounds import Bounds
 
+has_yaml = True
+try:
+  import yaml
+except ImportError:
+  has_yaml = False
+
 def error_print(x,err=None):
   if err is None:
     return ("{}").format(x)
@@ -64,8 +70,14 @@ def main():
   w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
-  with open("Resonances.json") as f:  
-    config_list = json.load(f)
+  # open Resonances list as dict 
+  if has_yaml:
+    with open("Resonances.yml") as f:  
+      config_list = yaml.load(f,Loader=yaml.FullLoader)
+  else:
+    with open("Resonances.json") as f:  
+      config_list = json.load(f)
+  
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
@@ -81,11 +93,11 @@ def main():
       tmp_data = tf.Variable(tmp[i],name=i,dtype=dtype)
       dat.append(tmp_data)
     return dat
-  with tf.device('/device:GPU:0'):
-    data = load_data("data")
-    bg = load_data("bg")
-    mcdata = load_data("PHSP")
-    a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
+  #with tf.device('/device:GPU:0'):
+  data = load_data("data")
+  bg = load_data("bg")
+  mcdata = load_data("PHSP")
+  a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
   try :
     with open("init_params.json") as f:  
       param = json.load(f)
@@ -108,7 +120,7 @@ def main():
   #print("Time:",time.time()-t)
   #print(nll,g)
   
-  fcn = FCN(a)# 1356*18
+  fcn = FCN(a)
   #a_h = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
   #a_h.set_params(a.get_params())
   #f_h = FCN(a_h)
@@ -135,11 +147,11 @@ def main():
   bd = Bounds(bnds)
   f_g = bd.trans_f_g(fcn.nll_grad)
   callback = lambda x: print(fcn.cached_nll)
-  with tf.device('/device:GPU:0'):
-    #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-    #s = minimize(fcn.nll_grad,x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
-    s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1,"maxcor":100})
-    xn = bd.get_y(s.x)
+  #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
+  #s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+  s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1,"maxcor":100})
+  #xn = s.x
+  xn = bd.get_y(s.x)
   print(s)
   print(time.time()-now)
   val = dict(zip(args_name,xn))
@@ -155,12 +167,11 @@ def main():
   #print(nll)
   #print([i.numpy() for i in g])
   #print(h.numpy())
-  inv_he = np.linalg.inv(h.numpy())
+  inv_he = np.linalg.pinv(h.numpy())
   diag_he = inv_he.diagonal()
-  diag_he_abs = (np.fabs(diag_he) + diag_he)/2
   np.save("error_matrix",inv_he)
   #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
-  hesse_error = np.sqrt(diag_he_abs).tolist()
+  hesse_error = np.sqrt(diag_he).tolist()
   err = dict(zip(args_name,hesse_error))
   print("fit value:")
   for i in err:

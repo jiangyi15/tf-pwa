@@ -33,7 +33,7 @@ def BWR(m, m0,g0,q,q0,L,d):
   denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
   return num/denom
 
-@tf.function()
+#@tf.function()
 def Gamma(m, gamma0, q, q0, L, m0,d):
   qq0 = (q / tf.cast(q0,q.dtype))**(2 * L + 1)
   mm0 = (tf.cast(m0,m.dtype) / m)
@@ -42,7 +42,7 @@ def Gamma(m, gamma0, q, q0, L, m0,d):
   return gammaM
 
 
-@tf.function()
+#@tf.function()
 def Bprime_num(L,q,d):
   z = (q * d)**2
   if L == 0:
@@ -59,13 +59,13 @@ def Bprime_num(L,q,d):
     return tf.sqrt((z * (z * (z * (z * (z + 15.) + 315.) + 6300.) + 99225.) + 893025.));
   return 1.0
 
-@tf.function()
+#@tf.function()
 def Bprime(L, q, q0, d):
   num = Bprime_num(L,q0,d)
   denom = Bprime_num(L,q,d)
   return num/denom
 
-@tf.function()
+#@tf.function()
 def barrier_factor(l,q,q0,d=3.0):
   ret = []
   for i in l:
