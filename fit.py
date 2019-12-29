@@ -3,6 +3,7 @@
 import json
 from model import *
 from angle import cal_ang_file,EularAngle
+from utils import load_config_file
 
 def train_one_step(model, optimizer):
   nll,grads = model.cal_nll_gradient({})
@@ -39,8 +40,7 @@ def main():
   w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
-  with open("Resonances.json") as f:  
-    config_list = json.load(f)
+  config_list = load_config_file("Resonances")
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]

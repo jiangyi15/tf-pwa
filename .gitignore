@@ -4,5 +4,10 @@ data
 __pycache__
 *.pyc
 
-error_matrix.npy
+
+*.npy
 *.json
+
+
+trash
+figure

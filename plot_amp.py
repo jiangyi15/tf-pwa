@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 from functools import reduce
 from angle import cal_ang_file,EularAngle
+from utils import load_config_file
 import os
 
 def config_split(config):
@@ -163,13 +164,12 @@ def flatten_np_data(data):
 
 
 
-def plot(params_file="final_params.json",res_file="Resonances.json",res_list=None):
+def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
   dtype = "float64"
   w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
-  with open(res_file) as f:  
-    config_list = json.load(f)
+  config_list = config_list = load_config_file(res_file)
   a = Model(config_list,w_bkg)
   with open(params_file) as f:  
     param = json.load(f)

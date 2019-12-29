@@ -8,6 +8,7 @@ import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from angle import cal_ang_file,EularAngle
+from utils import load_config_file
 import math
 
 def error_print(x,err=None):
@@ -73,8 +74,7 @@ def main():
   dtype = "float64"
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
-  with open("Resonances.json") as f:  
-    config_list = json.load(f)
+  config_list = load_config_file("Resonances")
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
@@ -116,7 +116,7 @@ def main():
   print(s)
   #np.savetxt("filename.txt",a)
   try :
-    Vij = np.load("error_matrix.npy")
+    Vij = np.load("erddror_matrix.npy")
   except :
     nll,g,h = a.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
     inv_he = np.linalg.inv(h.numpy())

@@ -6,6 +6,7 @@ import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from angle import cal_ang_file,EularAngle
+from utils import load_config_file
 
 import math
 from bounds import Bounds
@@ -15,6 +16,7 @@ try:
   import yaml
 except ImportError:
   has_yaml = False
+
 
 def error_print(x,err=None):
   if err is None:
@@ -37,8 +39,6 @@ def error_print(x,err=None):
   if d_p > 0:
     return ("{0:.%df} +/- {1:.%df}"%(d_p,d_p)).format(x,err)
   return ("{0:.0f} +/- {1:.0f}").format(x,err)
-
-  
 
 def flatten_np_data(data):
   ret = {}
@@ -71,12 +71,7 @@ def main():
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   # open Resonances list as dict 
-  if has_yaml:
-    with open("Resonances.yml") as f:  
-      config_list = yaml.load(f,Loader=yaml.FullLoader)
-  else:
-    with open("Resonances.json") as f:  
-      config_list = json.load(f)
+  config_list = load_config_file("Resonances")
   
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
@@ -140,25 +135,31 @@ def main():
     if i.name in bounds_dict:
       bnds.append(bounds_dict[i.name])
     else:
-      bnds.append((0.,None))
+      bnds.append((None,None))
     args["error_"+i.name] = 0.1
   now = time.time()
   
   bd = Bounds(bnds)
   f_g = bd.trans_f_g(fcn.nll_grad)
-  callback = lambda x: print(fcn.cached_nll)
+  points = []
+  nlls = []
+  def callback(x):
+    points.append([float(i) for i in x])
+    nlls.append(float(fcn.cached_nll))
+    #print(fcn.cached_nll)
   #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-  #s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
-  s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1})
-  #xn = s.x
-  xn = bd.get_y(s.x)
+  s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+  #s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1})
+  xn = s.x
+  #xn = bd.get_y(s.x)
   print(s)
   print(time.time()-now)
   val = dict(zip(args_name,xn))
   a.set_params(val)
   with open("final_params.json","w") as f:
     json.dump(a.get_params(),f,indent=2)
-  
+  with open("fit_curve.json","w") as f:
+    json.dump({"points":points,"nlls":nlls},f,indent=2)
   a_h = Cache_Model(a.Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
   a_h.set_params(val)
   t = time.time()
@@ -169,7 +170,7 @@ def main():
   #print(h.numpy())
   inv_he = np.linalg.pinv(h.numpy())
   diag_he = inv_he.diagonal()
-  np.save("error_matrix",inv_he)
+  np.save("error_matrix.npy",inv_he)
   #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
   hesse_error = np.sqrt(diag_he).tolist()
   err = dict(zip(args_name,hesse_error))

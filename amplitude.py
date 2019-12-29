@@ -352,6 +352,7 @@ class AllAmplitude(tf.keras.Model):
     M_i = tf.stack(M_i)
     l_s = self.res_decay[idx][layer].get_l_list()
     bf = barrier_factor(l_s,q,q0,d)
+    # switch for rectangular and polar coordinates of params
     if False:
       norm_r = tf.linalg.diag(M_r*tf.cos(M_i))
       norm_i = tf.linalg.diag(M_r*tf.sin(M_i))

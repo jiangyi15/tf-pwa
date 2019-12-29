@@ -20,7 +20,7 @@ cache_file() {
   cp ${1} ${cache_path}/${1}
 }
 
-json_file=`ls -rt *.json`
+json_file=`ls -rt *params.json`
 for i in ${json_file};
 do
   new_json_file=${i}
