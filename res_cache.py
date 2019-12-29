@@ -1,10 +1,7 @@
 import random
 import numpy as np
-from sympy.physics.quantum.cg import CG
+from cg import cg_coef
 import functools
-
-def cg_coef(jb,jc,mb,mc,ja,ma):
-  return CG(jb,mb,jc,mc,ja,ma).doit().evalf()
 
 def GetA2BC_LS_list(ja,jb,jc,pa,pb,pc):
   dl = 0 if pa * pb * pc == 1 else  1 # pa = pb * pc * (-1)^l
