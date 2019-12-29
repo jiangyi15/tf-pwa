@@ -1,4 +1,6 @@
 import json
+from angle import EularAngle
+
 
 has_yaml = True
 try:
@@ -23,5 +25,42 @@ def load_config_file(name):
     return load_yaml_file(name+".yml")
   else:
     return load_json_file(name + ".json")
+
+def flatten_np_data(data):
+  ret = {}
+  for i in data:
+    tmp = data[i]
+    if isinstance(tmp,EularAngle):
+      ret["alpha"+i[3:]] = tmp.alpha
+      ret["beta"+i[3:]] = tmp.beta
+      ret["gamma"+i[3:]] = tmp.gamma
+    else :
+      ret[i] = data[i]
+  return ret
     
   
+def error_print(x,err=None):
+  if err is None:
+    return ("{}").format(x)
+  if err <= 0 or math.isnan(err):
+    return ("{} ? {}").format(x,err)
+  d = math.ceil(math.log10(err))
+  b = 10**d
+  b_err = err/b
+  b_val = x/b
+  if b_err < 0.355: #0.100 ~ 0.354
+    dig = 2
+  elif b_err < 0.950: #0.355 ~ 0.949
+    dig = 1
+  else: # 0.950 ~ 0.999
+    dig = 0
+  err = round(b_err,dig) * b
+  x = round(b_val,dig)*b
+  d_p = dig - d
+  if d_p > 0:
+    return ("{0:.%df} +/- {1:.%df}"%(d_p,d_p)).format(x,err)
+  return ("{0:.0f} +/- {1:.0f}").format(x,err)
+
+def pprint(dicts):
+  s = json.dumps(dicts,indent=2)
+  print(s)

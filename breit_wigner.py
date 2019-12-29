@@ -18,6 +18,10 @@ def regist_lineshape(name=None):
     return g
   return fopt
 
+@regist_lineshape("one")
+def one(*args):
+  return tf.complex(1.0,0.0)
+
 @regist_lineshape("BW")
 def BW(m, m0,g0,*args):
   gamma = g0

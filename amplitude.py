@@ -162,12 +162,14 @@ class AllAmplitude(tf.keras.Model):
     self.m0_B = 2.01026;
     self.m0_C = 0.13957061;
     self.m0_D = 2.00685;
+    
     self.A = Particle("A",self.m0_A,0,self.JA,self.ParA)
     self.B = Particle("B",self.m0_B,0,self.JB,self.ParB)
     self.C = Particle("C",self.m0_C,0,self.JC,self.ParC)
     self.D = Particle("D",self.m0_D,0,self.JD,self.ParD)
     self.add_var = Vars(self)
     self.res = res.copy()
+    self.polar = False
     #if "Zc_4160" in self.res:
       #self.res["Zc_4160"]["m0"] = self.add_var(name="Zc_4160_m0",var = self.res["Zc_4160"]["m0"],trainable=True)
       #self.res["Zc_4160"]["g0"] = self.add_var(name="Zc_4160_g0",var = self.res["Zc_4160"]["g0"],trainable=True)
@@ -176,6 +178,7 @@ class AllAmplitude(tf.keras.Model):
     self.coef_norm = {}
     self.res_cache = {}
     self.init_res_param()
+    
     
   def init_res_decay(self):
     ret = {}
@@ -257,8 +260,12 @@ class AllAmplitude(tf.keras.Model):
             arg_list.append([tmp_r,tmp_i])
             const_first = False
           else :
-            tmp_r = self.add_var(name=name+"r",size=2.0)
-            tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
+            if self.polar:
+              tmp_r = self.add_var(name=name+"r",size=2.0)
+              tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
+            else:
+              tmp_r = self.add_var(name=name+"r")
+              tmp_i = self.add_var(name=name+"i")
             arg_list.append([tmp_r,tmp_i])
     return ls,arg_list
   
@@ -353,7 +360,7 @@ class AllAmplitude(tf.keras.Model):
     l_s = self.res_decay[idx][layer].get_l_list()
     bf = barrier_factor(l_s,q,q0,d)
     # switch for rectangular and polar coordinates of params
-    if False:
+    if self.polar:
       norm_r = tf.linalg.diag(M_r*tf.cos(M_i))
       norm_i = tf.linalg.diag(M_r*tf.sin(M_i))
     else:

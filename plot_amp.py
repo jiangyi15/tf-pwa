@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 from functools import reduce
 from angle import cal_ang_file,EularAngle
-from utils import load_config_file
+from utils import load_config_file,flatten_np_data,pprint
 import os
+from math import pi
 
 def config_split(config):
   ret = {}
@@ -34,20 +35,7 @@ def hist_line(data,weights,bins,xrange=None,inter = 1):
   ynew = func(xnew)
   return xnew,ynew
 
-def pprint(dicts):
-  s = json.dumps(dicts,indent=2)
-  print(s)
 
-param_list = [
-  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
-  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
-  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
-  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
-  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
-  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
-]
-
-from math import pi
 params_config = {
   "m_BC":{
     "xrange":(2.15,2.65),
@@ -149,21 +137,6 @@ for i in range(len(param_list)):
   if name in params_config:
     params_config[name]["idx"] = i
 
-
-def flatten_np_data(data):
-  ret = {}
-  for i in data:
-    tmp = data[i]
-    if isinstance(tmp,EularAngle):
-      ret["alpha"+i[3:]] = tmp.alpha
-      ret["beta"+i[3:]] = tmp.beta
-      ret["gamma"+i[3:]] = tmp.gamma
-    else :
-      ret[i] = data[i]
-  return ret
-
-
-
 def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
   dtype = "float64"
   w_bkg = 0.768331
@@ -183,14 +156,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
   data_np = {}
   for i in range(3):
     data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
-  m0_A = (data_np["data"]["m_A"]).mean()
-  m0_B = (data_np["data"]["m_B"]).mean()
-  m0_C = (data_np["data"]["m_C"]).mean()
-  m0_D = (data_np["data"]["m_D"]).mean()
-  a.Amp.m0_A = m0_A
-  a.Amp.m0_B = m0_B
-  a.Amp.m0_C = m0_C
-  a.Amp.m0_D = m0_D
+  
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -225,10 +191,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
         name = name[0]
     res_name[i] = name
     a_sig[i] = Model(config_res[i],w_bkg)
-    a_sig[i].Amp.m0_A = m0_A
-    a_sig[i].Amp.m0_B = m0_B
-    a_sig[i].Amp.m0_C = m0_C
-    a_sig[i].Amp.m0_D = m0_D
+    
     a_sig[i].set_params(a.get_params())
     a_weight[i] = a_sig[i].Amp(mcdata_cache,cached=True).numpy()*norm_int
     fitFrac[name] = a_weight[i].sum()/(n_data - w_bkg*n_bg)
@@ -278,7 +241,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
     ax = fig.add_subplot(1,1,1)
     name = plot_list[i]
     plot_params(ax,name,**params_config[name])
-    fig.savefig("figure/"+name)
+    fig.savefig("figure/"+name+".pdf")
   
   
 if __name__=="__main__":

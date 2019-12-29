@@ -20,14 +20,14 @@ cache_file() {
   cp ${1} ${cache_path}/${1}
 }
 
-json_file=`ls -rt *params.json`
+json_file=`ls -rt *params*.json`
 for i in ${json_file};
 do
   new_json_file=${i}
 done
 echo "using ${new_json_file} as params file"
 
-newer_file=`find -cnewer ${new_json_file} | grep -E ".*\.(C|json|root|log|png|txt|pdf)"`
+newer_file=`find -cnewer ${new_json_file} | grep -v trash | grep -E ".*\.(C|json|root|log|png|txt|pdf)"`
 for i in ${newer_file};
 do 
   cache_file ${i}
