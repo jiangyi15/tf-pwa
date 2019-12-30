@@ -236,14 +236,20 @@ class AllAmplitude(tf.keras.Model):
       r = self.add_var(name=coef_head+"r",size=2.0)
       i = self.add_var(name=head+"i",size=6.283185307179586)
     self.coef_norm[head] = [r,i]
-    ls,arg = self.gen_coef(head,0,coef_head+"_",0)
+    if "const" in config:
+      const = list(config["const"])
+    else:
+      const = [0,0]
+    ls,arg = self.gen_coef(head,0,coef_head+"_",const[0])
     self.coef[head].append(arg)
     self.res_cache[head]["ls"].append(ls)
-    ls,arg = self.gen_coef(head,1,coef_head+"_d_",0)
+    ls,arg = self.gen_coef(head,1,coef_head+"_d_",const[1])
     self.coef[head].append(arg)
     self.res_cache[head]["ls"].append(ls)
     
   def gen_coef(self,idx,layer,coef_head,const = 0) :
+    if const is None:
+      const = 0
     if isinstance(const,int):
       const = [const]
     ls = self.res_decay[idx][layer].get_ls_list()
