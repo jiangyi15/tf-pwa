@@ -14,18 +14,26 @@ def rand_value(x):
     return x*tf.random.uniform((),dtype=dtype)
   return f
 
+def range_value(a,b):
+  def f(shape=None,dtype=None):
+    return (b-a)*tf.random.uniform((),dtype=dtype)+a
+  return f
+
 class Vars(object):
   def __init__(self, env):
     self.env = env
     self.variables = {}
 
-  def add(self,name,size=None,var=None,trainable=True,**args):
+  def add(self,name,size=None,var=None,range=None,trainable=True,**args):
     if name not in self.variables:
       if var is None:
         if size is None:
           self.variables[name] = self.env.add_weight(name,trainable=trainable,**args)
         else:
-          self.variables[name] = self.env.add_weight(name,initializer=rand_value(size),trainable=trainable,**args)
+          if range is None:
+            self.variables[name] = self.env.add_weight(name,initializer=rand_value(size),trainable=trainable,**args)
+          else:
+            self.variables[name] = self.env.add_weight(name,initializer=range_value(*range),trainable=trainable,**args)
       else:
         self.variables[name] = self.env.add_weight(name,initializer=fix_value(var),trainable=trainable,**args)
     return self.variables[name]

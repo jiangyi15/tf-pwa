@@ -169,7 +169,7 @@ class AllAmplitude(tf.keras.Model):
     self.D = Particle("D",self.m0_D,0,self.JD,self.ParD)
     self.add_var = Vars(self)
     self.res = res.copy()
-    self.polar = False
+    self.polar = True
     #if "Zc_4160" in self.res:
       #self.res["Zc_4160"]["m0"] = self.add_var(name="Zc_4160_m0",var = self.res["Zc_4160"]["m0"],trainable=True)
       #self.res["Zc_4160"]["g0"] = self.add_var(name="Zc_4160_g0",var = self.res["Zc_4160"]["g0"],trainable=True)
@@ -236,38 +236,64 @@ class AllAmplitude(tf.keras.Model):
       r = self.add_var(name=coef_head+"r",size=2.0)
       i = self.add_var(name=head+"i",size=6.283185307179586)
     self.coef_norm[head] = [r,i]
-    ls,arg = self.gen_coef(coef_head+"_",self.JA,config["J"],jc,self.ParA,config["Par"],-1,True)
+    ls,arg = self.gen_coef(head,0,coef_head+"_",0)
     self.coef[head].append(arg)
     self.res_cache[head]["ls"].append(ls)
-    ls,arg = self.gen_coef(coef_head+"_d_",config["J"],jd,je,config["Par"],-1,-1,True)
+    ls,arg = self.gen_coef(head,1,coef_head+"_d_",0)
     self.coef[head].append(arg)
     self.res_cache[head]["ls"].append(ls)
     
-  def gen_coef(self,head,ja,jb,jc,pa,pb,pc,const_first = False) :
+  def gen_coef(self,idx,layer,coef_head,const = 0) :
+    if isinstance(const,int):
+      const = [const]
+    ls = self.res_decay[idx][layer].get_ls_list()
+    n_ls = len(ls)
+    const_list = []
+    for i in const:
+      if i<0:
+        const_list.append(n_ls + i)
+      else:
+        const_list.append(i)
     arg_list = []
-    ls = []
-    dl = 0 if pa*pb*pc == 1 else 1
-    s_min = abs(jb-jc)
-    s_max = jb + jc
-    for s in range(s_min,s_max+1):
-      for l in range(abs(ja-s),ja+s +1):
-        if l%2 == dl :
-          ls.append((l,s))
-          name = "{head}BLS_{l}_{s}".format(head=head,l=l,s=s)
-          if const_first:
-            tmp_r = self.add_var(name=name+"r",initializer=fix_value(1.0),trainable=False)
-            tmp_i = self.add_var(name=name+"i",initializer=fix_value(0.0),trainable=False)
-            arg_list.append([tmp_r,tmp_i])
-            const_first = False
-          else :
-            if self.polar:
-              tmp_r = self.add_var(name=name+"r",size=2.0)
-              tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
-            else:
-              tmp_r = self.add_var(name=name+"r")
-              tmp_i = self.add_var(name=name+"i")
-            arg_list.append([tmp_r,tmp_i])
+    for i in range(n_ls):
+      l,s = ls[i]
+      name = "{head}BLS_{l}_{s}".format(head=coef_head,l=l,s=s)
+      if i in const_list:
+        tmp_r = self.add_var(name=name+"r",initializer=fix_value(1.0),trainable=False)
+        tmp_i = self.add_var(name=name+"i",initializer=fix_value(0.0),trainable=False)
+        arg_list.append([tmp_r,tmp_i])
+      else :
+        if self.polar:
+          tmp_r = self.add_var(name=name+"r",size=2.0)
+          tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
+        else:
+          tmp_r = self.add_var(name=name+"r",range=(-1,1))
+          tmp_i = self.add_var(name=name+"i",range=(-1,1))
+        arg_list.append([tmp_r,tmp_i])
     return ls,arg_list
+    #ls = []
+    #dl = 0 if pa*pb*pc == 1 else 1
+    #s_min = abs(jb-jc)
+    #s_max = jb + jc
+    #for s in range(s_min,s_max+1):
+      #for l in range(abs(ja-s),ja+s +1):
+        #if l%2 == dl :
+          #ls.append((l,s))
+          #name = "{head}BLS_{l}_{s}".format(head=head,l=l,s=s)
+          #if const_first:
+            #tmp_r = self.add_var(name=name+"r",initializer=fix_value(1.0),trainable=False)
+            #tmp_i = self.add_var(name=name+"i",initializer=fix_value(0.0),trainable=False)
+            #arg_list.append([tmp_r,tmp_i])
+            #const_first = False
+          #else :
+            #if self.polar:
+              #tmp_r = self.add_var(name=name+"r",size=2.0)
+              #tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
+            #else:
+              #tmp_r = self.add_var(name=name+"r",range=(-1,1))
+              #tmp_i = self.add_var(name=name+"i",range=(-1,1))
+            #arg_list.append([tmp_r,tmp_i])
+    #return ls,arg_list
   
   def init_res_chain(self):
     for i in self.res:
