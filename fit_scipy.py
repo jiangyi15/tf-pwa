@@ -77,7 +77,7 @@ def fit(method="BFGS",hesse=True,frac=True):
   try :
     with open("init_params.json") as f:  
       param = json.load(f)
-      a.set_params(param)
+      a.set_params(param["value"])
   except:
     pass
   
@@ -133,17 +133,21 @@ def fit(method="BFGS",hesse=True,frac=True):
     raise "unknow method"
   print("fit state:")
   print(s)
-  print(time.time()-now)
+  print("Time for fitting:",time.time()-now)
   
   val = dict(zip(args_name,xn))
   a.set_params(val)
-  with open("final_params.json","w") as f:
-    json.dump(a.get_params(),f,indent=2)
+  
   with open("fit_curve.json","w") as f:
     json.dump({"points":points,"nlls":nlls},f,indent=2)
-  
+
+  err=None
   if hesse:
     err = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=24000)
+  outdic={"value":a.get_params(),"error":err}
+  with open("final_params.json","w") as f:
+    json.dump(outdic,f,indent=2)
+    
   print("fit value:")
   for i in val:
     if hesse:
