@@ -15,7 +15,7 @@ setup(
     packages=find_packages(),
     package_data={
         # If any package contains files, include them:
-        "": [],
+        "": ["*.yml"],
         # And include any *.json files found in the "tf_pwa" package, too:
         "tf_pwa": ["*.json"],
     },
