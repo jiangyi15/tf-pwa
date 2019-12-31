@@ -1,11 +1,16 @@
 from setuptools import setup, find_packages
 
+version = {}
+with open("tf_pwa/version.py") as fp:
+    exec(fp.read(), version)
+# later on we use: version['__version__']
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
     name="TFPWA", # Replace with your own username
-    version="0.0.1",
+    version=version["__version__"],
     author="Example Author",
     author_email="author@example.com",
     description="Partial Wave Analysis program using Tensorflow",
@@ -27,6 +32,10 @@ setup(
       "fitfractions_toy.py",
       "state_cache.sh",
       "for_fit.sh",
+    ],
+    data_files = [
+        "Resonances.yml",
+        "Resonances.json",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
