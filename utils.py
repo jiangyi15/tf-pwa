@@ -6,7 +6,7 @@ has_yaml = True
 try:
   import yaml
 except ImportError:
-  has_yaml = True
+  has_yaml = False
 
 def load_json_file(name):
   with open(name) as f:
@@ -24,6 +24,7 @@ def load_config_file(name):
       return load_yaml_file(name)
     return load_yaml_file(name+".yml")
   else:
+    print("no yaml support, using json file")
     return load_json_file(name + ".json")
 
 def flatten_np_data(data):
