@@ -7,7 +7,9 @@ __pycache__
 
 *.npy
 *.json
-
+*.log
 
 trash
 figure
+build
+site

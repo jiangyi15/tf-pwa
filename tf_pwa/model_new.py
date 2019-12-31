@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from amplitude_new import AllAmplitude
+from .amplitude_new import AllAmplitude
 
 
 class Model:

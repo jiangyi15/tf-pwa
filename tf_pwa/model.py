@@ -1,5 +1,5 @@
 import tensorflow as tf
-from amplitude import AllAmplitude
+from .amplitude import AllAmplitude
 import time 
 import functools
 import numpy as np

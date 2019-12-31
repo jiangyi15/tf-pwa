@@ -1,17 +1,17 @@
 import tensorflow as tf
 import numpy as np
-from cg import get_cg_coef
-from d_function_new import d_function_cos
-from complex_F import Complex_F
-from res_cache import Particle,Decay
-from variable import Vars
-from dfun_tf import dfunctionJ
+from .cg import get_cg_coef
+from .d_function_new import d_function_cos
+from .complex_F import Complex_F
+from .res_cache import Particle,Decay
+from .variable import Vars
+from .dfun_tf import dfunctionJ
 import os
 from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 import functools
-from breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
+from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
 
 #print(bw_dict)
 

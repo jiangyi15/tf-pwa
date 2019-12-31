@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from cg import cg_coef
+from .cg import cg_coef
 import functools
 
 def GetA2BC_LS_list(ja,jb,jc,pa,pb,pc):

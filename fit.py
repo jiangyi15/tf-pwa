@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import json
-from model import *
-from angle import cal_ang_file,EularAngle
-from utils import load_config_file
+from tf_pwa.model import *
+from tf_pwa.angle import cal_ang_file,EularAngle
+from tf_pwa.utils import load_config_file
 
 def train_one_step(model, optimizer):
   nll,grads = model.cal_nll_gradient({})

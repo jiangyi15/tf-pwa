@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-from model import Cache_Model,set_gpu_mem_growth,FCN
+from tf_pwa.model import Cache_Model,set_gpu_mem_growth,FCN
 import tensorflow as tf
 import time
 import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
 import iminuit
-from angle import cal_ang_file,EularAngle
+from tf_pwa.angle import cal_ang_file,EularAngle
 from fit import flatten_np_data,pprint,param_list
 import matplotlib.pyplot as plt
-from bounds import Bounds
+from tf_pwa.bounds import Bounds
 import math
 
 

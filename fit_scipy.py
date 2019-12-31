@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-from model import Cache_Model,set_gpu_mem_growth,param_list,FCN
+from tf_pwa.model import Cache_Model,set_gpu_mem_growth,param_list,FCN
 import tensorflow as tf
 import time
 import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
-from angle import cal_ang_file,EularAngle
-from utils import load_config_file,flatten_np_data,pprint,error_print
+from tf_pwa.angle import cal_ang_file,EularAngle
+from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
 
 import math
-from bounds import Bounds
+from tf_pwa.bounds import Bounds
 
 def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)

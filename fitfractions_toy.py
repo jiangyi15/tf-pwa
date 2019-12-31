@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
-from amplitude import AllAmplitude
-from model import Cache_Model,set_gpu_mem_growth,param_list,FCN
+from tf_pwa.amplitude import AllAmplitude
+from tf_pwa.model import Cache_Model,set_gpu_mem_growth,param_list,FCN
 import tensorflow as tf
 import time
 import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
-from angle import cal_ang_file,EularAngle
-from utils import load_config_file
+from tf_pwa.angle import cal_ang_file,EularAngle
+from tf_pwa.utils import load_config_file
 import math
 
 def error_print(x,err=None):

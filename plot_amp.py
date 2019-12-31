@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-from model import *
+from tf_pwa.model import *
 import json
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
 from functools import reduce
-from angle import cal_ang_file,EularAngle
-from utils import load_config_file,flatten_np_data,pprint
+from tf_pwa.angle import cal_ang_file,EularAngle
+from tf_pwa.utils import load_config_file,flatten_np_data,pprint
 import os
 from math import pi
 

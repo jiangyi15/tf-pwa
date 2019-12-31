@@ -1,5 +1,5 @@
 import json
-from angle import EularAngle
+from .angle import EularAngle
 import math
 
 has_yaml = True

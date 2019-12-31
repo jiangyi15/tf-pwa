@@ -1,6 +1,6 @@
 import tensorflow as tf
-from cg_new import get_cg_coef
-from d_function_new import d_function_cos
+from .cg_new import get_cg_coef
+from .d_function_new import d_function_cos
 
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
