@@ -81,7 +81,7 @@ def main():
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"],
-       ["./data/PHSP_NEFF4600.dat",""]
+       #["./data/PHSP_NEFF4600.dat",""]
   ]
   tname = ["data","bg","PHSP","MC"]
   data_np = {}
@@ -99,7 +99,7 @@ def main():
   data = load_data("data")
   bg = load_data("bg")
   mcdata = load_data("PHSP")
-  flat_mc_data = load_data("MC")
+  #flat_mc_data = load_data("MC")
   a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
   n_data = data[0].shape[0]
   sw = a.sw.numpy()
@@ -119,7 +119,7 @@ def main():
     inv_he = np.linalg.inv(h.numpy())
     Vij = inv_he
   mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
-  flat_mc_data_cached = a.Amp.cache_data(*flat_mc_data,batch=65000)
+  #flat_mc_data_cached = a.Amp.cache_data(*flat_mc_data,batch=65000)
   allvar = [i.name for i in a.Amp.trainable_variables]
   print(dict(zip(allvar,np.sqrt(np.diag(Vij).tolist()))))
   

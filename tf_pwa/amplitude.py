@@ -15,7 +15,12 @@ from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
 
 #print(bw_dict)
 
-complex = lambda x,y:Complex_F(tf,x,y)
+def is_complex(x):
+  try:
+    y = complex(x)
+  except:
+    return False
+  return True
 
 def dfunction(j,m1,m2,cos_theta):
   return d_function_cos(j,m1,m2)(cos_theta)
@@ -218,7 +223,18 @@ class AllAmplitude(tf.keras.Model):
     for i in self.res:
       if "total" in self.res[i]:
         const_first = False
-    for i in self.res:
+    res_tmp = [i for i in self.res]
+    res_all = []
+    # order for coef_head
+    while len(res_tmp) > 0:
+      i = res_tmp.pop()
+      if "coef_head" in self.res[i]:
+        coef_head = self.res[i]["coef_head"]
+        if coef_head in res_tmp:
+          res_all.append(coef_head)
+          res_tmp.remove(coef_head)
+      res_all.append(i)
+    for i in res_all:
       self.init_res_param_sig(i,self.res[i],const_first=const_first)
       if const_first:
         const_first = False
@@ -238,7 +254,12 @@ class AllAmplitude(tf.keras.Model):
     elif chain>100 :
         jc,jd,je = self.JB,self.JD,self.JC
     if "total" in config:
-      rho, phi = config["total"]
+      N_tot = config["total"]
+      if is_complex(N_tot):
+        N_tot = complex(N_tot)
+        rho,phi = N_tot.real,N_tot.imag
+      else:
+        rho,phi = N_tot
       r = self.add_var(name=coef_head+"r",initializer=fix_value(rho),trainable=False)
       i = self.add_var(name=head+"i",initializer=fix_value(phi),trainable=False)
     elif const_first:
@@ -319,12 +340,10 @@ class AllAmplitude(tf.keras.Model):
       J_reson = self.res[i]["J"]
       P_reson = self.res[i]["Par"]
       self.res_cache[i]["cgls"] = []
-      
-      
   
   def Get_BWReson(self,m_A,m_B,m_C,m_D,m_BC,m_BD,m_CD):
     ret = {}
-    for i in self.res:
+    for i in self.used_res:
       m = self.res[i]["m0"]
       g = self.res[i]["g0"]
       J_reson = self.res[i]["J"]
