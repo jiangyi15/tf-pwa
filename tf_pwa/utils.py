@@ -17,6 +17,9 @@ def load_yaml_file(name):
     return yaml.load(f,Loader=yaml.FullLoader)
 
 def load_config_file(name):
+  """
+  load config file such as Resonances.yml
+  """
   if name.endswith("json"):
     return load_json_file(name)
   if has_yaml:

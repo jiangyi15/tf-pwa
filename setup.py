@@ -8,8 +8,10 @@ with open("tf_pwa/version.py") as fp:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+name = "TFPWA"
+
 setup(
-    name="TFPWA", # Replace with your own username
+    name=name, # Replace with your own username
     version=version["__version__"],
     author="Example Author",
     author_email="author@example.com",
@@ -47,5 +49,13 @@ setup(
       "console_scripts": [
         "fit_scipy = fit_scipy:fit",
       ]
+    },
+    command_options={
+      'build_sphinx': {
+          'project': ('setup.py', name),
+          'version': ('setup.py', version["__version__"]),
+          'release': ('setup.py', version["__version__"]),
+          'source_dir': ('setup.py', 'docs')
+        }
     },
 )

@@ -59,73 +59,85 @@ params_config = {
     "xrange":(-pi,pi),
     "display":r"$\phi^{ {D*}^{-} }_{ {D*}^{0} {D*}^{-} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "alpha_BD":{
     "xrange":(-pi,pi),
     "display":r"$ \phi_{ {D*}^{0} {D*}^{-} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "cosbeta_BD":{
     "xrange":(-1,1),
     "display":r"$\cos \theta_{ {D*}^{0} {D*}^{-} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "cosbeta_B_BD":{
     "xrange":(-1,1),
     "display":r"$\cos \theta^{ {D*}^{-} }_{ {D*}^{0} {D*}^{-} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "alpha_B_BC":{
     "xrange":(-pi,pi),
     "display":r"$\phi^{ {D*}^{-} }_{ {D*}^{-}\pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "alpha_BC":{
     "xrange":(-pi,pi),
     "display":r"$ \phi_{ {D*}^{-} \pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "cosbeta_BC":{
     "xrange":(-1,1),
     "display":r"$\cos \theta_{ {D*}^{-} \pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "cosbeta_B_BC":{
     "xrange":(-1,1),
     "display":r"$\cos \theta^{ {D*}^{-} }_{ {D*}^{-}\pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "alpha_D_CD":{
     "xrange":(-pi,pi),
     "display":r"$\phi^{ {D*}^{0} }_{ {D*}^{0}\pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "alpha_CD":{
     "xrange":(-pi,pi),
     "display":r"$ \phi_{ {D*}^{0} \pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "cosbeta_CD":{
     "xrange":(-1,1),
     "display":r"$\cos \theta_{ {D*}^{0} \pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   "cosbeta_D_CD":{
     "xrange":(-1,1),
     "display":r"$\cos \theta^{ {D*}^{0} }_{ {D*}^{0}\pi^{+} }$",
     "bins":50,
-    "units":""
+    "units":"",
+    "legend":False
   },
   
 }
@@ -197,7 +209,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
     fitFrac[name] = a_weight[i].sum()/(n_data - w_bkg*n_bg)
   print("FitFractions:")
   pprint(fitFrac)
-  def plot_params(ax,name,bins=None,xrange=None,idx=0,display=None,units="GeV"):
+  def plot_params(ax,name,bins=None,xrange=None,idx=0,display=None,units="GeV",legend=True):
     fd = lambda x:x
     if name.startswith("cos"):
       fd = lambda x:np.cos(x)
@@ -220,7 +232,8 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
       x,y = hist_line(fd(mcdata[idx].numpy()),weights,bins,xrange,inter)
       y = y
       ax.plot(x,y,label=res_name[i],linestyle="solid",linewidth=1)
-    ax.legend(framealpha=0.5)
+    if legend:
+      ax.legend(framealpha=0.5)
     ax.set_ylabel("events/({:.3f} {})".format((x_mc[1]-x_mc[0]),units))
     ax.set_xlabel("{} {}".format(display,units))
     if xrange is not None:

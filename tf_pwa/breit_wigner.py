@@ -24,6 +24,11 @@ def one(*args):
 
 @regist_lineshape("BW")
 def BW(m, m0,g0,*args):
+  r"""
+  .. math::
+      BW(m) = \frac{1}{m_0^2 - m^2 -  i m_0 \Gamma_0 }
+  
+  """
   gamma = g0
   num = 1.0
   denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
@@ -32,6 +37,11 @@ def BW(m, m0,g0,*args):
 @regist_lineshape("default")
 @regist_lineshape("BWR")
 def BWR(m, m0,g0,q,q0,L,d):
+  r"""
+  .. math::
+      BW(m) = \frac{1}{m_0^2 - m^2 -  i m_0 \Gamma(m)}
+  
+  """
   gamma = Gamma(m, g0, q, q0, L, m0, d)
   num = 1.0
   denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
@@ -39,6 +49,11 @@ def BWR(m, m0,g0,q,q0,L,d):
 
 #@tf.function()
 def Gamma(m, gamma0, q, q0, L, m0,d):
+  r"""
+  .. math::
+      \Gamma(m) = \Gamma_0 \left(\frac{q}{q_0}\right)^{2L+1}\frac{m_0}{m} B_{L}'(q,q_0,d)
+  
+  """
   qq0 = (q / tf.cast(q0,q.dtype))**(2 * L + 1)
   mm0 = (tf.cast(m0,m.dtype) / m)
   bp = Bprime(L, q, q0, d)**2

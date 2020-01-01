@@ -1,3 +1,7 @@
+"""
+basic negative log-likelihood model
+"""
+
 import tensorflow as tf
 from .amplitude import AllAmplitude
 import time 
@@ -45,9 +49,9 @@ class Model(object):
     self.constrain = constrain
   
   def get_constrain_term(self):
-    """
+    r"""
     constrain: Gauss(mean,sigma) 
-      by add a term $\\frac{(x-\\bar{x})^2}{2\sigam^2}$
+      by add a term :math:`\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2}`
     
     """
     t_var = self.Amp.trainable_variables
@@ -65,9 +69,9 @@ class Model(object):
     return nll
   
   def get_constrain_grad(self):
-    """
+    r"""
     constrain: Gauss(mean,sigma) 
-      by add a term $\\frac{d}{dx}\\frac{(x-\\bar{x})^2}{2\\sigam^2} = \frac{x-\\bar{x}}{\\sigma^2}$
+      by add a term :math:`\frac{d}{d\theta_i}\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2} = \frac{\theta_i-\bar{\theta_i}}{\sigma^2}`
     
     """
     t_var = self.Amp.trainable_variables
@@ -125,6 +129,13 @@ class Model(object):
     return data_warp,weight
 
   def nll(self,data,mcdata,weight=1.0,batch=None,args=(),kwargs={}):
+    r"""
+    calculate negative log-likelihood 
+
+    .. math::
+      -\ln L = -\sum_{x_i \in data } w_i \ln f(x_i;\theta_i) +  (\sum w_i ) \ln \sum_{x_i \in mc } f(x_i;\theta_i) + cons
+
+    """
     ln_data = tf.math.log(self.Amp(data))
     int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
     if isinstance(weight,float):
@@ -142,6 +153,14 @@ class Model(object):
     return nll_0 + sw * int_mc + cons
   
   def nll_gradient(self,data,mcdata,weight=1.0,batch=None,args=(),kwargs={}):
+    r"""
+    calculate negative log-likelihood with gradient
+
+    .. math::
+      \frac{\partial }{\partial \theta_i }(-\ln L) = -\sum_{x_i \in data } w_i \frac{\partial }{\partial \theta_i } \ln f(x_i;\theta_i) +  
+      \frac{\sum w_i }{\sum_{x_i \in mc }f(x_i;\theta_i)} \sum_{x_i \in mc } \frac{\partial }{\partial \theta_i } f(x_i;\theta_i) + cons
+    
+    """
     t_var = self.Amp.trainable_variables
     if batch is None:
       with tf.GradientTape() as tape:
