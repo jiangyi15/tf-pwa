@@ -24,7 +24,9 @@ D2_2460: {
   g0: 0.0475, 
   g_max: 0.0486, g_min: 0.0464,
   # Breit Wigner formula [option]
-  bw: default
+  bw: default,
+  # fixed total amplitude (rho,phi) [option]
+  total: [1.0,0.0]
 }
 
 #other resonance

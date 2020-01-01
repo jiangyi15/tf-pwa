@@ -77,6 +77,7 @@ def fit(method="BFGS",hesse=True,frac=True):
   try :
     with open("init_params.json") as f:  
       param = json.load(f)
+      print("using init_params.json")
       a.set_params(param)
   except:
     pass
@@ -114,14 +115,14 @@ def fit(method="BFGS",hesse=True,frac=True):
   nlls = []
   now = time.time()
   #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-  if method == "BFGS":
+  if method in ["BFGS","CG","Nelder-Mead"]:
     def callback(x):
       points.append([float(i) for i in bd.get_y(x)])
       nlls.append(float(fcn.cached_nll))
       print(fcn.cached_nll)
     bd = Bounds(bnds)
     f_g = bd.trans_f_g(fcn.nll_grad)
-    s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1})
+    s = minimize(f_g,np.array(bd.get_x(x0)),method=method,jac=True,callback=callback,options={"disp":1})
     xn = bd.get_y(s.x)
   elif method == "L-BFGS-B":
     def callback(x):
@@ -153,14 +154,16 @@ def fit(method="BFGS",hesse=True,frac=True):
   if frac:
     cal_fitfractions(a,config_list,val,w_bkg,data,mcdata)
   
-
-  
   print("\nend\n")
 
-if __name__ == "__main__":
+def main():
   import argparse
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
+  parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
-  fit(method="BFGS",hesse=results.hesse,frac=results.frac)
+  fit(method=results.method, hesse=results.hesse, frac=results.frac)
+
+if __name__ == "__main__":
+  main()
