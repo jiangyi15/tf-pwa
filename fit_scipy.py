@@ -7,7 +7,7 @@ import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
-
+from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.amplitude import AllAmplitude,param_list
 
 import math
@@ -55,19 +55,6 @@ def prepare_data(dtype="float64",model="3"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def cal_fitfractions(a,config_list,val,w_bkg,data,mcdata):
-  int_total = a.Amp(mcdata).numpy().sum()
-  res_list = [i for i in config_list]
-  fitFrac = {}
-  for i in range(len(res_list)):
-    name = res_list[i]
-    a_sig = Cache_Model({name:config_list[name]},w_bkg,data,mcdata)
-    a_sig.set_params(val)
-    a_weight = a_sig.Amp(mcdata).numpy()
-    fitFrac[name] = float(a_weight.sum()/int_total)
-  print("FitFractions:")
-  pprint(fitFrac)
-
 def fit(method="BFGS",hesse=True,frac=True):
   dtype = "float64"
   w_bkg = 0.768331
@@ -81,7 +68,7 @@ def fit(method="BFGS",hesse=True,frac=True):
   amp = AllAmplitude(config_list)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
   try :
-    with open("init_params.json") as f:  
+    with open("final_params.json") as f:  
       param = json.load(f)
       print("using init_params.json")
       if "value" in param:
@@ -166,8 +153,11 @@ def fit(method="BFGS",hesse=True,frac=True):
     else:
       print("  ",i,":",val[i])
   if frac:
-    cal_fitfractions(a,config_list,val,w_bkg,data,mcdata)
-  
+    mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
+    frac,g_frac = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
+    print("fitfractions")
+    for i in config_list:
+      print(i,":",frac[i])
   print("\nend\n")
 
 def main():

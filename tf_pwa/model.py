@@ -251,11 +251,15 @@ class Model(object):
     return ret
   
   def set_params(self,param):
-    for j in param:
-      for i in self.Amp.variables:
-        if j == i.name:
-          tmp = param[i.name]
-          i.assign(tmp)
+    if isinstance(param,dict) and "value" in param:
+      param = param["value"]
+    var_list = self.Amp.variables
+    var_name = [i.name for i in var_list]
+    var = dict(zip(var_name,var_list))
+    for i in param:
+      if i in var_name:
+        tmp = param[i]
+        var[i].assign(tmp)
 
 class Cache_Model(Model):
   def __init__(self,configs,w_bkg,data,mc,bg=None,batch=50000,constrain={},args=(),kwargs={}):
