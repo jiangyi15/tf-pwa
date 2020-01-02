@@ -5,8 +5,10 @@ import time
 import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
-from tf_pwa.angle import cal_ang_file,EularAngle
+from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
+
+from tf_pwa.amplitude import AllAmplitude,param_list
 
 import math
 from tf_pwa.bounds import Bounds
@@ -28,15 +30,18 @@ def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   err = dict(zip(args_name,hesse_error))
   return err
 
-def prepare_data(dtype="float64"):
+def prepare_data(dtype="float64",model="3"):
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}
-  for i in range(3):
-    data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
+  for i in range(len(tname)):
+    if model == "3" :
+      data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
+    elif model == "4":
+      data_np[tname[i]] = cal_ang_file4(fname[i][0],fname[i][1],dtype)
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -71,23 +76,28 @@ def fit(method="BFGS",hesse=True,frac=True):
   # open Resonances list as dict 
   config_list = load_config_file("Resonances")
   
-  data, bg, mcdata = prepare_data(dtype=dtype)
+  data, bg, mcdata = prepare_data(dtype=dtype)#,model="4")
   
-  a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
+  amp = AllAmplitude(config_list)
+  a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
   try :
     with open("init_params.json") as f:  
       param = json.load(f)
       print("using init_params.json")
-      a.set_params(param["value"])
+      if "value" in param:
+        a.set_params(param["value"])
+      else :
+        a.set_params(param)
   except:
     pass
-  
+  #print(a.Amp(data))
+  #exit()
   pprint(a.get_params())
   #print(data,bg,mcdata)
   #t = time.time()
   #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
   #print("nll:",nll,"Time:",time.time()-t)
-  
+  #exit()
   fcn = FCN(a)
   
   # fit configure

@@ -26,6 +26,9 @@ ________________
 .. automodule:: tf_pwa.breit_wigner
    :members:
 
+.. automodule:: fitfractions
+   :members:
+
 Indices and tables
 ==================
 
