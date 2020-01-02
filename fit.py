@@ -1,46 +1,19 @@
 #!/usr/bin/env python3
-
-import json
-from tf_pwa.model import *
+import tensorflow as tf
+import numpy as np
+from tf_pwa.model import Cache_Model,set_gpu_mem_growth,param_list,FCN
 from tf_pwa.angle import cal_ang_file,EularAngle
-from tf_pwa.utils import load_config_file
+from tf_pwa.utils import load_config_file,flatten_np_data,pprint
+from iminuit import Minuit
+import time
+import json
 
-def train_one_step(model, optimizer):
+'''def train_one_step(model, optimizer):
   nll,grads = model.cal_nll_gradient({})
   optimizer.apply_gradients(zip(grads, model.Amp.trainable_variables))
-  return nll,grads
+  return nll,grads'''
 
-def flatten_np_data(data):
-  ret = {}
-  for i in data:
-    tmp = data[i]
-    if isinstance(tmp,EularAngle):
-      ret["alpha"+i[3:]] = tmp.alpha
-      ret["beta"+i[3:]] = tmp.beta
-      ret["gamma"+i[3:]] = tmp.gamma
-    else :
-      ret[i] = data[i]
-  return ret
-
-param_list = [
-  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
-  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
-  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
-  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
-  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
-  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
-]
-
-def pprint(x):
-  s = json.dumps(x,indent=2)
-  print(s)
-
-def main():
-  dtype = "float64"
-  w_bkg = 0.768331
-  set_gpu_mem_growth()
-  tf.keras.backend.set_floatx(dtype)
-  config_list = load_config_file("Resonances")
+def prepare_data(dtype="float64"):
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
@@ -49,10 +22,6 @@ def main():
   data_np = {}
   for i in range(3):
     data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
-  m0_A = (data_np["data"]["m_A"]).mean()
-  m0_B = (data_np["data"]["m_B"]).mean()
-  m0_C = (data_np["data"]["m_C"]).mean()
-  m0_D = (data_np["data"]["m_D"]).mean()
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -60,46 +29,47 @@ def main():
       tmp_data = tf.Variable(tmp[i],name=i,dtype=dtype)
       dat.append(tmp_data)
     return dat
-  with tf.device('/device:GPU:0'):
-    data = load_data("data")
-    bg = load_data("bg")
-    mcdata = load_data("PHSP")
-    a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
-  #print(data)
-  #print(a.Amp.coef)
-  a.Amp.m0_A = m0_A
-  a.Amp.m0_B = m0_B
-  a.Amp.m0_C = m0_C
-  a.Amp.m0_D = m0_D
+  #with tf.device('/device:GPU:0'):
+  data = load_data("data")
+  bg = load_data("bg")
+  mcdata = load_data("PHSP")
+  return data, bg, mcdata
+
+def main():
+  dtype = "float64"
+  w_bkg = 0.768331
+  set_gpu_mem_growth()
+  tf.keras.backend.set_floatx(dtype)
+  config_list = load_config_file("Resonances")
+
+  data, bg, mcdata = prepare_data(dtype=dtype)
+  
+  a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
   
   try :
     with open("init_params.json") as f:  
       param = json.load(f)
-      a.set_params(param)
+      a.set_params(param["value"])
   except:
     pass
+  
   pprint(a.get_params())
-  #a.Amp(data)
-  #exit()
-  data_w,weights = data,1.0#a.get_weight_data(data,bg)
-  
-  
-  t = time.time()
-  #print(a.Amp(data))
-  #print(a.Amp(bg))
-  #print(a.Amp(mcdata)
-  #print(tf.reduce_sum(tf.math.log(a.Amp(data))))
-  nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
-  
-    
-  print("Time:",time.time()-t)
-  #print(nll)
-  #he = np.array([[j.numpy() for j in i] for i in h])
-  #print(he)
-  #ihe = np.linalg.inv(he)
-  #print(ihe)
-  #exit()
+
   if False: #check gradient
+    data_w,weights = data,1.0#a.get_weight_data(data,bg)
+    t = time.time()
+    #print(a.Amp(data))
+    #print(a.Amp(bg))
+    #print(a.Amp(mcdata)
+    #print(tf.reduce_sum(tf.math.log(a.Amp(data))))
+    nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
+    print("Time:",time.time()-t)
+    #print(nll)
+    #he = np.array([[j.numpy() for j in i] for i in h])
+    #print(he)
+    #ihe = np.linalg.inv(he)
+    #print(ihe)
+    #exit()
     print(g)
     ptr = 0
     for i in a.Amp.trainable_variables:
@@ -114,33 +84,52 @@ def main():
       ptr+=1
       for j in range(len(g0)):
         print((g0[j]-g1[j]).numpy()/2e-3)
-  
-  import iminuit 
-  f = FCN(a)
+   
+  fcn = FCN(a)
   args = {}
   args_name = []
   x0 = []
-  for i in a.Amp.trainable_variables:
-    args[i.name] = i.numpy()
-    x0.append(i.numpy())
-    args_name.append(i.name)
-    args["error_"+i.name] = 0.1
   bounds_dict = {
       "Zc_4160_m0:0":(4.1,4.22),
       "Zc_4160_g0:0":(0,10)
   }
-  for i in bounds_dict:
-    if i in args_name:
+  for i in a.Amp.trainable_variables:
+    args[i.name] = i.numpy()
+    x0.append(i.numpy())
+    args_name.append(i.name)
+    if i.name in bounds_dict:
       args["limit_{}".format(i)] = bounds_dict[i]
-  m = iminuit.Minuit(f,forced_parameters=args_name,errordef = 0.5,grad=f.grad,print_level=2,use_array_call=True,**args)
+    args["error_"+i.name] = 0.1
+ 
+
+  m = Minuit(fcn,forced_parameters=args_name,errordef = 0.5,grad=fcn.grad,print_level=2,use_array_call=True,**args)
+  
   now = time.time()
   with tf.device('/device:GPU:0'):
-    print(m.migrad(ncall=10000))#,precision=5e-7))
-  print(time.time() - now)
+    m.migrad()#(ncall=10000))#,precision=5e-7))
+  print("MIGRAD Time",time.time() - now)
+  now = time.time()
+  with tf.device('/device:GPU:0'):
+    m.hesse()
+  print("HESSE Time",time.time() - now)
+  '''now = time.time()
+  with tf.device('/device:GPU:0'):
+    print(m.minos(var=None))
+  print("MINOS Time",time.time() - now)'''
+  print(m.values)
+  print(m.errors)
+  
   print(m.get_param_states())
+
+  err_mtrx=m.np_covariance()
+  np.save("error_matrix.npy",err_mtrx)
+  diag=err_mtrx.diagonal()
+  hesse_err=np.sqrt(diag).tolist()
+  err=dict(zip(args_name,hesse_err))
+
+  outdic={"value":a.get_params(),"error":err}
   with open("final_params.json","w") as f:
-    json.dump(a.get_params(),f,indent=2)
-  np.save("error_matrix",m.np_covariance())
+    json.dump(outdic,f,indent=2)
   #try :
     #print(m.minos())
   #except RuntimeError as e:
@@ -149,17 +138,17 @@ def main():
   #with tf.device('/device:GPU:0'):
     #print(a.nll(data,bg,mcdata))#.collect_params())
   #print(a.Amp.trainable_variables)
-  t = time.time()
+  '''t = time.time()
   a_h = Cache_Model(a.Amp,0.768331,data,mcdata,bg=bg,batch=26000)
   a_h.set_params(a.get_params())
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
   print("Time:",time.time()-t)
-  print(nll)
-  print([i.numpy() for i in g])
+  print("NLL",nll)
+  print("gradients",[i.numpy() for i in g])
   #print(h.numpy())
   inv_he = np.linalg.inv(h.numpy())
   print("hesse error:")
-  pprint(dict(zip(args_name,np.sqrt(inv_he.diagonal()).tolist())))
+  pprint(dict(zip(args_name,np.sqrt(inv_he.diagonal()).tolist())))'''
   
 if __name__=="__main__":
   main()

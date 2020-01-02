@@ -26,7 +26,7 @@ def main(param_name,x,method):
   try :
     with open("lklpf_params.json") as f:  
       param = json.load(f)
-      a.set_params(param)
+      a.set_params(param["value"])
   except:
     pass
   pprint(a.get_params())
@@ -91,7 +91,7 @@ def main(param_name,x,method):
       #s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
       s = minimize(f_g,np.array(bd.get_x(x0)),method="BFGS",jac=True,callback=callback,options={"disp":1})
     print("#"*5,param_name,fixed_var,"#"*5)
-    print(s,'\n')
+    #print(s)
     return s
 
   #x=np.arange(0.51,0.52,0.01)
@@ -107,12 +107,11 @@ def main(param_name,x,method):
   print("\nend\n")
   return y
 
-if __name__ == "__main__":
-  param_name="D1_2430_BLS_2_2i:0" ###
+def lklpf(param_name):
   with open("lklpf_params.json") as f:
     params = json.load(f)
-  x_mean = params[param_name]
-  x_sigma = 2.0
+  x_mean = params["value"][param_name]
+  x_sigma = params["error"][param_name]
   method="scipy" ###
   mode="bothsides"#"back&forth"
   if mode=="back&forth":
@@ -126,13 +125,16 @@ if __name__ == "__main__":
     print(mode,x1,y1,x1,y2[::-1],sep='\n')
   elif mode=="bothsides":
     x1=np.arange(x_mean,x_mean-5*x_sigma,-x_sigma/2)
+    #x1=np.arange(x_mean,x_mean-10*x_sigma,-x_sigma)
     x2=np.arange(x_mean,x_mean+5*x_sigma,x_sigma/2)
+    #x2=np.arange(x_mean,x_mean+10*x_sigma,x_sigma)
     t1=time.time()
     y1=main(param_name,x1,method)
     t2=time.time()
     y2=main(param_name,x2,method)
     t3=time.time()
     print(mode,list(np.append(x1[::-1],x2)),list(np.append(y1[::-1],y2)),sep='\n')
+  print(param_name,x_mean)
   print("#"*10,t2-t1,"#"*10,t3-t2)
   '''plt.plot(x,yf,"*-",x,yb,"*-")
   plt.title(param_name)
@@ -140,3 +142,8 @@ if __name__ == "__main__":
   plt.savefig("lklhd_prfl")
   plt.clf()'''
 
+if __name__=="__main__":
+  param_list=["D2_2460_BLS_2_1r:0"]
+  for param_name in param_list:
+    lklpf(param_name)
+  print("\n*** likelihood profile done *****\n")
