@@ -9,6 +9,7 @@ import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file
 from tf_pwa.utils import load_config_file,error_print,flatten_np_data
+from tf_pwa.fitfractions import cal_fitfractions
 import math
 
 
@@ -38,35 +39,6 @@ def part_config(config,name=[]):
     ret[i] = config[i]
   return ret
 
-def cal_fitfractions(amp,mcdata,args=(),kwargs={}):
-  allvar = [i.name for i in amp.trainable_variables]
-  res = [i for i in amp.res]
-  n_res = len(res)
-  fitFrac = {}
-  err_fitFrac = {}
-  g_fitFrac = [None]*n_res
-  amp.set_used_res(res)
-  int_mc,g_int_mc = sum_gradient(amp,mcdata,kwargs=kwargs)
-  for i in range(n_res):
-    for j in range(i,-1,-1):
-      amp_tmp = amp
-      if i==j :
-        name = res[i]
-        amp_tmp.set_used_res([res[i]])
-      else :
-        name = res[i]+"x"+res[j]
-        amp_tmp.set_used_res([res[i],res[j]])
-      int_tmp, g_int_tmp = sum_gradient(amp_tmp,mcdata,kwargs=kwargs)
-      if i == j:
-        fitFrac[name] = (int_tmp/int_mc)
-        g_fitFrac[i]  = g_int_tmp/int_mc - (int_tmp/int_mc) * g_int_mc/int_mc
-        gij = g_fitFrac[i]
-      else :
-        fitFrac[name] = (int_tmp/int_mc) - fitFrac[res[i]] - fitFrac[res[j]]
-        gij  = g_int_tmp/int_mc - (int_tmp/int_mc) * g_int_mc/int_mc - g_fitFrac[i] - g_fitFrac[j]
-      #print(name,gij.tolist())
-      err_fitFrac[name] = gij
-  return fitFrac,err_fitFrac
 
 def err_trans(grad,Vij):
   return np.dot(grad.T,np.dot(Vij,grad))
@@ -81,7 +53,7 @@ def main():
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"],
-       #["./data/PHSP_NEFF4600.dat",""]
+       ["./data/PHSP_NOEFF.dat",""]
   ]
   tname = ["data","bg","PHSP","MC"]
   data_np = {}
@@ -106,8 +78,10 @@ def main():
   
   with open("final_params.json") as f:  
     param = json.load(f)
-    a.set_params(param)
-  
+    if "value" in param:
+      a.set_params(param["value"])
+    else:
+      a.set_params(param)
   s = json.dumps(a.get_params(),indent=2)
   print("params:")
   print(s)
@@ -136,25 +110,7 @@ def main():
     #s = error_print(fitFrac_f[i], np.sqrt(err_trans(g_fitFrac_f[i],Vij)))
     #print(i,":",s)
 
-def sum_gradient(amp,data,weight=1.0,func=lambda x:x,args=(),kwargs={}):
-  n_variables = len(amp.trainable_variables)
-  if isinstance(weight,float):
-    weight = [weight] * len(data)
-  nll = 0.0
-  g = None
-  for i in range(len(data)):
-    with tf.GradientTape() as tape:
-      amp2s = amp(data[i],*args,**kwargs)
-      l_a = func(amp2s)
-      p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-    nll += p_nll
-    a = tape.gradient(p_nll,amp.trainable_variables,unconnected_gradients="zero")
-    if g is None:
-      g = a
-    else :
-      for j in range(n_variables):
-        g[j] += a[j]
-  return nll.numpy(),np.array([i.numpy() for i in g])
+
 
 if __name__ == "__main__":
   main()

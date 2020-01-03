@@ -3,7 +3,6 @@ import pysnooper
 
 class Vector3(object):
   def __init__(self,x=0.0,y=0.0,z=0.0):
-    
     self.data = np.array([x,y,z])
   @property
   def X(self):
@@ -216,13 +215,13 @@ def cal_angle_rest4(p4_B,p4_C,p4_E,p4_F):
   ang_CD,x_CD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_CD.Vect())
   ang_D_CD,x_D_CD = EularAngle.angle_zx_z_gety(p4_CD.Vect(),x_CD,p4_D_CD.Vect())
   
-  ang_BD_B = EularAngle.angle_zx_zx(p4_B_BD.Vect(),x_B_BD,p4_B.Vect(),-x_CD)
-  ang_BC_B = EularAngle.angle_zx_zx(p4_B_BC.Vect(),x_B_BC,p4_B.Vect(),-x_CD)
-  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect(),-x_B_BD,p4_D.Vect(),-x_BC)
-  ang_CD_D = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_D_CD,p4_D.Vect(),-x_BC)
+  ang_BD_B = EularAngle.angle_zx_zx(p4_B_BD.Vect(),x_B_BD,p4_B.Vect(),x_CD)
+  ang_BC_B = EularAngle.angle_zx_zx(p4_B_BC.Vect(),x_B_BC,p4_B.Vect(),x_CD)
+  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect(),x_B_BD,p4_D.Vect(),x_BC)
+  ang_CD_D = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_D_CD,p4_D.Vect(),x_BC)
 
-  ang_E_BC,x_E_BC = EularAngle.angle_zx_z_gety(p4_D.Vect(),-x_BC,p4_E_BC.Vect())
-  ang_E_BD = EularAngle.angle_zx_zx(p4_D_BD.Vect(),-x_BD,p4_E_BD.Vect(),x_E_BC)
+  ang_E_BC,x_E_BC = EularAngle.angle_zx_z_gety(p4_D.Vect(),x_BC,p4_E_BC.Vect())
+  ang_E_BD = EularAngle.angle_zx_zx(p4_D_BD.Vect(),x_BD,p4_E_BD.Vect(),x_E_BC)
   ang_E_CD = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_CD,p4_E_CD.Vect(),x_E_BC)
   
   return {
@@ -274,7 +273,7 @@ def cal_ang_file4(fname,dst_fname,dtype="float64"):
   lpe = LorentzVector(pe[:,1],pe[:,2],pe[:,3],pe[:,0])
   pf = data2[1::2]
   lpf = LorentzVector(pf[:,1],pf[:,2],pf[:,3],pf[:,0])
-  ret = cal_angle4_2(lpb,lpc,lpe,lpf)
+  ret = cal_angle4(lpb,lpc,lpe,lpf)
   
   ret["m_BC"] = (lpb + lpc).M()
   ret["m_CD"] = (lpd + lpc).M()

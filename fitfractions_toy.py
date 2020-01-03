@@ -9,6 +9,7 @@ import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file
 from tf_pwa.utils import load_config_file,error_print,pprint,flatten_np_data
+from tf_pwa.fitfractions import cal_fitfractions_no_grad as cal_frac
 import math
 
 def error_print(x,err):
@@ -71,7 +72,7 @@ def main():
   print(s)
   #np.savetxt("filename.txt",a)
   try :
-    Vij = np.load("erddror_matrix.npy")
+    Vij = np.load("error_matrix.npy")
   except :
     nll,g,h = a.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
     inv_he = np.linalg.inv(h.numpy())
@@ -85,26 +86,8 @@ def main():
   print("toy_params:",toy_params)
   def cal_fitfractions(params):
     res = [i for i in config_list]
-    n_res = len(res)
-    a.Amp.set_used_res(res)
     a.set_params(dict(zip([i.name for i in values],params)))
-    int_mc = sum_no_gradient(a.Amp,mcdata_cached,kwargs={"cached":True})
-    fitFrac = {}
-    for i in range(n_res):
-      for j in range(i,-1,-1):
-        amp_tmp = a.Amp
-        if i==j :
-          name = res[i]
-          amp_tmp.set_used_res([res[i]])
-        else :
-          name = res[i]+"x"+res[j]
-          amp_tmp.set_used_res([res[i],res[j]])
-        int_tmp = sum_no_gradient(amp_tmp,mcdata_cached,kwargs={"cached":True})
-        if i == j:
-          fitFrac[name] = (int_tmp/int_mc)
-        else :
-          fitFrac[name] = (int_tmp/int_mc) - fitFrac[res[i]] - fitFrac[res[j]]
-    #print("check sum:",np.sum([fitFrac[i] for i in fitFrac]))
+    fitFrac = cal_frac(a.Amp,mcdata_cached,kwargs={"cached":True})
     print(fitFrac["D2_2460"])
     return fitFrac
   fitFrac = []
@@ -121,36 +104,6 @@ def main():
     s = error_print(mean_fitFrac[names[i]],err)
     print(names[i],":",s)
 
-def sum_no_gradient(amp,data,weight=1.0,func=lambda x:x,args=(),kwargs={}):
-  if isinstance(weight,float):
-    weight = [weight] * len(data)
-  nll = 0.0
-  for i in range(len(data)):
-    amp2s = amp(data[i],*args,**kwargs)
-    l_a = func(amp2s)
-    p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-    nll += p_nll
-  return nll.numpy()
-
-def sum_gradient(amp,data,weight=1.0,func=lambda x:x,args=(),kwargs={}):
-  n_variables = len(amp.trainable_variables)
-  if isinstance(weight,float):
-    weight = [weight] * len(data)
-  nll = 0.0
-  g = None
-  for i in range(len(data)):
-    with tf.GradientTape() as tape:
-      amp2s = amp(data[i],*args,**kwargs)
-      l_a = func(amp2s)
-      p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-    nll += p_nll
-    a = tape.gradient(p_nll,amp.trainable_variables,unconnected_gradients="zero")
-    if g is None:
-      g = a
-    else :
-      for j in range(n_variables):
-        g[j] += a[j]
-  return nll.numpy(),np.array([i.numpy() for i in g])
 
 if __name__ == "__main__":
   main()

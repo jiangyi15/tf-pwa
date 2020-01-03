@@ -158,7 +158,10 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
   a = Model(config_list,w_bkg)
   with open(params_file) as f:  
     param = json.load(f)
-  a.set_params(param)
+    if "value" in param:
+      a.set_params(param["value"])
+    else :
+      a.set_params(param)
   pprint(a.get_params())
   fname = [["data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],

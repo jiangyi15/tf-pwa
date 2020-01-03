@@ -5,8 +5,10 @@ import time
 import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
-from tf_pwa.angle import cal_ang_file,EularAngle
+from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
+from tf_pwa.fitfractions import cal_fitfractions
+from tf_pwa.amplitude import AllAmplitude,param_list
 
 import math
 from tf_pwa.bounds import Bounds
@@ -28,15 +30,18 @@ def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   err = dict(zip(args_name,hesse_error))
   return err
 
-def prepare_data(dtype="float64"):
+def prepare_data(dtype="float64",model="3"):
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
   ]
   tname = ["data","bg","PHSP"]
   data_np = {}
-  for i in range(3):
-    data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
+  for i in range(len(tname)):
+    if model == "3" :
+      data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
+    elif model == "4":
+      data_np[tname[i]] = cal_ang_file4(fname[i][0],fname[i][1],dtype)
   def load_data(name):
     dat = []
     tmp = flatten_np_data(data_np[name])
@@ -50,19 +55,6 @@ def prepare_data(dtype="float64"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def cal_fitfractions(a,config_list,val,w_bkg,data,mcdata):
-  int_total = a.Amp(mcdata).numpy().sum()
-  res_list = [i for i in config_list]
-  fitFrac = {}
-  for i in range(len(res_list)):
-    name = res_list[i]
-    a_sig = Cache_Model({name:config_list[name]},w_bkg,data,mcdata)
-    a_sig.set_params(val)
-    a_weight = a_sig.Amp(mcdata).numpy()
-    fitFrac[name] = float(a_weight.sum()/int_total)
-  print("FitFractions:")
-  pprint(fitFrac)
-
 def fit(method="BFGS",hesse=True,frac=True):
   dtype = "float64"
   w_bkg = 0.768331
@@ -71,26 +63,28 @@ def fit(method="BFGS",hesse=True,frac=True):
   # open Resonances list as dict 
   config_list = load_config_file("Resonances")
   
-  data, bg, mcdata = prepare_data(dtype=dtype)
+  data, bg, mcdata = prepare_data(dtype=dtype)#,model="4")
   
-  a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
+  amp = AllAmplitude(config_list)
+  a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
   try :
-    with open("init_params.json") as f:  
+    with open("final_params.json") as f:  
       param = json.load(f)
-<<<<<<< HEAD
-=======
       print("using init_params.json")
->>>>>>> 29c36621835050636886cd10bf62ff447b8a59be
-      a.set_params(param["value"])
+      if "value" in param:
+        a.set_params(param["value"])
+      else :
+        a.set_params(param)
   except:
     pass
-  
+  #print(a.Amp(data))
+  #exit()
   pprint(a.get_params())
   #print(data,bg,mcdata)
   #t = time.time()
   #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
   #print("nll:",nll,"Time:",time.time()-t)
-  
+  #exit()
   fcn = FCN(a)
   
   # fit configure
@@ -141,11 +135,6 @@ def fit(method="BFGS",hesse=True,frac=True):
   
   val = dict(zip(args_name,xn))
   a.set_params(val)
-<<<<<<< HEAD
-  
-=======
-
->>>>>>> 29c36621835050636886cd10bf62ff447b8a59be
   with open("fit_curve.json","w") as f:
     json.dump({"points":points,"nlls":nlls},f,indent=2)
 
@@ -155,11 +144,6 @@ def fit(method="BFGS",hesse=True,frac=True):
   outdic={"value":a.get_params(),"error":err}
   with open("final_params.json","w") as f:
     json.dump(outdic,f,indent=2)
-<<<<<<< HEAD
-    
-=======
-
->>>>>>> 29c36621835050636886cd10bf62ff447b8a59be
   print("fit value:")
   for i in val:
     if hesse:
@@ -167,8 +151,11 @@ def fit(method="BFGS",hesse=True,frac=True):
     else:
       print("  ",i,":",val[i])
   if frac:
-    cal_fitfractions(a,config_list,val,w_bkg,data,mcdata)
-  
+    mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
+    frac,g_frac = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
+    print("fitfractions")
+    for i in config_list:
+      print(i,":",frac[i])
   print("\nend\n")
 
 def main():
