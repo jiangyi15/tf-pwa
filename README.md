@@ -51,6 +51,14 @@ script for cache state, using the latest *_params.json file as parameters and ca
 ./state_cache.sh [path]
 ```
 
+## autodocs
+
+autodoc using sphinx, need sphinx 
+
+```
+  python setup.py build_sphinx 
+```
+
 ## Dependencies
 
 tensorflow or tensorflow-gpu >= 2.0.0 

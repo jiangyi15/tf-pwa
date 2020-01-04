@@ -113,6 +113,102 @@ class dfunctionJ(object):
       return tf.constant(tf.reshape(ret,self.sc.shape[1:]))
     return tf.constant(ret)
 
+class ExpI_Cache(object):
+  def __init__(self,phi,maxJ = 2):
+    self.maxj = maxJ
+    self.phi = phi
+    a = tf.range(-maxJ,maxJ+1,1.0)
+    a = tf.reshape(a,(-1,1))
+    phi = tf.reshape(phi,(1,-1))
+    mphi = tf.matmul(a,phi)
+    self.sinphi = tf.sin(mphi)
+    self.cosphi = tf.cos(mphi)
+  def __call__(self,m):
+    idx = m + self.maxj
+    return complex(self.cosphi[idx],self.sinphi[idx])
+
+class D_fun_Cache(object):
+  def __init__(self,alpha,beta,gamma=0.0):
+    self.alpha = ExpI_Cache(alpha)
+    self.gamma = ExpI_Cache(gamma)
+    self.beta = beta
+    self.dfuncj = {}
+  @functools.lru_cache()
+  def __call__(self,j,m1=None,m2=None):
+    if abs(m1) > j or abs(m2) > j:
+      return 0.0
+    if j not in self.dfuncj:
+      self.dfuncj[j] = dfunctionJ(j)
+      self.dfuncj[j].lazy_init(self.beta)
+    d = self.dfuncj[j](m1,m2)
+    return self.alpha(m1)*self.gamma(m2)*d
+
+def Dfun_cos(j,m1,m2,alpha,cosbeta,gamma):
+  tmp = complex(0.0,alpha * m1 + gamma * m2).exp() * dfunction(j, m1, m2, cosbeta)
+  return tmp
+
+def ExpI_all(maxJ,phi):
+  a = tf.range(-maxJ,maxJ+1,1.0)
+  a = tf.reshape(a,(-1,1))
+  phi = tf.reshape(phi,(1,-1))
+  if not isinstance(phi,float):
+    a = tf.cast(a,phi.dtype)
+  mphi = tf.matmul(a,phi)
+  sinphi = tf.sin(mphi)
+  cosphi = tf.cos(mphi)
+  return tf.complex(cosphi,sinphi)
+
+def Dfun_all(j,alpha,beta,gamma):
+  d_fun = dfunctionJ(j)
+  m = tf.range(-j,j+1)
+  m1,m2=tf.meshgrid(m,m)
+  d = d_fun(m2,m1,beta)
+  expi_alpha = tf.reshape(ExpI_all(j,alpha),(2*j+1,1,-1))
+  expi_gamma = tf.cast(tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1)),expi_alpha.dtype)
+  #a = tf.tile(expi_alpha,[1,2*j+1,1])
+  #b = tf.tile(expi_gamma,[2*j+1,1,1])
+  dc = tf.complex(d,tf.zeros_like(d))
+  return tf.cast(expi_alpha*expi_gamma,dc.dtype) * dc
+
+def delta_D_trans(j,la,lb,lc):
+  """
+  (ja,ja) -> (ja,jb,jc)
+  """
+  s = np.zeros(shape=(len(la),len(lb),len(lc),(2*j+1),(2*j+1)))
+  for i_a in range(len(la)):
+    for i_b in range(len(lb)):
+      for i_c in range(len(lc)):
+        delta = lb[i_b]-lc[i_c]
+        if abs(delta) <= j:
+          s[i_a][i_b][i_c][la[i_a]+j][delta+j] = 1.0
+  return np.reshape(s,(len(la)*len(lb)*len(lc),(2*j+1)*(2*j+1)))
+  
+
+def Dfun_delta(ja,la,lb,lc,d):
+  d = tf.reshape(d,((2*ja+1)*(2*ja+1),-1))
+  t = delta_D_trans(ja,la,lb,lc)
+  ret = tf.matmul(tf.cast(t,d.dtype),d)
+  return tf.reshape(ret,(len(la),len(lb),len(lc),-1))
+
+class D_Cache(object):
+  def __init__(self,alpha,beta,gamma=0.0):
+    self.alpha = alpha
+    self.gamma = gamma
+    self.beta = beta
+    self.cachej = {}
+  @functools.lru_cache()
+  def __call__(self,j,m1=None,m2=None):
+    if j not in self.cachej:
+      self.cachej[j] = Dfun_all(j,self.alpha,self.beta,self.gamma)
+    if m1 is None:
+      return self.cachej[j]
+    else :
+      return self.cachej[m1+j][m2+j]
+
+  def get_lambda(self,j,la,lb,lc=[0]):
+    d = self(j)
+    return Dfun_delta(j,la,lb,lc,d)
+
 if __name__ == "__main__":
   a = dfunctionJ(3)
   print(a(np.array([[2,-2],[-2,2]]),np.array([2,-2]),np.array([0.0,1.0,2.0,3.0])))

@@ -1,6 +1,7 @@
 import random
 import numpy as np
 from .cg import cg_coef
+from .breit_wigner import barrier_factor as default_barrier_factor
 import functools
 
 def GetA2BC_LS_list(ja,jb,jc,pa,pb,pc):
@@ -17,14 +18,24 @@ def GetA2BC_LS_list(ja,jb,jc,pa,pb,pc):
 
 
 class Particle(object):
-  def __init__(self,name,mass,width,J,P):
+  """
+  general Particle object
+  """
+  def __init__(self,name,J,P,spins=None):
     self.name = name
-    self.mass = mass
-    self.width = width
     self.J = J
     self.P = P
+    if spins is None:
+      spins = list(range(-J,J+1))
+    self.spins = spins
+  
+  def __repr__(self):
+    return self.name
 
 class Decay(object):
+  """
+  general Decay object
+  """
   def __init__(self,name,mother,outs):
     self.name = name
     self.mother = mother
@@ -44,11 +55,15 @@ class Decay(object):
   def get_l_list(self):
     return [ l for l,s in self.get_ls_list() ]
   
+  @functools.lru_cache()
+  def get_min_l(self):
+    return min(self.get_l_list())
+  
   def generate_params(self,ls=True):
     ret = []
     for l,s in self.get_ls_list():
-      name_r = "{name}_ls_{l}_{s}_r".format(l,s)
-      name_i = "{name}_ls_{l}_{s}_i".format(l,s)
+      name_r = "{name}_l{l}_s{s}_r".format(l,s)
+      name_i = "{name}_l{l}_s{s}_i".format(l,s)
       ret.append((name_r,name_i))
     return ret
   
@@ -56,8 +71,11 @@ class Decay(object):
   def get_cg_matrix(self):
     """
     [(l,s),(lambda_b,lambda_c)]
-    cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) *
-    cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
+    
+    .. math::
+      \\sqrt{\\frac{ 2 l + 1 }{ 2 j_a + 1 }}
+      \\langle j_b, j_c, \\lambda_b, - \\lambda_c | s, \\lambda_b - \\lambda_c \\rangle
+      \\langle l, s, 0, \\lambda_b - \\lambda_c | j_a, \\lambda_b - \\lambda_c \\rangle
     """
     ls = self.get_ls_list()
     m = len(ls) 
@@ -77,16 +95,28 @@ class Decay(object):
           j += 1
     return ret
   
-  def d_matrix(self,beta):
-    j_total = self.mother.J
+  def barrier_factor(self,q,q0):
+    """
+    defalut_barrier_factor
+    """
+    d = 3.0
+    ret = default_barrier_factor(self.get_l_list(),q,q0,d)
+    return ret
+  
+  def __repr__(self):
+    ret = str(self.mother)
+    ret += "->"
+    ret += str(self.outs[0])
+    for i in self.outs[1:]:
+      ret += "+"+str(i)
+    return ret
     
-  def D_matrix(self,alpha,beta,gamma):
-    return 0
+  
 
 def test():
-  a = Particle("a",0.0,0.0,1,-1)
-  b = Particle("b",0.0,0.0,1,-1)
-  c = Particle("c",0.0,0.0,1,-1)
+  a = Particle("a",1,-1)
+  b = Particle("b",1,-1)
+  c = Particle("c",1,-1)
   decay = Decay(a,[b,c])
   print(decay.cg_matrix().T)
   print(np.array(decay.get_ls_list()))

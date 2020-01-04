@@ -5,9 +5,9 @@ from .d_function_new import d_function_cos
 from .complex_F import Complex_F
 from .res_cache import Particle,Decay
 from .variable import Vars
-from .dfun_tf import dfunctionJ
+from .dfun_tf import dfunctionJ,D_Cache
 import os
-from pysnooper import snoop
+# from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 import functools
@@ -49,102 +49,6 @@ def GetMinL(J1,J2,J3,P1,P2,P3):
         minL = min(l,minL)
   return minL
 
-class ExpI_Cache(object):
-  def __init__(self,phi,maxJ = 2):
-    self.maxj = maxJ
-    self.phi = phi
-    a = tf.range(-maxJ,maxJ+1,1.0)
-    a = tf.reshape(a,(-1,1))
-    phi = tf.reshape(phi,(1,-1))
-    mphi = tf.matmul(a,phi)
-    self.sinphi = tf.sin(mphi)
-    self.cosphi = tf.cos(mphi)
-  def __call__(self,m):
-    idx = m + self.maxj
-    return complex(self.cosphi[idx],self.sinphi[idx])
-
-class D_fun_Cache(object):
-  def __init__(self,alpha,beta,gamma=0.0):
-    self.alpha = ExpI_Cache(alpha)
-    self.gamma = ExpI_Cache(gamma)
-    self.beta = beta
-    self.dfuncj = {}
-  @functools.lru_cache()
-  def __call__(self,j,m1=None,m2=None):
-    if abs(m1) > j or abs(m2) > j:
-      return 0.0
-    if j not in self.dfuncj:
-      self.dfuncj[j] = dfunctionJ(j)
-      self.dfuncj[j].lazy_init(self.beta)
-    d = self.dfuncj[j](m1,m2)
-    return self.alpha(m1)*self.gamma(m2)*d
-
-def Dfun_cos(j,m1,m2,alpha,cosbeta,gamma):
-  tmp = complex(0.0,alpha * m1 + gamma * m2).exp() * dfunction(j, m1, m2, cosbeta)
-  return tmp
-
-def ExpI_all(maxJ,phi):
-  a = tf.range(-maxJ,maxJ+1,1.0)
-  a = tf.reshape(a,(-1,1))
-  phi = tf.reshape(phi,(1,-1))
-  if not isinstance(phi,float):
-    a = tf.cast(a,phi.dtype)
-  mphi = tf.matmul(a,phi)
-  sinphi = tf.sin(mphi)
-  cosphi = tf.cos(mphi)
-  return tf.complex(cosphi,sinphi)
-
-def Dfun_all(j,alpha,beta,gamma):
-  d_fun = dfunctionJ(j)
-  m = tf.range(-j,j+1)
-  m1,m2=tf.meshgrid(m,m)
-  d = d_fun(m2,m1,beta)
-  expi_alpha = tf.reshape(ExpI_all(j,alpha),(2*j+1,1,-1))
-  expi_gamma = tf.cast(tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1)),expi_alpha.dtype)
-  #a = tf.tile(expi_alpha,[1,2*j+1,1])
-  #b = tf.tile(expi_gamma,[2*j+1,1,1])
-  dc = tf.complex(d,tf.zeros_like(d))
-  return tf.cast(expi_alpha*expi_gamma,dc.dtype) * dc
-
-def delta_D_trans(j,la,lb,lc):
-  """
-  (ja,ja) -> (ja,jb,jc)
-  """
-  s = np.zeros(shape=(len(la),len(lb),len(lc),(2*j+1),(2*j+1)))
-  for i_a in range(len(la)):
-    for i_b in range(len(lb)):
-      for i_c in range(len(lc)):
-        delta = lb[i_b]-lc[i_c]
-        if abs(delta) <= j:
-          s[i_a][i_b][i_c][la[i_a]+j][delta+j] = 1.0
-  return np.reshape(s,(len(la)*len(lb)*len(lc),(2*j+1)*(2*j+1)))
-  
-
-def Dfun_delta(ja,la,lb,lc,d):
-  d = tf.reshape(d,((2*ja+1)*(2*ja+1),-1))
-  t = delta_D_trans(ja,la,lb,lc)
-  ret = tf.matmul(tf.cast(t,d.dtype),d)
-  return tf.reshape(ret,(len(la),len(lb),len(lc),-1))
-
-class D_Cache(object):
-  def __init__(self,alpha,beta,gamma=0.0):
-    self.alpha = alpha
-    self.gamma = gamma
-    self.beta = beta
-    self.cachej = {}
-  @functools.lru_cache()
-  def __call__(self,j,m1=None,m2=None):
-    if j not in self.cachej:
-      self.cachej[j] = Dfun_all(j,self.alpha,self.beta,self.gamma)
-    if m1 is None:
-      return self.cachej[j]
-    else :
-      return self.cachej[m1+j][m2+j]
-
-  def get_lambda(self,j,la,lb,lc):
-    d = self(j)
-    return Dfun_delta(j,la,lb,lc,d)
-
 def fix_value(x):
   def f(shape=None,dtype=None):
     if dtype is not None:
@@ -168,10 +72,10 @@ class AllAmplitude(tf.keras.Model):
     self.m0_C = 0.13957061
     self.m0_D = 2.00685
     
-    self.A = Particle("A",self.m0_A,0,self.JA,self.ParA)
-    self.B = Particle("B",self.m0_B,0,self.JB,self.ParB)
-    self.C = Particle("C",self.m0_C,0,self.JC,self.ParC)
-    self.D = Particle("D",self.m0_D,0,self.JD,self.ParD)
+    self.A = Particle("A",self.JA,self.ParA,[-1,1])
+    self.B = Particle("B",self.JB,self.ParB)
+    self.C = Particle("C",self.JC,self.ParC)
+    self.D = Particle("D",self.JD,self.ParD)
     self.add_var = Vars(self)
     self.res = res.copy()
     self.polar = True
@@ -201,7 +105,7 @@ class AllAmplitude(tf.keras.Model):
         self.res[i]["bwf"] = bw_dict[self.res[i]["bw"]]
       else:
         self.res[i]["bwf"] = bw_dict["default"]
-      tmp = Particle(i,m0,g0,J_reson,P_reson)
+      tmp = Particle(i,J_reson,P_reson)
       if (chain < 0) : # A->(DB)C
         d_tmp_0 = Decay(i+"_0",self.A,[tmp,self.C])
         d_tmp_1 = Decay(i+"_1",tmp,[self.B,self.D])
@@ -311,29 +215,6 @@ class AllAmplitude(tf.keras.Model):
           tmp_i = self.add_var(name=name+"i",range=(-1,1))
         arg_list.append([tmp_r,tmp_i])
     return ls,arg_list
-    #ls = []
-    #dl = 0 if pa*pb*pc == 1 else 1
-    #s_min = abs(jb-jc)
-    #s_max = jb + jc
-    #for s in range(s_min,s_max+1):
-      #for l in range(abs(ja-s),ja+s +1):
-        #if l%2 == dl :
-          #ls.append((l,s))
-          #name = "{head}BLS_{l}_{s}".format(head=head,l=l,s=s)
-          #if const_first:
-            #tmp_r = self.add_var(name=name+"r",initializer=fix_value(1.0),trainable=False)
-            #tmp_i = self.add_var(name=name+"i",initializer=fix_value(0.0),trainable=False)
-            #arg_list.append([tmp_r,tmp_i])
-            #const_first = False
-          #else :
-            #if self.polar:
-              #tmp_r = self.add_var(name=name+"r",size=2.0)
-              #tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
-            #else:
-              #tmp_r = self.add_var(name=name+"r",range=(-1,1))
-              #tmp_i = self.add_var(name=name+"i",range=(-1,1))
-            #arg_list.append([tmp_r,tmp_i])
-    #return ls,arg_list
   
   def init_res_chain(self):
     for i in self.res:
@@ -354,8 +235,7 @@ class AllAmplitude(tf.keras.Model):
         p0 = Getp(m_A, m, m_C)
         q = Getp(m_BD, m_B, m_D)
         q0 = Getp(m, m_B, m_D)
-        l = GetMinL(J_reson, self.JB, self.JD,
-                    P_reson, self.ParB, self.ParD)
+        l = self.res_decay[i][1].get_min_l()
         bw = self.res[i]["bwf"](m_BD, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
@@ -363,8 +243,7 @@ class AllAmplitude(tf.keras.Model):
         p0 = Getp(m_A, m, m_D)
         q = Getp(m_BC, m_B, m_C)
         q0 = Getp(m, m_B, m_C)
-        l = GetMinL(J_reson, self.JB, self.JC,
-                    P_reson, self.ParB, self.ParC)
+        l = self.res_decay[i][1].get_min_l()
         bw = self.res[i]["bwf"](m_BC, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
@@ -372,8 +251,7 @@ class AllAmplitude(tf.keras.Model):
         p0 = Getp(m_A, m, m_B)
         q = Getp(m_CD, m_C, m_D)
         q0 = Getp(m, m_C, m_D)
-        l = GetMinL(J_reson, self.JC, self.JD,
-                    P_reson, self.ParC, self.ParD)
+        l = self.res_decay[i][1].get_min_l()
         bw = self.res[i]["bwf"](m_CD, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       else :
@@ -411,9 +289,10 @@ class AllAmplitude(tf.keras.Model):
   
   #@snoop()
   def GetA2BC_LS_mat(self,idx,layer,q,q0,d):
-    ja = self.res_decay[idx][layer].mother.J
-    jb = self.res_decay[idx][layer].outs[0].J
-    jc = self.res_decay[idx][layer].outs[1].J
+    decay = self.res_decay[idx][layer]
+    ja = decay.mother.J
+    jb = decay.outs[0].J
+    jc = decay.outs[1].J
     M_r = []
     M_i = []
     for r,i in self.coef[idx][layer]:
@@ -421,8 +300,7 @@ class AllAmplitude(tf.keras.Model):
       M_i.append(i)
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
-    l_s = self.res_decay[idx][layer].get_l_list()
-    bf = barrier_factor(l_s,q,q0,d)
+    bf = decay.barrier_factor(q,q0)
     # switch for rectangular and polar coordinates of params
     if self.polar:
       norm_r = tf.linalg.diag(M_r*tf.cos(M_i))
@@ -432,7 +310,7 @@ class AllAmplitude(tf.keras.Model):
       norm_i = tf.linalg.diag(M_i)
     mdep_r = tf.matmul(norm_r,bf)
     mdep_i = tf.matmul(norm_i,bf)
-    cg_trans = tf.cast(self.res_decay[idx][layer].get_cg_matrix(),M_r.dtype)
+    cg_trans = tf.cast(decay.get_cg_matrix(),M_r.dtype)
     H_r = tf.matmul(cg_trans,mdep_r)
     H_i = tf.matmul(cg_trans,mdep_i)
     ret = tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
@@ -507,6 +385,10 @@ class AllAmplitude(tf.keras.Model):
     res_cache = self.Get_BWReson(m_A,m_B,m_C,m_D,m_BC,m_BD,m_CD)
     sum_A = 0.1
     ret = []
+    ns_a = 2
+    ns_b = 3
+    ns_c = 1
+    ns_d = 3
     for i in self.used_res:
       chain = self.res[i]["Chain"]
       if chain == 0:
@@ -515,55 +397,60 @@ class AllAmplitude(tf.keras.Model):
       ParReson = self.res[i]["Par"]
       if chain < 0: # A->(DB)C
         lambda_BD = list(range(-JReson,JReson+1))
+        ns_bd = len(lambda_BD)
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
         #print(i,H_0,H_1)
         H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
-        df_a = ang_BD.get_lambda(1,[-1,1],lambda_BD,[0])
-        df_b = ang_B_BD.get_lambda(JReson,lambda_BD,[-1,0,1],[-1,0,1])
-        aligned_B = ang_BD_B(1)
-        aligned_D = ang_BD_D(1)
+        df_a = ang_BD.get_lambda(self.A.J,self.A.spins,lambda_BD,self.C.spins)
+        df_b = ang_B_BD.get_lambda(JReson,lambda_BD,self.B.spins,self.D.spins)
+        aligned_B = ang_BD_B.get_lambda(self.B.J,self.B.spins,self.B.spins)#(1)
+        aligned_D = ang_BD_D.get_lambda(self.D.J,self.D.spins,self.D.spins)#(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,3,-1))
+        arbcdi = tf.reshape(HD1,(ns_a,ns_bd,1,ns_c,1,-1)) * tf.reshape(HD2,(1,ns_bd,ns_b,1,ns_d,-1))
         abcdi = tf.reduce_sum(arbcdi,1)
-        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
+        abxcdi = tf.reshape(abcdi,(ns_a,ns_b,1,ns_c,ns_d,-1)) * tf.reshape(aligned_B,(1,ns_b,ns_b,1,1,-1))
         abcdi = tf.reduce_sum(abxcdi,1)
-        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
+        abcdyi = tf.reshape(abcdi,(ns_a,ns_b,ns_c,ns_d,1,-1))*tf.reshape(aligned_D,(1,1,1,ns_d,ns_d,-1))
         abcdi = tf.reduce_sum(abcdyi,3)
         s = abcdi
         #s = tf.einsum("arci,rbdi,bxi,dyi->axcyi",HD1,HD2,aligned_B,aligned_D)
         ret.append(s*res_cache[i][-1]*self.get_res_total(i))
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
-        lambda_BD = list(range(-JReson,JReson+1))
+        lambda_BC = list(range(-JReson,JReson+1))
+        ns_bc = len(lambda_BC)
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
         H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
-        df_a = ang_BC.get_lambda(1,[-1,1],lambda_BD,[-1,0,1])
-        df_b = ang_B_BC.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
-        aligned_B = ang_BC_B(1)
+        df_a = ang_BC.get_lambda(self.A.J,self.A.spins,lambda_BC,self.D.spins)
+        df_b = ang_B_BC.get_lambda(JReson,lambda_BC,self.B.spins,self.C.spins)
+        aligned_B = ang_BC_B.get_lambda(self.B.J,self.B.spins,self.B.spins)#(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        arbcdi = tf.reshape(HD1,(2,JReson*2+1,1,1,3,-1)) * tf.reshape(HD2,(1,JReson*2+1,3,1,1,-1))
+        arbcdi = tf.reshape(HD1,(ns_a,ns_bc,1,1,ns_d,-1)) * tf.reshape(HD2,(1,ns_bc,ns_b,ns_c,1,-1))
         #print(arbcdi)
         abcdi = tf.reduce_sum(arbcdi,1)
         #print(tf.reshape(abcdi,(2,JReson*2+1,3,1,1,3,-1)) * tf.reshape((aligned_B),(1,1,3,3,1,1,-1)))
-        abxcdi = tf.reshape(abcdi,(2,3,1,1,3,-1)) * tf.reshape(aligned_B,(1,3,3,1,1,-1))
+        abxcdi = tf.reshape(abcdi,(ns_a,ns_b,1,ns_c,ns_d,-1)) * tf.reshape(aligned_B,(1,ns_b,ns_b,1,1,-1))
         abcdi = tf.reduce_sum(abxcdi,1)
         s = abcdi
         #s = tf.einsum("ardi,rbci,bxi->axcdi",HD1,HD2,aligned_B)
         #print(res_cache[i][-1],self.get_res_total(i))
         ret.append(s*res_cache[i][-1]*self.get_res_total(i))
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
-        lambda_BD = list(range(-JReson,JReson+1))
+        lambda_CD = list(range(-JReson,JReson+1))
+        ns_cd  = len(lambda_CD)
         H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
         H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
-        df_a = ang_CD.get_lambda(1,[-1,1],lambda_BD,[-1,0,1])
-        df_b = ang_D_CD.get_lambda(JReson,lambda_BD,[-1,0,1],[0])
-        aligned_D = ang_CD_D(1)
+        df_a = ang_CD.get_lambda(self.A.J,self.A.spins,lambda_CD,self.B.spins)
+        df_b = ang_D_CD.get_lambda(JReson,lambda_CD,self.D.spins,self.C.spins)
+        aligned_D = ang_CD_D.get_lambda(self.D.J,self.D.spins,self.D.spins)#(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
-        arbcdi = tf.reshape(HD1,(2,JReson*2+1,3,1,1,-1)) * tf.reshape(HD2,(1,JReson*2+1,1,1,3,-1))
+        ## TODO c,d order
+        # HD2 = tf.transpose(HD2, perm=[0, 2, 1, 3])
+        arbcdi = tf.reshape(HD1,(ns_a,ns_cd,ns_b,1,1,-1)) * tf.reshape(HD2,(1,ns_cd,1,ns_c,ns_d,-1))
         abcdi = tf.reduce_sum(arbcdi,1)
-        abcdyi = tf.reshape(abcdi,(2,3,1,3,1,-1))*tf.reshape(aligned_D,(1,1,1,3,3,-1))
+        abcdyi = tf.reshape(abcdi,(ns_a,ns_b,1,ns_d,1,-1))*tf.reshape(aligned_D,(1,1,1,ns_d,ns_d,-1))
         abcdi = tf.reduce_sum(abcdyi,3)
         s = abcdi 
         #s = tf.einsum("arbi,rdci,dyi->abcyi",HD1,HD2,aligned_D)
@@ -603,7 +490,7 @@ class AllAmplitude(tf.keras.Model):
       if i in self.res:
         ret.append(i)
       else:
-        raise "unknow res"
+        raise "unknow res {}".format(i)
     self.used_res = ret
 
 param_list = [
