@@ -23,12 +23,10 @@ def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   #print([i.numpy() for i in g])
   #print(h.numpy())
   inv_he = np.linalg.pinv(h.numpy())
-  diag_he = inv_he.diagonal()
   np.save("error_matrix.npy",inv_he)
   #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
-  hesse_error = np.sqrt(diag_he).tolist()
-  err = dict(zip(args_name,hesse_error))
-  return err
+  return inv_he
+
 
 def prepare_data(dtype="float64",model="3"):
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
@@ -55,7 +53,7 @@ def prepare_data(dtype="float64",model="3"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def fit(method="BFGS",hesse=True,frac=True):
+def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   dtype = "float64"
   w_bkg = 0.768331
   set_gpu_mem_growth()
@@ -68,15 +66,16 @@ def fit(method="BFGS",hesse=True,frac=True):
   amp = AllAmplitude(config_list)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
   try :
-    with open("final_params.json") as f:  
+    with open(init_params) as f:  
       param = json.load(f)
-      print("using init_params.json")
+      print("using {}".format(init_params))
       if "value" in param:
         a.set_params(param["value"])
       else :
         a.set_params(param)
-  except:
-    pass
+  except Exception as e:
+    #print(e)
+    print("using random parameters")
   #print(a.Amp(data))
   #exit()
   pprint(a.get_params())
@@ -86,7 +85,7 @@ def fit(method="BFGS",hesse=True,frac=True):
   #print("nll:",nll,"Time:",time.time()-t)
   #exit()
   fcn = FCN(a)
-  
+  print(a.Amp.res_decay)
   # fit configure
   args = {}
   args_name = []
@@ -141,7 +140,10 @@ def fit(method="BFGS",hesse=True,frac=True):
 
   err=None
   if hesse:
-    err = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=24000)
+    inv_he = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=20000)
+    diag_he = inv_he.diagonal()
+    hesse_error = np.sqrt(diag_he).tolist()
+    err = dict(zip(args_name,hesse_error))
   outdic={"value":a.get_params(),"error":err}
   with open("final_params.json","w") as f:
     json.dump(outdic,f,indent=2)
@@ -154,10 +156,16 @@ def fit(method="BFGS",hesse=True,frac=True):
       print("  ",i,":",val[i])
   if frac:
     mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
-    frac,g_frac = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
+    frac,grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
+    err_frac = {}
+    for i in config_list:
+      if hesse:
+        err_frac[i] = np.sqrt(np.dot(np.dot(inv_he,grad[i]),grad[i]))
+      else :
+        err_frac[i] = None
     print("fitfractions")
     for i in config_list:
-      print(i,":",frac[i])
+      print(i,":",error_print(frac[i],err_frac[i]))
   print("\nend\n")
 
 def main():

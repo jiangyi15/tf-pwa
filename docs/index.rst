@@ -16,6 +16,9 @@ ________________
    :members: 
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tf_pwa.res_cache
+   :members:
    
 .. automodule:: tf_pwa.model
    :members:

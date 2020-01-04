@@ -5,7 +5,7 @@ from .d_function_new import d_function_cos
 from .complex_F import Complex_F
 from .res_cache import Particle,Decay
 from .variable import Vars
-from .dfun_tf import dfunctionJ
+from .dfun_tf import dfunctionJ,D_Cache
 import os
 from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -49,102 +49,6 @@ def GetMinL(J1,J2,J3,P1,P2,P3):
         minL = min(l,minL)
   return minL
 
-class ExpI_Cache(object):
-  def __init__(self,phi,maxJ = 2):
-    self.maxj = maxJ
-    self.phi = phi
-    a = tf.range(-maxJ,maxJ+1,1.0)
-    a = tf.reshape(a,(-1,1))
-    phi = tf.reshape(phi,(1,-1))
-    mphi = tf.matmul(a,phi)
-    self.sinphi = tf.sin(mphi)
-    self.cosphi = tf.cos(mphi)
-  def __call__(self,m):
-    idx = m + self.maxj
-    return complex(self.cosphi[idx],self.sinphi[idx])
-
-class D_fun_Cache(object):
-  def __init__(self,alpha,beta,gamma=0.0):
-    self.alpha = ExpI_Cache(alpha)
-    self.gamma = ExpI_Cache(gamma)
-    self.beta = beta
-    self.dfuncj = {}
-  @functools.lru_cache()
-  def __call__(self,j,m1=None,m2=None):
-    if abs(m1) > j or abs(m2) > j:
-      return 0.0
-    if j not in self.dfuncj:
-      self.dfuncj[j] = dfunctionJ(j)
-      self.dfuncj[j].lazy_init(self.beta)
-    d = self.dfuncj[j](m1,m2)
-    return self.alpha(m1)*self.gamma(m2)*d
-
-def Dfun_cos(j,m1,m2,alpha,cosbeta,gamma):
-  tmp = complex(0.0,alpha * m1 + gamma * m2).exp() * dfunction(j, m1, m2, cosbeta)
-  return tmp
-
-def ExpI_all(maxJ,phi):
-  a = tf.range(-maxJ,maxJ+1,1.0)
-  a = tf.reshape(a,(-1,1))
-  phi = tf.reshape(phi,(1,-1))
-  if not isinstance(phi,float):
-    a = tf.cast(a,phi.dtype)
-  mphi = tf.matmul(a,phi)
-  sinphi = tf.sin(mphi)
-  cosphi = tf.cos(mphi)
-  return tf.complex(cosphi,sinphi)
-
-def Dfun_all(j,alpha,beta,gamma):
-  d_fun = dfunctionJ(j)
-  m = tf.range(-j,j+1)
-  m1,m2=tf.meshgrid(m,m)
-  d = d_fun(m2,m1,beta)
-  expi_alpha = tf.reshape(ExpI_all(j,alpha),(2*j+1,1,-1))
-  expi_gamma = tf.cast(tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1)),expi_alpha.dtype)
-  #a = tf.tile(expi_alpha,[1,2*j+1,1])
-  #b = tf.tile(expi_gamma,[2*j+1,1,1])
-  dc = tf.complex(d,tf.zeros_like(d))
-  return tf.cast(expi_alpha*expi_gamma,dc.dtype) * dc
-
-def delta_D_trans(j,la,lb,lc):
-  """
-  (ja,ja) -> (ja,jb,jc)
-  """
-  s = np.zeros(shape=(len(la),len(lb),len(lc),(2*j+1),(2*j+1)))
-  for i_a in range(len(la)):
-    for i_b in range(len(lb)):
-      for i_c in range(len(lc)):
-        delta = lb[i_b]-lc[i_c]
-        if abs(delta) <= j:
-          s[i_a][i_b][i_c][la[i_a]+j][delta+j] = 1.0
-  return np.reshape(s,(len(la)*len(lb)*len(lc),(2*j+1)*(2*j+1)))
-  
-
-def Dfun_delta(ja,la,lb,lc,d):
-  d = tf.reshape(d,((2*ja+1)*(2*ja+1),-1))
-  t = delta_D_trans(ja,la,lb,lc)
-  ret = tf.matmul(tf.cast(t,d.dtype),d)
-  return tf.reshape(ret,(len(la),len(lb),len(lc),-1))
-
-class D_Cache(object):
-  def __init__(self,alpha,beta,gamma=0.0):
-    self.alpha = alpha
-    self.gamma = gamma
-    self.beta = beta
-    self.cachej = {}
-  @functools.lru_cache()
-  def __call__(self,j,m1=None,m2=None):
-    if j not in self.cachej:
-      self.cachej[j] = Dfun_all(j,self.alpha,self.beta,self.gamma)
-    if m1 is None:
-      return self.cachej[j]
-    else :
-      return self.cachej[m1+j][m2+j]
-
-  def get_lambda(self,j,la,lb,lc):
-    d = self(j)
-    return Dfun_delta(j,la,lb,lc,d)
-
 def fix_value(x):
   def f(shape=None,dtype=None):
     if dtype is not None:
@@ -168,10 +72,10 @@ class AllAmplitude(tf.keras.Model):
     self.m0_C = 0.13957061
     self.m0_D = 2.00685
     
-    self.A = Particle("A",self.m0_A,0,self.JA,self.ParA)
-    self.B = Particle("B",self.m0_B,0,self.JB,self.ParB)
-    self.C = Particle("C",self.m0_C,0,self.JC,self.ParC)
-    self.D = Particle("D",self.m0_D,0,self.JD,self.ParD)
+    self.A = Particle("A",self.JA,self.ParA)
+    self.B = Particle("B",self.JB,self.ParB)
+    self.C = Particle("C",self.JC,self.ParC)
+    self.D = Particle("D",self.JD,self.ParD)
     self.add_var = Vars(self)
     self.res = res.copy()
     self.polar = True
@@ -201,7 +105,7 @@ class AllAmplitude(tf.keras.Model):
         self.res[i]["bwf"] = bw_dict[self.res[i]["bw"]]
       else:
         self.res[i]["bwf"] = bw_dict["default"]
-      tmp = Particle(i,m0,g0,J_reson,P_reson)
+      tmp = Particle(i,J_reson,P_reson)
       if (chain < 0) : # A->(DB)C
         d_tmp_0 = Decay(i+"_0",self.A,[tmp,self.C])
         d_tmp_1 = Decay(i+"_1",tmp,[self.B,self.D])
@@ -267,7 +171,7 @@ class AllAmplitude(tf.keras.Model):
       i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
     else:
       r = self.add_var(name=coef_head+"r",size=2.0)
-      i = self.add_var(name=head+"i",size=6.283185307179586)
+      i = self.add_var(name=head+"i",size=2*np.pi)
     self.coef_norm[head] = [r,i]
     if "const" in config:
       const = list(config["const"])
@@ -305,7 +209,7 @@ class AllAmplitude(tf.keras.Model):
       else :
         if self.polar:
           tmp_r = self.add_var(name=name+"r",size=2.0)
-          tmp_i = self.add_var(name=name+"i",size=6.283185307179586)
+          tmp_i = self.add_var(name=name+"i",size=2*np.pi)
         else:
           tmp_r = self.add_var(name=name+"r",range=(-1,1))
           tmp_i = self.add_var(name=name+"i",range=(-1,1))
@@ -411,9 +315,10 @@ class AllAmplitude(tf.keras.Model):
   
   #@snoop()
   def GetA2BC_LS_mat(self,idx,layer,q,q0,d):
-    ja = self.res_decay[idx][layer].mother.J
-    jb = self.res_decay[idx][layer].outs[0].J
-    jc = self.res_decay[idx][layer].outs[1].J
+    decay = self.res_decay[idx][layer]
+    ja = decay.mother.J
+    jb = decay.outs[0].J
+    jc = decay.outs[1].J
     M_r = []
     M_i = []
     for r,i in self.coef[idx][layer]:
@@ -421,8 +326,7 @@ class AllAmplitude(tf.keras.Model):
       M_i.append(i)
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
-    l_s = self.res_decay[idx][layer].get_l_list()
-    bf = barrier_factor(l_s,q,q0,d)
+    bf = decay.barrier_factor(q,q0)
     # switch for rectangular and polar coordinates of params
     if self.polar:
       norm_r = tf.linalg.diag(M_r*tf.cos(M_i))
@@ -432,7 +336,7 @@ class AllAmplitude(tf.keras.Model):
       norm_i = tf.linalg.diag(M_i)
     mdep_r = tf.matmul(norm_r,bf)
     mdep_i = tf.matmul(norm_i,bf)
-    cg_trans = tf.cast(self.res_decay[idx][layer].get_cg_matrix(),M_r.dtype)
+    cg_trans = tf.cast(decay.get_cg_matrix(),M_r.dtype)
     H_r = tf.matmul(cg_trans,mdep_r)
     H_i = tf.matmul(cg_trans,mdep_i)
     ret = tf.reshape(tf.complex(H_r,H_i),(2*jb+1,2*jc+1,-1))
