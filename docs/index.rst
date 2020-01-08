@@ -9,28 +9,10 @@ Welcome to TFPWA's documentation!
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-
-tf_pwa
-________________
-.. automodule:: tf_pwa
-   :members: 
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: tf_pwa.res_cache
-   :members:
    
-.. automodule:: tf_pwa.model
-   :members:
+   phasespace
+   api/modules
 
-.. automodule:: tf_pwa.utils
-   :members:
-
-.. automodule:: tf_pwa.breit_wigner
-   :members:
-
-.. automodule:: fitfractions
-   :members:
 
 Indices and tables
 ==================

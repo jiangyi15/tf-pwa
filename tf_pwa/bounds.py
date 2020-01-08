@@ -109,6 +109,9 @@ def get_trans_f_g(bnds):
 class Bounds(object):
   """
   bounds trans function
+
+.. doctest::
+
   ```
   >>> bnds = Bounds([(None,None),(-2,None),(None,2),(-2,2)])
   >>> @bnds.trans_f_g
@@ -121,6 +124,7 @@ class Bounds(object):
   1.0
   
   ```
+
   """
   def __init__(self,bnds):
     self.fun_t = get_trans_f(bnds)

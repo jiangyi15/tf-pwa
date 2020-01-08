@@ -32,11 +32,16 @@ class dfunctionJ(object):
   
   @staticmethod
   def init_w(j):
-    """
-    if 
-      k \in [max(0,n-m),min(j-m,j+n)], l = 2k + m - n
-      w^{(j,m1,m2)}_{l} = (-1)^(k+m-n)\frac{\sqrt{(j+m)!(j-m)!(j+n)!(j-n)!}}{(j-m-k)!(j+n-k)!(k+m-n)!k!}
-    else 
+    r"""
+    if  :math:`k \in [max(0,n-m),min(j-m,j+n)], l = 2k + m - n`
+    
+    .. math::
+      
+      w^{(j,m1,m2)}_{l} = (-1)^{k+m-n}\frac{\sqrt{(j+m)!(j-m)!(j+n)!(j-n)!}}{(j-m-k)!(j+n-k)!(k+m-n)!k!}
+    
+    else
+    
+    .. math::
       w^{(j,m1,m2)}_{l} = 0
     """
     ret = np.zeros(shape=(j+1,j+1,j+1))

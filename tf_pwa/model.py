@@ -7,6 +7,7 @@ from .amplitude import AllAmplitude
 import time 
 import functools
 import numpy as np
+from multiprocessing.dummy import Process
 
 tf_version = int(tf.__version__.split(".")[0])
 if tf_version < 2:
@@ -222,6 +223,11 @@ class Model(object):
     return nll,g,h
   
   def sum_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
+    try :
+      ret = self.sum_gradient_gpus(data,weight=weight,func = func,args=args,kwargs=kwargs)
+      return ret
+    except:
+      pass
     n_variables = len(self.Amp.trainable_variables)
     g = None
     nll = 0.0
@@ -241,6 +247,52 @@ class Model(object):
       else :
         for j in range(n_variables):
           g[j] += a[j]
+    #print(nll,g)
+    return nll,g
+  
+  def sum_gradient_gpus(self,data,weight=1.0,func = lambda x:x,multi_gpus=True,args=(),kwargs={}):
+    n_variables = len(self.Amp.trainable_variables)
+    g = None
+    nll = 0.0
+    n_data = len(data)
+    if isinstance(weight,float):
+      weight = [weight] * n_data
+    n_split = 1
+    if multi_gpus:
+      gpus = tf.config.experimental.get_visible_devices('GPU')
+      if gpus:
+        n_split = len(gpus)
+    p = [None]*n_split
+    p_ret = [None]*n_split
+    n_data_split = (n_data+n_split-1)//n_split
+
+    def split_nll_grad(i,p_ret):
+      nll = 0.0
+      with tf.device("/device:GPU:%d"%i):
+        grads = []
+        for j in range(i*n_data_split,min((i+1)*n_data_split,n_data)):
+          #print(i,min(i*batch+batch,n_data))
+          with tf.GradientTape() as tape:
+            tape.watch(self.Amp.trainable_variables)
+            amp2s = self.Amp(data[j],*args,**kwargs)
+            l_a = func(amp2s)
+            p_nll = tf.reduce_sum(tf.cast(weight[j],l_a.dtype) * l_a)
+          a = tape.gradient(p_nll,self.Amp.trainable_variables)
+          nll += p_nll
+          grads.append(a)
+      p_ret[i] = nll,grads
+    
+    for i in range(n_split):
+      p[i] =  Process(target=split_nll_grad,args=(i,p_ret))
+      p[i].start()
+    for i in range(n_split):
+      p[i].join()
+    g = [0.0]*n_variables
+    for p_nll,gs in p_ret:
+      nll += p_nll
+      for k in gs:
+        for i,j in enumerate(k):
+          g[i] += j
     return nll,g
   
   def get_params(self):
