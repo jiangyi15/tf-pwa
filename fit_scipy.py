@@ -85,6 +85,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #print("nll:",nll,"Time:",time.time()-t)
   #exit()
   fcn = FCN(a)
+  a.Amp.polar=False
   print(a.Amp.res_decay)
   # fit configure
   args = {}
@@ -124,7 +125,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     def callback(x):
       points.append([float(i) for i in x])
       nlls.append(float(fcn.cached_nll))
-    s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
+    s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":1000,"maxiter":2000})
     xn = s.x
   else :
     raise "unknow method"
@@ -152,6 +153,23 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       print("  ",i,":",error_print(val[i],err[i]))
     else:
       print("  ",i,":",val[i])
+      
+  print("##########")
+  i = 0
+  for v in args_name:
+    if len(v)>15:
+      if i%2==0:
+        tmp = val[v]
+      else:
+        if amp.polar:
+          print(v,"\t%.5f * exp(%.5fi)"%(tmp,val[v]))
+        else:  
+          rho = np.sqrt(val[v]**2+tmp**2)
+          phi = np.arctan2(val[v],tmp)
+          print(v,"\t%.5f * exp(%.5fi)"%(rho,phi))
+    i+=1
+  print("##########")
+    
   if frac:
     mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
     frac,grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
@@ -173,7 +191,7 @@ def main():
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
   parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
-  fit(method=results.method, hesse=results.hesse, frac=results.frac)
+  fit(method="BFGS", hesse=results.hesse, frac=results.frac)
 
 if __name__ == "__main__":
   main()

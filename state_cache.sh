@@ -34,6 +34,11 @@ do
 done
 cache_file ${new_json_file}
 
+npy_file=`ls -rt *.npy`
+cache_file ${npy_file}
+curve_file=`ls -rt *curve*`
+cache_file ${curve_file}
+
 git diff ${head_tag} > ${cache_path}/git.diff
 
 echo "#!/bin/bash" > ${cache_path}/rebuild.sh

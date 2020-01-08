@@ -107,20 +107,11 @@ def main(param_name,x,method):
   print("\nend\n")
   return y
 
-<<<<<<< HEAD
-if __name__ == "__main__":
-  param_name="D1_2430_BLS_2_2i:0" ###
-  with open("lklpf_params.json") as f:
-    params = json.load(f)
-  x_mean = params[param_name]
-  x_sigma = 2.0
-=======
 def lklpf(param_name):
   with open("lklpf_params.json") as f:
     params = json.load(f)
   x_mean = params["value"][param_name]
   x_sigma = params["error"][param_name]
->>>>>>> 29c36621835050636886cd10bf62ff447b8a59be
   method="scipy" ###
   mode="bothsides"#"back&forth"
   if mode=="back&forth":
@@ -133,24 +124,17 @@ def lklpf(param_name):
     t3=time.time()
     print(mode,x1,y1,x1,y2[::-1],sep='\n')
   elif mode=="bothsides":
-    x1=np.arange(x_mean,x_mean-5*x_sigma,-x_sigma/2)
-<<<<<<< HEAD
-    x2=np.arange(x_mean,x_mean+5*x_sigma,x_sigma/2)
-=======
-    #x1=np.arange(x_mean,x_mean-10*x_sigma,-x_sigma)
-    x2=np.arange(x_mean,x_mean+5*x_sigma,x_sigma/2)
-    #x2=np.arange(x_mean,x_mean+10*x_sigma,x_sigma)
->>>>>>> 29c36621835050636886cd10bf62ff447b8a59be
+    #x1=np.arange(x_mean,x_mean-5*x_sigma,-x_sigma/2)
+    x1=np.arange(x_mean,x_mean-100,-10)
+    #x2=np.arange(x_mean,x_mean+5*x_sigma,x_sigma/2)
+    x2=np.arange(x_mean,x_mean+100,10)
     t1=time.time()
     y1=main(param_name,x1,method)
     t2=time.time()
     y2=main(param_name,x2,method)
     t3=time.time()
     print(mode,list(np.append(x1[::-1],x2)),list(np.append(y1[::-1],y2)),sep='\n')
-<<<<<<< HEAD
-=======
   print(param_name,x_mean)
->>>>>>> 29c36621835050636886cd10bf62ff447b8a59be
   print("#"*10,t2-t1,"#"*10,t3-t2)
   '''plt.plot(x,yf,"*-",x,yb,"*-")
   plt.title(param_name)
