@@ -209,10 +209,12 @@ class D_Cache(object):
       return self.cachej[j]
     else :
       return self.cachej[m1+j][m2+j]
-
-  def get_lambda(self,j,la,lb,lc=[0]):
+  @functools.lru_cache()
+  def _tuple_get_lambda(self,j,la,lb,lc=(0,)):
     d = self(j)
     return Dfun_delta(j,la,lb,lc,d)
+  def get_lambda(self,j,la,lb,lc=[0]):
+    return self._tuple_get_lambda(j,tuple(la),tuple(lb),tuple(lc))
 
 if __name__ == "__main__":
   a = dfunctionJ(3)

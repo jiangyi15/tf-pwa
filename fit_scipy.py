@@ -8,10 +8,16 @@ from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
 from tf_pwa.fitfractions import cal_fitfractions
-from tf_pwa.amplitude import AllAmplitude,param_list
-
 import math
 from tf_pwa.bounds import Bounds
+
+mode = "3"
+if mode=="4":
+  from tf_pwa.amplitude4 import AllAmplitude4 as AllAmplitude,param_list
+else:
+  from tf_pwa.amplitude import AllAmplitude,param_list
+
+
 
 def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
@@ -53,7 +59,7 @@ def prepare_data(dtype="float64",model="3"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
+def fit(method="BFGS",init_params="inist_params.json",hesse=True,frac=True):
   dtype = "float64"
   w_bkg = 0.768331
   set_gpu_mem_growth()
@@ -61,10 +67,11 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   # open Resonances list as dict 
   config_list = load_config_file("Resonances")
   
-  data, bg, mcdata = prepare_data(dtype=dtype)#,model="4")
+  data, bg, mcdata = prepare_data(dtype=dtype,model=mode)
   
   amp = AllAmplitude(config_list)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
+  print(type(a.Amp))
   try :
     with open(init_params) as f:  
       param = json.load(f)
