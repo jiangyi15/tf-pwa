@@ -18,11 +18,11 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'TFPWA'
-copyright = "2020, '"
-author = "'"
+copyright = "2020, "
+author = ""
 
 # The full version, including alpha/beta/rc tags
-release = "'"
+release = ""
 
 
 # -- General configuration ---------------------------------------------------

@@ -64,7 +64,7 @@ class dfunctionJ(object):
     
     if theta is None:
       if self.sc is None:
-        raise "need theta"
+        raise Exception("need theta")
       else:
         return self.lazy_call(m1,m2)
     m1 = self.get_right_spin(m1)

@@ -12,7 +12,7 @@ or integrate :math:`p^0` as
 .. math::
     d \Phi(P;p_1,\cdots,p_n) = (2\pi)^4\delta^4(P - \sum {p_i}) \prod \frac{1}{2E_i}\frac{d^3 \vec{p_i}}{(2\pi)^{3}}  
 	
-by using the property of :math:`\delta`-function，
+by using the property of :math:`\delta`-function,
 
 .. math::
     \delta(f(x)) = \sum_{i}\frac{\delta(x-x_i)}{|f'(x_i)|}

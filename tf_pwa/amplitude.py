@@ -119,7 +119,7 @@ class AllAmplitude(tf.keras.Model):
         d_tmp_1 = Decay(i+"_1",tmp,[self.D,self.C])
         ret[i] = [d_tmp_0,d_tmp_1]
       else :
-        raise "unknown chain"
+        raise Exception("unknown chain")
     return ret
   
   def init_res_param(self):
@@ -255,7 +255,7 @@ class AllAmplitude(tf.keras.Model):
         bw = self.res[i]["bwf"](m_CD, m, g, q, q0, l, 3.0)
         ret[i] = [p,p0,q,q0,bw]
       else :
-        raise "unknown chain"
+        raise Exception("unknown chain")
     return ret
   
   def GetA2BC_LS(self,idx,ja,jb,jc,pa,pb,pc,lambda_b,lambda_c,layer,q,q0,d):
@@ -493,7 +493,7 @@ class AllAmplitude(tf.keras.Model):
       if i in self.res:
         ret.append(i)
       else:
-        raise "unknow res {}".format(i)
+        raise Exception("unknow res {}".format(i))
     self.used_res = ret
 
 param_list = [

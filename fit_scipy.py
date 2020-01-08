@@ -85,7 +85,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #print("nll:",nll,"Time:",time.time()-t)
   #exit()
   fcn = FCN(a)
-  a.Amp.polar=False
+  #a.Amp.polar=False
   print(a.Amp.res_decay)
   # fit configure
   args = {}
@@ -114,6 +114,9 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
   if method in ["BFGS","CG","Nelder-Mead"]:
     def callback(x):
+      if np.fabs(x).sum() > 1e7:
+        x_p = dict(zip(args_name,x))
+        raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in bd.get_y(x)])
       nlls.append(float(fcn.cached_nll))
       print(fcn.cached_nll)
@@ -123,12 +126,15 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     xn = bd.get_y(s.x)
   elif method == "L-BFGS-B":
     def callback(x):
+      if np.fabs(x).sum() > 1e7:
+        x_p = dict(zip(args_name,x))
+        raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in x])
       nlls.append(float(fcn.cached_nll))
     s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":1000,"maxiter":2000})
     xn = s.x
   else :
-    raise "unknow method"
+    raise Exception("unknow method")
   print("fit state:")
   print(s)
   print("Time for fitting:",time.time()-now)
@@ -191,7 +197,7 @@ def main():
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
   parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
-  fit(method="BFGS", hesse=results.hesse, frac=results.frac)
+  fit(method=results.method, hesse=results.hesse, frac=results.frac)
 
 if __name__ == "__main__":
   main()

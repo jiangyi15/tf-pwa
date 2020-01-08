@@ -94,7 +94,7 @@ def fit(init_params="init_params.json",hesse=True,frac=True):
   '''
    
   fcn = FCN(a)
-  a.Amp.polar = False
+  #a.Amp.polar = False
   args = {}
   args_name = []
   x0 = []
@@ -114,13 +114,11 @@ def fit(init_params="init_params.json",hesse=True,frac=True):
   m = Minuit(fcn,forced_parameters=args_name,errordef = 0.5,grad=fcn.grad,print_level=2,use_array_call=True,**args)
 
   now = time.time()
-  with tf.device('/device:GPU:0'):
-    m.migrad()#(ncall=10000))#,precision=5e-7))
+  m.migrad()#(ncall=10000))#,precision=5e-7))
   print("MIGRAD Time",time.time() - now)
   if hesse:
     now = time.time()
-    with tf.device('/device:GPU:0'):
-      m.hesse()
+    m.hesse()
     print("HESSE Time",time.time() - now)
   '''now = time.time()
   with tf.device('/device:GPU:0'):
