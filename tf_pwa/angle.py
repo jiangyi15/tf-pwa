@@ -68,12 +68,12 @@ class LorentzVector(object):
   def __neg__(self):
     return LorentzVector(-self.p[0],-self.p[1],-self.p[2],self.e)
   
-  def Boost(self,px,py,pz):
+  def Boost(self,px,py,pz,epslion=1e-14):
     pb = Vector3(px,py,pz)
     beta2 = pb.Norm2()
     gamma = 1.0/np.sqrt(1-beta2)
     bp = pb.Dot(self.p)
-    gamma2 = np.where(beta2 >0,(gamma-1.0)/beta2,0.0)
+    gamma2 = np.where(beta2 > epslion,(gamma-1.0)/beta2,0.0)
     self.p = self.p + gamma2*bp*pb.data + gamma*pb.data*self.e
     self.e = gamma*(self.e + bp)
   

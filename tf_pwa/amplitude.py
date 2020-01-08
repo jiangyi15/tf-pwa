@@ -466,6 +466,9 @@ class AllAmplitude(tf.keras.Model):
   
   
   def call(self,x,cached=False):
+    """
+    
+    """
     if cached:
       return self.get_amp2s_matrix(*x)
     return self.get_amp2s(*x)
