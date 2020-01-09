@@ -54,11 +54,11 @@ def main():
       tmp_data = tf.Variable(tmp[i],name=i,dtype=dtype)
       dat.append(tmp_data)
     return dat
-  with tf.device('/device:GPU:0'):
-    data = load_data("data")
-    bg = load_data("bg")
-    mcdata = load_data("PHSP")
-    a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
+  #with tf.device('/device:GPU:0'):
+  data = load_data("data")
+  bg = load_data("bg")
+  mcdata = load_data("PHSP")
+  a = Cache_Model(config_list,0.768331,data,mcdata,bg=bg,batch=26000)
   n_data = data[0].shape[0]
   
   try :
@@ -81,7 +81,7 @@ def main():
   values = a.Amp.trainable_variables
   mean = [i.numpy() for i in values]
   cov = Vij
-  num = 100
+  num = 1000
   toy_params = np.random.multivariate_normal(mean,cov,num)
   print("toy_params:",toy_params)
   def cal_fitfractions(params):

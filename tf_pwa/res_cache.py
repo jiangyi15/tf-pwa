@@ -49,11 +49,11 @@ class Decay(object):
     pa = self.mother.P
     pb = self.outs[0].P
     pc = self.outs[1].P
-    return GetA2BC_LS_list(ja,jb,jc,pa,pb,pc)
+    return tuple(GetA2BC_LS_list(ja,jb,jc,pa,pb,pc))
   
   @functools.lru_cache()
   def get_l_list(self):
-    return [ l for l,s in self.get_ls_list() ]
+    return tuple([ l for l,s in self.get_ls_list() ])
   
   @functools.lru_cache()
   def get_min_l(self):

@@ -10,6 +10,7 @@ Welcome to TFPWA's documentation!
    :maxdepth: 2
    :caption: Contents:
    
+   amplitude
    phasespace
    api/modules
 

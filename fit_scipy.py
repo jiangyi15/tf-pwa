@@ -8,12 +8,18 @@ from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
 from tf_pwa.fitfractions import cal_fitfractions
-from tf_pwa.amplitude import AllAmplitude,param_list
-
 import math
 from tf_pwa.bounds import Bounds
 from generate_toy import generate_data
 from plot_amp import calPWratio
+
+mode = "3"
+if mode=="4":
+  from tf_pwa.amplitude4 import AllAmplitude4 as AllAmplitude,param_list
+else:
+  from tf_pwa.amplitude import AllAmplitude,param_list
+
+
 
 def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
@@ -66,7 +72,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   # open Resonances list as dict 
   config_list = load_config_file("Resonances")
   
-  data, bg, mcdata = prepare_data(dtype=dtype)#,model="4")
+  data, bg, mcdata = prepare_data(dtype=dtype,model=mode)
   
   if GEN_TOY:
     print("########## begin generate_data")
@@ -79,6 +85,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     print("Fitting parameters are defined in POLAR coordinates")
   else:
     print("Fitting parameters are defined in XY coordinates")
+  #print(type(a.Amp))
   try :
     with open(init_params) as f:  
       param = json.load(f)
@@ -144,6 +151,9 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
   if method in ["BFGS","CG","Nelder-Mead"]:
     def callback(x):
+      if np.fabs(x).sum() > 1e7:
+        x_p = dict(zip(args_name,x))
+        raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in bd.get_y(x)])
       nlls.append(float(fcn.cached_nll))
       print(fcn.cached_nll)
@@ -153,12 +163,15 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     xn = bd.get_y(s.x)
   elif method == "L-BFGS-B":
     def callback(x):
+      if np.fabs(x).sum() > 1e7:
+        x_p = dict(zip(args_name,x))
+        raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in x])
       nlls.append(float(fcn.cached_nll))
     s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":1000,"maxiter":2000})
     xn = s.x
   else :
-    raise "unknow method"
+    raise Exception("unknow method")
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)
@@ -229,7 +242,7 @@ def main():
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
   parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
-  fit(method="BFGS", hesse=results.hesse, frac=results.frac)
+  fit(method=results.method, hesse=results.hesse, frac=results.frac)
 
 if __name__ == "__main__":
   main()

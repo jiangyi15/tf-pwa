@@ -42,5 +42,5 @@ class Vars(object):
   
   def get(self,name):
     if name not in self.variable:
-      raise "%s not found"%name
+      raise Exception("{} not found".fotmat(name))
     return self.variables[name]

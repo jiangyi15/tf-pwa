@@ -15,7 +15,7 @@ def get_gpu_info(s):
     ret = subprocess.getoutput(cmd)
     return ret.split("\n")
   else:
-    raise "Not support"
+    raise Exception("Not support")
 
 def get_gpu_total_memory(i=0):
   mem = get_gpu_info("memory.total")
