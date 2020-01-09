@@ -25,8 +25,10 @@ D2_2460: {
   g_max: 0.0486, g_min: 0.0464,
   # Breit Wigner formula [option]
   bw: default,
+  # order of the fixed amplitudes
+  const: [0,0],
   # fixed total amplitude (rho,phi) [option]
-  total: 1.0
+  #total: 1.0
 }
 
 #other resonance
@@ -34,35 +36,35 @@ D2_2460p: {
   Chain: 121, J: 2, Par: 1,
   # coef_head make D2_2460p to use the params of D2_2460 by the same name
   # only the total phase angle different
-  coef_head: D2_2460, 
+  coef_head: "D2_2460", 
   g0: 0.0467, g_max: 0.0479, g_min: 0.0455, 
-  m0: 2.4654, m_max: 2.4667, m_min: 2.4644
+  m0: 2.4654, m_max: 2.4667, m_min: 2.4644,
 }
 
 D1_2420: {
   Chain: 11, J: 1, Par: 1, 
   g0: 0.0317, g_max: 0.0342, g_min: 0.0292, 
-  m0: 2.4208, m_max: 2.4213, m_min: 2.4203
+  m0: 2.4208, m_max: 2.4213, m_min: 2.4203,
 }
 
 "D1_2420p": {
   Chain: 111, J: 1, Par: 1, 
   coef_head: "D1_2420", 
   g0: 0.025, g_max: 0.021, g_min: 0.019, 
-  m0: 2.4232, m_max: 2.4256, m_min: 2.4208
+  m0: 2.4232, m_max: 2.4256, m_min: 2.4208,
 }
 
 D1_2430: {
   Chain: 12, J: 1, Par: 1, 
   g0: 0.384, g_max: 0.514, g_min: 0.274, 
-  m0: 2.427, m_max: 2.467, m_min: 2.387
+  m0: 2.427, m_max: 2.467, m_min: 2.387,
 }
 
 D1_2430p: {
   Chain: 112, J: 1, Par: 1, 
   coef_head: "D1_2430", 
   g0: 0.384, g_max: 0.514, g_min: 0.274, 
-  m0: 2.427, m_max: 2.467, m_min: 2.387
+  m0: 2.427, m_max: 2.467, m_min: 2.387,
 }
 
 #D0_2550: {
@@ -96,11 +98,11 @@ Zc_4025: {
   Chain: -1, J: 1, Par: 1, 
   g0: 0.0248, 
   m0: 4.0263,
-  const: [-1,-1]
+  total: 1.0
 }
 
 Zc_4160: {
   Chain: -2, J: 1, Par: 1, 
   g0: 0.0921485, 
-  m0: 4.17329
+  m0: 4.17329,
 }

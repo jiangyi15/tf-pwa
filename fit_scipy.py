@@ -12,13 +12,15 @@ from tf_pwa.amplitude import AllAmplitude,param_list
 
 import math
 from tf_pwa.bounds import Bounds
+from generate_toy import generate_data
+from plot_amp import calPWratio
 
 def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
   a_h.set_params(val)
   t = time.time()
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
-  print("Time:",time.time()-t)
+  print("Time for calculating errors:",time.time()-t)
   #print(nll)
   #print([i.numpy() for i in g])
   #print(h.numpy())
@@ -54,6 +56,9 @@ def prepare_data(dtype="float64",model="3"):
   return data, bg, mcdata
 
 def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
+  POLAR = False # fit in polar coordinates. should be consistent with init_params.json if any
+  GEN_TOY = False # use toy data (mcdata and bg stay the same). REMEMBER to update gen_params.json
+
   dtype = "float64"
   w_bkg = 0.768331
   set_gpu_mem_growth()
@@ -63,8 +68,17 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   
   data, bg, mcdata = prepare_data(dtype=dtype)#,model="4")
   
+  if GEN_TOY:
+    print("########## begin generate_data")
+    data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
+    print("########## finish generate_data")
+
   amp = AllAmplitude(config_list)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
+  if POLAR:
+    print("Fitting parameters are defined in POLAR coordinates")
+  else:
+    print("Fitting parameters are defined in XY coordinates")
   try :
     with open(init_params) as f:  
       param = json.load(f)
@@ -73,20 +87,15 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         a.set_params(param["value"])
       else :
         a.set_params(param)
+    RDM_INI = False
   except Exception as e:
     #print(e)
-    print("using random parameters")
+    RDM_INI = True
+    print("using RANDOM parameters")
   #print(a.Amp(data))
   #exit()
-  pprint(a.get_params())
-  #print(data,bg,mcdata)
-  #t = time.time()
-  #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
-  #print("nll:",nll,"Time:",time.time()-t)
-  #exit()
-  fcn = FCN(a)
-  a.Amp.polar=False
-  print(a.Amp.res_decay)
+  a.Amp.polar=POLAR
+
   # fit configure
   args = {}
   args_name = []
@@ -106,7 +115,28 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     else:
       bnds.append((None,None))
     args["error_"+i.name] = 0.1
-  
+
+  if RDM_INI and (not a.Amp.polar): # change random initial params to x,y coordinates
+    val = a.get_params()
+    i = 0 
+    for v in args_name:
+      if len(v)>15:
+        if i%2==0:
+          tmp_name = v
+          tmp_val = val[v]
+        else:
+          val[tmp_name] = tmp_val*np.cos(val[v])
+          val[v] = tmp_val*np.sin(val[v])
+      i+=1
+    a.set_params(val)
+  pprint(a.get_params())
+  #print(data,bg,mcdata)
+  #t = time.time()
+  #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
+  #print("nll:",nll,"Time:",time.time()-t)
+  #exit()
+  fcn = FCN(a)
+  #print(a.Amp.res_decay)
   
   points = []
   nlls = []
@@ -129,9 +159,9 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     xn = s.x
   else :
     raise "unknow method"
-  print("fit state:")
+  print("########## fit state:")
   print(s)
-  print("Time for fitting:",time.time()-now)
+  print("\nTime for fitting:",time.time()-now)
   
   val = dict(zip(args_name,xn))
   a.set_params(val)
@@ -144,32 +174,40 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(diag_he).tolist()
     err = dict(zip(args_name,hesse_error))
-  outdic={"value":a.get_params(),"error":err}
+  params=a.get_params()
+  outdic={"value":params,"error":err}
   with open("final_params.json","w") as f:
     json.dump(outdic,f,indent=2)
-  print("fit value:")
+  print("\n########## fit values:")
   for i in val:
     if hesse:
       print("  ",i,":",error_print(val[i],err[i]))
     else:
       print("  ",i,":",val[i])
       
-  print("##########")
+  print("\n########## fitting params in polar expression")
   i = 0
-  for v in args_name:
+  for v in params:
     if len(v)>15:
       if i%2==0:
-        tmp = val[v]
+        tmp = params[v]
       else:
         if amp.polar:
-          print(v,"\t%.5f * exp(%.5fi)"%(tmp,val[v]))
+          print(v[:-3],"\t%.5f * exp(%.5fi)"%(tmp,params[v]))
         else:  
-          rho = np.sqrt(val[v]**2+tmp**2)
-          phi = np.arctan2(val[v],tmp)
-          print(v,"\t%.5f * exp(%.5fi)"%(rho,phi))
-    i+=1
-  print("##########")
-    
+          rho = np.sqrt(params[v]**2+tmp**2)
+          phi = np.arctan2(params[v],tmp)
+          print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
+      i+=1
+    else:
+      break
+  for v in config_list:
+    rho = params[v.rstrip('pm')+'r:0']
+    phi = params[v+'i:0']
+    print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
+  print("\n########## ratios of partial wave amplitude square")
+  calPWratio(params,POLAR)
+  
   if frac:
     mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
     frac,grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
@@ -179,10 +217,10 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         err_frac[i] = np.sqrt(np.dot(np.dot(inv_he,grad[i]),grad[i]))
       else :
         err_frac[i] = None
-    print("fitfractions")
+    print("########## fit fractions")
     for i in config_list:
       print(i,":",error_print(frac[i],err_frac[i]))
-  print("\nend\n")
+  print("\nEND\n")
 
 def main():
   import argparse

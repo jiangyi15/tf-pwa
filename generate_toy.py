@@ -14,7 +14,14 @@ def prepare_data(fname,dtype="float64"):
     dat.append(tmp_data)
   return dat
 
-def generate_data(Ndata,Nbg,wbg,scale):
+def generate_data(Ndata,Nbg,wbg,scale,Poisson_fluc=False):
+  POLAR = False # depends on whether gen_params.json is defined in polar coordinates
+  Nbg = round(wbg*Nbg)
+  Nmc = Ndata-Nbg #8065-3445*0.768331
+  if Poisson_fluc:#Poisson
+    Nmc = np.random.poisson(Nmc)
+    Nbg = np.random.poisson(Nbg)
+  print("data:",Nmc+Nbg,", sig:",Nmc,", bkg:",Nbg)
   dtype = "float64"
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
@@ -23,7 +30,7 @@ def generate_data(Ndata,Nbg,wbg,scale):
   batch = 65000
   
   amp = AllAmplitude(config_list)
-  amp.polar=False
+  amp.polar=POLAR
   with open("gen_params.json") as f:
     param = json.load(f)
   param = param["value"]
@@ -39,7 +46,6 @@ def generate_data(Ndata,Nbg,wbg,scale):
   data_tmp = []
   phsp = tf.transpose(phsp)
   n = 0
-  Nmc = round(Ndata-wbg*Nbg) #8065-3445*0.768331
   list_rdm = range(ampsq.__len__())
   list_rdm = tf.random.shuffle(list_rdm)
   for i in list_rdm:
@@ -53,7 +59,7 @@ def generate_data(Ndata,Nbg,wbg,scale):
   bg = prepare_data("./data/bg4600_new.dat",dtype)
   bg = tf.transpose(bg)
   bg = tf.random.shuffle(bg)
-  data = tf.concat([data_tmp,bg[:Ndata-Nmc]],axis=0)
+  data = tf.concat([data_tmp,bg[:Nbg]],axis=0)
   data = tf.random.shuffle(data)
   data = tf.transpose(data)
   data_gen = []
@@ -65,7 +71,7 @@ if __name__=="__main__":
   Ndata = 8065
   Nbg = 3445
   wbg = 0.768331
-  data=generate_data(Ndata,Nbg,wbg,1.1)
+  data=generate_data(Ndata,Nbg,wbg,1.1,True)
   print(data)
   
 
