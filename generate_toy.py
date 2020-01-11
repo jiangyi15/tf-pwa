@@ -89,5 +89,8 @@ if __name__=="__main__":
   wbg = 0.768331
   data=generate_data(Ndata,Nbg,wbg,1.1,True)
   print(data)
-  
+  import pickle
+  output = open('toy.pkl','wb')
+  pickle.dump(data,output,-1)
+  output.close()
 

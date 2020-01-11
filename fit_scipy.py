@@ -63,7 +63,7 @@ def prepare_data(dtype="float64",model="3"):
 
 def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   POLAR = True # fit in polar coordinates. should be consistent with init_params.json if any
-  GEN_TOY = False # use toy data (mcdata and bg stay the same). REMEMBER to update gen_params.json
+  GEN_TOY = True # use toy data (mcdata and bg stay the same). REMEMBER to update gen_params.json
 
   dtype = "float64"
   w_bkg = 0.768331
@@ -76,7 +76,11 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   
   if GEN_TOY:
     print("########## begin generate_data")
-    data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
+    #data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
+    import pickle
+    toy_file = open("toy1.pkl","rb")
+    data = pickle.load(toy_file)
+    toy_file.close()
     print("########## finish generate_data")
 
   amp = AllAmplitude(config_list)
@@ -124,7 +128,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       bnds.append((None,None))
     args["error_"+i.name] = 0.1
 
-  if RDM_INI and (not a.Amp.polar): # change random initial params to x,y coordinates
+  '''if RDM_INI and (not POLAR): # change random initial params to x,y coordinates
     val = a.get_params()
     i = 0 
     for v in args_name:
@@ -135,8 +139,8 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         else:
           val[tmp_name] = tmp_val*np.cos(val[v])
           val[v] = tmp_val*np.sin(val[v])
-      i+=1
-    a.set_params(val)
+        i+=1
+    a.set_params(val)'''
   pprint(a.get_params())
   #print(data,bg,mcdata)
   #t = time.time()
@@ -175,7 +179,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
     xn = s.x
   else :
-    raise Exception("unknow method")
+    raise Exception("unknown method")
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)
@@ -192,7 +196,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(diag_he).tolist()
     err = dict(zip(args_name,hesse_error))
-  print("\n########## fit values:")
+  print("\n########## fit results:")
   for i in val:
     if hesse:
       print("  ",i,":",error_print(val[i],err[i]))
@@ -207,7 +211,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         tmp_name = v
         tmp = params[v]
       else:
-        if amp.polar:
+        if POLAR:
           rho = tmp
           phi = params[v]
           rho,phi = std_polar(rho,phi)
@@ -218,8 +222,6 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         params[v] = phi
         print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
       i+=1
-    else:
-      break
   for v in config_list:
     rho = params[v.rstrip('pm')+'r:0']
     phi = params[v+'i:0']
