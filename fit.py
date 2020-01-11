@@ -3,8 +3,10 @@ import tensorflow as tf
 import numpy as np
 from tf_pwa.model import Cache_Model,set_gpu_mem_growth,param_list,FCN
 from tf_pwa.angle import cal_ang_file,EularAngle
-from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
+from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
 from tf_pwa.fitfractions import cal_fitfractions
+from generate_toy import generate_data
+from plot_amp import calPWratio
 from iminuit import Minuit
 import time
 import json
@@ -36,7 +38,9 @@ def prepare_data(dtype="float64"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def fit(init_params="init_params.json",hesse=True,frac=True):
+def fit(init_params="init_params.json",hesse=True,minos=False,frac=True):
+  POLAR = True # fit in polar coordinates. should be consistent with init_params.json if any
+  
   dtype = "float64"
   w_bkg = 0.768331
   set_gpu_mem_growth()
@@ -46,7 +50,10 @@ def fit(init_params="init_params.json",hesse=True,frac=True):
   data, bg, mcdata = prepare_data(dtype=dtype)
   
   a = Cache_Model(config_list,w_bkg,data,mcdata,bg=bg,batch=65000)
-  
+  if POLAR:
+    print("Fitting parameters are defined in POLAR coordinates")
+  else:
+    print("Fitting parameters are defined in XY coordinates")
   try :
     with open(init_params) as f:  
       param = json.load(f)
@@ -55,11 +62,12 @@ def fit(init_params="init_params.json",hesse=True,frac=True):
         a.set_params(param["value"])
       else :
         a.set_params(param)
+    RDM_INI = False
   except Exception as e:
     #print(e)
+    RDM_INI = True
     print("using random parameters")
-  
-  pprint(a.get_params())
+  a.Amp.trans_params(polar=POLAR)
 
   '''
   if False: #check gradient
@@ -92,9 +100,7 @@ def fit(init_params="init_params.json",hesse=True,frac=True):
       for j in range(len(g0)):
         print((g0[j]-g1[j]).numpy()/2e-3)
   '''
-   
-  fcn = FCN(a)
-  #a.Amp.polar = False
+  
   args = {}
   args_name = []
   x0 = []
@@ -110,49 +116,81 @@ def fit(init_params="init_params.json",hesse=True,frac=True):
       args["limit_{}".format(i)] = bounds_dict[i]
     args["error_"+i.name] = 0.1
  
+  '''if RDM_INI and (not POLAR): # change random initial params to x,y coordinates
+    val = a.get_params()
+    i = 0 
+    for v in args_name:
+      if len(v)>15:
+        if i%2==0:
+          tmp_name = v
+          tmp_val = val[v]
+        else:
+          val[tmp_name] = tmp_val*np.cos(val[v])
+          val[v] = tmp_val*np.sin(val[v])
+        i+=1
+    a.set_params(val)'''
+  pprint(a.get_params())
 
+  fcn = FCN(a)
   m = Minuit(fcn,forced_parameters=args_name,errordef = 0.5,grad=fcn.grad,print_level=2,use_array_call=True,**args)
 
+  print("########## begin MIGRAD")
   now = time.time()
   m.migrad()#(ncall=10000))#,precision=5e-7))
   print("MIGRAD Time",time.time() - now)
   if hesse:
+    print("########## begin HESSE")
     now = time.time()
     m.hesse()
     print("HESSE Time",time.time() - now)
-  '''now = time.time()
-  with tf.device('/device:GPU:0'):
-    m.minos(var="D2_2460_BLS_2_1r:0")
-    m.minos(var="D1_2430_BLS_2_2i:0")
-  print("MINOS Time",time.time() - now)'''
+  if minos:
+    print("########## begin MINOS")
+    now = time.time()
+    m.minos()#(var="")
+    print("MINOS Time",time.time() - now)
+  print("########## fit results")
   print(m.values)
   print(m.errors)
   #print(m.get_param_states())
-
+  
   err_mtrx=m.np_covariance()
   np.save("error_matrix.npy",err_mtrx)
   err=dict(m.errors)
 
-  outdic={"value":a.get_params(),"error":err}
-  with open("final_params.json","w") as f:
-    json.dump(outdic,f,indent=2)
-
-  print("##########")
-  val = m.values
+  params = a.get_params()
+  print("\n########## fitting params in polar expression")
   i = 0
-  for v in args_name:
+  for v in params:
     if len(v)>15:
       if i%2==0:
-        tmp = val[v]
+        tmp_name = v
+        tmp = params[v]
       else:
-        if a.Amp.polar:
-          print(v,"\t%.5f * exp(%.5fi)"%(tmp,val[v]))
+        if POLAR:
+          rho = tmp
+          phi = params[v]
+          rho,phi = std_polar(rho,phi)
         else:  
-          rho = np.sqrt(val[v]**2+tmp**2)
-          phi = np.arctan2(val[v],tmp)
-          print(v,"\t%.5f * exp(%.5fi)"%(rho,phi))
-    i+=1
-  print("##########")
+          rho = np.sqrt(params[v]**2+tmp**2)
+          phi = np.arctan2(params[v],tmp)
+        params[tmp_name] = rho
+        params[v] = phi
+        print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
+      i+=1
+  for v in config_list:
+    rho = params[v.rstrip('pm')+'r:0']
+    phi = params[v+'i:0']
+    rho,phi = std_polar(rho,phi)
+    params[v.rstrip('pm')+'r:0'] = rho
+    params[v+'i:0'] = phi
+    print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
+  a.set_params(params)
+
+  outdic={"value":params,"error":err}
+  with open("final_params.json","w") as f:                                      
+    json.dump(outdic,f,indent=2)
+  print("\n########## ratios of partial wave amplitude square")
+  calPWratio(params,POLAR)
 
   if frac:
     mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
@@ -163,10 +201,10 @@ def fit(init_params="init_params.json",hesse=True,frac=True):
         err_frac[i] = np.sqrt(np.dot(np.dot(err_mtrx,grad[i]),grad[i]))
       else :
         err_frac[i] = None
-    print("fitfractions")
+    print("########## fit fractions")
     for i in config_list:
       print(i,":",error_print(frac[i],err_frac[i]))
-  print("\nend\n")
+  print("\nEND\n")
   #try :
     #print(m.minos())
   #except RuntimeError as e:
@@ -191,10 +229,10 @@ def main():
   import argparse
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
+  #parser.add_argument("--yes-minos", action="store_true", default=False,dest="minos")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
-  parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
-  fit(hesse=results.hesse, frac=results.frac)
+  fit(hesse=results.hesse, minos=False, frac=results.frac)
   
 if __name__=="__main__":
   main()

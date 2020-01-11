@@ -76,7 +76,11 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   
   if GEN_TOY:
     print("########## begin generate_data")
-    data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
+    #data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
+    import pickle
+    toy_file = open("toy1.pkl","rb")
+    data = pickle.load(toy_file)
+    toy_file.close()
     print("########## finish generate_data")
 
   amp = AllAmplitude(config_list)
@@ -123,20 +127,21 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     else:
       bnds.append((None,None))
     args["error_"+i.name] = 0.1
-
-  #if RDM_INI and (not a.Amp.polar): # change random initial params to x,y coordinates
-    #val = a.get_params()
-    #i = 0 
-    #for v in args_name:
-      #if len(v)>15:
-        #if i%2==0:
-          #tmp_name = v
-          #tmp_val = val[v]
-        #else:
-          #val[tmp_name] = tmp_val*np.cos(val[v])
-          #val[v] = tmp_val*np.sin(val[v])
-      #i+=1
-    #a.set_params(val)
+  
+  '''if RDM_INI and (not POLAR): # change random initial params to x,y coordinates
+    val = a.get_params()
+    i = 0 
+    for v in args_name:
+      if len(v)>15:
+        if i%2==0:
+          tmp_name = v
+          tmp_val = val[v]
+        else:
+          val[tmp_name] = tmp_val*np.cos(val[v])
+          val[v] = tmp_val*np.sin(val[v])
+        i+=1
+    a.set_params(val)'''
+  
   pprint(a.get_params())
   #print(data,bg,mcdata)
   #t = time.time()
@@ -177,7 +182,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     s = minimize(fcn.nll_grad,x0,method=method,jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
     xn = s.x
   else :
-    raise Exception("unknow method")
+    raise Exception("unknown method")
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)
@@ -194,34 +199,32 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(diag_he).tolist()
     err = dict(zip(args_name,hesse_error))
-  print("\n########## fit values:")
+  print("\n########## fit results:")
   for i in val:
     if hesse:
       print("  ",i,":",error_print(val[i],err[i]))
     else:
       print("  ",i,":",val[i])
       
-  #print("\n########## fitting params in polar expression")
-  #i = 0
-  #for v in params:
-    #if len(v)>15:
-      #if i%2==0:
-        #tmp_name = v
-        #tmp = params[v]
-      #else:
-        #if amp.polar:
-          #rho = tmp
-          #phi = params[v]
-          #rho,phi = std_polar(rho,phi)
-        #else:  
-          #rho = np.sqrt(params[v]**2+tmp**2)
-          #phi = np.arctan2(params[v],tmp)
-        #params[tmp_name] = rho
-        #params[v] = phi
-        #print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
-      #i+=1
-    #else:
-      #break
+  print("\n########## fitting params in polar expression")
+  i = 0
+  for v in params:
+    if len(v)>15:
+      if i%2==0:
+        tmp_name = v
+        tmp = params[v]
+      else:
+        if POLAR:
+          rho = tmp
+          phi = params[v]
+          rho,phi = std_polar(rho,phi)
+        else:  
+          rho = np.sqrt(params[v]**2+tmp**2)
+          phi = np.arctan2(params[v],tmp)
+        params[tmp_name] = rho
+        params[v] = phi
+        print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
+      i+=1
   #for v in config_list:
     #rho = params[v.rstrip('pm')+'r:0']
     #phi = params[v+'i:0']
