@@ -473,13 +473,6 @@ class AllAmplitude(tf.keras.Model):
       return self.get_amp2s_matrix(*x)
     return self.get_amp2s(*x)
   
-  def get_params(self):
-    ret = {}
-    for i in self.variables:
-      tmp = i.numpy()
-      ret[i.name] = float(tmp)
-    return ret
-  
   def trans_params(self,polar=True,force=False):
     """
     translate parameters for self.polar to polar coordinates
@@ -509,6 +502,35 @@ class AllAmplitude(tf.keras.Model):
       self.add_var.set(i,n_i)
     self.polar = polar
     return self.get_params()
+  
+  def _std_polar_total(self):
+    polar_head = {}
+    polar_sign = {}
+    for idx in self.res:
+      r,i =  self.coef_norm[idx]
+      polar_sign[r.name] = np.sign(r.numpy())
+      if r.name in polar_head:
+        polar_head[r.name].append(i.name)
+      else:
+        polar_head[r.name] = [i.name]
+    
+    for idx in self.res:
+      r,i =  self.coef_norm[idx]
+      r.assign(tf.abs(r))
+      if polar_sign[r.name] < 0:
+        i.assign_add(np.pi)
+      while i.numpy() >= 2*np.pi:
+        i.assign_add(-2*np.pi)
+      while i.numpy() < 0:
+        i.assign_add(2*np.pi)
+    
+  def get_params(self):
+    ret = {}
+    self._std_polar_total()
+    for i in self.variables:
+      tmp = i.numpy()
+      ret[i.name] = float(tmp)
+    return ret
   
   def set_params(self,param):
     for j in param:

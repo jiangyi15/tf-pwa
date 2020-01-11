@@ -296,11 +296,7 @@ class Model(object):
     return nll,g
   
   def get_params(self):
-    ret = {}
-    for i in self.Amp.variables:
-      tmp = i.numpy()
-      ret[i.name] = float(tmp)
-    return ret
+    return self.Amp.get_params()
   
   def set_params(self,param):
     if isinstance(param,dict) and "value" in param:

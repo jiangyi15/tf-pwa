@@ -124,19 +124,19 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       bnds.append((None,None))
     args["error_"+i.name] = 0.1
 
-  if RDM_INI and (not a.Amp.polar): # change random initial params to x,y coordinates
-    val = a.get_params()
-    i = 0 
-    for v in args_name:
-      if len(v)>15:
-        if i%2==0:
-          tmp_name = v
-          tmp_val = val[v]
-        else:
-          val[tmp_name] = tmp_val*np.cos(val[v])
-          val[v] = tmp_val*np.sin(val[v])
-      i+=1
-    a.set_params(val)
+  #if RDM_INI and (not a.Amp.polar): # change random initial params to x,y coordinates
+    #val = a.get_params()
+    #i = 0 
+    #for v in args_name:
+      #if len(v)>15:
+        #if i%2==0:
+          #tmp_name = v
+          #tmp_val = val[v]
+        #else:
+          #val[tmp_name] = tmp_val*np.cos(val[v])
+          #val[v] = tmp_val*np.sin(val[v])
+      #i+=1
+    #a.set_params(val)
   pprint(a.get_params())
   #print(data,bg,mcdata)
   #t = time.time()
@@ -144,7 +144,9 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #print("nll:",nll,"Time:",time.time()-t)
   #exit()
   fcn = FCN(a)
-  #print(a.Amp.res_decay)
+  print("########## chain decay:")
+  for i in a.Amp.A.chain_decay():
+    print(i)
   
   points = []
   nlls = []
@@ -165,14 +167,14 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     f_g = bd.trans_f_g(fcn.nll_grad)
     s = minimize(f_g,np.array(bd.get_x(x0)),method=method,jac=True,callback=callback,options={"disp":1})
     xn = bd.get_y(s.x)
-  elif method == "L-BFGS-B":
+  elif method in ["L-BFGS-B"]:
     def callback(x):
       if np.fabs(x).sum() > 1e7:
         x_p = dict(zip(args_name,x))
         raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in x])
       nlls.append(float(fcn.cached_nll))
-    s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
+    s = minimize(fcn.nll_grad,x0,method=method,jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
     xn = s.x
   else :
     raise Exception("unknow method")
@@ -199,41 +201,41 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     else:
       print("  ",i,":",val[i])
       
-  print("\n########## fitting params in polar expression")
-  i = 0
-  for v in params:
-    if len(v)>15:
-      if i%2==0:
-        tmp_name = v
-        tmp = params[v]
-      else:
-        if amp.polar:
-          rho = tmp
-          phi = params[v]
-          rho,phi = std_polar(rho,phi)
-        else:  
-          rho = np.sqrt(params[v]**2+tmp**2)
-          phi = np.arctan2(params[v],tmp)
-        params[tmp_name] = rho
-        params[v] = phi
-        print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
-      i+=1
-    else:
-      break
-  for v in config_list:
-    rho = params[v.rstrip('pm')+'r:0']
-    phi = params[v+'i:0']
-    rho,phi = std_polar(rho,phi)
-    params[v.rstrip('pm')+'r:0'] = rho
-    params[v+'i:0'] = phi
-    print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
-  a.set_params(params)
+  #print("\n########## fitting params in polar expression")
+  #i = 0
+  #for v in params:
+    #if len(v)>15:
+      #if i%2==0:
+        #tmp_name = v
+        #tmp = params[v]
+      #else:
+        #if amp.polar:
+          #rho = tmp
+          #phi = params[v]
+          #rho,phi = std_polar(rho,phi)
+        #else:  
+          #rho = np.sqrt(params[v]**2+tmp**2)
+          #phi = np.arctan2(params[v],tmp)
+        #params[tmp_name] = rho
+        #params[v] = phi
+        #print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
+      #i+=1
+    #else:
+      #break
+  #for v in config_list:
+    #rho = params[v.rstrip('pm')+'r:0']
+    #phi = params[v+'i:0']
+    #rho,phi = std_polar(rho,phi)
+    #params[v.rstrip('pm')+'r:0'] = rho
+    #params[v+'i:0'] = phi
+    #print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
+  #a.set_params(params)
 
   outdic={"value":params,"error":err}
   with open("final_params.json","w") as f:                                      
     json.dump(outdic,f,indent=2)
-  print("\n########## ratios of partial wave amplitude square")
-  calPWratio(params,POLAR)
+  #print("\n########## ratios of partial wave amplitude square")
+  #calPWratio(params,POLAR)
   
   if frac:
     mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
