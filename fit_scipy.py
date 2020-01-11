@@ -79,7 +79,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
     print("########## finish generate_data")
 
-  amp = AllAmplitude(config_list,ploar=POLAR)
+  amp = AllAmplitude(config_list,polar=POLAR)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
   if POLAR:
     print("Fitting parameters are defined in POLAR coordinates")
