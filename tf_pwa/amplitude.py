@@ -57,7 +57,7 @@ def fix_value(x):
   return f
 
 class AllAmplitude(tf.keras.Model):
-  def __init__(self,res):
+  def __init__(self,res,polar=True):
     super(AllAmplitude,self).__init__()
     self.JA = 1
     self.JB = 1
@@ -78,7 +78,7 @@ class AllAmplitude(tf.keras.Model):
     self.D = Particle("D",self.JD,self.ParD)
     self.add_var = Vars(self)
     self.res = res.copy()
-    self.polar = True
+    self.polar = polar
     #if "Zc_4160" in self.res:
       #self.res["Zc_4160"]["m0"] = self.add_var(name="Zc_4160_m0",var = self.res["Zc_4160"]["m0"],trainable=True)
       #self.res["Zc_4160"]["g0"] = self.add_var(name="Zc_4160_g0",var = self.res["Zc_4160"]["g0"],trainable=True)
