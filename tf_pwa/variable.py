@@ -41,6 +41,11 @@ class Vars(object):
   __call__ = add
   
   def get(self,name):
-    if name not in self.variable:
+    if name not in self.variables:
       raise Exception("{} not found".fotmat(name))
     return self.variables[name]
+  
+  def set(self,name,var):
+    if name not in self.variables:
+      raise Exception("{} not found".fotmat(name))
+    return self.variables[name].assign(var)
