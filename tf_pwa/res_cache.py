@@ -25,12 +25,43 @@ class Particle(object):
     self.name = name
     self.J = J
     self.P = P
+    self.decay = []
     if spins is None:
       spins = list(range(-J,J+1))
     self.spins = spins
   
+  def add_decay(self,d):
+    self.decay.append(d)
+  
   def __repr__(self):
     return self.name
+
+  def chain_decay(self):
+    ret = []
+    for i in self.decay:
+      ret_tmp = [[[i]]]
+      for j in i.outs:
+        tmp = j.chain_decay()
+        if len(tmp)>0:
+          ret_tmp.append(tmp)
+      ret += cross_combine(ret_tmp)
+    return ret
+
+def cross_combine(x):
+  if len(x)==0:
+    return []
+  head = x[0]
+  tail = x[1:]
+  ret = []
+  other = cross_combine(tail)
+  for i in head:
+    if len(other) == 0:
+      ret.append(i)
+    else:
+      for j in other:
+        ret.append(i+j)
+  return ret
+        
 
 class Decay(object):
   """
@@ -39,6 +70,7 @@ class Decay(object):
   def __init__(self,name,mother,outs):
     self.name = name
     self.mother = mother
+    self.mother.add_decay(self)
     self.outs = outs
   
   @functools.lru_cache()
