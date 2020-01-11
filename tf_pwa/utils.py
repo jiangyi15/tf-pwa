@@ -68,3 +68,13 @@ def error_print(x,err=None):
 def pprint(dicts):
   s = json.dumps(dicts,indent=2)
   print(s)
+
+def std_polar(rho,phi):
+  if rho<0:
+    rho = -rho
+    phi+=math.pi
+  while phi<-math.pi:
+    phi+=2*math.pi
+  while phi>math.pi:
+    phi-=2*math.pi
+  return rho,phi

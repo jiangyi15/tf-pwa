@@ -6,7 +6,7 @@ import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
-from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print
+from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
 from tf_pwa.fitfractions import cal_fitfractions
 import math
 from tf_pwa.bounds import Bounds
@@ -62,7 +62,7 @@ def prepare_data(dtype="float64",model="3"):
   return data, bg, mcdata
 
 def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
-  POLAR = False # fit in polar coordinates. should be consistent with init_params.json if any
+  POLAR = True # fit in polar coordinates. should be consistent with init_params.json if any
   GEN_TOY = False # use toy data (mcdata and bg stay the same). REMEMBER to update gen_params.json
 
   dtype = "float64"
@@ -148,6 +148,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   points = []
   nlls = []
   now = time.time()
+  maxiter = 2000
   #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
   if method in ["BFGS","CG","Nelder-Mead"]:
     def callback(x):
@@ -156,6 +157,8 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in bd.get_y(x)])
       nlls.append(float(fcn.cached_nll))
+      if len(nlls)>maxiter:
+        raise Exception("Reached the largest iterations: {}".format(maxiter))
       print(fcn.cached_nll)
     bd = Bounds(bnds)
     f_g = bd.trans_f_g(fcn.nll_grad)
@@ -168,7 +171,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in x])
       nlls.append(float(fcn.cached_nll))
-    s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":1000,"maxiter":2000})
+    s = minimize(fcn.nll_grad,x0,method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
     xn = s.x
   else :
     raise Exception("unknow method")
@@ -178,6 +181,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   
   val = dict(zip(args_name,xn))
   a.set_params(val)
+  params = a.get_params()
   with open("fit_curve.json","w") as f:
     json.dump({"points":points,"nlls":nlls},f,indent=2)
 
@@ -187,10 +191,6 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(diag_he).tolist()
     err = dict(zip(args_name,hesse_error))
-  params=a.get_params()
-  outdic={"value":params,"error":err}
-  with open("final_params.json","w") as f:
-    json.dump(outdic,f,indent=2)
   print("\n########## fit values:")
   for i in val:
     if hesse:
@@ -203,21 +203,34 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   for v in params:
     if len(v)>15:
       if i%2==0:
+        tmp_name = v
         tmp = params[v]
       else:
         if amp.polar:
-          print(v[:-3],"\t%.5f * exp(%.5fi)"%(tmp,params[v]))
+          rho = tmp
+          phi = params[v]
+          rho,phi = std_polar(rho,phi)
         else:  
           rho = np.sqrt(params[v]**2+tmp**2)
           phi = np.arctan2(params[v],tmp)
-          print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
+        params[tmp_name] = rho
+        params[v] = phi
+        print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
       i+=1
     else:
       break
   for v in config_list:
     rho = params[v.rstrip('pm')+'r:0']
     phi = params[v+'i:0']
+    rho,phi = std_polar(rho,phi)
+    params[v.rstrip('pm')+'r:0'] = rho
+    params[v+'i:0'] = phi
     print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
+  a.set_params(params)
+
+  outdic={"value":params,"error":err}
+  with open("final_params.json","w") as f:                                      
+    json.dump(outdic,f,indent=2)
   print("\n########## ratios of partial wave amplitude square")
   calPWratio(params,POLAR)
   
@@ -234,15 +247,34 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     for i in config_list:
       print(i,":",error_print(frac[i],err_frac[i]))
   print("\nEND\n")
+  #return frac,config_list,params
 
 def main():
   import argparse
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
-  parser.add_argument("--method", default="BFGS",dest="method")
+  parser.add_argument("--method", default="L-BFGS-B",dest="method")
   results = parser.parse_args()
   fit(method=results.method, hesse=results.hesse, frac=results.frac)
+
+  '''frac_list = {}
+  params_list = {}
+  frac,config_list,params=fit(method=results.method, hesse=False, frac=results.frac)
+  for reson in config_list:
+    frac_list[reson]=[frac[reson]]
+  for p in params:
+    params_list[p] = [params[p]]
+  for i in range(100):
+    frac,c,params=fit(method=results.method, hesse=False, frac=results.frac)
+    for reson in config_list:
+      frac_list[reson].append(frac[reson])
+    for p in params:
+      params_list[p].append(params[p])
+  for reson in config_list:
+    print(reson+"=",frac_list[reson])
+  for p in params_list:
+    print(p[:-2]+"=",params_list[p])'''
 
 if __name__ == "__main__":
   main()

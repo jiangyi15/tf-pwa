@@ -151,7 +151,7 @@ for i in range(len(param_list)):
     params_config[name]["idx"] = i
 
 def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
-  POLAR=False
+  POLAR=True
   dtype = "float64"
   w_bkg = 0.768331
   set_gpu_mem_growth()

@@ -15,7 +15,7 @@ def prepare_data(fname,dtype="float64"):
   return dat
 
 def generate_data(Ndata,Nbg,wbg,scale,Poisson_fluc=False):
-  POLAR = False # depends on whether gen_params.json is defined in polar coordinates
+  POLAR = True # depends on whether gen_params.json is defined in polar coordinates
   Nbg = round(wbg*Nbg)
   Nmc = Ndata-Nbg #8065-3445*0.768331
   if Poisson_fluc:#Poisson
@@ -41,25 +41,41 @@ def generate_data(Ndata,Nbg,wbg,scale,Poisson_fluc=False):
     ampsq.append(amp(mcdata[i],cached=True))
   ampsq = tf.concat(ampsq,axis=0)
   ampsq_max = tf.reduce_max(ampsq).numpy()
-  uni_rdm = tf.random.uniform([ampsq.__len__()],minval=0,maxval=scale*ampsq_max,dtype=dtype)
+  ampsq_len = ampsq.__len__()
+  Nsample = round(Nmc*scale*10)
+  if Nsample>ampsq_len:
+    raise Exception("Not enough input PHSP sample")
+  uni_rdm = tf.random.uniform([Nsample],minval=0,maxval=scale*ampsq_max,dtype=dtype)
 
   data_tmp = []
   phsp = tf.transpose(phsp)
+  list_rdm = tf.random.uniform([Nsample],dtype=tf.int64,maxval=ampsq_len)
   n = 0
-  list_rdm = range(ampsq.__len__())
-  list_rdm = tf.random.shuffle(list_rdm)
+  j = 0
   for i in list_rdm:
-    if ampsq[i]>uni_rdm[i]:
+    if ampsq[i]>uni_rdm[j]:
       data_tmp.append(phsp[i])
       n+=1
+    j+=1
     if n==Nmc:
       break
+  if n<Nmc:
+    raise Exception("Not enough MC")
   data_tmp = tf.stack(data_tmp)
 
   bg = prepare_data("./data/bg4600_new.dat",dtype)
   bg = tf.transpose(bg)
-  bg = tf.random.shuffle(bg)
-  data = tf.concat([data_tmp,bg[:Nbg]],axis=0)
+  bg_idx = tf.random.uniform([Nbg],dtype=tf.int64,maxval=len(bg))#np.random.randint(len(bg),size=Nbg)
+  bg_tmp = []
+  n = 0
+  for i in bg_idx:
+    bg_tmp.append(bg[i])
+    n+=1
+    if n==Nbg:
+      break
+  bg_tmp = tf.stack(bg_tmp)
+
+  data = tf.concat([data_tmp,bg_tmp],axis=0)
   data = tf.random.shuffle(data)
   data = tf.transpose(data)
   data_gen = []
