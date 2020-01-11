@@ -157,8 +157,8 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   config_list = config_list = load_config_file(res_file)
-  a = Model(config_list,w_bkg)
-  a.Amp.polar=POLAR
+  a = Model(config_list,w_bkg,kwargs={"polar":POLAR})
+  #a.Amp.polar=POLAR
   with open(params_file) as f:  
     param = json.load(f)
     if "value" in param:
@@ -209,8 +209,8 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
       else :
         name = name[0]
     res_name[i] = name
-    a_sig[i] = Model(config_res[i],w_bkg)
-    a_sig[i].Amp.polar=POLAR
+    a_sig[i] = Model(config_res[i],w_bkg,kwargs={"polar":POLAR})
+    #a_sig[i].Amp.polar=POLAR
     a_sig[i].set_params(a.get_params())
     a_weight[i] = a_sig[i].Amp(mcdata_cache,cached=True).numpy()*norm_int
     fitFrac[name] = a_weight[i].sum()/(n_data - w_bkg*n_bg)
@@ -271,12 +271,12 @@ def calPWratio(params,POLAR=True):
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   config_list = load_config_file("Resonances")
-  a = Model(config_list,w_bkg)
+  a = Model(config_list,w_bkg,kwargs={"polar":POLAR})
   
   args_name = []
   for i in a.Amp.trainable_variables:
     args_name.append(i.name)
-  a.Amp.polar=True
+  #a.Amp.polar=True
 
   a.set_params(params)
   if not POLAR:# if final_params.json is not in polar coordinates
@@ -334,7 +334,7 @@ def calPWratio(params,POLAR=True):
         name = reduce(lambda x,y:"{}+{}".format(x,y),res_list[i])
       else :
         name = name[0]
-    a_sig[i] = Model(config_res[i],w_bkg)
+    a_sig[i] = Model(config_res[i],w_bkg,kwargs={"polar":POLAR})
     p_list = [[],[]]
     for p in a_sig[i].get_params():
       if p[-3]=='r' and len(p)>15:

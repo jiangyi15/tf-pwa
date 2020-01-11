@@ -57,7 +57,7 @@ def fix_value(x):
   return f
 
 class AllAmplitude(tf.keras.Model):
-  def __init__(self,res):
+  def __init__(self,res,polar=True):
     super(AllAmplitude,self).__init__()
     self.JA = 1
     self.JB = 1
@@ -78,7 +78,7 @@ class AllAmplitude(tf.keras.Model):
     self.D = Particle("D",self.JD,self.ParD)
     self.add_var = Vars(self)
     self.res = res.copy()
-    self.polar = True
+    self.polar = polar
     #if "Zc_4160" in self.res:
       #self.res["Zc_4160"]["m0"] = self.add_var(name="Zc_4160_m0",var = self.res["Zc_4160"]["m0"],trainable=True)
       #self.res["Zc_4160"]["g0"] = self.add_var(name="Zc_4160_g0",var = self.res["Zc_4160"]["g0"],trainable=True)
@@ -205,7 +205,7 @@ class AllAmplitude(tf.keras.Model):
       if i in const_list:
         tmp_r = self.add_var(name=name+"r",initializer=fix_value(1.0),trainable=False)
         tmp_i = self.add_var(name=name+"i",initializer=fix_value(0.0),trainable=False)
-        arg_list.append([tmp_r,tmp_i])
+        arg_list.append((name+"r",name+"i"))
       else :
         if self.polar:
           tmp_r = self.add_var(name=name+"r",size=2.0)
@@ -213,7 +213,7 @@ class AllAmplitude(tf.keras.Model):
         else:
           tmp_r = self.add_var(name=name+"r",range=(-1,1))
           tmp_i = self.add_var(name=name+"i",range=(-1,1))
-        arg_list.append([tmp_r,tmp_i])
+        arg_list.append((name+"r",name+"i"))
     return ls,arg_list
   
   def init_res_chain(self):
@@ -296,8 +296,8 @@ class AllAmplitude(tf.keras.Model):
     M_r = []
     M_i = []
     for r,i in self.coef[idx][layer]:
-      M_r.append(r)
-      M_i.append(i)
+      M_r.append(self.add_var.get(r))
+      M_i.append(self.add_var.get(i))
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
     bf = barrier_factor(decay.get_l_list(),q,q0,d)
@@ -479,6 +479,36 @@ class AllAmplitude(tf.keras.Model):
       tmp = i.numpy()
       ret[i.name] = float(tmp)
     return ret
+  
+  def trans_params(self,polar=True,force=False):
+    """
+    translate parameters for self.polar to polar coordinates
+
+.. math::
+    r + ij \leftrightarrow r e^{ij} 
+    
+    """
+    if self.polar is polar and not force:
+      return self.get_params()
+    t_p = set()
+    for i in self.coef:
+      for j in self.coef[i]:
+        for k in j:
+          t_p.add(k)
+    for r,i in t_p:
+      o_r = self.add_var.get(r)
+      o_i = self.add_var.get(i)
+      if self.polar:
+        o_r,o_i = o_r * tf.cos(o_i), o_r * tf.sin(o_i)
+      if polar:
+        n_r = tf.sqrt(o_r*o_r + o_i*o_i)
+        n_i = tf.math.atan2(o_i, o_r)
+      else:
+        n_r, n_i = o_r, o_i
+      self.add_var.set(r,n_r)
+      self.add_var.set(i,n_i)
+    self.polar = polar
+    return self.get_params()
   
   def set_params(self,param):
     for j in param:

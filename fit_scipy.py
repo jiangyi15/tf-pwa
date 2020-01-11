@@ -99,9 +99,10 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     #print(e)
     RDM_INI = True
     print("using RANDOM parameters")
+  amp.trans_params(polar=POLAR)
   #print(a.Amp(data))
   #exit()
-  a.Amp.polar=POLAR
+  #a.Amp.polar=POLAR
 
   # fit configure
   args = {}
