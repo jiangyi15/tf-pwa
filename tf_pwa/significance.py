@@ -32,13 +32,13 @@ def normal_quantile(p):
   at probability p
 
   """
-  if p<=0 or p>=1 :
+  if p < 0.0 or p > 1.0 :
     raise Exception("probability outside (0, 1)")
-    return 0
+    return 0.0
   return norm.ppf(p)
 
 def significance(l1,l2,ndf):
-  DeltaLL = 2 * abs(l1 - l2)
+  DeltaLL = 2.0 * abs(l1 - l2)
   p = prob(DeltaLL,ndf)
   # math.sqrt(2) * erfc_inverse(p)
-  return - normal_quantile(p / 2)
+  return - normal_quantile(p / 2.0)
