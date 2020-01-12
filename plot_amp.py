@@ -182,8 +182,8 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
       tmp_data = tf.Variable(tmp[i],name=i,dtype=dtype)
       dat.append(tmp_data)
     return dat
-  #data = load_data("data")
-  data = generate_data(8065,3445,w_bkg,1.1,True)
+  data = load_data("data")
+  #data = generate_data(8065,3445,w_bkg,1.1,True)
   bg = load_data("bg")
   mcdata = load_data("PHSP")
   data_cache = a.Amp.cache_data(*data)

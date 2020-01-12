@@ -94,6 +94,9 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     with open(init_params) as f:  
       param = json.load(f)
       print("using {}".format(init_params))
+      if "config" in param:
+        amp = AllAmplitude(param["config"])
+        a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)
       if "value" in param:
         a.set_params(param["value"])
       else :
@@ -192,10 +195,12 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   params = a.get_params()
   with open("fit_curve.json","w") as f:
     json.dump({"points":points,"nlls":nlls},f,indent=2)
-
+  outdic={"config":config_list,"value":params}
+  with open("final_params.json","w") as f:                                      
+    json.dump(outdic,f,indent=2)
   err=None
   if hesse:
-    inv_he = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=20000)
+    inv_he = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=10000)
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(diag_he).tolist()
     err = dict(zip(args_name,hesse_error))
@@ -234,7 +239,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     #print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
   #a.set_params(params)
 
-  outdic={"value":params,"error":err}
+  outdic={"config":config_list,"value":params,"error":err}
   with open("final_params.json","w") as f:                                      
     json.dump(outdic,f,indent=2)
   #print("\n########## ratios of partial wave amplitude square")
@@ -260,7 +265,7 @@ def main():
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
-  parser.add_argument("--method", default="L-BFGS-B",dest="method")
+  parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
   fit(method=results.method, hesse=results.hesse, frac=results.frac)
 
