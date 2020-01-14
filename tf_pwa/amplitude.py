@@ -83,15 +83,23 @@ class AllAmplitude(tf.keras.Model):
       #self.res["Zc_4160"]["m0"] = self.add_var(name="Zc_4160_m0",var = self.res["Zc_4160"]["m0"],trainable=True)
       #self.res["Zc_4160"]["g0"] = self.add_var(name="Zc_4160_g0",var = self.res["Zc_4160"]["g0"],trainable=True)
     self.res_decay = self.init_res_decay()
+    self.reg_float_mass_width()
     self.coef = {}
     self.coef_norm = {}
     self.res_cache = {}
     self.init_res_param()
     self.init_used_res()
   
+  def reg_float_mass_width(self):
+    for i in self.res:
+      if "float" in self.res[i]:
+        is_float = self.res[i]["float"]
+        if is_float:
+          self.res[i]["m0"] = self.add_var(name=i+"_m0",var = self.res[i]["m0"],trainable=True)
+          self.res[i]["g0"] = self.add_var(name=i+"_g0",var = self.res[i]["g0"],trainable=True)
+  
   def init_used_res(self):
     self.used_res = [i for i in self.res]
-    
     
   def init_res_decay(self):
     ret = {}

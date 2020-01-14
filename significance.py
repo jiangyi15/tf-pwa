@@ -60,28 +60,30 @@ def prepare_data(dtype="float64",model="3"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def cal_significance():
+def cal_significance(config_list,delta_res=None,prefix=""):
   POLAR = True 
-  dtype = "float64"
+  dtype = "float32"
   w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   # open Resonances list as dict 
-  config_list = load_config_file("Resonances")
   
   data, bg, mcdata = prepare_data(dtype=dtype,model=mode)
   curves = {}
   sigmas = {}
+  if delta_res is None:
+    delta_res = [[i] for i in config_list]
   delta_config = {}
-  for i in config_list:
-    tmp = {}
-    for j in config_list:
-      if j==i:
-        continue
-      tmp[j] = config_list[j]
-    delta_config[i] = tmp
+  for i in delta_res:
+    tmp = config_list.copy()
+    for j in i:
+      tmp.pop(j)
+    if len(i)==1:
+      delta_config[i[0]] = tmp
+    else:
+      delta_config[tuple(i)] = tmp
   
-  #print(delta_config)
+  print(delta_config)
   print("########## base fit")
   base_fit,val,curve = fit(config_list,w_bkg,data,mcdata,bg)
   print("########## base FCN",base_fit.fun)
@@ -96,12 +98,12 @@ def cal_significance():
     print("########## significance of",i,":",sigma)
     sigmas[i] = sigma
     
-  print("########## base fit")
+  print("########## significance")
   pprint(sigmas)
   
-  with open("significance_curve.json","w") as f:
+  with open(prefix+"significance_curve.json","w") as f:
     json.dump(curves,f,indent=2)
-  with open("significance.json","w") as f:
+  with open(perfix+"significance.json","w") as f:
     json.dump(sigmas,f,indent=2)
   
   
@@ -116,7 +118,7 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
   x0 = []
   bnds = []
   bounds_dict = {
-      "Zc_4160_m0:0":(4.1,4.22),
+      "Zc_4160_m0:0":(4.1,4.25),
       "Zc_4160_g0:0":(0,None)
   }
   
@@ -168,7 +170,9 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
   
 
 def main():
-  cal_significance()
+  config_list = load_config_file("Resonances")
+  delta_res = [["Zc_4160"]]
+  cal_significance(config_list,delta_res)
 
 if __name__ == "__main__":
   main()
