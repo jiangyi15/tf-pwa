@@ -147,6 +147,7 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
   nlls = []
   now = time.time()
   maxiter = 2000
+  bd = Bounds(bnds)
   def callback(x):
     if np.fabs(x).sum() > 1e7:
       x_p = dict(zip(args_name,x))
@@ -154,17 +155,16 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
     points.append([float(i) for i in bd.get_y(x)])
     nlls.append(float(fcn.cached_nll))
     print(fcn.cached_nll)
-  bd = Bounds(bnds)
   f_g = bd.trans_f_g(fcn.nll_grad)
   #s = minimize(f_g,np.array(bd.get_x(x0)),method=method,jac=True,callback=callback,options={"disp":1})
   with tf.device("/device:GPU:0"):
-    s = basinhopping(fcn.nll_grad,np.array(x0),niter=10,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
+    s = basinhopping(f_g,np.array(bd.get_x(x0)),niter=10,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
   
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)
   
-  val = dict(zip(args_name,s.x))
+  val = dict(zip(args_name,bd.get_y(s.x)))
   pprint(val)
   return s,val,{"nlls":nlls,"points":points}
   
