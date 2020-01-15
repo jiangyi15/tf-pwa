@@ -7,6 +7,7 @@ from .res_cache import Particle,Decay
 from .variable import Vars
 from .dfun_tf import dfunctionJ,D_Cache
 import os
+import copy
 # from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
@@ -77,7 +78,7 @@ class AllAmplitude(tf.keras.Model):
     self.C = Particle("C",self.JC,self.ParC)
     self.D = Particle("D",self.JD,self.ParD)
     self.add_var = Vars(self)
-    self.res = res.copy()
+    self.res = copy.deepcopy(res)
     self.polar = polar
     #if "Zc_4160" in self.res:
       #self.res["Zc_4160"]["m0"] = self.add_var(name="Zc_4160_m0",var = self.res["Zc_4160"]["m0"],trainable=True)
