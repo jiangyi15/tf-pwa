@@ -127,7 +127,7 @@ def cal_significance(config_list,delta_res=None,method="-",prefix=""):
     json.dump(sigmas,f,indent=2)
   
   
-def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
+def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000,niter=10):
   
   amp = AllAmplitude(config_list)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=batch)
@@ -178,7 +178,7 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
   f_g = bd.trans_f_g(fcn.nll_grad)
   #s = minimize(f_g,np.array(bd.get_x(x0)),method=method,jac=True,callback=callback,options={"disp":1})
   with tf.device("/device:GPU:0"):
-    s = basinhopping(f_g,np.array(bd.get_x(x0)),niter=10,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
+    s = basinhopping(f_g,np.array(bd.get_x(x0)),niter=niter,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
   
   print("########## fit state:")
   print(s)
@@ -186,6 +186,11 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
   
   val = dict(zip(args_name,bd.get_y(s.x)))
   pprint(val)
+  if "Zc_4160" in config_list:
+    if "float" in config_list["Zc_4160"]:
+      if config_list["Zc_4160"]["float"] == False:
+        config_list["Zc_4160"]["float"] = True
+        return fit(config_list,w_bkg,data,mcdata,bg=bg,batch=batch,niter=1)
   return s,val,{"nlls":nlls,"points":points}
   
 

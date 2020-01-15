@@ -169,6 +169,8 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       points.append([float(i) for i in bd.get_y(x)])
       nlls.append(float(fcn.cached_nll))
       if len(nlls)>maxiter:
+        with open("fit_curve.json","w") as f:
+          json.dump({"points":points,"nlls":nlls},f,indent=2)
         raise Exception("Reached the largest iterations: {}".format(maxiter))
       print(fcn.cached_nll)
     bd = Bounds(bnds)
@@ -195,7 +197,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   params = a.get_params()
   with open("fit_curve.json","w") as f:
     json.dump({"points":points,"nlls":nlls},f,indent=2)
-  outdic={"config":config_list,"value":params}
+  outdic={"value":params,"config":config_list}
   with open("final_params.json","w") as f:                                      
     json.dump(outdic,f,indent=2)
   err=None
@@ -239,7 +241,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     #print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
   #a.set_params(params)
 
-  outdic={"config":config_list,"value":params,"error":err}
+  outdic={"value":params,"error":err,"config":config_list}
   with open("final_params.json","w") as f:                                      
     json.dump(outdic,f,indent=2)
   #print("\n########## ratios of partial wave amplitude square")
