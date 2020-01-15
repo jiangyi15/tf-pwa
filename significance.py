@@ -11,14 +11,14 @@ from tf_pwa.fitfractions import cal_fitfractions
 import math
 from tf_pwa.bounds import Bounds
 from tf_pwa.significance import significance
+import functools
 
 mode = "3"
 if mode=="4":
   from tf_pwa.amplitude4 import AllAmplitude4 as AllAmplitude,param_list
 else:
   from tf_pwa.amplitude import AllAmplitude,param_list
-
-
+  
 
 def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
@@ -60,7 +60,7 @@ def prepare_data(dtype="float64",model="3"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def cal_significance(config_list,delta_res=None,prefix=""):
+def cal_significance(config_list,delta_res=None,method="-",prefix=""):
   POLAR = True 
   dtype = "float32"
   w_bkg = 0.768331
@@ -71,21 +71,41 @@ def cal_significance(config_list,delta_res=None,prefix=""):
   data, bg, mcdata = prepare_data(dtype=dtype,model=mode)
   curves = {}
   sigmas = {}
-  if delta_res is None:
-    delta_res = [[i] for i in config_list]
-  delta_config = {}
-  for i in delta_res:
-    tmp = config_list.copy()
-    for j in i:
-      tmp.pop(j)
-    if len(i)==1:
-      delta_config[i[0]] = tmp
-    else:
-      delta_config[tuple(i)] = tmp
+  if method == "-":
+    if delta_res is None:
+      delta_res = [[i] for i in config_list]
+    delta_config = {}
+    base_config_list = config_list.copy()
+    for i in delta_res:
+      tmp = config_list.copy()
+      for j in i:
+        tmp.pop(j)
+      if len(i)==1:
+        delta_config[i[0]] = tmp
+      else:
+        name = functools.reduce(lambda x,y:x+"+"+y,i)
+        delta_config[name] = tmp
+  elif method == "+":
+    if delta_res is None:
+      raise Exception("for method `+` delta_res is required!")
+    base_config_list = config_list.copy()
+    delta_config = {}
+    for i in delta_res:
+      for j in i:
+        if j in base_config_list:
+          base_config_list.pop(j)
+    for i in delta_res:
+      tmp = base_config_list.copy()
+      for j in i:
+        tmp[j] = config_list[j]
+      if len(i)==1:
+        delta_config[i[0]] = tmp
+      else:
+        name = functools.reduce(lambda x,y:x+"+"+y,i)
+        delta_config[name] = tmp
   
-  print(delta_config)
   print("########## base fit")
-  base_fit,val,curve = fit(config_list,w_bkg,data,mcdata,bg)
+  base_fit,val,curve = fit(base_config_list,w_bkg,data,mcdata,bg)
   print("########## base FCN",base_fit.fun)
   curves["all"] = curve
   n_all = len(base_fit.x)
@@ -103,7 +123,7 @@ def cal_significance(config_list,delta_res=None,prefix=""):
   
   with open(prefix+"significance_curve.json","w") as f:
     json.dump(curves,f,indent=2)
-  with open(perfix+"significance.json","w") as f:
+  with open(prefix+"significance.json","w") as f:
     json.dump(sigmas,f,indent=2)
   
   
@@ -171,8 +191,8 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
 
 def main():
   config_list = load_config_file("Resonances")
-  delta_res = [["Zc_4160"]]
-  cal_significance(config_list,delta_res)
+  delta_res = [["Zc_4160"],["D0_2550","D0_2550p"]]
+  cal_significance(config_list,delta_res,method="+")
 
 if __name__ == "__main__":
   main()
