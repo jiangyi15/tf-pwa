@@ -161,7 +161,7 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000):
   fcn = FCN(a)
   print("########## chain decay:")
   for i in a.Amp.A.chain_decay():
-    print(i)
+    print(i,flush=True)
   
   points = []
   nlls = []

@@ -24,7 +24,30 @@ def part_config(config,name=[]):
     return {name:config[name]}
   ret = {}
   for i in name:
-    ret[i] = config[i]
+    if i in config:
+      ret[i] = config[i]
+  return ret
+
+def equal_pm(a,b):
+  def remove_pm(s):
+    ret = s
+    if s.endswith("p"):
+      ret = s[:-1]
+    elif s.endswith("m"):
+      ret = s[:-1]
+    return ret
+  return remove_pm(a) == remove_pm(b)
+  
+
+def part_combine_pm(config_list):
+  ret = []
+  for i in config_list:
+    for j in ret:
+      if equal_pm(i,j[0]):
+        j.append(i)
+        break
+    else:
+      ret.append([i])
   return ret
 
 def hist_line(data,weights,bins,xrange=None,inter = 1):
@@ -150,7 +173,7 @@ for i in range(len(param_list)):
   if name in params_config:
     params_config[name]["idx"] = i
 
-def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
+def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_combine=True):
   POLAR=True
   dtype = "float64"
   w_bkg = 0.768331
@@ -197,7 +220,10 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
   a_sig = {}
   a_weight = {}
   if res_list is None:
-    res_list = [[i] for i in config_list]
+    if pm_combine:
+      res_list = part_combine_pm(config_list)
+    else:
+      res_list = [[i] for i in config_list]
   config_res = [part_config(config_list,i) for i in res_list]
   fitFrac = {}
   res_name = {}
@@ -262,6 +288,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None):
     name = plot_list[i]
     plot_params(ax,name,**params_config[name])
     fig.savefig("figure/"+name+".pdf")
+    fig.savefig("figure/"+name+".png")
  
 
 

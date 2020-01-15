@@ -66,8 +66,11 @@ def error_print(x,err=None):
   return ("{0:.0f} +/- {1:.0f}").format(x,err)
 
 def pprint(dicts):
-  s = json.dumps(dicts,indent=2)
-  print(s)
+  try:
+    s = json.dumps(dicts,indent=2)
+    print(s,flush=True)
+  except:
+    print(dicts,flush=True)
 
 def std_polar(rho,phi):
   if rho<0:
