@@ -190,7 +190,8 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000,niter=10):
     if "float" in config_list["Zc_4160"]:
       if config_list["Zc_4160"]["float"] == False:
         config_list["Zc_4160"]["float"] = True
-        return fit(config_list,w_bkg,data,mcdata,bg=bg,batch=batch,niter=1)
+        s,val,tmp =  fit(config_list,w_bkg,data,mcdata,bg=bg,batch=batch,niter=1)
+        return s,val,{"nlls":nlls + tmp["nlls"],"points":points+tmp["points"]}
   return s,val,{"nlls":nlls,"points":points}
   
 
