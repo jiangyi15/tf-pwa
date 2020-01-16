@@ -62,7 +62,7 @@ def prepare_data(dtype="float64",model="3"):
 
 def cal_significance(config_list,delta_res=None,method="-",prefix=""):
   POLAR = True 
-  dtype = "float32"
+  dtype = "float64"
   w_bkg = 0.768331
   set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
@@ -127,11 +127,11 @@ def cal_significance(config_list,delta_res=None,method="-",prefix=""):
     json.dump(sigmas,f,indent=2)
   
   
-def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000,niter=10):
+def fit(config_list,w_bkg,data,mcdata,bg=None,init_params={},batch=65000,niter=10):
   
   amp = AllAmplitude(config_list)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=batch)
-  
+  a.set_params(init_params)
   # fit configure
   args = {}
   args_name = []
@@ -166,7 +166,7 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000,niter=10):
   points = []
   nlls = []
   now = time.time()
-  maxiter = 2000
+  maxiter = 10000
   bd = Bounds(bnds)
   def callback(x):
     if np.fabs(x).sum() > 1e7:
@@ -190,14 +190,14 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,batch=65000,niter=10):
     if "float" in config_list["Zc_4160"]:
       if config_list["Zc_4160"]["float"] == False:
         config_list["Zc_4160"]["float"] = True
-        s,val,tmp =  fit(config_list,w_bkg,data,mcdata,bg=bg,batch=batch,niter=1)
+        s,val,tmp =  fit(config_list,w_bkg,data,mcdata,bg=bg,init_params=val,batch=batch,niter=0)
         return s,val,{"nlls":nlls + tmp["nlls"],"points":points+tmp["points"]}
   return s,val,{"nlls":nlls,"points":points}
   
 
 def main():
   config_list = load_config_file("Resonances")
-  delta_res = [["Zc_4160"],["D0_2550","D0_2550p"]]
+  delta_res = [["Zc_4160"],["D1_2600","D1_2600p"]]
   cal_significance(config_list,delta_res,method="+")
 
 if __name__ == "__main__":
