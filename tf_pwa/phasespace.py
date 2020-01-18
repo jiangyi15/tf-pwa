@@ -96,13 +96,11 @@ class PhaseSpaceGenerator(object):
       ret.append((-p_boost).Rest_Vector(i))
     return ret
   
-    
-  
   def flatten_mass(self,ms):
     weight = self.get_weight(ms)
     rnd = tf.random.uniform(weight.shape,dtype="float64")
     select = weight > rnd
-    return [ i.numpy()[select.numpy()] for i in ms]
+    return [ tf.boolean_mask(i,select) for i in ms]
   
   def get_weight(self,ms):
     mass_t = [self.m_mass[-1]]
