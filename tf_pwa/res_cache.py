@@ -67,18 +67,18 @@ class Decay(object):
   """
   general Decay object
   """
-  def __init__(self,name,mother,outs):
+  def __init__(self,core,outs,name=None):
     self.name = name
-    self.mother = mother
-    self.mother.add_decay(self)
+    self.core = core
+    self.core.add_decay(self)
     self.outs = outs
   
   @functools.lru_cache()
   def get_ls_list(self):
-    ja = self.mother.J
+    ja = self.core.J
     jb = self.outs[0].J
     jc = self.outs[1].J
-    pa = self.mother.P
+    pa = self.core.P
     pb = self.outs[0].P
     pc = self.outs[1].P
     return tuple(GetA2BC_LS_list(ja,jb,jc,pa,pb,pc))
@@ -91,11 +91,13 @@ class Decay(object):
   def get_min_l(self):
     return min(self.get_l_list())
   
-  def generate_params(self,ls=True):
+  def generate_params(self,name=None,ls=True):
+    if name is None:
+      name = self.name
     ret = []
     for l,s in self.get_ls_list():
-      name_r = "{name}_l{l}_s{s}_r".format(l,s)
-      name_i = "{name}_l{l}_s{s}_i".format(l,s)
+      name_r = "{name}_l{l}_s{s}_r".format(name=name,l=l,s=s)
+      name_i = "{name}_l{l}_s{s}_i".format(name=name,l=l,s=s)
       ret.append((name_r,name_i))
     return ret
   
@@ -111,13 +113,13 @@ class Decay(object):
     """
     ls = self.get_ls_list()
     m = len(ls) 
-    ja = self.mother.J
+    ja = self.core.J
     jb = self.outs[0].J
     jc = self.outs[1].J
     n = (2*jb + 1)*(2*jc+1)
     ret = np.zeros(shape=(n,m))
-    for i in range(len(ls)):
-      l,s = ls[i]
+    for i,ls_i in enumerate(ls):
+      l,s = ls_i
       j = 0
       for lambda_b in range(-jb,jb+1):
         for lambda_c in range(-jc,jc+1):
@@ -136,7 +138,7 @@ class Decay(object):
     return ret
   
   def __repr__(self):
-    ret = str(self.mother)
+    ret = str(self.core)
     ret += "->"
     ret += str(self.outs[0])
     for i in self.outs[1:]:
@@ -150,7 +152,7 @@ def test():
   b = Particle("b",1,-1)
   c = Particle("c",1,-1)
   decay = Decay(a,[b,c])
-  print(decay.cg_matrix().T)
+  print(decay.get_cg_matrix().T)
   print(np.array(decay.get_ls_list()))
   print(np.array(decay.get_ls_list())[:,0])
 

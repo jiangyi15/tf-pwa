@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from tf_pwa.phasespace import  PhaseSpaceGenerator
 import numpy as np
 

@@ -116,16 +116,16 @@ class AllAmplitude(tf.keras.Model):
         self.res[i]["bwf"] = bw_dict["default"]
       tmp = Particle(i,J_reson,P_reson)
       if (chain < 0) : # A->(DB)C
-        d_tmp_0 = Decay(i+"_0",self.A,[tmp,self.C])
-        d_tmp_1 = Decay(i+"_1",tmp,[self.B,self.D])
+        d_tmp_0 = Decay(self.A,[tmp,self.C],i+"_0")
+        d_tmp_1 = Decay(tmp,[self.B,self.D],i+"_1")
         ret[i] = [d_tmp_0,d_tmp_1]
       elif (chain > 0 and chain < 100) : # A->(BC)D 
-        d_tmp_0 = Decay(i+"_0",self.A,[tmp,self.D])
-        d_tmp_1 = Decay(i+"_1",tmp,[self.B,self.C])
+        d_tmp_0 = Decay(self.A,[tmp,self.D],i+"_0")
+        d_tmp_1 = Decay(tmp,[self.B,self.C],i+"_1")
         ret[i] = [d_tmp_0,d_tmp_1]
       elif (chain > 100 and chain < 200) : # A->B(CD) 
-        d_tmp_0 = Decay(i+"_0",self.A,[tmp,self.B])
-        d_tmp_1 = Decay(i+"_1",tmp,[self.D,self.C])
+        d_tmp_0 = Decay(self.A,[tmp,self.B],i+"_0")
+        d_tmp_1 = Decay(tmp,[self.D,self.C],i+"_1")
         ret[i] = [d_tmp_0,d_tmp_1]
       else :
         raise Exception("unknown chain")
@@ -267,39 +267,10 @@ class AllAmplitude(tf.keras.Model):
         raise Exception("unknown chain")
     return ret
   
-  def GetA2BC_LS(self,idx,ja,jb,jc,pa,pb,pc,lambda_b,lambda_c,layer,q,q0,d):
-    dl = 0 if pa * pb * pc == 1 else  1 # pa = pb * pc * (-1)^l
-    s_min = abs(jb - jc);
-    s_max = jb + jc;
-    ns = s_max - s_min + 1
-    ret = complex(0.0,0.0)
-    ptr = 0
-    M_r = []
-    M_i = []
-    for i in self.coef[idx][layer]:
-      M_r.append(i.r)
-      M_i.append(i.i)
-    M_r = tf.stack(M_r)
-    M_i = tf.stack(M_i)
-    l_s = self.res_decay[idx][layer].get_l_list()
-    
-    ls_norm = tf.linalg.diag(M_r * tf.sqrt((2*tf.cast(l_s,M_r.dtype)+1.0)/(2*ja+1.0)))
-    mdep = tf.matmul(ls_norm,barrier_factor(l_s,q,q0,d))
-    cg_trans = tf.cast(self.res_decay[idx][layer].cg_matrix,M_r.dtype)
-    for l,s in self.res_cache[idx]["ls"][layer]:
-      M = self.coef[idx][layer][ptr]
-      ptr += 1
-      ret = ret + M * \
-               cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) * \
-               cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c) * q**l * Bprime(l,q,q0,d) * tf.sqrt((2*l+1.0)/(2*ja+1.0))
-    #print(tf.reshape(tf.matmul(tf.reshape(M_r,(1,-1)),tf.cast(self.res_decay[idx][layer].cg_matrix(),M_r.dtype)),(jb*2+1,jc*2+1,-1)))
-    
-    return ret
-  
   #@snoop()
-  def GetA2BC_LS_mat(self,idx,layer,q,q0,d):
+  def GetA2BC_LS(self,idx,layer,q,q0,d):
     decay = self.res_decay[idx][layer]
-    ja = decay.mother.J
+    ja = decay.core.J
     jb = decay.outs[0].J
     jc = decay.outs[1].J
     M_r = []
@@ -407,9 +378,9 @@ class AllAmplitude(tf.keras.Model):
       if chain < 0: # A->(DB)C
         lambda_BD = list(range(-JReson,JReson+1))
         ns_bd = len(lambda_BD)
-        H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
+        H_0 = self.GetA2BC_LS(i,0,res_cache[i][0],res_cache[i][1],d)
         #print(i,H_0,H_1)
-        H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
+        H_1 = self.GetA2BC_LS(i,1,res_cache[i][2],res_cache[i][3],d)
         df_a = ang_BD.get_lambda(self.A.J,self.A.spins,lambda_BD,self.C.spins)
         df_b = ang_B_BD.get_lambda(JReson,lambda_BD,self.B.spins,self.D.spins)
         aligned_B = ang_BD_B.get_lambda(self.B.J,self.B.spins,self.B.spins)#(1)
@@ -428,8 +399,8 @@ class AllAmplitude(tf.keras.Model):
       elif (chain > 0 and chain < 100) : # A->(BC)D aligned B
         lambda_BC = list(range(-JReson,JReson+1))
         ns_bc = len(lambda_BC)
-        H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
-        H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
+        H_0 = self.GetA2BC_LS(i,0,res_cache[i][0],res_cache[i][1],d)
+        H_1 = self.GetA2BC_LS(i,1,res_cache[i][2],res_cache[i][3],d)
         df_a = ang_BC.get_lambda(self.A.J,self.A.spins,lambda_BC,self.D.spins)
         df_b = ang_B_BC.get_lambda(JReson,lambda_BC,self.B.spins,self.C.spins)
         aligned_B = ang_BC_B.get_lambda(self.B.J,self.B.spins,self.B.spins)#(1)
@@ -448,15 +419,16 @@ class AllAmplitude(tf.keras.Model):
       elif (chain > 100 and chain < 200) : # A->B(CD) aligned D
         lambda_CD = list(range(-JReson,JReson+1))
         ns_cd  = len(lambda_CD)
-        H_0 = self.GetA2BC_LS_mat(i,0,res_cache[i][0],res_cache[i][1],d)
-        H_1 = self.GetA2BC_LS_mat(i,1,res_cache[i][2],res_cache[i][3],d)
+        H_0 = self.GetA2BC_LS(i,0,res_cache[i][0],res_cache[i][1],d)
+        H_1 = self.GetA2BC_LS(i,1,res_cache[i][2],res_cache[i][3],d)
         df_a = ang_CD.get_lambda(self.A.J,self.A.spins,lambda_CD,self.B.spins)
         df_b = ang_D_CD.get_lambda(JReson,lambda_CD,self.D.spins,self.C.spins)
         aligned_D = ang_CD_D.get_lambda(self.D.J,self.D.spins,self.D.spins)#(1)
         HD1 = H_0*df_a
         HD2 = H_1*df_b
         ## TODO c,d order
-        # HD2 = tf.transpose(HD2, perm=[0, 2, 1, 3])
+        if self.C.J != 0:
+          HD2 = tf.transpose(HD2, perm=[0, 2, 1, 3])
         arbcdi = tf.reshape(HD1,(ns_a,ns_cd,ns_b,1,1,-1)) * tf.reshape(HD2,(1,ns_cd,1,ns_c,ns_d,-1))
         abcdi = tf.reduce_sum(arbcdi,1)
         abcdyi = tf.reshape(abcdi,(ns_a,ns_b,1,ns_d,1,-1))*tf.reshape(aligned_D,(1,1,1,ns_d,ns_d,-1))

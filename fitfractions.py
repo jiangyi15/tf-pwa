@@ -8,7 +8,7 @@ import numpy as np
 import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file
-from tf_pwa.utils import load_config_file,error_print,flatten_np_data
+from tf_pwa.utils import load_config_file,flatten_np_data
 from tf_pwa.fitfractions import cal_fitfractions
 import math
 

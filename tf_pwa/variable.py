@@ -42,10 +42,10 @@ class Vars(object):
   
   def get(self,name):
     if name not in self.variables:
-      raise Exception("{} not found".fotmat(name))
+      raise Exception("{} not found".format(name))
     return self.variables[name]
   
   def set(self,name,var):
     if name not in self.variables:
-      raise Exception("{} not found".fotmat(name))
+      raise Exception("{} not found".format(name))
     return self.variables[name].assign(var)

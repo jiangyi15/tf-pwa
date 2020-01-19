@@ -148,10 +148,6 @@ class D_fun_Cache(object):
     d = self.dfuncj[j](m1,m2)
     return self.alpha(m1)*self.gamma(m2)*d
 
-def Dfun_cos(j,m1,m2,alpha,cosbeta,gamma):
-  tmp = complex(0.0,alpha * m1 + gamma * m2).exp() * dfunction(j, m1, m2, cosbeta)
-  return tmp
-
 def ExpI_all(maxJ,phi):
   a = tf.range(-maxJ,maxJ+1,1.0)
   a = tf.reshape(a,(-1,1))

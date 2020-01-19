@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
 from functools import reduce
-from tf_pwa.angle import cal_ang_file,EularAngle
+from tf_pwa.angle import cal_ang_file,cal_ang_file4,EularAngle
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint
 import os
 from math import pi

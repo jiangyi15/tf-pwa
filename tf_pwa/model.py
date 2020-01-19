@@ -138,6 +138,7 @@ class Model(object):
       -\ln L = -\sum_{x_i \in data } w_i \ln f(x_i;\theta_i) +  (\sum w_i ) \ln \sum_{x_i \in mc } f(x_i;\theta_i) + cons
 
     """
+    n_data = len(data)
     ln_data = tf.math.log(self.Amp(data))
     int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
     if isinstance(weight,float):
