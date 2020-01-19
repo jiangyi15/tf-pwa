@@ -18,13 +18,13 @@ class Vector3(Tensor_Type):
     return self[:,2]
   
   def norm2(self):
-    return tf.reduce_sum(self * self,-1)
+    return tf.reduce_sum(self * self,axis=-1)
   
   def norm(self):
-    return tf.sqrt(self.norm2())
+    return tf.norm(self,axis=-1)
   
   def dot(self,other):
-    ret = tf.reduce_sum(self * other,-1)
+    ret = tf.reduce_sum(self * other,axis=-1)
     return ret
   
   def cross(self,other):
@@ -34,6 +34,11 @@ class Vector3(Tensor_Type):
   def unit(self):
     p, n = tf.linalg.normalize(self,axis=-1)
     return Vector3(p)
+  
+  def cross_unit(self,other):
+    p, n = tf.linalg.normalize(tf.linalg.cross(self,other),axis=-1)
+    return Vector3(p)
+  
   def angle_from(self,x,y):
     return tf.math.atan2(self.dot(y),self.dot(x))
   

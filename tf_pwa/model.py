@@ -4,6 +4,7 @@ basic negative log-likelihood model
 
 import tensorflow as tf
 from .amplitude import AllAmplitude
+from .config import get_config
 import time 
 import functools
 import numpy as np
@@ -46,7 +47,7 @@ class Model(object):
     if callable(configs):
       self.Amp = configs
     else :
-      self.Amp = AllAmplitude(configs,*args,**kwargs)
+      self.Amp = get_config("amp")(configs,*args,**kwargs)
     self.constrain = constrain
   
   def get_constrain_term(self):

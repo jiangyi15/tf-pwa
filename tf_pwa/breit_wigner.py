@@ -9,13 +9,10 @@ def regist_lineshape(name=None):
     name_t = name
     if name_t is None:
       name_t = f.__name__
-    @functools.wraps(f)
-    def g(*args,**kwargs):
-      return f(*args,**kwargs)
     if name_t in breit_wigner_dict:
       warnings.warn("override breit wigner function :",name)
-    breit_wigner_dict[name_t] = g
-    return g
+    breit_wigner_dict[name_t] = f
+    return f
   return fopt
 
 @regist_lineshape("one")
