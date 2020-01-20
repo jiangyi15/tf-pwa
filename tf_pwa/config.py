@@ -3,7 +3,8 @@ from contextlib import contextmanager
 from functools import wraps
 
 _config = {
-  "amp": AllAmplitude
+  "amp": AllAmplitude,
+  "multi_gpus": False
 }
 
 def set_config(name,var):

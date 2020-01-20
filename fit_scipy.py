@@ -267,9 +267,15 @@ def main():
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
+  parser.add_argument("--no-GPU", action="store_false", default=True,dest="has_gpu")
   parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
-  fit(method=results.method, hesse=results.hesse, frac=results.frac)
+  if results.has_gpu:
+    with tf.device("/device:GPU:0"):
+      fit(method=results.method, hesse=results.hesse, frac=results.frac)
+  else:
+    with tf.device("/device:CPU:0"):
+      fit(method=results.method, hesse=results.hesse, frac=results.frac)
 
   '''frac_list = {}
   params_list = {}

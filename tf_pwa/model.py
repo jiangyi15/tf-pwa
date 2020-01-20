@@ -225,11 +225,9 @@ class Model(object):
     return nll,g,h
   
   def sum_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
-    try :
+    if get_config("multi_gpus"):
       ret = self.sum_gradient_gpus(data,weight=weight,func = func,args=args,kwargs=kwargs)
       return ret
-    except:
-      pass
     n_variables = len(self.Amp.trainable_variables)
     g = None
     nll = 0.0
