@@ -23,7 +23,7 @@ def generate_data(Ndata,Nbg,wbg,scale,Poisson_fluc=False):
     Nbg = np.random.poisson(Nbg)
   print("data:",Nmc+Nbg,", sig:",Nmc,", bkg:",Nbg)
   dtype = "float64"
-  set_gpu_mem_growth()
+  #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   config_list = load_config_file("Resonances")
   phsp = prepare_data("./data/PHSP4600_new.dat",dtype)

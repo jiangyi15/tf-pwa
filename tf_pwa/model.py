@@ -2,17 +2,13 @@
 basic negative log-likelihood model
 """
 
-import tensorflow as tf
+from . import tf,tf_version
 from .amplitude import AllAmplitude
 from .config import get_config
 import time 
 import functools
 import numpy as np
 from multiprocessing.dummy import Process
-
-tf_version = int(tf.__version__.split(".")[0])
-if tf_version < 2:
-  tf.compat.v1.enable_eager_execution()
 
 def array_split(data,batch=None):
   if batch is None:
@@ -453,19 +449,5 @@ def train_one_step(model, optimizer, data,mc,weight=1.0,batch=16384):
   optimizer.apply_gradients(zip(grads, model.Amp.trainable_variables))
   
   return nll
-
-  
-def set_gpu_mem_growth():
-  gpus = tf.config.experimental.list_physical_devices('GPU')
-  if gpus:
-    try:
-      # Currently, memory growth needs to be the same across GPUs
-      for gpu in gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
-      logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-      #print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-    except RuntimeError as e:
-      # Memory growth must be set before GPUs have been initialized
-      print(e)
 
 

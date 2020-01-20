@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from tf_pwa.amplitude import AllAmplitude
-from tf_pwa.model import Cache_Model,set_gpu_mem_growth,param_list,FCN
+from tf_pwa.model import Cache_Model,param_list,FCN
 import tensorflow as tf
 import time
 import numpy as np
@@ -47,7 +47,7 @@ def err_trans(grad,Vij):
 
 def main():
   dtype = "float64"
-  set_gpu_mem_growth()
+  #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   config_list = load_config_file("Resonances")
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],

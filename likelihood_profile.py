@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from tf_pwa.model import Cache_Model,set_gpu_mem_growth,param_list,FCN
+from tf_pwa.model import Cache_Model,param_list,FCN
 import tensorflow as tf
 import time
 import numpy as np
@@ -17,7 +17,7 @@ import math
 def main(param_name,x,method):
   dtype = "float64"
   w_bkg = 0.768331
-  set_gpu_mem_growth()
+  #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   
   config_list = load_config_file("Resonances")

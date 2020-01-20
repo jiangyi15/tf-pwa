@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import tensorflow as tf
 import numpy as np
-from tf_pwa.model import Cache_Model,set_gpu_mem_growth,param_list,FCN
+from tf_pwa.model import Cache_Model,param_list,FCN
 from tf_pwa.angle import cal_ang_file,EularAngle
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
 from tf_pwa.fitfractions import cal_fitfractions
@@ -43,7 +43,7 @@ def fit(init_params="init_params.json",hesse=True,minos=False,frac=True):
   
   dtype = "float64"
   w_bkg = 0.768331
-  set_gpu_mem_growth()
+  #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   config_list = load_config_file("Resonances")
 

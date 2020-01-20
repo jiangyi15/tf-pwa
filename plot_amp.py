@@ -204,7 +204,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   POLAR=True
   dtype = "float64"
   w_bkg = 0.768331
-  set_gpu_mem_growth()
+  #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   config_list = config_list = load_config_file(res_file)
   a = Model(config_list,w_bkg,kwargs={"polar":POLAR})
@@ -320,7 +320,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
 def calPWratio(params,POLAR=True):
   dtype = "float64"
   w_bkg = 0.768331
-  set_gpu_mem_growth()
+  #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
   config_list = load_config_file("Resonances")
   a = Model(config_list,w_bkg,kwargs={"polar":POLAR})

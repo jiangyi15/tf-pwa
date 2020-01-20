@@ -1,4 +1,4 @@
-import tensorflow as tf
+from . import tf
 import numpy as np
 from .cg import get_cg_coef
 from .d_function_new import d_function_cos
@@ -9,8 +9,7 @@ from .dfun_tf import dfunctionJ,D_Cache
 import os
 import copy
 # from pysnooper import snoop
-#os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
+
 import functools
 from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
 
