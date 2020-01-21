@@ -49,3 +49,23 @@ class Vars(object):
     if name not in self.variables:
       raise Exception("{} not found".format(name))
     return self.variables[name].assign(var)
+
+
+class Variable(object):
+  def __init__(self,name,var,err=0.1,range=(None,None)):
+    self.name = name
+    self.var = var
+    self.err = err
+    self.range_ = range
+  
+  def set_range(self,range_):
+    self.range_ = range_
+  
+  def get_range(self):
+    return self.range_
+  
+  def get_var(self):
+    return self.var
+
+
+    

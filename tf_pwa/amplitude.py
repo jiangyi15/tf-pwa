@@ -3,7 +3,7 @@ import numpy as np
 from .cg import get_cg_coef
 from .d_function_new import d_function_cos
 from .complex_F import Complex_F
-from .res_cache import Particle,Decay
+from .particle import Particle,Decay
 from .variable import Vars
 from .dfun_tf import dfunctionJ,D_Cache
 import os
@@ -55,6 +55,7 @@ def fix_value(x):
       return tf.Variable(x,dtype=dtype)
     return x
   return f
+    
 
 class AllAmplitude(tf.keras.Model):
   def __init__(self,res,polar=True):

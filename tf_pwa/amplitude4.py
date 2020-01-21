@@ -3,7 +3,7 @@ import numpy as np
 from .cg import get_cg_coef
 from .d_function_new import d_function_cos
 from .complex_F import Complex_F
-from .res_cache import Particle,Decay
+from .particle import Particle,Decay
 from .variable import Vars
 from .dfun_tf import dfunctionJ,D_Cache
 import os

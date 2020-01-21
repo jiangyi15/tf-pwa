@@ -33,6 +33,9 @@ class Particle(object):
   def add_decay(self,d):
     self.decay.append(d)
   
+  def remove_decay(self,d):
+    self.decay.remove(d)
+  
   def __repr__(self):
     return self.name
 
@@ -46,7 +49,13 @@ class Particle(object):
           ret_tmp.append(tmp)
       ret += cross_combine(ret_tmp)
     return ret
-
+  
+  def get_resonances(self):
+    decay_chain = self.chain_decay()
+    chains = [DecayChain(i) for i in decay_chain]
+    decaygroup = DecayGroups(chains)
+    return decaygroup.resonances
+    
 def cross_combine(x):
   if len(x)==0:
     return []
@@ -145,16 +154,72 @@ class Decay(object):
       ret += "+"+str(i)
     return ret
     
+class DecayChain(object):
+  def __init__(self,chain):
+    self.chain = chain
+    self.top, self.inner, self.outs = self.determine_top_particle(chain)
+    
+  @staticmethod
+  def determine_top_particle(chain):
+    core_particles = set()
+    out_particles = set()
+    
+    for i in chain:
+      core_particles.add(i.core)
+      for j in i.outs:
+        out_particles.add(j)
+    
+    inner = core_particles & out_particles
+    top = core_particles - inner
+    outs = out_particles - inner
+    return top, inner, outs
+  
+  def __repr__(self):
+    return "{}".format(self.chain)
+
+class DecayGroups(object):
+  def __init__(self,chains):
+    first_chain = chains[0]
+    if not isinstance(first_chain,DecayChain):
+      chains = [DecayChain(i) for i in chains]
+      first_chain = chains[0]
+    self.chains = chains
+    assert len(first_chain.top) == 1,"top particles must be only one particle"
+    self.top = list(first_chain.top)[0]
+    self.outs = list(first_chain.outs)
+    for i in chains:
+      assert i.top == first_chain.top,""
+      assert i.outs == first_chain.outs,""
+    resonances = set()
+    for i in chains:
+      resonances |= i.inner
+    self.resonances = list(resonances)
+    
+  def __repr__(self):
+    return "{}".format(self.chains)
+    
   
 
 def test():
   a = Particle("a",1,-1)
   b = Particle("b",1,-1)
-  c = Particle("c",1,-1)
-  decay = Decay(a,[b,c])
+  c = Particle("c",0,-1)
+  d = Particle("d",1,-1)
+  tmp = Particle("tmp",1,-1)
+  tmp2 = Particle("tmp2",1,-1)
+  decay = Decay(a,[tmp,c])
+  decay2 = Decay(tmp,[b,d])
+  decay3 = Decay(a,[tmp2,d])
+  decay4 = Decay(tmp2,[b,c])
+  decaychain = DecayChain([decay,decay2])
+  decaychain2 = DecayChain([decay3,decay4])
+  decaygroup = DecayGroups([decaychain,decaychain2])
   print(decay.get_cg_matrix().T)
   print(np.array(decay.get_ls_list()))
   print(np.array(decay.get_ls_list())[:,0])
+  print(decaychain)
+  print(decaygroup)
+  print(a.get_resonances())
 
 if __name__=="__main__":
   test()
