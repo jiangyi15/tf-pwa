@@ -78,7 +78,7 @@ def process_decay_card(lines):
     if cmd in commands:
       yield do_command(cmd, params, lines)
     else:
-      yield {cmd:params}
+      yield (cmd, params)
 
 @regist_command(name="Decay")
 def get_decay(words, lines):
@@ -94,7 +94,7 @@ def get_decay(words, lines):
       words[-1] = words[-1][:-1]
     s = sigle_decay(words)
     ret.append(s)
-  return {"Decay":{"name":core, "final":ret}}
+  return ("Decay", {"name":core, "final":ret})
 
 models = {"HELCOV":None,
           "PHSP":None}
@@ -125,4 +125,4 @@ def get_particles(words, _lines):
   if len(words) <= 0:
     raise Exception("Decay need particles")
   name = words[0]
-  return {"Particle":{"name":name, "params":words[1:]}}
+  return ("Particle", {"name":name, "params":words[1:]})
