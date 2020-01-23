@@ -48,7 +48,8 @@ setup(
     entry_points={
       "console_scripts": [
         "fit_scipy = fit_scipy:fit",
-      ]
+        "tf_pwa = tf_pwa.__main__:main"
+      ],
     },
     command_options={
       'build_sphinx': {

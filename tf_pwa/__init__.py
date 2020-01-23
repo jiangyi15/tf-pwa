@@ -6,7 +6,9 @@ import os
 import tensorflow as tf
 from .version import __version__
 from .utils import set_gpu_mem_growth
+
 #import json
+
 
 #file_path = os.getcwd()
 #config = {}
@@ -18,6 +20,7 @@ from .utils import set_gpu_mem_growth
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 
+# pylint: disable=no-member
 tf_version = int(tf.__version__.split(".")[0])
 if tf_version < 2:
   tf.compat.v1.enable_eager_execution()

@@ -192,9 +192,9 @@ class Model(object):
   
   def sum_hessian(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
     n_variables = len(self.Amp.trainable_variables)
-    g = None
-    h = None
-    nll = 0.0
+    g_s = []
+    h_s = []
+    nll_s = []
     if isinstance(weight,float):
       weight = [weight] * len(data)
     for i in range(len(data)):
@@ -204,29 +204,26 @@ class Model(object):
           amp2s = self.Amp(data[i],*args,**kwargs)
           l_a = func(amp2s)
           p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-        nll += p_nll
+        nll_s.append(p_nll)
         a = tape.gradient(p_nll,self.Amp.trainable_variables)
+        g_s.append(a)
       he = []
       for gi in a:
         he.append(tape0.gradient(gi,self.Amp.trainable_variables,unconnected_gradients="zero"))
       del tape0
-      if g is None:
-        g = a
-        h = he
-      else :
-        for j in range(n_variables):
-          g[j] += a[j]
-          for k in range(n_variables):
-            h[j][k] += he[j][k]
-    return nll,g,h
+      h_s.append(he)
+    nll = tf.reduce_sum(nll_s)
+    g = tf.reduce_sum(g_s, axis=0)
+    h = tf.reduce_sum(h_s, axis=0)
+    return nll, g, h
   
   def sum_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
     if get_config("multi_gpus"):
       ret = self.sum_gradient_gpus(data,weight=weight,func = func,args=args,kwargs=kwargs)
       return ret
     n_variables = len(self.Amp.trainable_variables)
-    g = None
-    nll = 0.0
+    g_s = []
+    nll_s = []
     if isinstance(weight,float):
       weight = [weight] * len(data)
     for i in range(len(data)):
@@ -237,12 +234,10 @@ class Model(object):
         l_a = func(amp2s)
         p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
       a = tape.gradient(p_nll,self.Amp.trainable_variables)
-      nll += p_nll
-      if g is None:
-        g = a
-      else :
-        for j in range(n_variables):
-          g[j] += a[j]
+      nll_s.append(p_nll)
+      g_s.append(a)
+    nll = sum(nll_s)
+    g = np.array(g_s).sum(0)
     #print(nll,g)
     return nll,g
   
@@ -382,11 +377,9 @@ class Cache_Model(Model):
     sw = tf.cast(self.sw,nll_0.dtype)
     nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
     nll += cons
-    g = [ cons_grad[i] - g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
+    g = np.array(cons_grad) - g0.numpy() + sw * g1.numpy()/int_mc
     n = len(g0)
-    h0 = np.array([[j.numpy() for j in i] for i in h0])
-    h1 = np.array([[j.numpy() for j in i] for i in h1])
-    g1 = np.array([i.numpy() for i in g1])/int_mc
+    g1 = g1.numpy()/int_mc
     h = - h0 - sw *np.outer(g1,g1) + sw / int_mc * h1 + cons_hessian
     return nll, g, h
     

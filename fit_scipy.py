@@ -7,7 +7,7 @@ import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
-from tf_pwa.fitfractions import cal_fitfractions
+from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import math
 from tf_pwa.bounds import Bounds
 from generate_toy import generate_data
@@ -248,8 +248,11 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #calPWratio(params,POLAR)
   
   if frac:
-    mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
-    frac,grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
+    mcdata_cached = a.Amp.cache_data(*mcdata,batch=10000)
+    if hesse:
+      frac, grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
+    else:
+      frac = cal_fitfractions_no_grad(a.Amp,mcdata_cached,kwargs={"cached":True})
     err_frac = {}
     for i in config_list:
       if hesse:

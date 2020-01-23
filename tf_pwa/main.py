@@ -17,7 +17,7 @@ def _protect_dict(override_message=None):
 
 get_sub_cmd, set_sub_cmd = _protect_dict("sub commands")
 
-def regist_subcommand(name=None, args=None):
+def regist_subcommand(name=None, arg_fun=None, args=None):
     _sub_commands = get_sub_cmd()
     if args is None:
         args = {}
@@ -25,7 +25,10 @@ def regist_subcommand(name=None, args=None):
         name_t = name
         if name_t is None:
             name_t = f.__name__
-        cmds = _build_arguments(f, args)
+        if arg_fun is None:
+          cmds = _build_arguments(f, args)
+        else:
+          cmds = arg_fun
         set_sub_cmd(name_t, cmds)
         return f
     return wrap
@@ -107,9 +110,12 @@ def main():
     for i in _sub_commands:
         cmds = _sub_commands[i]
         pi = subparsers.add_parser(i)
-        pi.set_defaults(func=cmds["fun"])
-        for args, kwargs in cmds["args"]:
-            pi.add_argument(*args, **kwargs)
+        if callable(cmds):
+          cmds(pi)
+        else:
+          pi.set_defaults(func=cmds["fun"])
+          for args, kwargs in cmds["args"]:
+              pi.add_argument(*args, **kwargs)
     args = parser.parse_args()
     if hasattr(args, "func"):
         args.func(args)
