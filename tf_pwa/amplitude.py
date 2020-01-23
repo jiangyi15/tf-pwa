@@ -1,5 +1,7 @@
 from . import tf
 import numpy as np
+
+from contextlib import contextmanager
 from .cg import get_cg_coef
 from .d_function_new import d_function_cos
 from .complex_F import Complex_F
@@ -483,6 +485,13 @@ class AllAmplitude(tf.keras.Model):
       self.add_var.set(i,n_i)
     self.polar = polar
     return self.get_params()
+  
+  @contextmanager
+  def params_form(self,polar=True):
+    origin_polar = self.polar
+    self.trans_params(polar)
+    yield self.get_params()
+    self.trans_params(origin_polar)
   
   def _std_polar_total(self):
     polar_head = {}

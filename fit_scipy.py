@@ -240,6 +240,9 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     #params[v+'i:0'] = phi
     #print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
   #a.set_params(params)
+  
+  #with a.Amp.params_form(polar=True) as params:
+    #pprint(params)
 
   outdic={"value":params,"error":err,"config":config_list}
   with open("final_params.json","w") as f:                                      
@@ -248,10 +251,11 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #calPWratio(params,POLAR)
   
   if frac:
-    mcdata_cached = a.Amp.cache_data(*mcdata,batch=10000)
     if hesse:
+      mcdata_cached = a.Amp.cache_data(*mcdata,batch=10000)
       frac, grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
     else:
+      mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
       frac = cal_fitfractions_no_grad(a.Amp,mcdata_cached,kwargs={"cached":True})
     err_frac = {}
     for i in config_list:
