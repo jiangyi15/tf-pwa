@@ -77,10 +77,10 @@ tf\_pwa.model module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.res\_cache module
+tf\_pwa.particle module
 -------------------------
 
-.. automodule:: tf_pwa.res_cache
+.. automodule:: tf_pwa.particle
    :members:
    :undoc-members:
    :show-inheritance:

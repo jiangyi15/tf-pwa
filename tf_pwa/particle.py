@@ -18,19 +18,14 @@ def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
   return ret
 
 
-class Particle(object):
+class BaseParticle(object):
   """
-  general Particle object
+  Base Particle object
   """
-  def __init__(self, name, J=0, P=-1, spins=None):
+  def __init__(self, name):
     self.name = name
-    self.J = J
-    self.P = P
     self.decay = []
     self.parents = []
-    if spins is None:
-      spins = list(range(-J, J+1))
-    self.spins = spins
 
   def add_decay(self, d):
     self.decay.append(d)
@@ -53,13 +48,27 @@ class Particle(object):
         if tmp:
           ret_tmp.append(tmp)
       ret += cross_combine(ret_tmp)
-    return ret
+    return ret  
 
   def get_resonances(self):
     decay_chain = self.chain_decay()
     chains = [DecayChain(i) for i in decay_chain]
     decaygroup = DecayGroups(chains)
     return decaygroup.resonances
+
+class Particle(BaseParticle):
+  """
+  general Particle object
+  """
+  def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None):
+    super(Particle,self).__init__(name)
+    self.J = J
+    self.P = P
+    if spins is None:
+      spins = tuple(range(-J, J+1))
+    self.spins = tuple(spins)
+    self.mass = mass
+    self.width = width
 
 def cross_combine(x):
   if not x:
@@ -76,10 +85,9 @@ def cross_combine(x):
         ret.append(i + j)
   return ret
 
-
-class Decay(object):
+class BaseDecay(object):
   """
-  general Decay object
+  Base Decay object
   """
   def __init__(self, core, outs, name=None):
     self.name = name
@@ -88,6 +96,19 @@ class Decay(object):
     for i in outs:
       i.add_parents(core)
     self.outs = outs
+
+  def __repr__(self):
+    ret = str(self.core)
+    ret += "->"
+    ret += "+".join([str(i) for i in self.outs])
+    return ret
+
+class Decay(BaseDecay):
+  """
+  general Decay object
+  """
+  def __init__(self, core, outs, name=None):
+    super(Decay, self).__init__(core, outs, name)
 
   @functools.lru_cache()
   def get_ls_list(self):
@@ -151,14 +172,6 @@ class Decay(object):
     """
     d = 3.0
     ret = default_barrier_factor(self.get_l_list(), q, q0, d)
-    return ret
-
-  def __repr__(self):
-    ret = str(self.core)
-    ret += "->"
-    ret += str(self.outs[0])
-    for i in self.outs[1:]:
-      ret += "+"+str(i)
     return ret
 
 def split_particle_type(decays):

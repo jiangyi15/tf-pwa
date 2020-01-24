@@ -75,7 +75,7 @@ class AllAmplitude(tf.keras.Model):
     self.m0_C = 0.13957061
     self.m0_D = 2.00685
     
-    self.A = Particle("A",self.JA,self.ParA,[-1,1])
+    self.A = Particle("A",self.JA,self.ParA,spins=[-1,1])
     self.B = Particle("B",self.JB,self.ParB)
     self.C = Particle("C",self.JC,self.ParC)
     self.D = Particle("D",self.JD,self.ParD)
