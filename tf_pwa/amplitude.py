@@ -1,4 +1,4 @@
-from . import tf
+from .tensorflow_wrapper import tf
 import numpy as np
 
 from contextlib import contextmanager

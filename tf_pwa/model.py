@@ -2,7 +2,7 @@
 basic negative log-likelihood model
 """
 
-from . import tf,tf_version
+from .tensorflow_wrapper import tf, tf_version
 from .amplitude import AllAmplitude
 from .config import get_config
 import time 

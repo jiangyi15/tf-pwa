@@ -1,58 +1,55 @@
-from .amplitude import AllAmplitude 
 from contextlib import contextmanager
-from functools import wraps
+from functools import partial
+from .amplitude import AllAmplitude
 
-_config = {
-  "amp": AllAmplitude,
-  "multi_gpus": False
-}
+class ConfigManager(dict):
+    pass
 
-def set_config(name,var):
-  """
-  set a configuration.
-  """
-  global _config
-  if name in _config:
-    _config[name] = var
-  else:
-    raise Exception("No configuration named {} found.".format(name))
+def create_config(default):
+    _config = ConfigManager(default)
 
-def get_config(name):
-  """
-  get a configuration.
-  """
-  if name in _config:
-    return _config[name]
-  else:
-    raise Exception("No configuration named {} found.".format(name))
+    def set_(name, var):
+        """
+        set a configuration.
+        """
+        if name in _config:
+            _config[name] = var
+        else:
+            raise Exception("No configuration named {} found.".format(name))
 
-def regist_config(name,var=None):
-  """
-  regist a configuration. 
-  """
-  global _config
-  if name in _config:
-    raise Exception("Configuration named {} already exists.".format(name))
-  if var is None:
-    def regist(f):
-      _config[name] = f
-      return f
-    return regist
-  else:
-    _config[name] = var
-    return var
+    def get_(name):
+        """
+        get a configuration.
+        """
+        if name in _config:
+            return _config[name]
+        raise Exception("No configuration named {} found.".format(name))
 
-@contextmanager
-def temporary_config(name,var):
-  tmp = get_config(name)
-  set_config(name,var)
-  yield var
-  set_config(name,tmp)
+    def regist_(name, var=None):
+        """
+        regist a configuration.
+        """
+        if name in _config:
+            raise Exception("Configuration named {} already exists.".format(name))
+        if var is None:
+            def regist(f):
+                _config[name] = f
+                return f
+            return regist
+        _config[name] = var
+        return var
+    return set_, get_, regist_
+
+set_config, get_config, regist_config = create_config({
+    "amp": AllAmplitude,
+    "multi_gpus": False
+})
 
 @contextmanager
-def using_amplitude(a):
-  tmp = get_config("amp")
-  set_config("amp",a)
-  yield a
-  set_config("amp",tmp)
+def temp_config(name, var):
+    tmp = get_config(name)
+    set_config(name, var)
+    yield var
+    set_config(name, tmp)
 
+using_amplitude = lambda var: temp_config("amp",var)

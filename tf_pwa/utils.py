@@ -1,7 +1,10 @@
 import json
-from .angle import EularAngle
 import math
-from . import tf
+
+class AttrDict(dict):
+  __setattr__ = dict.__setitem__
+  __getattr__ = dict.__getitem__
+
 
 has_yaml = True
 try:
@@ -31,18 +34,21 @@ def load_config_file(name):
     print("no yaml support, using json file")
     return load_json_file(name + ".json")
 
-def flatten_np_data(data):
-  ret = {}
-  for i in data:
-    tmp = data[i]
-    if isinstance(tmp,EularAngle):
-      ret["alpha"+i[3:]] = tmp.alpha
-      ret["beta"+i[3:]] = tmp.beta
-      ret["gamma"+i[3:]] = tmp.gamma
-    else :
-      ret[i] = data[i]
-  return ret
-    
+def flatten_dict_data(data, fun="{}/{}".format):
+  if isinstance(data,dict):
+    ret = {}
+    for i in data:
+      tmp = flatten_dict_data(data[i])
+      if isinstance(tmp,dict):
+        for j in tmp:
+          ret[fun(i, j)] = tmp[j]
+      else:
+        ret[i] = tmp
+    return ret
+  else :
+    return data
+
+flatten_np_data = lambda data: flatten_dict_data(data, fun=lambda x, y: "{}{}".format(y,x[3:]))
   
 def error_print(x,err=None):
   if err is None:
@@ -82,16 +88,3 @@ def std_polar(rho,phi):
   while phi>math.pi:
     phi-=2*math.pi
   return rho,phi
-
-def set_gpu_mem_growth():
-  gpus = tf.config.experimental.list_physical_devices('GPU')
-  if gpus:
-    try:
-      # Currently, memory growth needs to be the same across GPUs
-      for gpu in gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
-      logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-      #print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-    except RuntimeError as e:
-      # Memory growth must be set before GPUs have been initialized
-      print(e)

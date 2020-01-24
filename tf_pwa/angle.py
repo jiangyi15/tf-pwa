@@ -1,4 +1,5 @@
 import numpy as np
+from .utils import AttrDict
 # import pysnooper
 
 class Vector3(object):
@@ -91,7 +92,7 @@ class LorentzVector(object):
     return str(self.p)+"\n"+str(self.e)+"\n"
 
 
-class EularAngle(object):
+class EularAngle(AttrDict):
   def __init__(self,alpha=0.0,beta=0.0,gamma=0.0):
     self.alpha = alpha
     self.beta  = beta
@@ -127,10 +128,6 @@ class EularAngle(object):
     gamma = np.zeros_like(beta)
     u_x2 = u_yr.Cross(u_z2).Unit()
     return (EularAngle(alpha,beta,gamma),u_x2)
-  def as_dict(self):
-    return {"alpha":self.alpha,"beta":self.beta,"gamma":self.gamma}
-  def __repr__(self):
-    return str(self.as_dict())
 
 #@pysnooper.snoop()
 def cal_angle(p_B,p_C,p_D):
