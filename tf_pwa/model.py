@@ -3,14 +3,17 @@ basic negative log-likelihood model
 """
 
 from .tensorflow_wrapper import tf, tf_version
+import numpy as np
+
 from .amplitude import AllAmplitude
 from .config import get_config
+
 import time 
 import functools
-import numpy as np
 from multiprocessing.dummy import Process
 
-def array_split(data,batch=None):
+
+def array_split(data,batch=None): #这俩可以放到util里
   if batch is None:
     return [data]
   ret = []
@@ -23,7 +26,6 @@ def array_split(data,batch=None):
     ret.append(tmp)
   return ret
 
-
 def time_print(f):
   @functools.wraps(f)
   def g(*args,**kwargs):
@@ -33,6 +35,7 @@ def time_print(f):
     return ret
   return g
 
+
 class Model(object):
   """
   simple negative log likelihood model
@@ -40,13 +43,14 @@ class Model(object):
   """
   def __init__(self,configs,w_bkg = 0,constrain={},args=(),kwargs={}):
     self.w_bkg = w_bkg
-    if callable(configs):
+    if callable(configs):#为什么要区分这个？
       self.Amp = configs
     else :
       self.Amp = get_config("amp")(configs,*args,**kwargs)
-    self.constrain = constrain
+    self.constrain = constrain # priori gauss constrain for the fitting parameters
   
-  def get_constrain_term(self):
+
+  def get_constrain_term(self): # the priori constrain term added to NLL
     r"""
     constrain: Gauss(mean,sigma) 
       by add a term :math:`\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2}`
@@ -66,7 +70,7 @@ class Model(object):
         nll += (var - mean)**2/(sigma**2)/2
     return nll
   
-  def get_constrain_grad(self):
+  def get_constrain_grad(self): # the constrained parameter's 1st differentiation
     r"""
     constrain: Gauss(mean,sigma) 
       by add a term :math:`\frac{d}{d\theta_i}\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2} = \frac{\theta_i-\bar{\theta_i}}{\sigma^2}`
@@ -83,7 +87,7 @@ class Model(object):
       if isinstance(pi,tuple) and len(pi)==2:
         mean, sigma = pi
         var = var_dict[i]
-        g_dict[i] = (var - mean)/(sigma**2)
+        g_dict[i] = (var - mean)/(sigma**2) # 1st differentiation
     nll_g = []
     for i in t_var_name:
       if i in g_dict:
@@ -92,7 +96,7 @@ class Model(object):
         nll_g.append(0.0)
     return nll_g
   
-  def get_constrain_hessian(self):
+  def get_constrain_hessian(self): # the constrained parameter's 2nd differentiation
     t_var = self.Amp.trainable_variables
     t_var_name = [i.name for i in t_var]
     var_dict = dict(zip(t_var_name,t_var))
@@ -104,7 +108,7 @@ class Model(object):
       if isinstance(pi,tuple) and len(pi)==2:
         mean, sigma = pi
         var = var_dict[i]
-        g_dict[i] = 1/(sigma**2)
+        g_dict[i] = 1/(sigma**2) # 2nd differentiation
     nll_g = []
     for i in t_var_name:
       if i in g_dict:
@@ -113,7 +117,8 @@ class Model(object):
         nll_g.append(0.0)
     return np.diag(nll_g)
   
-  def get_weight_data(self,data,bg):
+
+  def get_weight_data(self,data,bg): # pretreat data and bg into one
     if tf_version < 2:
       n_data = data[0].shape[0].value
       n_bg = bg[0].shape[0].value
@@ -122,9 +127,10 @@ class Model(object):
       n_bg = bg[0].shape[0]
     alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
     weight = [alpha]*n_data + [-self.w_bkg * alpha] * n_bg
-    n_param  = len(data)
+    n_param  = len(data) # number of fitting parameters
     data_warp = [tf.concat([data[i],bg[i]],0) for i in range(n_param)]
     return data_warp,weight
+
 
   def nll(self,data,mcdata,weight=1.0,batch=None,args=(),kwargs={}):
     r"""
@@ -162,7 +168,7 @@ class Model(object):
     """
     t_var = self.Amp.trainable_variables
     if batch is None:
-      with tf.GradientTape() as tape:
+      with tf.GradientTape() as tape: # auto differentiation
         tape.watch(t_var)
         nll = self.nll(data,mcdata,weight)
       g = tape.gradient(nll,t_var)
@@ -189,7 +195,8 @@ class Model(object):
       nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(n_mc,int_mc.dtype)) + cons
       g = [ cons_grad[i] - g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
       return nll,g
-  
+
+
   def sum_hessian(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
     n_variables = len(self.Amp.trainable_variables)
     g_s = []
@@ -286,6 +293,7 @@ class Model(object):
           g[i] += j
     return nll,g
   
+
   def get_params(self):
     return self.Amp.get_params()
   
@@ -299,6 +307,7 @@ class Model(object):
       if i in var_name:
         tmp = param[i]
         var[i].assign(tmp)
+
 
 class Cache_Model(Model):
   def __init__(self,configs,w_bkg,data,mc,bg=None,batch=50000,constrain={},args=(),kwargs={}):
@@ -321,7 +330,8 @@ class Cache_Model(Model):
     self.init_params = self.get_params()
     self.t_var = self.Amp.trainable_variables
     self.t_var_name = [i.name for i in self.t_var]
-    
+
+
   def cal_nll(self,params={}):
     if isinstance(params,dict):
       self.set_params(params)
@@ -382,7 +392,8 @@ class Cache_Model(Model):
     g1 = g1.numpy()/int_mc
     h = - h0 - sw *np.outer(g1,g1) + sw / int_mc * h1 + cons_hessian
     return nll, g, h
-    
+
+
 class FCN(object):
   def __init__(self,cache_model):
     self.model = cache_model
@@ -434,8 +445,7 @@ param_list = [
 ]
 
 
-
-def train_one_step(model, optimizer, data,mc,weight=1.0,batch=16384):
+def train_one_step(model, optimizer, data,mc,weight=1.0,batch=16384): #去掉了？
   nll,grads = model.nll_gradient(data,mc,weight,batch)
   print(grads)
   print(nll)
