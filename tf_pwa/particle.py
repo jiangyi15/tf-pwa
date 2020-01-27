@@ -193,18 +193,21 @@ class DecayChain(object):
     assert len(top) == 1, "top particles must be only one particle"
     self.top = top.pop()
 
+  def __iter__(self):
+    return iter(self.chain)
+
   def __repr__(self):
     return "{}".format(self.chain)
-  
+
   def sorted_table(self):
     """
-    A topology independent structure 
+    A topology independent structure
     [a->rb,r->cd] => {a:[b,c,d],r:[c,d],b:[b],c:[c],d:[d]}
     """
     decay_dict = {}
     for i in self.outs:
       decay_dict[i] = [i.name]
-    
+
     chain = self.chain.copy()
     while chain:
       tmp_chain = chain.copy()
@@ -217,21 +220,69 @@ class DecayChain(object):
           chain.remove(i)
     decay_dict[self.top] = sorted([i.name for i in self.outs])
     return decay_dict
-  
+
   @staticmethod
   def from_sorted_table(decay_dict):
     """
-    Create decay chain form a topology independent structure 
-    {a:[b,c,d],r:[c,d],b:[b],c:[c],d:[d]} => [a->rb,r->cd] 
+    Create decay chain form a topology independent structure
+    {a:[b,c,d],r:[c,d],b:[b],c:[c],d:[d]} => [a->rb,r->cd]
     """
-    pass
+    # split for size
+    def split_len(dicts):
+      size_table = []
+      for i in dicts:
+        tmp = dicts[i]
+        size_table.append((len(tmp), i))
+      max_l = max([i for i, _ in size_table])
+      ret = [None] * (max_l+1)
+      for i, s in size_table:
+        if ret[i] is None:
+          ret[i] = []
+        ret[i].append((s, dicts[s]))
+      return ret
+
+    def sum_list(ls):
+      ret = ls[0]
+      for i in ls[1:]:
+        ret = ret + i
+      return ret
+
+    def deep_search(idx, base):
+      base_step = 2
+      max_step = len(base)
+      while base_step <= max_step:
+        for i in deep_iter(base, base_step):
+          check = sum_list([base[j] for j in i])
+          if sorted(check) == idx[1]:
+            return i
+        base_step += 1
+
+    def deep_iter(base, deep=1):
+      if deep == 1:
+        for i in base:
+          yield [i]
+      else:
+        for i in base:
+          for j in deep_iter(base, deep-1):
+            yield [i] + j
+
+    s_dict = split_len(decay_dict)
+    base_dict = dict(s_dict[1])
+    ret = []
+    for s_dict_i in s_dict[2:]:
+      for j in s_dict_i:
+        found = deep_search(j, base_dict)
+        ret.append(BaseDecay(j[0], found, disable=True))
+        for i in found:
+          del base_dict[i]
+        base_dict[j[0]] = j[1]
+    return DecayChain(ret)
 
   @staticmethod
-  def from_particles(top,finals):
+  def from_particles(top, finals):
     """
     build possible Decay Chain Topology
     a -> [b,c,d] => [[a->rb,r->cd],[a->rc,r->bd],[a->rd,r->bc]]
-    
     """
     assert len(finals) > 0, " "
 
@@ -245,17 +296,15 @@ class DecayChain(object):
           gi.add_node(i, p)
           ret += get_graphs(gi, ps)
         return ret
-      else:
-        return [g]
+      return [g]
     base = _Chain_Graph()
     base.add_edge(top, finals[0])
     gs = get_graphs(base, finals[1:])
-   
     return [i.get_decay_chain(top) for i in gs]
-  
-  def topology_same(self,other):
-    if not isinstance(other,DecayChain):
-      raise TypeError("unsupport type {}".type(other))
+
+  def topology_same(self, other):
+    if not isinstance(other, DecayChain):
+      raise TypeError("unsupport type {}".format(type(other)))
     a = self.sorted_table()
     set_a = sorted([a[i] for i in a])
     b = other.sorted_table()
@@ -268,7 +317,7 @@ class _Chain_Graph(object):
     self.edges = []
     self.count = 0
   def add_edge(self, a, b):
-    self.edges.append((a,b))
+    self.edges.append((a, b))
   def add_node(self, e, d):
     self.edges.remove(e)
     node = BaseParticle("tmp_node_" + str(self.count))
@@ -283,7 +332,7 @@ class _Chain_Graph(object):
     ret.edges = self.edges.copy()
     ret.count = self.count
     return ret
-  def get_decay_chain(self,top):
+  def get_decay_chain(self, top):
     decay_list = {}
     ret = []
     for i, j in self.edges:
@@ -295,7 +344,7 @@ class _Chain_Graph(object):
     decay_list[top] = decay_list[tmp]
     del decay_list[tmp]
     for i in decay_list:
-      tmp = BaseDecay(i,decay_list[i],disable=True)
+      tmp = BaseDecay(i, decay_list[i], disable=True)
       ret.append(tmp)
     return DecayChain(ret)
 
