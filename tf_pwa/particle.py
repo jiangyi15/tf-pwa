@@ -25,7 +25,7 @@ class BaseParticle(object):
   def __init__(self, name):
     self.name = name
     self.decay = []
-    self.parents = []
+    self.creators = []
 
   def add_decay(self, d):
     self.decay.append(d)
@@ -33,8 +33,8 @@ class BaseParticle(object):
   def remove_decay(self, d):
     self.decay.remove(d)
 
-  def add_parents(self, p):
-    self.parents.append(p)
+  def add_creator(self, d):
+    self.creators.append(d)
 
   def __repr__(self):
     return self.name
@@ -48,7 +48,7 @@ class BaseParticle(object):
         if tmp:
           ret_tmp.append(tmp)
       ret += cross_combine(ret_tmp)
-    return ret  
+    return ret
 
   def get_resonances(self):
     decay_chain = self.chain_decay()
@@ -61,7 +61,7 @@ class Particle(BaseParticle):
   general Particle object
   """
   def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None):
-    super(Particle,self).__init__(name)
+    super(Particle, self).__init__(name)
     self.J = J
     self.P = P
     if spins is None:
@@ -94,7 +94,7 @@ class BaseDecay(object):
     self.core = core
     self.core.add_decay(self)
     for i in outs:
-      i.add_parents(core)
+      i.add_creator(self)
     self.outs = outs
 
   def __repr__(self):
@@ -107,9 +107,6 @@ class Decay(BaseDecay):
   """
   general Decay object
   """
-  def __init__(self, core, outs, name=None):
-    super(Decay, self).__init__(core, outs, name)
-
   @functools.lru_cache()
   def get_ls_list(self):
     ja = self.core.J
