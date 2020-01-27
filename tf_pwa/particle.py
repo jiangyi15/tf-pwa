@@ -89,12 +89,13 @@ class BaseDecay(object):
   """
   Base Decay object
   """
-  def __init__(self, core, outs, name=None):
+  def __init__(self, core, outs, name=None, disable=False):
     self.name = name
     self.core = core
-    self.core.add_decay(self)
-    for i in outs:
-      i.add_creator(self)
+    if not disable:
+      self.core.add_decay(self)
+      for i in outs:
+        i.add_creator(self)
     self.outs = outs
 
   def __repr__(self):
@@ -188,10 +189,115 @@ def split_particle_type(decays):
 class DecayChain(object):
   def __init__(self, chain):
     self.chain = chain
-    self.top, self.inner, self.outs = split_particle_type(chain)
+    top, self.inner, self.outs = split_particle_type(chain)
+    assert len(top) == 1, "top particles must be only one particle"
+    self.top = top.pop()
 
   def __repr__(self):
     return "{}".format(self.chain)
+  
+  def sorted_table(self):
+    """
+    A topology independent structure 
+    [a->rb,r->cd] => {a:[b,c,d],r:[c,d],b:[b],c:[c],d:[d]}
+    """
+    decay_dict = {}
+    for i in self.outs:
+      decay_dict[i] = [i.name]
+    
+    chain = self.chain.copy()
+    while chain:
+      tmp_chain = chain.copy()
+      for i in tmp_chain:
+        if all([j in decay_dict for j in i.outs]):
+          decay_dict[i.core] = []
+          for j in i.outs:
+            decay_dict[i.core] += decay_dict[j]
+          decay_dict[i.core].sort()
+          chain.remove(i)
+    decay_dict[self.top] = sorted([i.name for i in self.outs])
+    return decay_dict
+  
+  @staticmethod
+  def from_sorted_table(decay_dict):
+    """
+    Create decay chain form a topology independent structure 
+    {a:[b,c,d],r:[c,d],b:[b],c:[c],d:[d]} => [a->rb,r->cd] 
+    """
+    pass
+
+  @staticmethod
+  def from_particles(top,finals):
+    """
+    build possible Decay Chain Topology
+    a -> [b,c,d] => [[a->rb,r->cd],[a->rc,r->bd],[a->rd,r->bc]]
+    
+    """
+    assert len(finals) > 0, " "
+
+    def get_graphs(g, ps):
+      if ps:
+        p = ps[0]
+        ps = ps[1:]
+        ret = []
+        for i in g.edges:
+          gi = g.copy()
+          gi.add_node(i, p)
+          ret += get_graphs(gi, ps)
+        return ret
+      else:
+        return [g]
+    base = _Chain_Graph()
+    base.add_edge(top, finals[0])
+    gs = get_graphs(base, finals[1:])
+   
+    return [i.get_decay_chain(top) for i in gs]
+  
+  def topology_same(self,other):
+    if not isinstance(other,DecayChain):
+      raise TypeError("unsupport type {}".type(other))
+    a = self.sorted_table()
+    set_a = sorted([a[i] for i in a])
+    b = other.sorted_table()
+    set_b = sorted([b[i] for i in b])
+    return set_a == set_b
+
+class _Chain_Graph(object):
+  def __init__(self):
+    self.nodes = []
+    self.edges = []
+    self.count = 0
+  def add_edge(self, a, b):
+    self.edges.append((a,b))
+  def add_node(self, e, d):
+    self.edges.remove(e)
+    node = BaseParticle("tmp_node_" + str(self.count))
+    self.nodes.append(node)
+    self.count += 1
+    self.edges.append((e[0], node))
+    self.edges.append((node, e[1]))
+    self.edges.append((node, d))
+  def copy(self):
+    ret = _Chain_Graph()
+    ret.nodes = self.nodes.copy()
+    ret.edges = self.edges.copy()
+    ret.count = self.count
+    return ret
+  def get_decay_chain(self,top):
+    decay_list = {}
+    ret = []
+    for i, j in self.edges:
+      if i in decay_list:
+        decay_list[i].append(j)
+      else:
+        decay_list[i] = [j]
+    tmp = decay_list[top][0]
+    decay_list[top] = decay_list[tmp]
+    del decay_list[tmp]
+    for i in decay_list:
+      tmp = BaseDecay(i,decay_list[i],disable=True)
+      ret.append(tmp)
+    return DecayChain(ret)
 
 class DecayGroups(object):
   def __init__(self, chains):
@@ -200,8 +306,7 @@ class DecayGroups(object):
       chains = [DecayChain(i) for i in chains]
       first_chain = chains[0]
     self.chains = chains
-    assert len(first_chain.top) == 1, "top particles must be only one particle"
-    self.top = list(first_chain.top)[0]
+    self.top = first_chain.top
     self.outs = list(first_chain.outs)
     for i in chains:
       assert i.top == first_chain.top, ""
@@ -244,6 +349,8 @@ def load_decfile_particle(fname):
   top, inner, outs = split_particle_type(decay)
   return top, inner, outs
 
+
+
 def test():
   a = Particle("a", 1, -1)
   b = Particle("b", 1, -1)
@@ -262,6 +369,7 @@ def test():
   print(np.array(decay.get_ls_list()))
   print(np.array(decay.get_ls_list())[:, 0])
   print(decaychain)
+  print(decaychain.sorted_table())
   print(decaygroup)
   print(a.get_resonances())
 

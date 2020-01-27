@@ -6,7 +6,7 @@ digraph {
     rankdir=LR;
     node [shape=point];
     edge [arrowhead=none];
-    """
+"""
     dot_tail = "}\n"
     dot_ranksame = '    {{ rank=same {} }};\n'
     dot_default_node = '    "{}" [shape=none];\n'
@@ -52,7 +52,6 @@ digraph {
                     ret += DotGenerator.dot_default_edge.format(i, j)
         ret += DotGenerator.dot_tail
         return ret
-
 
 def test_dot():
     a = BaseParticle("A")
