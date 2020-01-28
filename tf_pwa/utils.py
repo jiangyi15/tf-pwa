@@ -88,3 +88,26 @@ def std_polar(rho,phi):
   while phi>math.pi:
     phi-=2*math.pi
   return rho,phi
+
+def deep_iter(base, deep=1):
+  for i in base:
+    if deep == 1:
+      yield [i]
+    else:
+      for j in deep_iter(base, deep-1):
+        yield [i] + j
+
+def deep_ordered_iter(base, deep=1):
+  ids = list(base)
+  size = len(ids)
+  for i in deep_ordered_range(size, deep):
+    yield [ids[j] for j in i]
+
+def deep_ordered_range(size, deep=1, start=0):
+  for i in range(start, size):
+    if deep <= 1:
+      yield [i]
+    else:
+      for j in deep_ordered_range(size, deep-1, i+1):
+        yield [i] + j
+

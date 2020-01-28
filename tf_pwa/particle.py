@@ -4,6 +4,7 @@ import numpy as np
 from .cg import cg_coef
 from .breit_wigner import barrier_factor as default_barrier_factor
 from .dec_parser import load_dec_file
+from .utils import deep_ordered_iter
 
 def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
   dl = 0 if pa * pb * pc == 1 else  1 # pa = pb * pc * (-1)^l
@@ -251,31 +252,23 @@ class DecayChain(object):
       base_step = 2
       max_step = len(base)
       while base_step <= max_step:
-        for i in deep_iter(base, base_step):
+        for i in deep_ordered_iter(base, base_step):
           check = sum_list([base[j] for j in i])
-          if sorted(check) == idx[1]:
+          if sorted(check) == sorted(idx[1]):
             return i
         base_step += 1
-
-    def deep_iter(base, deep=1):
-      if deep == 1:
-        for i in base:
-          yield [i]
-      else:
-        for i in base:
-          for j in deep_iter(base, deep-1):
-            yield [i] + j
 
     s_dict = split_len(decay_dict)
     base_dict = dict(s_dict[1])
     ret = []
     for s_dict_i in s_dict[2:]:
-      for j in s_dict_i:
-        found = deep_search(j, base_dict)
-        ret.append(BaseDecay(j[0], found, disable=True))
-        for i in found:
-          del base_dict[i]
-        base_dict[j[0]] = j[1]
+      if s_dict_i:
+        for j in s_dict_i:
+          found = deep_search(j, base_dict)
+          ret.append(BaseDecay(j[0], found, disable=True))
+          for i in found:
+            del base_dict[i]
+          base_dict[j[0]] = j[1]
     return DecayChain(ret)
 
   @staticmethod
