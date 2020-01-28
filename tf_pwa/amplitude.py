@@ -4,7 +4,7 @@ import numpy as np
 from contextlib import contextmanager
 from .cg import get_cg_coef
 from .particle import Particle,Decay
-from .variable import Vars
+from .variable import Vars,fix_value
 from .dfun_tf import D_Cache as D_fun_Cache
 from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
 
@@ -12,6 +12,14 @@ import os
 import copy
 import functools
 
+param_list = [
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
+  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
+  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
+  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
+  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
+  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
+] #和model.py里重了
 
 def is_complex(x):
   try:
@@ -19,13 +27,6 @@ def is_complex(x):
   except:
     return False
   return True
-
-def fix_value(x):
-  def f(shape=None,dtype=None):
-    if dtype is not None:
-      return tf.Variable(x,dtype=dtype)
-    return x
-  return f #variable里面有实现
 
 
 def cg_coef(j1,j2,m1,m2,j,m):
@@ -55,7 +56,7 @@ class AllAmplitude(tf.keras.Model):
     self.C = Particle("C",self.JC,self.ParC)
     self.D = Particle("D",self.JD,self.ParD)
     
-    self.add_var = Vars(self) # add_var函数?
+    self.add_var = Vars(self) # 通过Vars类来操作variables
     self.res = copy.deepcopy(res) # RESON Params #直接用等号会修改res
     self.polar = polar # r*e^{ip} or x+iy
     self.res_decay = self.init_res_decay() # DECAY for each type of process
@@ -147,7 +148,7 @@ class AllAmplitude(tf.keras.Model):
         rho,phi = N_tot.real,N_tot.imag
       else:
         rho,phi = N_tot #其他类型的complex. raise error?
-      r = self.add_var(name=coef_head+"r",initializer=fix_value(rho),trainable=False)
+      r = self.add_var(name=coef_head+"r",initializer=fix_value(rho),trainable=False) #(name=coef_head+"r",var=rho,trainable=False) #去掉fix_value函数？
       i = self.add_var(name=head+"i",initializer=fix_value(phi),trainable=False)
     elif const_first:#先判断有么有total，否则就用const_first
       r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=False)

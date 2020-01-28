@@ -36,6 +36,16 @@ def time_print(f):
   return g
 
 
+param_list = [
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
+  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
+  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
+  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
+  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
+  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
+]
+
+
 class Model(object):
   """
   simple negative log likelihood model
@@ -171,9 +181,9 @@ class Model(object):
       with tf.GradientTape() as tape: # auto differentiation
         tape.watch(t_var)
         nll = self.nll(data,mcdata,weight)
-      g = tape.gradient(nll,t_var)
+      g = tape.gradient(nll,t_var) # the derivative of nll at t_var
       return nll,g
-    else :
+    else : # if batch
       n_data = data[0].shape[0]
       n_mc = mcdata[0].shape[0]
       data = array_split(data,batch)
@@ -190,51 +200,24 @@ class Model(object):
       nll_0,g0 = self.sum_gradient(data,weights,lambda x:tf.math.log(x))
       int_mc,g1 = self.sum_gradient(mcdata)
       sw = tf.cast(sw,nll_0.dtype)
-      cons_grad = self.get_constrain_grad()
+      cons_grad = self.get_constrain_grad() # the constrain term
       cons = self.get_constrain_term()
       nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(n_mc,int_mc.dtype)) + cons
       g = [ cons_grad[i] - g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
       return nll,g
 
-
-  def sum_hessian(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
-    n_variables = len(self.Amp.trainable_variables)
-    g_s = []
-    h_s = []
-    nll_s = []
-    if isinstance(weight,float):
-      weight = [weight] * len(data)
-    for i in range(len(data)):
-      #print(i,min(i*batch+batch,n_data))
-      with tf.GradientTape(persistent=True) as tape0:
-        with tf.GradientTape() as tape:
-          amp2s = self.Amp(data[i],*args,**kwargs)
-          l_a = func(amp2s)
-          p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-        nll_s.append(p_nll)
-        a = tape.gradient(p_nll,self.Amp.trainable_variables)
-        g_s.append(a)
-      he = []
-      for gi in a:
-        he.append(tape0.gradient(gi,self.Amp.trainable_variables,unconnected_gradients="zero"))
-      del tape0
-      h_s.append(he)
-    nll = tf.reduce_sum(nll_s)
-    g = tf.reduce_sum(g_s, axis=0)
-    h = tf.reduce_sum(h_s, axis=0)
-    return nll, g, h
-  
-  def sum_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
+ 
+  def sum_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}): #求和好了
     if get_config("multi_gpus"):
       ret = self.sum_gradient_gpus(data,weight=weight,func = func,args=args,kwargs=kwargs)
       return ret
+    
     n_variables = len(self.Amp.trainable_variables)
     g_s = []
     nll_s = []
     if isinstance(weight,float):
       weight = [weight] * len(data)
     for i in range(len(data)):
-      #print(i,min(i*batch+batch,n_data))
       with tf.GradientTape() as tape:
         tape.watch(self.Amp.trainable_variables)
         amp2s = self.Amp(data[i],*args,**kwargs)
@@ -245,16 +228,16 @@ class Model(object):
       g_s.append(a)
     nll = sum(nll_s)
     g = np.array(g_s).sum(0)
-    #print(nll,g)
     return nll,g
   
-  def sum_gradient_gpus(self,data,weight=1.0,func = lambda x:x,multi_gpus=True,args=(),kwargs={}):
+  def sum_gradient_gpus(self,data,weight=1.0,func = lambda x:x,multi_gpus=True,args=(),kwargs={}): # multi-gpu verison #还没更新？
     n_variables = len(self.Amp.trainable_variables)
     g = None
     nll = 0.0
     n_data = len(data)
     if isinstance(weight,float):
       weight = [weight] * n_data
+
     n_split = 1
     if multi_gpus:
       gpus = tf.config.experimental.get_visible_devices('GPU')
@@ -263,7 +246,6 @@ class Model(object):
     p = [None]*n_split
     p_ret = [None]*n_split
     n_data_split = (n_data+n_split-1)//n_split
-
     def split_nll_grad(i,p_ret):
       nll = 0.0
       with tf.device("/device:GPU:%d"%i):
@@ -279,7 +261,7 @@ class Model(object):
           nll += p_nll
           grads.append(a)
       p_ret[i] = nll,grads
-    
+
     for i in range(n_split):
       p[i] =  Process(target=split_nll_grad,args=(i,p_ret))
       p[i].start()
@@ -292,12 +274,39 @@ class Model(object):
         for i,j in enumerate(k):
           g[i] += j
     return nll,g
-  
+
+
+  def sum_hessian(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}): # add hessian compared to sum_gradient
+    n_variables = len(self.Amp.trainable_variables)
+    g_s = []
+    h_s = []
+    nll_s = []
+    if isinstance(weight,float):
+      weight = [weight] * len(data)
+    for i in range(len(data)):
+      with tf.GradientTape(persistent=True) as tape0:
+        with tf.GradientTape() as tape:
+          amp2s = self.Amp(data[i],*args,**kwargs)
+          l_a = func(amp2s)
+          p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
+        nll_s.append(p_nll)
+        a = tape.gradient(p_nll,self.Amp.trainable_variables)
+        g_s.append(a)
+      he = []
+      for gi in a:
+        he.append(tape0.gradient(gi,self.Amp.trainable_variables,unconnected_gradients="zero")) # 2nd order derivative
+      del tape0
+      h_s.append(he)
+    nll = tf.reduce_sum(nll_s)
+    g = tf.reduce_sum(g_s, axis=0)
+    h = tf.reduce_sum(h_s, axis=0)
+    return nll, g, h
+ 
 
   def get_params(self):
     return self.Amp.get_params()
   
-  def set_params(self,param):
+  def set_params(self,param): #改到amplitude里？
     if isinstance(param,dict) and "value" in param:
       param = param["value"]
     var_list = self.Amp.variables
@@ -311,7 +320,7 @@ class Model(object):
 
 class Cache_Model(Model):
   def __init__(self,configs,w_bkg,data,mc,bg=None,batch=50000,constrain={},args=(),kwargs={}):
-    super(Cache_Model,self).__init__(configs,w_bkg,constrain=constrain,*args,**kwargs)
+    super(Cache_Model,self).__init__(configs,w_bkg,constrain=constrain,*args,**kwargs) # call parent class Model.__init__()
     n_data = data[0].shape[0]
     self.n_mc = mc[0].shape[0]
     self.batch = batch
@@ -320,7 +329,7 @@ class Cache_Model(Model):
     else :
       data,weight = self.get_weight_data(data,bg)
       n_data = data[0].shape[0]
-    self.data = self.Amp.cache_data(*data,batch=self.batch)
+    self.data = self.Amp.cache_data(*data,batch=self.batch) # pretreat data and cache them
     self.mc = self.Amp.cache_data(*mc,batch=self.batch)
     self.sw = tf.reduce_sum(weight)
     self.weight = [
@@ -356,7 +365,7 @@ class Cache_Model(Model):
       l_a = func(amp2s)
       p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
       nll += p_nll
-    return nll
+    return nll # summed NLL???
   
   def cal_nll_gradient(self,params={}):
     if isinstance(params,dict):
@@ -367,11 +376,11 @@ class Cache_Model(Model):
     nll_0,g0 = self.sum_gradient(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
     int_mc,g1 = self.sum_gradient(self.mc,kwargs={"cached":True})
     sw = tf.cast(self.sw,nll_0.dtype)
-    nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
     cons = self.get_constrain_term()
+    nll = cons - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
     cons_grad = self.get_constrain_grad()
     g = [ cons_grad[i] -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
-    return nll + cons, g
+    return nll, g
   
   def cal_nll_hessian(self,params={}):
     if isinstance(params,dict):
@@ -385,8 +394,7 @@ class Cache_Model(Model):
     cons_grad = self.get_constrain_grad()
     cons_hessian = self.get_constrain_hessian()
     sw = tf.cast(self.sw,nll_0.dtype)
-    nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
-    nll += cons
+    nll = cons - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
     g = np.array(cons_grad) - g0.numpy() + sw * g1.numpy()/int_mc
     n = len(g0)
     g1 = g1.numpy()/int_mc
@@ -400,6 +408,7 @@ class FCN(object):
     self.ncall = 0
     self.n_grad = 0
     self.cached_nll = None
+    
   #@time_print
   def __call__(self,x):
     nll = self.model.cal_nll(x)
@@ -413,6 +422,13 @@ class FCN(object):
     self.cached_nll = nll
     self.n_grad += 1
     return np.array([i.numpy() for i in g])
+
+  #@time_print
+  def hessian(self,x):
+    nll,g,h = self.model.cal_nll_hessian(x)
+    self.cached_nll = nll
+    return h
+
   
   #@time_print
   def nll_grad(self,x):
@@ -422,35 +438,7 @@ class FCN(object):
     self.n_grad += 1
     return nll.numpy().astype("float64"), np.array([i.numpy() for i in g]).astype("float64")
   
-  
-  #@time_print
-  def hessian(self,x):
-    nll,g,h = self.model.cal_nll_hessian(x)
-    self.cached_nll = nll
-    return h
-  
   def nll_grad_hessian(self,x):
     nll,g,h = self.model.cal_nll_hessian(x)
     self.cached_nll = nll
     return nll,g,h
-  
-    
-param_list = [
-  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
-  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
-  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
-  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
-  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
-  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
-]
-
-
-def train_one_step(model, optimizer, data,mc,weight=1.0,batch=16384): #去掉了？
-  nll,grads = model.nll_gradient(data,mc,weight,batch)
-  print(grads)
-  print(nll)
-  optimizer.apply_gradients(zip(grads, model.Amp.trainable_variables))
-  
-  return nll
-
-
