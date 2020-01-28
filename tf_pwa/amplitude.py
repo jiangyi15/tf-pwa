@@ -485,3 +485,11 @@ class AllAmplitude(tf.keras.Model):
         raise Exception("unknow res {}".format(i))
     self.used_res = ret
 
+param_list = [
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
+  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
+  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
+  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
+  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
+  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
+]
