@@ -6,18 +6,21 @@ from .breit_wigner import barrier_factor as default_barrier_factor
 from .dec_parser import load_dec_file
 from .utils import deep_ordered_iter
 
-def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
-  dl = 0 if pa * pb * pc == 1 else  1 # pa = pb * pc * (-1)^l
-  s_min = abs(jb - jc)
-  s_max = jb + jc
-  # ns = s_max - s_min + 1
-  ret = []
-  for s in range(s_min, s_max+1):
-    for l in range(abs(ja - s), ja + s + 1):
-      if l % 2 == dl:
-        ret.append((l, s))
-  return ret
 
+def cross_combine(x):
+  if not x: # if x is []
+    return []
+  head = x[0]
+  tail = x[1:]
+  ret = []
+  other = cross_combine(tail)
+  for i in head:
+    if not other:
+      ret.append(i)
+    else:
+      for j in other:
+        ret.append(i + j)
+  return ret
 
 class BaseParticle(object):
   """
@@ -25,8 +28,8 @@ class BaseParticle(object):
   """
   def __init__(self, name):
     self.name = name
-    self.decay = []
-    self.creators = []
+    self.decay = [] # list of Decay
+    self.creators = [] # list of Decay which creates the particle
 
   def add_decay(self, d):
     self.decay.append(d)
@@ -46,10 +49,10 @@ class BaseParticle(object):
       ret_tmp = [[[i]]]
       for j in i.outs:
         tmp = j.chain_decay()
-        if tmp:
+        if tmp: # if tmp is not []
           ret_tmp.append(tmp)
       ret += cross_combine(ret_tmp)
-    return ret
+    return ret #最后出来个啥？
 
   def get_resonances(self):
     decay_chain = self.chain_decay()
@@ -57,7 +60,7 @@ class BaseParticle(object):
     decaygroup = DecayGroups(chains)
     return decaygroup.resonances
 
-class Particle(BaseParticle):
+class Particle(BaseParticle): # add parameters to BaseParticle
   """
   general Particle object
   """
@@ -71,19 +74,17 @@ class Particle(BaseParticle):
     self.mass = mass
     self.width = width
 
-def cross_combine(x):
-  if not x:
-    return []
-  head = x[0]
-  tail = x[1:]
+
+def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
+  dl = 0 if pa * pb * pc == 1 else  1 # pa = pb * pc * (-1)^l
+  s_min = abs(jb - jc)
+  s_max = jb + jc
+  # ns = s_max - s_min + 1
   ret = []
-  other = cross_combine(tail)
-  for i in head:
-    if not other:
-      ret.append(i)
-    else:
-      for j in other:
-        ret.append(i + j)
+  for s in range(s_min, s_max+1):
+    for l in range(abs(ja - s), ja + s + 1):
+      if l % 2 == dl:
+        ret.append((l, s))
   return ret
 
 class BaseDecay(object):
@@ -92,20 +93,20 @@ class BaseDecay(object):
   """
   def __init__(self, core, outs, name=None, disable=False):
     self.name = name
-    self.core = core
+    self.core = core # mother particle
     if not disable:
       self.core.add_decay(self)
       for i in outs:
         i.add_creator(self)
-    self.outs = outs
+    self.outs = outs # daughter particles
 
   def __repr__(self):
     ret = str(self.core)
     ret += "->"
     ret += "+".join([str(i) for i in self.outs])
-    return ret
+    return ret # "A->B+C"
 
-class Decay(BaseDecay):
+class Decay(BaseDecay): # add useful methods to BaseDecay
   """
   general Decay object
   """
@@ -127,7 +128,7 @@ class Decay(BaseDecay):
   def get_min_l(self):
     return min(self.get_l_list())
 
-  def generate_params(self, name=None, _ls=True):
+  def generate_params(self, name=None, _ls=True): # 取代amplitude里的gen_coef？
     if name is None:
       name = self.name
     ret = []
@@ -138,7 +139,7 @@ class Decay(BaseDecay):
     return ret
 
   @functools.lru_cache()
-  def get_cg_matrix(self):
+  def get_cg_matrix(self): # CG factor inside H
     """
     [(l,s),(lambda_b,lambda_c)]
 
@@ -165,13 +166,14 @@ class Decay(BaseDecay):
           j += 1
     return ret
 
-  def barrier_factor(self, q, q0):
+  def barrier_factor(self, q, q0): # Barrier factor inside H
     """
     defalut_barrier_factor
     """
     d = 3.0
     ret = default_barrier_factor(self.get_l_list(), q, q0, d)
     return ret
+
 
 def split_particle_type(decays):
     core_particles = set()
@@ -185,7 +187,7 @@ def split_particle_type(decays):
     inner = core_particles & out_particles
     top = core_particles - inner
     outs = out_particles - inner
-    return top, inner, outs
+    return top, inner, outs # top, intermediate, outs particles
 
 class DecayChain(object):
   def __init__(self, chain):
