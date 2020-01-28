@@ -5,7 +5,7 @@ basic negative log-likelihood model
 from .tensorflow_wrapper import tf, tf_version
 import numpy as np
 
-from .amplitude import AllAmplitude
+from .amplitude import AllAmplitude, param_list
 from .config import get_config
 
 import time 
@@ -34,16 +34,6 @@ def time_print(f):
     print(f.__name__ ," cost time:",time.time()-now)
     return ret
   return g
-
-
-param_list = [
-  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
-  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
-  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
-  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
-  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
-  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
-]
 
 
 class Model(object):

@@ -12,14 +12,6 @@ import os
 import copy
 import functools
 
-param_list = [
-  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
-  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
-  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
-  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
-  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
-  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
-] #和model.py里重了
 
 def is_complex(x):
   try:
@@ -28,6 +20,15 @@ def is_complex(x):
     return False
   return True
 
+
+param_list = [
+  "m_A","m_B","m_C","m_D","m_BC", "m_BD", "m_CD", 
+  "beta_BC", "beta_B_BC", "alpha_BC", "alpha_B_BC",
+  "beta_BD", "beta_B_BD", "alpha_BD", "alpha_B_BD", 
+  "beta_CD", "beta_D_CD", "alpha_CD", "alpha_D_CD",
+  "beta_BD_B","beta_BC_B","beta_BD_D","beta_CD_D",
+  "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
+]
 
 def cg_coef(j1,j2,m1,m2,j,m):
   ret = get_cg_coef(j1,j2,m1,m2,j,m)

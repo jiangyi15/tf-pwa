@@ -1,11 +1,11 @@
-from .particle import BaseParticle, BaseDecay, split_particle_type
+from .particle import split_particle_type
 
 class DotGenerator():
     dot_head = """
 digraph {
     rankdir=LR;
     node [shape=point];
-    edge [arrowhead=none];
+    edge [arrowhead=none, labelfloat=true];
 """
     dot_tail = "}\n"
     dot_ranksame = '    {{ rank=same {} }};\n'
@@ -25,9 +25,9 @@ digraph {
         return ret
 
     @staticmethod
-    def dot_chain(chains):
+    def dot_chain(chains, has_label=True):
         ret = DotGenerator.dot_head
-        top, inner, outs = split_particle_type(chains)
+        top, _, outs = split_particle_type(chains)
         def format_particle(ps):
             s = ['"{}"'.format(i) for i in ps]
             return ",".join(s)
@@ -36,30 +36,42 @@ digraph {
             ret += DotGenerator.dot_default_node.format(i)
         for i in outs:
             ret += DotGenerator.dot_default_node.format(i)
-        for i in inner:
-            assert len(i.creators) == 1, ""
-            decay_dict[i] = i.creators[0]
         ret += DotGenerator.dot_ranksame.format(format_particle(top))
         ret += DotGenerator.dot_ranksame.format(format_particle(outs))
 
+        decay_dict = {}
+        edges = []
         for i in chains:
-            if i.core in decay_dict:
-                ret += DotGenerator.dot_label_edge.format(decay_dict[i.core], i, i.core)
+            if i.core in top:
+                edges.append((i.core, i))
             else:
-                ret += DotGenerator.dot_default_edge.format(i.core, i)
+                decay_dict[i.core] = i
             for j in i.outs:
-                if j not in decay_dict:
-                    ret += DotGenerator.dot_default_edge.format(i, j)
+                edges.append((i, j))
+
+        for i, j in edges:
+            if j in decay_dict:
+                if has_label:
+                    ret += DotGenerator.dot_label_edge.format(i, decay_dict[j], j)
+                else:
+                    ret += DotGenerator.dot_default_edge.format(i, decay_dict[j])
+            else:
+                ret += DotGenerator.dot_default_edge.format(i, j)
         ret += DotGenerator.dot_tail
         return ret
 
 def test_dot():
+    from .particle import BaseParticle, BaseDecay, DecayChain
     a = BaseParticle("A")
     c = BaseParticle("C")
     b = BaseParticle("B")
     d = BaseParticle("D")
+    f = BaseParticle("E")
+    e = BaseParticle("F")
     r = BaseParticle("R")
     BaseDecay(r, [b, d])
     BaseDecay(a, [r, c])
     g = DotGenerator(a)
+    chains = DecayChain.from_particles(a, [b, c, d, e, f])
+    print(DotGenerator.dot_chain(chains[0], False))
     return g.get_dot_source()

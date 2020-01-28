@@ -1,5 +1,5 @@
 from .angle_tf import EularAngle, Vector3, LorentzVector
-from .data import load_data, flatten_dict_data
+from .data import load_dat_file, flatten_dict_data
 import tensorflow as tf
 
 
@@ -73,14 +73,14 @@ def cal_ang_data(data):
 
 
 def cal_ang_file(fname, dtype="float64", flatten=True):
-    data = load_data(fname, ["D", "B", "C"])
+    data = load_dat_file(fname, ["D", "B", "C"])
     ret = cal_ang_data(data)
     if flatten:
         ret = flatten_dict_data(ret, fun=lambda x, y: y+x[3:])
     return ret
 
 
-def load_dat_file(fname, dtype="float64", flatten=True):
+def load_dat_angle(fname, dtype="float64", flatten=True):
     data = cal_ang_file(fname, dtype, flatten)
     ret = tf.data.Dataset.from_tensor_slices(data)
     return ret
