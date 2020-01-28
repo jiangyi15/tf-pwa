@@ -18,7 +18,7 @@ try:
 except ImportError: # python version < 3.7
     from collections import Iterable
 
-def load_data(fnames, particles, split=None, order=None, _force_list=False):
+def load_dat_file(fnames, particles, split=None, order=None, _force_list=False):
     """
     load *.dat file(s) for particles momentum.
     """
@@ -66,6 +66,29 @@ def load_data(fnames, particles, split=None, order=None, _force_list=False):
 
     return ret
 
+save_data = np.save
+
+def load_data(*args, **kwargs):
+    if "allow_pickle" not in kwargs:
+        kwargs["allow_pickle"] = True
+    data = np.load(*args, **kwargs)
+    try:
+        return data.item()
+    except ValueError:
+        return data
+
+def flatten_dict_data(data, fun="{}/{}".format):
+  if isinstance(data, dict):
+    ret = {}
+    for i in data:
+      tmp = flatten_dict_data(data[i])
+      if isinstance(tmp, dict):
+        for j in tmp:
+          ret[fun(i, j)] = tmp[j]
+      else:
+        ret[i] = tmp
+    return ret
+  return data
 
 # data process
 def infer_momentum(p, decay_chain: DecayChain) -> dict:
@@ -116,7 +139,7 @@ def test_process(fnames=None):
             "D": [[3.0, 0.2, 0.5, 0.7]]
         }
     else:
-        p = load_data(fnames, [b, c, d])
+        p = load_dat_file(fnames, [b, c, d])
     st = {b: ["B"], c: ["C"], d: ["D"], a: ["B", "C", "D"], r: ["B", "D"]}
     dec = DecayChain.from_sorted_table(st)
     print(dec)
