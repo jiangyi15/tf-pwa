@@ -10,7 +10,7 @@ import numpy as np
 #import tensorflow as tf
 #from pysnooper import  snoop
 from .particle import BaseParticle, BaseDecay, DecayChain
-from .angle import EularAngle
+from .angle_tf import LorentzVector, EularAngle
 from .tensorflow_wrapper import tf
 
 try:
@@ -55,13 +55,7 @@ def load_dat_file(fnames, particles, split=None, order=None, _force_list=False):
         data_2 = data_1.transpose(order)
         for i in data_2:
             part = particles[idx]
-            if isinstance(part, str):
-                name = part
-            elif hasattr(part, "name"):
-                name = part.name
-            else:
-                name = idx
-            ret[name] = i
+            ret[part] = i
             idx += 1
 
     return ret
@@ -91,16 +85,28 @@ def flatten_dict_data(data, fun="{}/{}".format):
   return data
 
 # data process
-def infer_momentum(p, decay_chain: DecayChain) -> dict:
+def infer_momentum(p, decay_chain: DecayChain, center_mass=True) -> dict:
     """
     {outs:momentum} => {top:{p:momentum},inner:{p:..},outs:{p:..}}
     """
+    p_outs = {}
+    if center_mass:
+        ps_top = []
+        for i in decay_chain.outs:
+            ps_top.append(p[i])
+        p_top = tf.reduce_sum(ps_top, 0)
+        for i in decay_chain.outs:
+            p_outs[i] = LorentzVector.rest_vector(p_top,p[i])
+    else:
+        for i in decay_chain.outs:
+            p_outs[i] = p[i]
+
     st = decay_chain.sorted_table()
     ret = {}
     for i in st:
         ps = []
         for j in st[i]:
-            ps.append(p[j])
+            ps.append(p_outs[j])
         ret[i] = {"p": np.sum(ps, 0)}
     return ret
 
@@ -134,15 +140,16 @@ def test_process(fnames=None):
     a, b, c, d, r = [BaseParticle(i) for i in ["A", "B", "C", "D", "R"]]
     if fnames is None:
         p = {
-            "B": [[1.0, 0.2, 0.3, 0.2]],
-            "C": [[2.0, 0.1, 0.3, 0.4]],
-            "D": [[3.0, 0.2, 0.5, 0.7]]
+            b: np.array([[1.0, 0.2, 0.3, 0.2]]),
+            c: np.array([[2.0, 0.1, 0.3, 0.4]]),
+            d: np.array([[3.0, 0.2, 0.5, 0.7]])
         }
     else:
         p = load_dat_file(fnames, [b, c, d])
-    st = {b: ["B"], c: ["C"], d: ["D"], a: ["B", "C", "D"], r: ["B", "D"]}
+    st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
     dec = DecayChain.from_sorted_table(st)
     print(dec)
     data = infer_momentum(p, dec)
     data = add_mass(data, dec)
     print(data)
+    return data
