@@ -8,13 +8,13 @@ class Vector3(tf.Tensor):
     3-dim Vector functions
     """
     def get_X(self):
-        return tf.gather(self, axis=-1, indices=0)
+        return self[..., 0]
 
     def get_Y(self):
-        return tf.gather(self, axis=-1, indices=1)
+        return self[..., 1]
 
     def get_Z(self):
-        return tf.gather(self, axis=-1, indices=2)
+        return self[..., 2]
 
     def norm2(self):
         return tf.reduce_sum(self * self, axis=-1)
@@ -47,25 +47,25 @@ class LorentzVector(tf.Tensor):
     LorentzVector functions
     """
     def get_X(self):
-        return tf.gather(self, axis=-1, indices=1)
+        return self[..., 1]
 
     def get_Y(self):
-        return tf.gather(self, axis=-1, indices=2)
+        return self[..., 2]
 
     def get_Z(self):
-        return tf.gather(self, axis=-1, indices=3)
+        return self[..., 3]
 
     def get_T(self):
-        return tf.gather(self, axis=-1, indices=0)
+        return self[..., 0]
 
     def get_e(self):
-        return tf.gather(self, axis=-1, indices=0)
+        return self[..., 0]
 
     def boost_vector(self):
-        return tf.gather(self, axis=-1, indices=[1,2,3])/tf.gather(self, axis=-1, indices=[0])
+        return self[..., 1:4]/self[..., 0:1]
 
     def vect(self):
-        return tf.gather(self, axis=-1, indices=[1,2,3])
+        return self[..., 1:4]
 
     def rest_vector(self, other):
         p = -LorentzVector.boost_vector(self)

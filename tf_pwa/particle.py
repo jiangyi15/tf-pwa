@@ -27,8 +27,19 @@ class BaseParticle(object):
   """
   Base Particle object
   """
-  def __init__(self, name):
-    self.name = name
+  def __init__(self, name, id_=None):
+    """
+    name is "name[:id]"
+    """
+    if id_ is None:
+      names = name.split(":")
+      if len(names) > 1:
+        self.name = ":".join(names[:-1])
+        self._id = int(names[-1])
+      else:
+        self.name, self._id = name, 0
+    else:
+      self.name, self._id = name, id_
     self.decay = [] # list of Decay
     self.creators = [] # list of Decay which creates the particle
 
@@ -42,11 +53,15 @@ class BaseParticle(object):
     self.creators.append(d)
 
   def __repr__(self):
-    return self.name
+    if self._id == 0:
+      return self.name
+    return "{}:{}".format(self.name, self._id)
+  def __hash__(self):
+    return hash((self.name, self._id))
+  def __eq__(self, other):
+    return (self.name, self._id) == (other.name, other._id)
   def __lt__(self, other):
-    if self.name != other.name:
-      return self.name < other.name
-    return id(self) < id(other)
+    return (self.name, self._id) < (other.name, other._id)
 
   def chain_decay(self):
     ret = []
@@ -103,13 +118,19 @@ class BaseDecay(object):
       self.core.add_decay(self)
       for i in outs:
         i.add_creator(self)
-    self.outs = outs # daughter particles
+    self.outs = tuple(sorted(outs)) # daughter particles
 
   def __repr__(self):
     ret = str(self.core)
     ret += "->"
     ret += "+".join([str(i) for i in self.outs])
     return ret # "A->B+C"
+
+  def __hash__(self):
+    return hash((self.core, self.outs))
+
+  def __eq__(self, other):
+    return (self.core, self.outs) == (other.core, other.outs)
 
 class Decay(BaseDecay): # add useful methods to BaseDecay
   """
@@ -223,6 +244,7 @@ class DecayChain(object):
   def __repr__(self):
     return "{}".format(self.chain)
 
+  @functools.lru_cache()
   def sorted_table(self):
     """
     A topology independent structure

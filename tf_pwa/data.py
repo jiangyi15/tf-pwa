@@ -96,7 +96,7 @@ def infer_momentum(p, decay_chain: DecayChain, center_mass=True) -> dict:
             ps_top.append(p[i])
         p_top = tf.reduce_sum(ps_top, 0)
         for i in decay_chain.outs:
-            p_outs[i] = LorentzVector.rest_vector(p_top,p[i])
+            p_outs[i] = LorentzVector.rest_vector(p_top, p[i])
     else:
         for i in decay_chain.outs:
             p_outs[i] = p[i]
@@ -107,7 +107,7 @@ def infer_momentum(p, decay_chain: DecayChain, center_mass=True) -> dict:
         ps = []
         for j in st[i]:
             ps.append(p_outs[j])
-        ret[i] = {"p": np.sum(ps, 0)}
+        ret[i] = {"p": tf.reduce_sum(ps, 0)}
     return ret
 
 def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
@@ -116,7 +116,7 @@ def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
     """
     for i in data:
         p = data[i]["p"]
-        data[i]["m"] = np.sqrt(np.sum(np.array([1., -1., -1., -1.])*p*p, -1))
+        data[i]["m"] = tf.sqrt(tf.reduce_sum(np.array([1., -1., -1., -1.])*p*p, -1))
     return data
 
 def Getp(M_0, M_1, M_2):
