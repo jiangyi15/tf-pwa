@@ -71,6 +71,46 @@ def load_data(*args, **kwargs):
     except ValueError:
         return data
 
+def data_split(dat, batch_size, axis=0):
+    data_size = dat.shape[axis]
+    if axis == 0:
+        for i in range(0, data_size, batch_size):
+            yield dat[i:min(i+batch_size, data_size)]
+    elif axis == -1:
+        for i in range(0, data_size, batch_size):
+            yield dat[..., i:min(i+batch_size, data_size)]
+    else:
+        raise Exception("unsupport axis: {}".format(axis))
+
+def split_generator(data, batch_size, axis=0):
+    """
+    split data generator.
+    """
+    def split(dat):
+        if isinstance(dat, dict):
+            ks, vs = [], []
+            for k, v in dat.items():
+                ks.append(k)
+                vs.append(split(v))
+            for s_data in zip(*vs):
+                yield dict(zip(ks, s_data))
+        elif isinstance(dat, list):
+            vs = []
+            for v in dat:
+                vs.append(split(v))
+            for s_data in zip(*vs):
+                yield list(s_data)
+        elif isinstance(dat, tuple):
+            vs = []
+            for v in dat:
+                vs.append(split(v))
+            for s_data in zip(*vs):
+                yield s_data
+        else:
+            for i in data_split(dat, batch_size, axis):
+                yield i
+    return split(data)
+
 def flatten_dict_data(data, fun="{}/{}".format):
   if isinstance(data, dict):
     ret = {}
@@ -152,4 +192,6 @@ def test_process(fnames=None):
     data = infer_momentum(p, dec)
     data = add_mass(data, dec)
     print(data)
+    for i, j in enumerate(split_generator(data, 5000)):
+        print("split:", i, "is", j)
     return data
