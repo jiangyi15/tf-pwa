@@ -9,7 +9,7 @@ Data cache can be implemented based on the dynamic features of `list` and `dict`
 import numpy as np
 #import tensorflow as tf
 #from pysnooper import  snoop
-from .particle import BaseParticle, BaseDecay, DecayChain
+from .particle import BaseParticle, BaseDecay, DecayChain, DecayGroup
 from .angle_tf import LorentzVector, EularAngle
 from .tensorflow_wrapper import tf
 
@@ -170,7 +170,7 @@ def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
         data[i]["m"] = LorentzVector.M(p)
     return data
 
-def cal_angle(data: dict, decay_chain: DecayChain = None) -> dict:
+def cal_helicity_angle(data: dict, decay_chain: DecayChain = None) -> dict:
     """
     {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
     """
@@ -186,22 +186,57 @@ def cal_angle(data: dict, decay_chain: DecayChain = None) -> dict:
     set_x = {decay_chain.top: np.array([[1.0, 0.0, 0.0]])}
     set_z = {decay_chain.top: np.array([[0.0, 0.0, 1.0]])}
     set_decay = list(decay_chain)
-    while len(set_decay) > 0:
+    while set_decay:
         extra_decay = []
         for i in set_decay:
             if i.core in set_x:
                 for j in i.outs:
                     data[i][j] = {}
                     z2 = LorentzVector.vect(part_data[i]["rest_p"][j])
-                    ang, x = EularAngle.angle_zx_z_gety(set_z[i.core], set_x[i.core], z2)
+                    ang, x = EularAngle.angle_zx_z_getx(set_z[i.core], set_x[i.core], z2)
                     set_x[j] = x
                     set_z[j] = z2
                     data[i][j]["ang"] = ang
                     data[i][j]["x"] = x
+                    data[i][j]["z"] = z2
             else:
                 extra_decay.append(i)
         set_decay = extra_decay
     return data
+
+def cal_angle(data: list, decay_group: DecayGroup) -> dict:
+  for i in decay_group:
+    data = cal_helicity_angle(data, i)
+  decay_chain_struct = decay_group.topology_structure()
+  set_x = {}
+  # for a the top rest farme
+  for decay_chain in decay_chain_struct:
+    for decay in decay_chain:
+      if decay.core == decay_group.top:
+        for i in decay.outs:
+          if (i not in set_x) and (i in decay_group.outs):
+            set_x[i] = decay
+  # or the first chain
+  for i in decay_group.outs:
+    if i not in set_x:
+      decay_chain = next(iter(decay_chain_struct))
+      for decay in decay_chain:
+        for j in decay.outs:
+          if i == j:
+            set_x[i] = decay
+  for decay_chain in decay_group:
+    for decay in decay_chain:
+      for i in decay.outs:
+        if i in decay_group.outs:
+          if decay != set_x[i]:
+            x1 = data[decay][i]["x"]
+            x2 = data[set_x[i]][i]["x"]
+            z1 = data[decay][i]["z"]
+            z2 = data[set_x[i]][i]["z"]
+            ang = EularAngle.angle_zx_zx(z1, x1, z2, x2)
+            data[decay][i]["aligned_angle"] = ang
+  return data
+
 
 def Getp(M_0, M_1, M_2):
     M12S = M_1 + M_2
@@ -232,7 +267,7 @@ def get_relativate_momentum(data: dict, decay: BaseDecay, m0=None, m1=None, m2=N
     return p
 
 def test_process(fnames=None):
-    a, b, c, d, r = [BaseParticle(i) for i in ["A", "B", "C", "D", "R"]]
+    a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
     if fnames is None:
         p = {
             b: np.array([[1.0, 0.2, 0.3, 0.2]]),
@@ -241,12 +276,16 @@ def test_process(fnames=None):
         }
     else:
         p = load_dat_file(fnames, [b, c, d])
-    st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
-    dec = DecayChain.from_sorted_table(st)
-    data = infer_momentum(p, dec)
-    data = add_mass(data, dec)
-    data = add_relativate_momentum(data, dec)
-    data = cal_angle(data, dec)
+    # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
+    decs = DecayChain.from_particles(a, [b, c, d])
+    data = {}
+    for dec in decs:
+      data_i = infer_momentum(p, dec)
+      data_i = add_mass(data_i, dec)
+      data_i = add_relativate_momentum(data_i, dec)
+      for i in data_i:
+        data[i] = data_i[i]
+    data = cal_angle(data, DecayGroup(decs))
     for i, j in enumerate(split_generator(data, 5000)):
         print("split:", i, "is", j)
     from pprint import pprint

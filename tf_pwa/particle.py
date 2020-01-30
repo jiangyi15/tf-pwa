@@ -81,7 +81,7 @@ class BaseParticle(object):
   def get_resonances(self):
     decay_chain = self.chain_decay()
     chains = [DecayChain(i) for i in decay_chain]
-    decaygroup = DecayGroups(chains)
+    decaygroup = DecayGroup(chains)
     return decaygroup.resonances
 
 class Particle(BaseParticle): # add parameters to BaseParticle
@@ -260,16 +260,18 @@ class DecayChain(object):
     for i in self.outs:
       decay_dict[i] = [i]
 
-    chain = self.chain.copy()
+    chain = self.chain
     while chain:
-      tmp_chain = chain.copy()
-      for i in tmp_chain:
+      tmp_chain = []
+      for i in chain:
         if all([j in decay_dict for j in i.outs]):
           decay_dict[i.core] = []
           for j in i.outs:
             decay_dict[i.core] += decay_dict[j]
           decay_dict[i.core].sort()
-          chain.remove(i)
+        else:
+          tmp_chain.append(i)
+      chain = tmp_chain
     decay_dict[self.top] = sorted(list(self.outs))
     return decay_dict
 
@@ -337,17 +339,39 @@ class DecayChain(object):
     gs = get_graphs(base, finals[1:])
     return [i.get_decay_chain(top) for i in gs]
 
-  @property
   @functools.lru_cache()
-  def topology_id(self):
+  def topology_id(self, identical=True):
     a = self.sorted_table()
-    set_a = [[j.name for j in a[i]] for i in a]
+    if identical:
+      set_a = [[j.name for j in a[i]] for i in a]
+    else:
+      set_a = [list(a[i]) for i in a]
     return sorted(set_a)
 
-  def topology_same(self, other):
+  def topology_map(self, other):
+    """
+    [A->R+B,R->C+D],[A->Z+B,Z->C+D] => {A:A,B:B,C:C,D:D,R:Z,A->R+B:A->Z+B,R->C+D:Z->C+D}
+    """
+    a = self.sorted_table()
+    b = other.sorted_table()
+    ret = {}
+    for i in a:
+      for j in b:
+        if a[i] == b[j]:
+          ret[i] = j
+          break
+    for i in self:
+      test_decay = BaseDecay(ret[i.core], [ret[k] for k in i.outs], disable=False)
+      for j in other:
+        if test_decay == j:
+          ret[i] = j
+          break
+    return ret
+
+  def topology_same(self, other, identical=True):
     if not isinstance(other, DecayChain):
       raise TypeError("unsupport type {}".format(type(other)))
-    return self.topology_id == other.topology_id
+    return self.topology_id(identical) == other.topology_id(identical)
 
 class _Chain_Graph(object):
   def __init__(self):
@@ -386,7 +410,7 @@ class _Chain_Graph(object):
       ret.append(tmp)
     return DecayChain(ret)
 
-class DecayGroups(object):
+class DecayGroup(object):
   def __init__(self, chains):
     first_chain = chains[0]
     if not isinstance(first_chain, DecayChain):
@@ -405,6 +429,20 @@ class DecayGroups(object):
 
   def __repr__(self):
     return "{}".format(self.chains)
+
+  def __iter__(self):
+    return iter(self.chains)
+
+  def topology_structure(self, identical=False):
+    ret = []
+    for i in self:
+      for j in ret:
+        if i.topology_same(j, identical):
+          break
+      else:
+        ret.append(i)
+    return ret
+
 
 def load_decfile_particle(fname):
   with open(fname) as f:
@@ -451,7 +489,7 @@ def test():
   decay4 = Decay(tmp2, [b, c])
   decaychain = DecayChain([decay, decay2])
   decaychain2 = DecayChain([decay3, decay4])
-  decaygroup = DecayGroups([decaychain, decaychain2])
+  decaygroup = DecayGroup([decaychain, decaychain2])
   print(decay.get_cg_matrix().T)
   print(np.array(decay.get_ls_list()))
   print(np.array(decay.get_ls_list())[:, 0])
