@@ -82,34 +82,45 @@ def data_split(dat, batch_size, axis=0):
     else:
         raise Exception("unsupport axis: {}".format(axis))
 
-def split_generator(data, batch_size, axis=0):
+def data_generator(data, fun=data_split, args=(), kwargs=None):
     """
     split data generator.
     """
-    def split(dat):
+    kwargs = kwargs if kwargs is not None else {}
+    def _gen(dat):
         if isinstance(dat, dict):
             ks, vs = [], []
             for k, v in dat.items():
                 ks.append(k)
-                vs.append(split(v))
+                vs.append(_gen(v))
             for s_data in zip(*vs):
                 yield dict(zip(ks, s_data))
         elif isinstance(dat, list):
             vs = []
             for v in dat:
-                vs.append(split(v))
+                vs.append(_gen(v))
             for s_data in zip(*vs):
                 yield list(s_data)
         elif isinstance(dat, tuple):
             vs = []
             for v in dat:
-                vs.append(split(v))
+                vs.append(_gen(v))
             for s_data in zip(*vs):
                 yield s_data
         else:
-            for i in data_split(dat, batch_size, axis):
+            for i in fun(dat, *args, **kwargs):
                 yield i
-    return split(data)
+    return _gen(data)
+
+def split_generator(data, batch_size, axis=0):
+    return data_generator(data, fun=data_split, args=(batch_size,), kwargs={"axis": axis})
+
+def data_map(data, fun, args=(), kwargs=None):
+    kwargs = kwargs if kwargs is not None else {}
+    def g_fun(*args1, **kwargs1):
+        yield fun(*args1, **kwargs1)
+    g = data_generator(data, fun=g_fun, args=args, kwargs=kwargs)
+    return next(g)
 
 def flatten_dict_data(data, fun="{}/{}".format):
   if isinstance(data, dict):
@@ -156,7 +167,40 @@ def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
     """
     for i in data:
         p = data[i]["p"]
-        data[i]["m"] = tf.sqrt(tf.reduce_sum(np.array([1., -1., -1., -1.])*p*p, -1))
+        data[i]["m"] = LorentzVector.M(p)
+    return data
+
+def cal_angle(data: dict, decay_chain: DecayChain = None) -> dict:
+    """
+    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    """
+    part_data = {}
+    for i in decay_chain:
+        part_data[i] = {}
+        p_rest = data[i.core]["p"]
+        part_data[i]["rest_p"] = {}
+        for j in i.outs:
+            pj = data[j]["p"]
+            p = LorentzVector.rest_vector(p_rest, pj)
+            part_data[i]["rest_p"][j] = p
+    set_x = {decay_chain.top: np.array([[1.0, 0.0, 0.0]])}
+    set_z = {decay_chain.top: np.array([[0.0, 0.0, 1.0]])}
+    set_decay = list(decay_chain)
+    while len(set_decay) > 0:
+        extra_decay = []
+        for i in set_decay:
+            if i.core in set_x:
+                for j in i.outs:
+                    data[i][j] = {}
+                    z2 = LorentzVector.vect(part_data[i]["rest_p"][j])
+                    ang, x = EularAngle.angle_zx_z_gety(set_z[i.core], set_x[i.core], z2)
+                    set_x[j] = x
+                    set_z[j] = z2
+                    data[i][j]["ang"] = ang
+                    data[i][j]["x"] = x
+            else:
+                extra_decay.append(i)
+        set_decay = extra_decay
     return data
 
 def Getp(M_0, M_1, M_2):
@@ -165,6 +209,17 @@ def Getp(M_0, M_1, M_2):
     p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
     q = (p + tf.abs(p))/2 # if p is negative, which results from bad data, the return value is 0.0
     return tf.sqrt(q) / (2 * M_0)
+
+def add_relativate_momentum(data: dict, decay_chain: DecayChain):
+    for decay in decay_chain:
+        m0 = data[decay.core]["m"]
+        m1 = data[decay.outs[0]]["m"]
+        m2 = data[decay.outs[1]]["m"]
+        p = Getp(m0, m1, m2)
+        if not decay in data:
+            data[decay] = {}
+        data[decay]["|q|"] = p
+    return data
 
 def get_relativate_momentum(data: dict, decay: BaseDecay, m0=None, m1=None, m2=None):
     if m0 is None:
@@ -188,10 +243,12 @@ def test_process(fnames=None):
         p = load_dat_file(fnames, [b, c, d])
     st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
     dec = DecayChain.from_sorted_table(st)
-    print(dec)
     data = infer_momentum(p, dec)
     data = add_mass(data, dec)
-    print(data)
+    data = add_relativate_momentum(data, dec)
+    data = cal_angle(data, dec)
     for i, j in enumerate(split_generator(data, 5000)):
         print("split:", i, "is", j)
+    from pprint import pprint
+    pprint(data_map(data, lambda x: x.numpy()))
     return data

@@ -59,9 +59,13 @@ class BaseParticle(object):
   def __hash__(self):
     return hash((self.name, self._id))
   def __eq__(self, other):
+    if not isinstance(other, BaseParticle):
+      return False
     return (self.name, self._id) == (other.name, other._id)
   def __lt__(self, other):
-    return (self.name, self._id) < (other.name, other._id)
+    if isinstance(other, BaseParticle):
+      return (self.name, self._id) < (other.name, other._id)
+    return self.name < other
 
   def chain_decay(self):
     ret = []
@@ -130,6 +134,8 @@ class BaseDecay(object):
     return hash((self.core, self.outs))
 
   def __eq__(self, other):
+    if not isinstance(other, BaseDecay):
+      return False
     return (self.core, self.outs) == (other.core, other.outs)
 
 class Decay(BaseDecay): # add useful methods to BaseDecay
