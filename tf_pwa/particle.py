@@ -1,5 +1,6 @@
 import functools
 import numpy as np
+# from pysnooper import snoop
 
 from .cg import cg_coef
 from .breit_wigner import barrier_factor as default_barrier_factor
@@ -26,8 +27,19 @@ class BaseParticle(object):
   """
   Base Particle object
   """
-  def __init__(self, name):
-    self.name = name
+  def __init__(self, name, id_=None):
+    """
+    name is "name[:id]"
+    """
+    if id_ is None:
+      names = name.split(":")
+      if len(names) > 1:
+        self.name = ":".join(names[:-1])
+        self._id = int(names[-1])
+      else:
+        self.name, self._id = name, 0
+    else:
+      self.name, self._id = name, id_
     self.decay = [] # list of Decay
     self.creators = [] # list of Decay which creates the particle
 
@@ -41,7 +53,19 @@ class BaseParticle(object):
     self.creators.append(d)
 
   def __repr__(self):
-    return self.name
+    if self._id == 0:
+      return self.name
+    return "{}:{}".format(self.name, self._id)
+  def __hash__(self):
+    return hash((self.name, self._id))
+  def __eq__(self, other):
+    if not isinstance(other, BaseParticle):
+      return False
+    return (self.name, self._id) == (other.name, other._id)
+  def __lt__(self, other):
+    if isinstance(other, BaseParticle):
+      return (self.name, self._id) < (other.name, other._id)
+    return self.name < other
 
   def chain_decay(self):
     ret = []
@@ -98,13 +122,21 @@ class BaseDecay(object):
       self.core.add_decay(self)
       for i in outs:
         i.add_creator(self)
-    self.outs = outs # daughter particles
+    self.outs = tuple(sorted(outs)) # daughter particles
 
   def __repr__(self):
     ret = str(self.core)
     ret += "->"
     ret += "+".join([str(i) for i in self.outs])
     return ret # "A->B+C"
+
+  def __hash__(self):
+    return hash((self.core, self.outs))
+
+  def __eq__(self, other):
+    if not isinstance(other, BaseDecay):
+      return False
+    return (self.core, self.outs) == (other.core, other.outs)
 
 class Decay(BaseDecay): # add useful methods to BaseDecay
   """
@@ -189,6 +221,22 @@ def split_particle_type(decays):
     outs = out_particles - inner
     return top, inner, outs # top, intermediate, outs particles
 
+def split_len(dicts):
+    """
+    {"b":[1],"c":[1,2],"d":[2]} => [None,{"b":[1],"d":[2]},{"c":[1,2]}]
+    """
+    size_table = []
+    for i in dicts:
+        tmp = dicts[i]
+        size_table.append((len(tmp), i))
+    max_l = max([i for i, _ in size_table])
+    ret = [None] * (max_l+1)
+    for i, s in size_table:
+        if ret[i] is None:
+            ret[i] = []
+        ret[i].append((s, dicts[s]))
+    return ret
+
 class DecayChain(object):
   def __init__(self, chain):
     self.chain = chain
@@ -201,16 +249,17 @@ class DecayChain(object):
 
   def __repr__(self):
     return "{}".format(self.chain)
-  
+
+  @functools.lru_cache()
   def sorted_table(self):
     """
-    A topology independent structure 
+    A topology independent structure
     [a->rb,r->cd] => {a:[b,c,d],r:[c,d],b:[b],c:[c],d:[d]}
     """
     decay_dict = {}
     for i in self.outs:
-      decay_dict[i] = [i.name]
-    
+      decay_dict[i] = [i]
+
     chain = self.chain.copy()
     while chain:
       tmp_chain = chain.copy()
@@ -221,29 +270,19 @@ class DecayChain(object):
             decay_dict[i.core] += decay_dict[j]
           decay_dict[i.core].sort()
           chain.remove(i)
-    decay_dict[self.top] = sorted([i.name for i in self.outs])
+    decay_dict[self.top] = sorted(list(self.outs))
     return decay_dict
-  
+
+  def sorted_table_layers(self):
+    st = self.sorted_table()
+    return split_len(st)
+
   @staticmethod
   def from_sorted_table(decay_dict):
     """
     Create decay chain form a topology independent structure
     {a:[b,c,d],r:[c,d],b:[b],c:[c],d:[d]} => [a->rb,r->cd]
     """
-    # split for size
-    def split_len(dicts):
-      size_table = []
-      for i in dicts:
-        tmp = dicts[i]
-        size_table.append((len(tmp), i))
-      max_l = max([i for i, _ in size_table])
-      ret = [None] * (max_l+1)
-      for i, s in size_table:
-        if ret[i] is None:
-          ret[i] = []
-        ret[i].append((s, dicts[s]))
-      return ret
-
     def sum_list(ls):
       ret = ls[0]
       for i in ls[1:]:
@@ -298,14 +337,17 @@ class DecayChain(object):
     gs = get_graphs(base, finals[1:])
     return [i.get_decay_chain(top) for i in gs]
 
+  @property
+  @functools.lru_cache()
+  def topology_id(self):
+    a = self.sorted_table()
+    set_a = [[j.name for j in a[i]] for i in a]
+    return sorted(set_a)
+
   def topology_same(self, other):
     if not isinstance(other, DecayChain):
       raise TypeError("unsupport type {}".format(type(other)))
-    a = self.sorted_table()
-    set_a = sorted([a[i] for i in a])
-    b = other.sorted_table()
-    set_b = sorted([b[i] for i in b])
-    return set_a == set_b
+    return self.topology_id == other.topology_id
 
 class _Chain_Graph(object):
   def __init__(self):

@@ -6,6 +6,7 @@ from .particle import Particle,Decay
 from .variable import Vars
 from .dfun_tf import D_Cache as D_fun_Cache
 from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
+from .config import regist_config
 
 import os
 import copy
@@ -37,6 +38,7 @@ def Getp(M_0, M_1, M_2) :
   q = (p + tf.abs(p))/2 # if p is negative, which results from bad data, the return value is 0.0
   return tf.sqrt(q) / (2 * M_0)
 
+@regist_config("amp")
 class AllAmplitude(tf.keras.Model):
   def __init__(self,res,polar=True):
     super(AllAmplitude,self).__init__()

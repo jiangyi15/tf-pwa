@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from functools import partial
-from .amplitude import AllAmplitude
+
 
 class ConfigManager(dict):
     pass
@@ -41,7 +41,6 @@ def create_config(default):
     return set_, get_, regist_
 
 set_config, get_config, regist_config = create_config({
-    "amp": AllAmplitude,
     "multi_gpus": False
 })
 
