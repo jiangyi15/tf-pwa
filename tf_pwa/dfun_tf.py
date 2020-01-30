@@ -13,7 +13,7 @@ class dfunctionJ(object):
   wigner small d function for j
   """
   def __init__(self,j2,double=False):
-    self.double = double # 是否要浮点数？
+    self.double = double # 是否翻倍成整数
     j2 = self.get_right_spin(j2) # 2*j
     self.j2 = j2
     self.m1 = list(range(-self.j2,self.j2+1,2))
@@ -49,7 +49,7 @@ class dfunctionJ(object):
       return math.factorial(x>>1) #x>>1即x//2
     for m in range(-j,j+1,2):
       for n in range(-j,j+1,2):
-        for k in range(max(0,n-m),min(j-m,j+n)+1,2): # 范围？更新的公式文档？
+        for k in range(max(0,n-m),min(j-m,j+n)+1,2): # d函数里求和的范围
           l = (2*k + (m - n))//2
           sign = (-1)**((k+m-n)//2) #和wiki一致
           tmp = sign * math.sqrt(1.0*f(j+m)*f(j-m)*f(j+n)*f(j-n))
@@ -78,7 +78,7 @@ class dfunctionJ(object):
     c = tf.pow(tf.reshape(tf.tile(costheta,[self.j2+1]),(self.j2+1,-1)),self.j2-a)
     self.sc = s*c
     
-    m1 = self.get_right_spin(m1) #然后再lazy_call #直接调用吧？
+    m1 = self.get_right_spin(m1) #然后再lazy_call #可以改成直接调用
     m2 = self.get_right_spin(m2)
     tmpw = tf.gather(self.w,self.get_index(m1,m2))
     tmpw = tf.cast(tmpw,self.sc.dtype)
@@ -122,37 +122,6 @@ class dfunctionJ(object):
     return tf.constant(ret)
 
 
-class ExpI_Cache(object): # matrix of cos(mφ)+isin(mφ)
-  def __init__(self,phi,maxJ = 2):
-    self.maxj = maxJ
-    self.phi = phi # data
-    a = tf.range(-maxJ,maxJ+1,1.0)
-    a = tf.reshape(a,(-1,1))
-    phi = tf.reshape(phi,(1,-1)) #[1,2,3]变成[[1,2,3]]
-    mphi = tf.matmul(a,phi) #得到元素为m*phi的矩阵
-    self.sinphi = tf.sin(mphi)
-    self.cosphi = tf.cos(mphi)
-  def __call__(self,m):
-    idx = m + self.maxj
-    return complex(self.cosphi[idx],self.sinphi[idx])
-
-class D_fun_Cache(object): # D_fun_Cache和ExpI_Cache都没用到？
-  def __init__(self,alpha,beta,gamma=0.0):
-    self.alpha = ExpI_Cache(alpha)
-    self.gamma = ExpI_Cache(gamma)
-    self.beta = beta
-    self.dfuncj = {}
-  @functools.lru_cache()
-  def __call__(self,j,m1=None,m2=None):
-    if abs(m1) > j or abs(m2) > j:
-      return 0.0
-    if j not in self.dfuncj:
-      self.dfuncj[j] = dfunctionJ(j)
-      self.dfuncj[j].lazy_init(self.beta)
-    d = self.dfuncj[j](m1,m2)
-    return self.alpha(m1)*self.gamma(m2)*d
-
-
 def ExpI_all(maxJ,phi): # matrix of cos(mφ)+isin(mφ)
   a = tf.range(-maxJ,maxJ+1,1.0)
   a = tf.reshape(a,(-1,1))
@@ -171,7 +140,7 @@ def Dfun_all(j,alpha,beta,gamma):
   d = d_fun(m2,m1,beta) # d-matrix
   expi_alpha = tf.reshape(ExpI_all(j,alpha),(2*j+1,1,-1))
   expi_gamma = tf.cast(tf.reshape(ExpI_all(j,gamma),(1,2*j+1,-1)),expi_alpha.dtype)
-  dc = tf.complex(d,tf.zeros_like(d)) #相当于cast to tf.complex?
+  dc = tf.complex(d,tf.zeros_like(d)) # cast to tf.complex
   return tf.cast(expi_alpha*expi_gamma,dc.dtype) * dc # D-matrix
 
 
@@ -185,7 +154,7 @@ def delta_D_trans(j,la,lb,lc):
       for i_c in range(len(lc)):
         delta = lb[i_b]-lc[i_c]
         if abs(delta) <= j: # 物理要求
-          s[i_a][i_b][i_c][la[i_a]+j][delta+j] = 1.0 #求和项里有的物理不允许则为0 #函数名啥意思？
+          s[i_a][i_b][i_c][la[i_a]+j][delta+j] = 1.0 #求和项里有的物理不允许则为0 #delta代表lb和lc的差
   return np.reshape(s,(len(la)*len(lb)*len(lc),(2*j+1)*(2*j+1)))
   
 def Dfun_delta(ja,la,lb,lc,d):
@@ -215,7 +184,7 @@ class D_Cache(object):
   def _tuple_get_lambda(self,j,la,lb,lc=(0,)): # λ才需要用Dfun_delta的物理约束
     d = self(j)
     return Dfun_delta(j,la,lb,lc,d)
-  def get_lambda(self,j,la,lb,lc=[0]): #lc为什么有缺省？
+  def get_lambda(self,j,la,lb,lc=[0]): #lc缺省为0则delta就是lb
     return self._tuple_get_lambda(j,tuple(la),tuple(lb),tuple(lc))
 
 

@@ -10,7 +10,7 @@ def regist_lineshape(name=None):
     if name_t is None:
       name_t = f.__name__
     if name_t in breit_wigner_dict:
-      warnings.warn("override breit wigner function :",name) #用warning不raise？
+      warnings.warn("override breit wigner function :",name) # warning to users
     breit_wigner_dict[name_t] = f # function
     return f
   return fopt
@@ -34,7 +34,7 @@ def BW(m, m0,g0,*args):
   return num/denom
 
 
-@regist_lineshape("default") # 是有两个名字吗？
+@regist_lineshape("default") # 两个名字
 @regist_lineshape("BWR") # BW with running width
 def BWR(m, m0,g0,q,q0,L,d):
   r"""
@@ -47,7 +47,6 @@ def BWR(m, m0,g0,q,q0,L,d):
   denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
   return num/denom
 
-#@tf.function() #怎么加速？
 def Gamma(m, gamma0, q, q0, L, m0,d):
   r"""
   .. math::
@@ -60,7 +59,6 @@ def Gamma(m, gamma0, q, q0, L, m0,d):
   gammaM = gamma0 * qq0 * mm0 * tf.cast(bp,qq0.dtype)
   return gammaM
 
-#@tf.function()
 def Bprime_num(L,q,d):
   z = (q * d)**2
   if L == 0:
@@ -77,17 +75,14 @@ def Bprime_num(L,q,d):
     return tf.sqrt((z * (z * (z * (z * (z + 15.) + 315.) + 6300.) + 99225.) + 893025.));
   return 1.0
 
-#@tf.function()
 def Bprime(L, q, q0, d):
   num = Bprime_num(L,q0,d)
   denom = Bprime_num(L,q,d)
   return num/denom
 
-#@tf.function()
-def barrier_factor(l,q,q0,d=3.0): # cache q^l * B_l 只用于H里？
+def barrier_factor(l,q,q0,d=3.0): # cache q^l * B_l 只用于H里
   ret = []
   for i in l:
     tmp = q**i * tf.cast(Bprime(i,q,q0,d),q.dtype)
-    #print(q**i,Bprime(i,q,q0,d))
     ret.append(tmp)
   return tf.stack(ret)

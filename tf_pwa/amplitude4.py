@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-from .cg import get_cg_coef
 from .particle import Particle,Decay
 from .variable import Vars
 from .dfun_tf import dfunctionJ,D_Cache

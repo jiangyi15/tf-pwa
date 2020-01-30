@@ -3,11 +3,17 @@ import os
 
 has_sympy = True
 try :
-  from sympy.physics.quantum.cg import CG #就不用CGtable了？
+  from sympy.physics.quantum.cg import CG #就不用CGtable了
 except ImportError:
   has_sympy = False
 
+def cg_coef(jb,jc,mb,mc,ja,ma): # call CG or get_cg_coef
+  if has_sympy:
+    return CG(jb,mb,jc,mc,ja,ma).doit().evalf()
+  else:
+    return get_cg_coef(jb,jc,mb,mc,ja,ma)
 
+  
 _dirname = os.path.dirname(os.path.abspath(__file__))
 
 with open(_dirname+"/cg_table.json") as f:
@@ -33,10 +39,3 @@ def get_cg_coef(j1,j2,m1,m2,j,m):
     j1,j2 = j2,j1
     m1,m2 = m2,m1
   return sign * find_cg_table(j1,j2,m1,m2,j,m)
-
-
-def cg_coef(jb,jc,mb,mc,ja,ma): #amplitude.py里import的是get_cg_coef
-  if has_sympy:
-    return CG(jb,mb,jc,mc,ja,ma).doit().evalf()
-  else:
-    return get_cg_coef(jb,jc,mb,mc,ja,ma)

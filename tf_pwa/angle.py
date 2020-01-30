@@ -77,7 +77,7 @@ class LorentzVector(object): # 4-d vector (x,y,z,-t)
     beta2 = pb.Norm2()
     gamma = 1.0/np.sqrt(1-beta2) #γ
     bp = pb.Dot(self.p) #β·p
-    gamma2 = np.where(beta2 > epslion,(gamma-1.0)/beta2,0.0) #Γ # epsilon防止beta2为0？
+    gamma2 = np.where(beta2 > epslion,(gamma-1.0)/beta2,0.0) #Γ # epsilon精度范围内防止beta2为0
     self.p = self.p + gamma2*bp*pb.data + gamma*pb.data*self.e
     self.e = gamma*(self.e + bp)
   
