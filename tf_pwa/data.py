@@ -261,9 +261,9 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain = None) -> dict:
     return data
 
 def cal_angle(data: list, decay_group: DecayGroup) -> dict:
-  for i in decay_group:
-    data = cal_helicity_angle(data, i)
   decay_chain_struct = decay_group.topology_structure()
+  for i in decay_chain_struct:
+    data = cal_helicity_angle(data, i)
   set_x = {}
   # for a the top rest farme
   for decay_chain in decay_chain_struct:
@@ -321,6 +321,32 @@ def get_relativate_momentum(data: dict, decay: BaseDecay, m0=None, m1=None, m2=N
         m2 = data[decay.outs[1]]["m"]
     p = Getp(m0, m1, m2)
     return p
+
+def prepare_data_from_dat_file(fnames):
+    a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
+    bc, cd, bd = [BaseParticle(i) for i in ["BC","CD","BD"]]
+    p = load_dat_file(fnames, [d, b, c])
+    # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
+    decs = DecayGroup([
+        [BaseDecay(a, [bc, d]), BaseDecay(bc, [b, c])],
+        [BaseDecay(a, [cd, b]), BaseDecay(cd, [c, d])],
+        [BaseDecay(a, [bd, c]), BaseDecay(bd, [b, d])]
+    ])
+    #decs = DecayChain.from_particles(a, [d, b, c])
+    data = struct_momentum(p)
+    for dec in decs:
+      data = infer_momentum(data, dec)
+      data = add_mass(data, dec)
+      data = add_relativate_momentum(data, dec)
+    data = cal_angle(data, decs)
+    data = add_weight(data)
+    def to_numpy(data):
+      if hasattr(data, "numpy"):
+        return data.numpy()
+      return data
+    data = data_map(data, to_numpy)
+    data = flatten_dict_data(data)
+    return data
 
 def test_process(fnames=None):
     a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]

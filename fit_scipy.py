@@ -19,10 +19,23 @@ if mode=="4":
 else:
   from tf_pwa.amplitude import AllAmplitude,param_list
 
+from tf_pwa.data import prepare_data_from_dat_file
 
+param_list_test = [
+  "A/m","B/m","C/m","D/m","BC/m", "BD/m", "CD/m", 
+  "A->BC+D/BC/ang/beta", "BC->B+C/B/ang/beta", "A->BC+D/BC/ang/alpha", "BC->B+C/B/ang/alpha",
+  "A->BD+C/BD/ang/beta", "BD->B+D/B/ang/beta", "A->BD+C/BD/ang/alpha", "BD->B+D/B/ang/alpha", 
+  "A->CD+B/CD/ang/beta", "CD->C+D/D/ang/beta", "A->CD+B/CD/ang/alpha", "CD->C+D/D/ang/alpha",
+  "BD->B+D/B/aligned_angle/beta","BC->B+C/B/aligned_angle/beta",
+  "BD->B+D/D/aligned_angle/beta","CD->C+D/D/aligned_angle/beta",
+  "BD->B+D/B/aligned_angle/alpha","BD->B+D/B/aligned_angle/gamma",
+  "BC->B+C/B/aligned_angle/alpha","BC->B+C/B/aligned_angle/gamma",
+  "BD->B+D/D/aligned_angle/alpha","BD->B+D/D/aligned_angle/gamma",
+  "CD->C+D/D/aligned_angle/alpha","CD->C+D/D/aligned_angle/gamma"
+]
 
 def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
-  a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
+  a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=batch)
   a_h.set_params(val)
   t = time.time()
   nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
@@ -35,8 +48,28 @@ def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
   return inv_he
 
+def prepare_data(dtype="float64", model="3"):
+  fname = [["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
+       ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
+       ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
+  ]
+  tname = ["data", "bg", "PHSP"]
+  data_np = {}
+  for i in range(len(tname)):
+    data_np[tname[i]] = prepare_data_from_dat_file(fname[i][0])
+  def load_data(name):
+    dat = []
+    tmp = data_np[name]
+    for i in param_list_test:
+      tmp_data = tf.Variable(tmp[i], name=i, dtype=dtype)
+      dat.append(tmp_data)
+    return dat
+  data = load_data("data")
+  bg = load_data("bg")
+  mcdata = load_data("PHSP")
+  return data, bg, mcdata
 
-def prepare_data(dtype="float64",model="3"):
+def prepare_data_2(dtype="float64",model="3"):
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
@@ -73,7 +106,6 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   config_list = load_config_file("Resonances")
   
   data, bg, mcdata = prepare_data(dtype=dtype,model=mode)
-  
   if GEN_TOY:
     print("########## begin generate_data")
     #data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
@@ -202,7 +234,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     json.dump(outdic,f,indent=2)
   err=None
   if hesse:
-    inv_he = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=10000)
+    inv_he = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=20000)
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(diag_he).tolist()
     err = dict(zip(args_name,hesse_error))

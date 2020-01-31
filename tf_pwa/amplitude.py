@@ -12,7 +12,6 @@ import os
 import copy
 import functools
 
-
 def is_complex(x):
   try:
     y = complex(x)

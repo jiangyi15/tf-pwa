@@ -119,10 +119,11 @@ def simple_cache_fun(f):
   name = "simple_cached_"+f.__name__
   @functools.wraps(f)
   def g(self):
-    if not hasattr(cache,name):
-      setattr(cache, name, f(self))
-    return getattr(cache, name)
+    if not hasattr(self,name):
+      setattr(self, name, f(self))
+    return getattr(self, name)
   return g
+
 
 class BaseDecay(object):
   """
@@ -143,7 +144,7 @@ class BaseDecay(object):
     ret += "+".join([str(i) for i in self.outs])
     return ret # "A->B+C"
 
-  #@simple_cache_fun#@functools.lru_cache()
+  @simple_cache_fun#@functools.lru_cache()
   def get_id(self):
     return (self.core, tuple(sorted(self.outs)))
 
