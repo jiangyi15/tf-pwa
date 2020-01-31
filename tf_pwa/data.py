@@ -175,39 +175,46 @@ def flatten_dict_data(data, fun="{}/{}".format):
     return ret
   return data
 
-# data process
-def infer_momentum(p, decay_chain: DecayChain, center_mass=True) -> dict:
+def struct_momentum(p, center_mass=True) -> dict:
     """
-    {outs:momentum} => {top:{p:momentum},inner:{p:..},outs:{p:..}}
+    {outs:momentum} => {outs:{p:momentum}}
     """
-    p_outs = {}
+    ret = {}
     if center_mass:
         ps_top = []
-        for i in decay_chain.outs:
+        for i in p:
             ps_top.append(p[i])
         p_top = tf.reduce_sum(ps_top, 0)
-        for i in decay_chain.outs:
-            p_outs[i] = LorentzVector.rest_vector(p_top, p[i])
+        for i in p:
+            ret[i] = {"p": LorentzVector.rest_vector(p_top, p[i])}
     else:
-        for i in decay_chain.outs:
-            p_outs[i] = p[i]
+        for i in p:
+            ret[i] = {"p": p[i]}
+    return ret
 
+# data process
+def infer_momentum(data, decay_chain: DecayChain) -> dict:
+    """
+    {outs:{p:momentum}} => {top:{p:momentum},inner:{p:..},outs:{p:..}}
+    """
     st = decay_chain.sorted_table()
-    ret = {}
     for i in st:
+        if i in data:
+            continue
         ps = []
         for j in st[i]:
-            ps.append(p_outs[j])
-        ret[i] = {"p": tf.reduce_sum(ps, 0)}
-    return ret
+            ps.append(data[j]["p"])
+        data[i] = {"p": tf.reduce_sum(ps, 0)}
+    return data
 
 def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
     """
     {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
     """
     for i in data:
-        p = data[i]["p"]
-        data[i]["m"] = LorentzVector.M(p)
+        if isinstance(i, BaseParticle):
+            p = data[i]["p"]
+            data[i]["m"] = LorentzVector.M(p)
     return data
 
 def add_weight(data: dict, weight: float = 1.0) -> dict:
@@ -327,17 +334,14 @@ def test_process(fnames=None):
         p = load_dat_file(fnames, [b, c, d])
     # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
     decs = DecayChain.from_particles(a, [b, c, d])
-    data = {}
+    data = struct_momentum(p)
     for dec in decs:
-      data_i = infer_momentum(p, dec)
-      data_i = add_mass(data_i, dec)
-      data_i = add_relativate_momentum(data_i, dec)
-      for i in data_i:
-        data[i] = data_i[i]
+      data = infer_momentum(data, dec)
+      data = add_mass(data, dec)
+      data = add_relativate_momentum(data, dec)
     data = cal_angle(data, DecayGroup(decs))
     data = add_weight(data)
-    for i, j in enumerate(split_generator(data, 5000)):
-        print("split:", i, "is", j)
+    print(len(list(split_generator(data, 5000))))
     from pprint import pprint
     def to_numpy(data):
       if hasattr(data, "numpy"):

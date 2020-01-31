@@ -66,6 +66,10 @@ class BaseParticle(object):
     if isinstance(other, BaseParticle):
       return (self.name, self._id) < (other.name, other._id)
     return self.name < other
+  def __gt__(self, other):
+    if isinstance(other, BaseParticle):
+      return (self.name, self._id) > (other.name, other._id)
+    return self.name > other
 
   def chain_decay(self):
     ret = []
@@ -337,7 +341,7 @@ class DecayChain(object):
     base = _Chain_Graph()
     base.add_edge(top, finals[0])
     gs = get_graphs(base, finals[1:])
-    return [i.get_decay_chain(top) for i in gs]
+    return [gi.get_decay_chain(top, head="chain{}_".format(i)) for i, gi in enumerate(gs)]
 
   @functools.lru_cache()
   def topology_id(self, identical=True):
@@ -382,26 +386,33 @@ class _Chain_Graph(object):
     self.edges.append((a, b))
   def add_node(self, e, d):
     self.edges.remove(e)
-    node = BaseParticle("tmp_node_" + str(self.count))
+    count = self.count
+    node = "node_{}".format(count)
     self.nodes.append(node)
-    self.count += 1
     self.edges.append((e[0], node))
     self.edges.append((node, e[1]))
     self.edges.append((node, d))
+    self.count += 1
   def copy(self):
     ret = _Chain_Graph()
     ret.nodes = self.nodes.copy()
     ret.edges = self.edges.copy()
     ret.count = self.count
     return ret
-  def get_decay_chain(self, top):
+  def get_decay_chain(self, top, head="tmp_"):
     decay_list = {}
     ret = []
+    inner_particle = {}
+    for i in self.nodes:
+      inner_particle[i] = BaseParticle("{}{}".format(head, i))
     for i, j in self.edges:
+      i = inner_particle.get(i, i)
+      j = inner_particle.get(j, j)
       if i in decay_list:
         decay_list[i].append(j)
       else:
         decay_list[i] = [j]
+    assert len(decay_list[top]) == 1, ""
     tmp = decay_list[top][0]
     decay_list[top] = decay_list[tmp]
     del decay_list[tmp]
