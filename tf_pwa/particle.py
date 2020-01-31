@@ -126,7 +126,7 @@ class BaseDecay(object):
       self.core.add_decay(self)
       for i in outs:
         i.add_creator(self)
-    self.outs = tuple(sorted(outs)) # daughter particles
+    self.outs = tuple(outs) # daughter particles
 
   def __repr__(self):
     ret = str(self.core)
@@ -134,13 +134,17 @@ class BaseDecay(object):
     ret += "+".join([str(i) for i in self.outs])
     return ret # "A->B+C"
 
+  @functools.lru_cache()
+  def get_id(self):
+    return (self.core, tuple(sorted(self.outs)))
+
   def __hash__(self):
-    return hash((self.core, self.outs))
+    return hash(self.get_id())
 
   def __eq__(self, other):
     if not isinstance(other, BaseDecay):
       return False
-    return (self.core, self.outs) == (other.core, other.outs)
+    return self.get_id() == other.get_id()
 
 class Decay(BaseDecay): # add useful methods to BaseDecay
   """
