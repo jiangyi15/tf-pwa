@@ -66,6 +66,10 @@ class BaseParticle(object):
     if isinstance(other, BaseParticle):
       return (self.name, self._id) < (other.name, other._id)
     return self.name < other
+  def __gt__(self, other):
+    if isinstance(other, BaseParticle):
+      return (self.name, self._id) > (other.name, other._id)
+    return self.name > other
 
   def chain_decay(self):
     ret = []
@@ -81,7 +85,7 @@ class BaseParticle(object):
   def get_resonances(self):
     decay_chain = self.chain_decay()
     chains = [DecayChain(i) for i in decay_chain]
-    decaygroup = DecayGroups(chains)
+    decaygroup = DecayGroup(chains)
     return decaygroup.resonances
 
 class Particle(BaseParticle): # add parameters to BaseParticle
@@ -111,6 +115,15 @@ def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
         ret.append((l, s))
   return ret
 
+def simple_cache_fun(f):
+  name = "simple_cached_"+f.__name__
+  @functools.wraps(f)
+  def g(self):
+    if not hasattr(cache,name):
+      setattr(cache, name, f(self))
+    return getattr(cache, name)
+  return g
+
 class BaseDecay(object):
   """
   Base Decay object
@@ -122,7 +135,7 @@ class BaseDecay(object):
       self.core.add_decay(self)
       for i in outs:
         i.add_creator(self)
-    self.outs = tuple(sorted(outs)) # daughter particles
+    self.outs = tuple(outs) # daughter particles
 
   def __repr__(self):
     ret = str(self.core)
@@ -130,13 +143,17 @@ class BaseDecay(object):
     ret += "+".join([str(i) for i in self.outs])
     return ret # "A->B+C"
 
+  #@simple_cache_fun#@functools.lru_cache()
+  def get_id(self):
+    return (self.core, tuple(sorted(self.outs)))
+
   def __hash__(self):
-    return hash((self.core, self.outs))
+    return hash(self.get_id())
 
   def __eq__(self, other):
     if not isinstance(other, BaseDecay):
       return False
-    return (self.core, self.outs) == (other.core, other.outs)
+    return self.get_id() == other.get_id()
 
 class Decay(BaseDecay): # add useful methods to BaseDecay
   """
@@ -260,16 +277,18 @@ class DecayChain(object):
     for i in self.outs:
       decay_dict[i] = [i]
 
-    chain = self.chain.copy()
+    chain = self.chain
     while chain:
-      tmp_chain = chain.copy()
-      for i in tmp_chain:
+      tmp_chain = []
+      for i in chain:
         if all([j in decay_dict for j in i.outs]):
           decay_dict[i.core] = []
           for j in i.outs:
             decay_dict[i.core] += decay_dict[j]
           decay_dict[i.core].sort()
-          chain.remove(i)
+        else:
+          tmp_chain.append(i)
+      chain = tmp_chain
     decay_dict[self.top] = sorted(list(self.outs))
     return decay_dict
 
@@ -335,19 +354,41 @@ class DecayChain(object):
     base = _Chain_Graph()
     base.add_edge(top, finals[0])
     gs = get_graphs(base, finals[1:])
-    return [i.get_decay_chain(top) for i in gs]
+    return [gi.get_decay_chain(top, head="chain{}_".format(i)) for i, gi in enumerate(gs)]
 
-  @property
   @functools.lru_cache()
-  def topology_id(self):
+  def topology_id(self, identical=True):
     a = self.sorted_table()
-    set_a = [[j.name for j in a[i]] for i in a]
+    if identical:
+      set_a = [[j.name for j in a[i]] for i in a]
+    else:
+      set_a = [list(a[i]) for i in a]
     return sorted(set_a)
 
-  def topology_same(self, other):
+  def topology_map(self, other):
+    """
+    [A->R+B,R->C+D],[A->Z+B,Z->C+D] => {A:A,B:B,C:C,D:D,R:Z,A->R+B:A->Z+B,R->C+D:Z->C+D}
+    """
+    a = self.sorted_table()
+    b = other.sorted_table()
+    ret = {}
+    for i in a:
+      for j in b:
+        if a[i] == b[j]:
+          ret[i] = j
+          break
+    for i in self:
+      test_decay = BaseDecay(ret[i.core], [ret[k] for k in i.outs], disable=False)
+      for j in other:
+        if test_decay == j:
+          ret[i] = j
+          break
+    return ret
+
+  def topology_same(self, other, identical=True):
     if not isinstance(other, DecayChain):
       raise TypeError("unsupport type {}".format(type(other)))
-    return self.topology_id == other.topology_id
+    return self.topology_id(identical) == other.topology_id(identical)
 
 class _Chain_Graph(object):
   def __init__(self):
@@ -358,26 +399,33 @@ class _Chain_Graph(object):
     self.edges.append((a, b))
   def add_node(self, e, d):
     self.edges.remove(e)
-    node = BaseParticle("tmp_node_" + str(self.count))
+    count = self.count
+    node = "node_{}".format(count)
     self.nodes.append(node)
-    self.count += 1
     self.edges.append((e[0], node))
     self.edges.append((node, e[1]))
     self.edges.append((node, d))
+    self.count += 1
   def copy(self):
     ret = _Chain_Graph()
     ret.nodes = self.nodes.copy()
     ret.edges = self.edges.copy()
     ret.count = self.count
     return ret
-  def get_decay_chain(self, top):
+  def get_decay_chain(self, top, head="tmp_"):
     decay_list = {}
     ret = []
+    inner_particle = {}
+    for i in self.nodes:
+      inner_particle[i] = BaseParticle("{}{}".format(head, i))
     for i, j in self.edges:
+      i = inner_particle.get(i, i)
+      j = inner_particle.get(j, j)
       if i in decay_list:
         decay_list[i].append(j)
       else:
         decay_list[i] = [j]
+    assert len(decay_list[top]) == 1, ""
     tmp = decay_list[top][0]
     decay_list[top] = decay_list[tmp]
     del decay_list[tmp]
@@ -386,7 +434,7 @@ class _Chain_Graph(object):
       ret.append(tmp)
     return DecayChain(ret)
 
-class DecayGroups(object):
+class DecayGroup(object):
   def __init__(self, chains):
     first_chain = chains[0]
     if not isinstance(first_chain, DecayChain):
@@ -405,6 +453,20 @@ class DecayGroups(object):
 
   def __repr__(self):
     return "{}".format(self.chains)
+
+  def __iter__(self):
+    return iter(self.chains)
+
+  def topology_structure(self, identical=False):
+    ret = []
+    for i in self:
+      for j in ret:
+        if i.topology_same(j, identical):
+          break
+      else:
+        ret.append(i)
+    return ret
+
 
 def load_decfile_particle(fname):
   with open(fname) as f:
@@ -451,7 +513,7 @@ def test():
   decay4 = Decay(tmp2, [b, c])
   decaychain = DecayChain([decay, decay2])
   decaychain2 = DecayChain([decay3, decay4])
-  decaygroup = DecayGroups([decaychain, decaychain2])
+  decaygroup = DecayGroup([decaychain, decaychain2])
   print(decay.get_cg_matrix().T)
   print(np.array(decay.get_ls_list()))
   print(np.array(decay.get_ls_list())[:, 0])

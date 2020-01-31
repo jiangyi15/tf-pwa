@@ -35,12 +35,16 @@ class Vector3(tf.Tensor):
         return p
 
     def cross_unit(self, other):
-        p, _n = tf.linalg.normalize(tf.linalg.cross(self, other), axis=-1)
+        shape = tf.broadcast_dynamic_shape(self.shape, other.shape)
+        a = tf.broadcast_to(self, shape)
+        b = tf.broadcast_to(other, shape)
+        p, _n = tf.linalg.normalize(tf.linalg.cross(a, b), axis=-1)
         return p
 
     def angle_from(self, x, y):
         return tf.math.atan2(Vector3.dot(self, y), Vector3.dot(self, x))
 
+_epsilon = 1.0e-14
 
 class LorentzVector(tf.Tensor):
     """
@@ -78,7 +82,7 @@ class LorentzVector(tf.Tensor):
         beta2 = Vector3.norm2(pb)
         gamma = 1.0/tf.sqrt(1-beta2)
         bp = Vector3.dot(pb, LorentzVector.vect(self))
-        gamma2 = tf.where(beta2 > 0.0, (gamma-1.0)/beta2, 0.0)
+        gamma2 = tf.where(beta2 > _epsilon, (gamma-1.0)/beta2, 0.0)
         p_r = LorentzVector.vect(self)
         p_r += tf.reshape(gamma2*bp, (-1, 1))*pb
         p_r += tf.reshape(gamma*LorentzVector.get_T(self), (-1, 1))*pb
@@ -127,7 +131,7 @@ class EularAngle(dict):
 
     @staticmethod
     # @pysnooper.snoop()
-    def angle_zx_z_gety(z1, x1, z2):
+    def angle_zx_z_getx(z1, x1, z2):
         u_z1 = Vector3.unit(z1)
         u_z2 = Vector3.unit(z2)
         u_y1 = Vector3.cross_unit(z1, x1)
