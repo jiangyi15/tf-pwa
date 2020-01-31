@@ -118,18 +118,57 @@ def split_generator(data, batch_size, axis=0):
 def data_map(data, fun, args=(), kwargs=None):
     kwargs = kwargs if kwargs is not None else {}
     def g_fun(*args1, **kwargs1):
-        yield fun(*args1, **kwargs1)
+        return [fun(*args1, **kwargs1)]
     g = data_generator(data, fun=g_fun, args=args, kwargs=kwargs)
     return next(g)
 
+def data_merge(data1, data2, axis=0):
+  def flatten(data):
+    ret = []
+    def data_list(dat):
+      ret.append(dat)
+    data_map(data, data_list)
+    return ret
+  def rebuild(data, ret):
+    idx = -1
+    def data_build(_dat):
+      nonlocal idx
+      idx += 1
+      return ret[idx]
+    data = data_map(data, data_build)
+    return data
+  f_data1 = flatten(data1)
+  f_data2 = flatten(data2)
+  m_data = [tf.concat(data_i, axis=axis) for data_i in zip(f_data1, f_data2)]
+  return rebuild(data1, m_data)
+
+def data_shape(data, axis=0, all_list=False):
+  def flatten(dat):
+    ret = []
+    def data_list(dat1):
+      ret.append(dat1.shape)
+    data_map(dat, data_list)
+    return ret
+  shapes = flatten(data)
+  if all_list:
+    return shapes
+  return shapes[0][axis]
+
 def flatten_dict_data(data, fun="{}/{}".format):
-  if isinstance(data, dict):
+  def dict_gen(data):
+    return data.items()
+  def list_gen(data):
+    return enumerate(data)
+
+  if isinstance(data, (dict, list, tuple)):
     ret = {}
-    for i in data:
-      tmp = flatten_dict_data(data[i])
-      if isinstance(tmp, dict):
-        for j in tmp:
-          ret[fun(i, j)] = tmp[j]
+    gen_1 = dict_gen if isinstance(data, dict) else list_gen
+    for i, data_i in gen_1(data):
+      tmp = flatten_dict_data(data_i)
+      if isinstance(tmp, (dict, list, tuple)):
+        gen_2 = dict_gen if isinstance(tmp, dict) else list_gen
+        for j, tmp_j in gen_2(tmp):
+          ret[fun(i, j)] = tmp_j
       else:
         ret[i] = tmp
     return ret
@@ -168,6 +207,15 @@ def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
     for i in data:
         p = data[i]["p"]
         data[i]["m"] = LorentzVector.M(p)
+    return data
+
+def add_weight(data: dict, weight: float = 1.0) -> dict:
+    """
+    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    """
+    data_size = data_shape(data)
+    weight = [1.0] * data_size
+    data["weight"] = np.array(weight)
     return data
 
 def cal_helicity_angle(data: dict, decay_chain: DecayChain = None) -> dict:
@@ -286,8 +334,14 @@ def test_process(fnames=None):
       for i in data_i:
         data[i] = data_i[i]
     data = cal_angle(data, DecayGroup(decs))
+    data = add_weight(data)
     for i, j in enumerate(split_generator(data, 5000)):
         print("split:", i, "is", j)
     from pprint import pprint
-    pprint(data_map(data, lambda x: x.numpy()))
+    def to_numpy(data):
+      if hasattr(data, "numpy"):
+        return data.numpy()
+      return data
+    data = data_map(data, to_numpy)
+    pprint(data)
     return data
