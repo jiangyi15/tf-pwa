@@ -2,9 +2,8 @@ from .tensorflow_wrapper import tf
 import numpy as np
 
 from contextlib import contextmanager
-from .cg import get_cg_coef
 from .particle import Particle,Decay
-from .variable import Vars,fix_value
+from .variable import Vars
 from .dfun_tf import D_Cache as D_fun_Cache
 from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
 from .config import regist_config
@@ -31,9 +30,6 @@ param_list = [
   "alpha_BD_B","gamma_BD_B","alpha_BC_B","gamma_BC_B","alpha_BD_D","gamma_BD_D","alpha_CD_D","gamma_CD_D"
 ]
 
-def cg_coef(j1,j2,m1,m2,j,m):
-  ret = get_cg_coef(j1,j2,m1,m2,j,m)
-  return ret
 
 def Getp(M_0, M_1, M_2) :
   M12S = M_1 + M_2
@@ -151,11 +147,11 @@ class AllAmplitude(tf.keras.Model):
         rho,phi = N_tot.real,N_tot.imag
       else:
         rho,phi = N_tot #其他类型的complex. raise error?
-      r = self.add_var(name=coef_head+"r",initializer=fix_value(rho),trainable=False) #(name=coef_head+"r",var=rho,trainable=False) #去掉fix_value函数？
-      i = self.add_var(name=head+"i",initializer=fix_value(phi),trainable=False)
+      r = self.add_var(name=coef_head+"r",var=rho,trainable=False)
+      i = self.add_var(name=head+"i",var=phi,trainable=False)
     elif const_first:#先判断有么有total，否则就用const_first
-      r = self.add_var(name=coef_head+"r",initializer=fix_value(1.0),trainable=False)
-      i = self.add_var(name=head+"i",initializer=fix_value(0.0),trainable=False)
+      r = self.add_var(name=coef_head+"r",var=1.0,trainable=False)
+      i = self.add_var(name=head+"i",var=0.0,trainable=False)
     else:
       r = self.add_var(name=coef_head+"r",size=2.0)
       i = self.add_var(name=head+"i",range=(-np.pi,np.pi))
@@ -188,8 +184,8 @@ class AllAmplitude(tf.keras.Model):
       l,s = ls[i]
       name = "{head}BLS_{l}_{s}".format(head=coef_head,l=l,s=s)
       if i in const_list:
-        tmp_r = self.add_var(name=name+"r",initializer=fix_value(1.0),trainable=False)
-        tmp_i = self.add_var(name=name+"i",initializer=fix_value(0.0),trainable=False)
+        tmp_r = self.add_var(name=name+"r",var=1.0,trainable=False)
+        tmp_i = self.add_var(name=name+"i",var=0.0,trainable=False)
         arg_list.append((name+"r",name+"i"))
       else :
         if self.polar:

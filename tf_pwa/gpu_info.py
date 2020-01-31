@@ -4,7 +4,7 @@ support_info = [
   "memory.total",
   "memory.free",
   "memory.used",
-  "name",
+  "name", #后三项还没
   "utilization.gpu",
   "utilization.memory"
 ]
