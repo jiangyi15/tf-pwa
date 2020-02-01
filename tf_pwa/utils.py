@@ -79,6 +79,13 @@ def pprint(dicts):
   except:
     print(dicts,flush=True)
 
+def print_dic(dic):
+  if type(dic)==dict:
+    for i in dic:
+      print(i+" :\t",dic[i])
+  else:
+    print(dic)
+
 def std_polar(rho,phi):
   if rho<0:
     rho = -rho

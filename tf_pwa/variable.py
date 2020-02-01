@@ -22,23 +22,35 @@ def range_value(a,b): # random uniform [a,b]
 '''
 
 class Vars(object):
-  def __init__(self, add_method):
-    self.add_method = add_method # keras.Model.add_weight 不够通用化
+  def __init__(self, add_method, fix_dic={}, bnd_dic={}):
     self.variables = {}
+    self.trainable_vars = []
+    self.fix_dic = fix_dic
+    self.bnd_dic = bnd_dic
+    self.add_method = add_method # keras.Model.add_weight 不够通用化
 
 
-  def add_var(self,name,value=None,range_=None,trainable=True,**args):
+  def add_var(self,name,value=None,range_=None,trainable=True,*arg,**kwarg):
     if name not in self.variables: # a new var
+      if name in self.fix_dic: # a fixed var
+        value = self.fix_dic[name]
+        trainable = False
+      if name in self.bnd_dic: # set boundary for this var
+        pass
+      if trainable:
+        self.trainable_vars.append(name)
+
       if value is None:
-        if range_ is None:  
-          self.variables[name] = self.add_method(name,trainable=trainable,**args)# 如果没iniitializer那会是啥？
+        if range_ is None:
+          self.variables[name] = self.add_method(name,trainable=trainable)# 如果没iniitializer那会是啥？
         else: # random [a,b]
-          self.variables[name] = self.add_method(name,initializer=tf.initializers.RandomUniform(*range_),trainable=trainable,**args)
+          self.variables[name] = self.add_method(name,initializer=tf.initializers.RandomUniform(*range_),trainable=trainable)
       else: # constant value
-        self.variables[name] = self.add_method(name,initializer=tf.initializers.Constant(value),trainable=trainable,**args)
+        self.variables[name] = self.add_method(name,initializer=tf.initializers.Constant(value),trainable=trainable)
+    
+    else:
+      pass #比如D1_2430r会两次出现
     return self.variables[name]
- 
-  __call__ = add_var
 
 
   def get(self,name):
@@ -52,33 +64,18 @@ class Vars(object):
     return self.variables[name].assign(value)
 
 
-class Variable(object): # fitting parameters for the amplitude model
-  def __init__(self,add_method,res,res_decay,polar,name=None,value=None,err=None,range_=(None,None)):
-    self.name = name
-    self.value = value
-    self.err = err
-    self.range_ = range_
-
-    self.add_var = Vars(add_method) # 通过Vars类来操作variables
+class Variable(Vars): # fitting parameters for the amplitude model
+  def __init__(self,add_method,res,res_decay,polar,**kwarg):
+    super(Variable,self).__init__(add_method,**kwarg)
     self.res = res
     self.polar = polar # r*e^{ip} or x+iy
     self.res_decay = res_decay
     self.coef = {}
     self.coef_norm = {}
 
-  def params_mass_width(self): # add "mass" "width" fitting parameters
-    for i in self.res:
-      if "float" in self.res[i]: # variable
-        floating = self.res[i]["float"]
-        floating = str(floating)
-        if "m" in floating:
-          self.res[i]["m0"] = self.add_var(name=i+"_m",value = self.res[i]["m0"]) #然后self.res[i]["m0"]就成一个变量了（BW里会调用）
-        if "g" in floating:
-          self.res[i]["g0"] = self.add_var(name=i+"_g",value = self.res[i]["g0"])
 
-
-  def init_res_param(self):
-    self.params_mass_width()
+  def init_fit_params(self):
+    self.init_params_mass_width()
     const_first = True # 第一个共振态系数为1，除非Resonance.yml里指定了某个"total"
     for i in self.res:
       if "total" in self.res[i]:
@@ -95,9 +92,19 @@ class Variable(object): # fitting parameters for the amplitude model
           res_tmp.remove(coef_head)
       res_all.append(i)
     for i in res_all:
-      const_first = self.init_res_param_sig(i,self.res[i],const_first=const_first)
+      const_first = self.init_partial_wave_coef(i,self.res[i],const_first=const_first)
+
+  def init_params_mass_width(self): # add "mass" "width" fitting parameters
+    for i in self.res:
+      if "float" in self.res[i]: # variable
+        floating = self.res[i]["float"]
+        floating = str(floating)
+        if "m" in floating:
+          self.res[i]["m0"] = self.add_var(name=i+"_m",value = self.res[i]["m0"]) #然后self.res[i]["m0"]就成一个变量了（BW里会调用）
+        if "g" in floating:
+          self.res[i]["g0"] = self.add_var(name=i+"_g",value = self.res[i]["g0"])
     
-  def init_res_param_sig(self,head,config,const_first=False): #head名字，config参数
+  def init_partial_wave_coef(self,head,config,const_first=False): #head名字，config参数
     self.coef[head] = []
     chain = config["Chain"]
     coef_head = head
@@ -123,13 +130,13 @@ class Variable(object): # fitting parameters for the amplitude model
       const = list(config["const"])
     else:
       const = [0,0]
-    ls,arg = self.gen_coef(head,0,coef_head+"_",const[0])
+    ls,arg = self.gen_coef_gls(head,0,coef_head+"_",const[0])
     self.coef[head].append(arg)
-    ls,arg = self.gen_coef(head,1,coef_head+"_d_",const[1])
+    ls,arg = self.gen_coef_gls(head,1,coef_head+"_d_",const[1])
     self.coef[head].append(arg)
     return False # const_first
     
-  def gen_coef(self,idx,layer,coef_head,const = 0) :
+  def gen_coef_gls(self,idx,layer,coef_head,const = 0) :
     if const is None:
       const = 0 # set the first to be constant 1 by default
     if isinstance(const,int):
@@ -161,13 +168,6 @@ class Variable(object): # fitting parameters for the amplitude model
     return ls,arg_list
 
 
-  def get(self,name):
-    return self.add_var.get(name)
-
-  def set(self,name,value):
-    return self.add_var.set(name,value)
-
-  
   def set_range(self,range_):
     self.range_ = range_
   
