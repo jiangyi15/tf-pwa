@@ -4,7 +4,9 @@ import tensorflow as tf
 import time
 import numpy as np
 import json
+import os
 from scipy.optimize import minimize,BFGS,basinhopping
+import tf_pwa
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
 from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
@@ -22,17 +24,61 @@ else:
 from tf_pwa.data import prepare_data_from_dat_file
 
 param_list_test = [
-  "A/m","B/m","C/m","D/m","BC/m", "BD/m", "CD/m", 
-  "A->BC+D/BC/ang/beta", "BC->B+C/B/ang/beta", "A->BC+D/BC/ang/alpha", "BC->B+C/B/ang/alpha",
-  "A->BD+C/BD/ang/beta", "BD->B+D/B/ang/beta", "A->BD+C/BD/ang/alpha", "BD->B+D/B/ang/alpha", 
-  "A->CD+B/CD/ang/beta", "CD->C+D/D/ang/beta", "A->CD+B/CD/ang/alpha", "CD->C+D/D/ang/alpha",
-  "BD->B+D/B/aligned_angle/beta","BC->B+C/B/aligned_angle/beta",
-  "BD->B+D/D/aligned_angle/beta","CD->C+D/D/aligned_angle/beta",
-  "BD->B+D/B/aligned_angle/alpha","BD->B+D/B/aligned_angle/gamma",
-  "BC->B+C/B/aligned_angle/alpha","BC->B+C/B/aligned_angle/gamma",
-  "BD->B+D/D/aligned_angle/alpha","BD->B+D/D/aligned_angle/gamma",
-  "CD->C+D/D/aligned_angle/alpha","CD->C+D/D/aligned_angle/gamma"
+  "particle/A/m","particle/B/m","particle/C/m","particle/D/m","particle/BC/m", "particle/BD/m", "particle/CD/m", 
+  "decay/0/A->BC+D/BC/ang/beta", "decay/0/BC->B+C/B/ang/beta", "decay/0/A->BC+D/BC/ang/alpha", "decay/0/BC->B+C/B/ang/alpha",
+  "decay/1/A->BD+C/BD/ang/beta", "decay/1/BD->B+D/B/ang/beta", "decay/1/A->BD+C/BD/ang/alpha", "decay/1/BD->B+D/B/ang/alpha", 
+  "decay/2/A->CD+B/CD/ang/beta", "decay/2/CD->C+D/D/ang/beta", "decay/2/A->CD+B/CD/ang/alpha", "decay/2/CD->C+D/D/ang/alpha",
+  "decay/1/BD->B+D/B/aligned_angle/beta","decay/0/BC->B+C/B/aligned_angle/beta",
+  "decay/1/BD->B+D/D/aligned_angle/beta","decay/2/CD->C+D/D/aligned_angle/beta",
+  "decay/1/BD->B+D/B/aligned_angle/alpha","decay/1/BD->B+D/B/aligned_angle/gamma",
+  "decay/0/BC->B+C/B/aligned_angle/alpha","decay/0/BC->B+C/B/aligned_angle/gamma",
+  "decay/1/BD->B+D/D/aligned_angle/alpha","decay/1/BD->B+D/D/aligned_angle/gamma",
+  "decay/2/CD->C+D/D/aligned_angle/alpha","decay/2/CD->C+D/D/aligned_angle/gamma"
 ]
+
+def load_cached_data(cached_data_file = "cached_data.npy"):
+    cached_dir = "./cached_dir"
+    if not os.path.exists(cached_dir):
+        return None
+    cached_path = os.path.join(cached_dir, cached_data_file)
+    if os.path.exists(cached_path):
+        cached_data = tf_pwa.load_data(cached_path)
+        return cached_data
+    return None
+
+def save_cached_data(cached_data, cached_data_file = "cached_data.npy"):
+    cached_dir = "./cached_dir"
+    if not os.path.exists(cached_dir):
+        os.mkdir(cached_dir)
+    cached_path = os.path.join(cached_dir, cached_data_file)
+    tf_pwa.save_data(cached_path, cached_data)
+
+def prepare_data(dtype="float64", model="3"):
+    fname = [["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
+        ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
+        ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
+    ]
+    tname = ["data", "bg", "PHSP"]
+    cached_data = load_cached_data()
+    if cached_data is not None:
+        data = cached_data["data"]
+        bg = cached_data["bg"]
+        mcdata = cached_data["PHSP"]
+        print("using cached data")
+        return data, bg, mcdata
+    data_np = {}
+    for i, name in enumerate(fname):
+        data_np[tname[i]] = prepare_data_from_dat_file(name[0])
+    def load_data(name):
+        dat = []
+        tmp = data_np[name]
+        for i in param_list_test:
+            tmp_data = tf.Variable(tmp[i], name=i, dtype=dtype)
+            dat.append(tmp_data)
+        return dat
+    data, bg, mcdata = [load_data(i) for i in tname]
+    save_cached_data({"data": data, "bg": bg, "PHSP": mcdata})
+    return data, bg, mcdata
 
 def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=batch)
@@ -48,26 +94,7 @@ def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
   #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
   return inv_he
 
-def prepare_data(dtype="float64", model="3"):
-  fname = [["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
-       ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
-       ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
-  ]
-  tname = ["data", "bg", "PHSP"]
-  data_np = {}
-  for i in range(len(tname)):
-    data_np[tname[i]] = prepare_data_from_dat_file(fname[i][0])
-  def load_data(name):
-    dat = []
-    tmp = data_np[name]
-    for i in param_list_test:
-      tmp_data = tf.Variable(tmp[i], name=i, dtype=dtype)
-      dat.append(tmp_data)
-    return dat
-  data = load_data("data")
-  bg = load_data("bg")
-  mcdata = load_data("PHSP")
-  return data, bg, mcdata
+
 
 def prepare_data_2(dtype="float64",model="3"):
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
