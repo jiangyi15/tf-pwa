@@ -4,13 +4,15 @@ from .utils import is_complex
 
 
 class Vars(object):
-  def __init__(self, add_method, fix_dic={}, bnd_dic={}):
+  def __init__(self, model, fix_dic={}, bnd_dic={}):
     self.variables = {}
     self.trainable_vars = []
-    self.clx_vars = {} #complex pairs
+    self.complex_vars = {}
+    self.norm_factor = {} #isopin constr
     self.fix_dic = fix_dic
     self.bnd_dic = bnd_dic
-    self.add_method = add_method # keras.Model.add_weight 不够通用化
+    #self.model = model
+    self.add_method = model.add_weight # keras.Model.add_weight 不够通用化
 
 
   def add_var(self,name,value=None,range_=None,trainable=True,*arg,**kwarg):
@@ -23,7 +25,7 @@ class Vars(object):
 
       if value is None:
         if range_ is None:
-          self.variables[name] = self.add_method(name,trainable=trainable)# 如果没iniitializer那会是啥？
+          self.variables[name] = self.add_method(name,trainable=trainable)# 如果没initializer那会是啥？
         else: # random [a,b]
           self.variables[name] = self.add_method(name,initializer=tf.initializers.RandomUniform(*range_),trainable=trainable)
       else: # constant value
@@ -34,37 +36,73 @@ class Vars(object):
       pass #比如D1_2430r会两次出现
     return self.variables[name]
 
+  def add_complex_var(self,name,polar=True, trainable=True):
+    var_r = name+'r'
+    var_i = name+'i'
+    if trainable:
+      if polar:
+        var_r = self.add_var(name=var_r,range_=(0,2.0))
+        var_i = self.add_var(name=var_i,range_=(-np.pi,np.pi))
+      else:
+        var_r = self.add_var(name=var_r,range_=(-1,1))
+        var_i = self.add_var(name=var_i,range_=(-1,1))
+    else:
+      var_r = self.add_var(name=var_r,value=1.0,False)
+      var_i = self.add_var(name=var_i,value=0.0,False)
+    self.complex_vars[name] = [[var_r,var_i],polar] #var_r的值会随着变？
+
+  #def set_complex_pair(self,name,var_r,var_i,polar=True):#add_complex_var相当于先分别add_var再set_complex_pair
+  #  if name not in self.complex_vars:
+  #    self.complex_vars[name] = [[var_r,var_i],polar]
+
 
   def get(self,name):
     if name not in self.variables:
       raise Exception("{} not found".format(name))
-    return self.variables[name]
+    return self.variables[name] #tf.Variable
   
   def set(self,name,value):
     if name not in self.variables:
       raise Exception("{} not found".format(name))
     return self.variables[name].assign(value)
 
-  def set_clx_pair(var1,var2,name,polar=True):
-    self.clx_vars[name] = [[var1,var2],polar]
 
-  def rp2xy(name):
-    if name not in self.clx_vars:
+  def rp2xy(name,polar=True):
+    if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    r,p = self.clx_vars[name][0]
+    if not polar:
+      return
+    r,p = self.complex_vars[name][0]
     x = r * np.cos(p)
     y = r * np.sin(p)
-    self.clx_vars[name][0] = [x,y]
-    self.clx_vars[name][1] = False
+    self.complex_vars[name][0] = [x,y]
+    self.complex_vars[name][1] = False
 
-  def xy2rp(name):
-    if name not in self.clx_vars:
+  def xy2rp(name,polar=False):
+    if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    x,y = self.clx_vars[name][0]
+    if polar:
+      return
+    x,y = self.complex_vars[name][0]
     r = np.sqrt(x*x+y*y)
     p = np.arctan2(y,x)
-    self.clx_vars[name][0] = [r,p]
-    self.clx_vars[name][1] = True
+    self.complex_vars[name][0] = [r,p]
+    self.complex_vars[name][1] = True
+
+  def std_polar(name,polar=True):
+    if name not in self.complex_vars:
+      raise Exception("{} not found".format(name))
+    if not polar:
+      xy2rp(name)
+    r,p = self.complex_vars[name][0]
+    if r<0:
+      r.assign(tf.abs(r))
+      p.assign_add(np.pi)
+    while p<=-np.pi:
+      p.assign_add(2*np.pi)
+    while p>=np.pi:
+      p.assign_add(-2*np.pi)
+
 
   def initialize():
     pass
@@ -88,7 +126,7 @@ class Vars(object):
       i = 0
       for name in self.trainable_vars:
         if name in self.bnd_dic:
-          yvals[i] = self.bnd_dic[name].get_x2y(xvals[i]))
+          yvals[i] = self.bnd_dic[name].get_x2y(xvals[i])
           dydxs.append(self.bnd_dic[name].get_dydx(xvals[i]))
         else:
           dydxs.append(1)
@@ -145,8 +183,8 @@ class Bound(object):
 
 
 class Variable(Vars): # fitting parameters for the amplitude model
-  def __init__(self,add_method,res,res_decay,polar,**kwarg):
-    super(Variable,self).__init__(add_method,**kwarg)
+  def __init__(self,model,res,res_decay,polar,**kwarg):
+    super(Variable,self).__init__(model,**kwarg)
     self.res = res
     self.polar = polar # r*e^{ip} or x+iy
     self.res_decay = res_decay
