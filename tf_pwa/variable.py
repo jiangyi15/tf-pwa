@@ -1,30 +1,13 @@
 import tensorflow as tf
-from numpy import pi
+import numpy as np
 from .utils import is_complex
 
-'''
-def fix_value(x): # a dtype constant
-  def f(shape=None,dtype=None):
-    if dtype is not None:
-      return tf.Variable(x,dtype=dtype)
-    return x
-  return f
-def rand_value(x): # random uniform [0,1]
-  def f(shape=None,dtype=None):
-    if dtype is not None:
-      return tf.Variable(x*tf.random.uniform((),dtype=dtype),dtype=dtype)
-    return x*tf.random.uniform((),dtype=dtype)
-  return f
-def range_value(a,b): # random uniform [a,b]
-  def f(shape=None,dtype=None):
-    return (b-a)*tf.random.uniform((),dtype=dtype)+a
-  return f
-'''
 
 class Vars(object):
   def __init__(self, add_method, fix_dic={}, bnd_dic={}):
     self.variables = {}
     self.trainable_vars = []
+    self.clx_vars = {} #complex pairs
     self.fix_dic = fix_dic
     self.bnd_dic = bnd_dic
     self.add_method = add_method # keras.Model.add_weight 不够通用化
@@ -35,8 +18,6 @@ class Vars(object):
       if name in self.fix_dic: # a fixed var
         value = self.fix_dic[name]
         trainable = False
-      if name in self.bnd_dic: # set boundary for this var
-        pass
       if trainable:
         self.trainable_vars.append(name)
 
@@ -47,7 +28,8 @@ class Vars(object):
           self.variables[name] = self.add_method(name,initializer=tf.initializers.RandomUniform(*range_),trainable=trainable)
       else: # constant value
         self.variables[name] = self.add_method(name,initializer=tf.initializers.Constant(value),trainable=trainable)
-    
+      if name in self.bnd_dic: # set boundary for this var
+        self.bnd_dic[name] = Bound(*self.bnd_dic[name],func=None)
     else:
       pass #比如D1_2430r会两次出现
     return self.variables[name]
@@ -62,6 +44,104 @@ class Vars(object):
     if name not in self.variables:
       raise Exception("{} not found".format(name))
     return self.variables[name].assign(value)
+
+  def set_clx_pair(var1,var2,name,polar=True):
+    self.clx_vars[name] = [[var1,var2],polar]
+
+  def rp2xy(name):
+    if name not in self.clx_vars:
+      raise Exception("{} not found".format(name))
+    r,p = self.clx_vars[name][0]
+    x = r * np.cos(p)
+    y = r * np.sin(p)
+    self.clx_vars[name][0] = [x,y]
+    self.clx_vars[name][1] = False
+
+  def xy2rp(name):
+    if name not in self.clx_vars:
+      raise Exception("{} not found".format(name))
+    x,y = self.clx_vars[name][0]
+    r = np.sqrt(x*x+y*y)
+    p = np.arctan2(y,x)
+    self.clx_vars[name][0] = [r,p]
+    self.clx_vars[name][1] = True
+
+  def initialize():
+    pass
+
+  def get_all():
+    vals = []
+    for name in self.trainable_vars:
+      vals.append(self.get(name).numpy())
+    return vals
+      
+  def set_all(vals):
+    i = 0
+    for name in self.trainable_vars:
+      self.set(name,vals[i])
+      i+=1
+
+  def trans_fcn(self,fcn,grad): # bound transform fcn and grad
+    def fcn_t(xvals):
+      yvals = xvals
+      dydxs = []
+      i = 0
+      for name in self.trainable_vars:
+        if name in self.bnd_dic:
+          yvals[i] = self.bnd_dic[name].get_x2y(xvals[i]))
+          dydxs.append(self.bnd_dic[name].get_dydx(xvals[i]))
+        else:
+          dydxs.append(1)
+        i+=1
+      grad_yv = np.array(grad(yvals))
+      return fcn(yvals), grad_yv*dydxs
+    return fcn_t
+
+
+
+import sympy as sy
+class Bound(object):
+  def __init__(self,a,b,func=None):
+    self.lower = a
+    self.upper = b
+    if func:
+      self.func = func # from R (x) to a limited range (y) #Note: y is gls but x is the var in fitting
+    else:
+      if a==None:
+        if b==None:
+          self.func = "x"
+        else:
+          self.func = "b+1-sqrt(x**2+1)"
+      else:
+        if b==None:
+          self.func = "a-1+sqrt(x**2+1)"
+        else:
+          self.func = "(b-a)*(sin(x)+1)/2+a"
+    self.f,self.df,self.inv = self.get_func(self.lower,self.upper)
+
+  def get_func(self,lower,upper):
+    x,a,b,y = sy.symbols("x a b y")
+    f = sy.sympify(self.func)
+    f = f.subs({a:lower,b:upper})
+    df = sy.diff(f,x)
+    inv = sy.solve(f-y,x)
+    if hasattr(inv,"__len__"):
+      inv = inv[-1]
+    return f,df,inv
+
+  def get_x2y(self,val): # var->gls
+    x = sy.symbols('x')
+    return self.f.evalf(subs={x:val})
+  def get_y2x(self,val): # gls->var
+    y = sy.symbols('y')
+    return self.inv.evalf(subs={y:val})
+  def get_dydx(self,val): # gradient in fitting: dNLL/dx = dNLL/dy * dy/dx
+    x = sy.symbols('x')
+    return self.df.evalf(subs={x:val})
+
+  def trans_fcn(self,fcn,grad):
+    def fcn_t(xs):
+      ys = [self.get_x2y(x) for x in xs]
 
 
 class Variable(Vars): # fitting parameters for the amplitude model
@@ -124,7 +204,7 @@ class Variable(Vars): # fitting parameters for the amplitude model
       i = self.add_var(name=head+"i",value=0.0,trainable=False)
     else:
       r = self.add_var(name=coef_head+"r",range_=(0,2.0))
-      i = self.add_var(name=head+"i",range_=(-pi,pi))
+      i = self.add_var(name=head+"i",range_=(-np.pi,np.pi))
     self.coef_norm[head] = [r,i]
     if "const" in config: # H里哪一个参数设为常数1
       const = list(config["const"])
@@ -160,7 +240,7 @@ class Variable(Vars): # fitting parameters for the amplitude model
       else :
         if self.polar:
           tmp_r = self.add_var(name=name+"r",range_=(0,2.0))
-          tmp_i = self.add_var(name=name+"i",range_=(-pi,pi))
+          tmp_i = self.add_var(name=name+"i",range_=(-np.pi,np.pi))
         else:
           tmp_r = self.add_var(name=name+"r",range_=(-1,1))
           tmp_i = self.add_var(name=name+"i",range_=(-1,1))

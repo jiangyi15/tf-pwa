@@ -11,7 +11,7 @@ from .config import regist_config
 import os
 import copy
 import functools
-#from .utils import print_dic
+from .utils import print_dic
 
 
 param_list = [
@@ -51,12 +51,14 @@ class AllAmplitude(tf.keras.Model):
     self.res = copy.deepcopy(res) # RESON Params #直接用等号会修改res
     self.res_decay = self.init_res_decay() # DECAY for each type of process
     self.polar = polar
-    fix_dic = {}#"D1_2420r":0.33343019450491707}
+    fix_dic = {"D1_2420r":3.12}
     bnd_dic = {}#"D1_2420r":(0.3334301945,0.3334301945)}
     self.fit_params = Variable(self.add_weight,self.res,self.res_decay,self.polar,fix_dic=fix_dic,bnd_dic=bnd_dic)
     self.fit_params.init_fit_params() # initialize FPs
+    
     #print_dic(self.fit_params.variables)
     #print_dic(self.fit_params.trainable_vars)
+    
     self.coef = self.fit_params.coef # FP gls inside H
     self.coef_norm = self.fit_params.coef_norm # FP norm factor for each resonance
     self.init_used_res() # used RESON'NAMES in config
