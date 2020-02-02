@@ -23,13 +23,17 @@ def delta_D_trans(j, la, lb, lc):
     ret = _tuple_delta_D_trans(j, la, lb, lc)
     return ret
 
-def Dfun_delta(d, ja, la, lb, lc):
+def Dfun_delta(d, ja, la, lb, lc = None):
     r"""
     D_{ma,mb-mc} = \delta[(m1,m2)->(ma, mb,mc))] D_{m1,m2}
     """
+    ein_str = "ijd,jdabc->iabc"
+    if lc is None:
+        lc = (0,)
+        ein_str = "ijd,jdabc->iab"
     t = delta_D_trans(ja, la, lb, lc)
     t_cast = tf.cast(t, d.dtype)
-    ret = tf.einsum("ijd,jdabc->iabc", d, t_cast)
+    ret = tf.einsum(ein_str, d, t_cast)
     return ret
 
 @functools.lru_cache()
@@ -77,6 +81,7 @@ def small_d_matrix(theta, j):
     c = tf.pow(costheta, j - a)
     sc = s*c
     w = small_d_weight(j)
+    w = tf.cast(w, sc.dtype)
     ret = tf.einsum("il,lab->iab", sc, w)
     return ret
 
@@ -113,6 +118,6 @@ def get_D_matrix_for_angle(angle, j, cached=True):
         return angle[name]
     return D_matrix_conj(alpha, beta, gamma, j)
 
-def get_D_matrix_lambda(angle, ja, la, lb, lc=(0,)):
+def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     d = get_D_matrix_for_angle(angle, 2*ja)
     return Dfun_delta(d, ja, la, lb, lc)

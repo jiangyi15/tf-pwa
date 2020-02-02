@@ -89,19 +89,18 @@ class BaseParticle(object):
     return decaygroup.resonances
 
 class Particle(BaseParticle): # add parameters to BaseParticle
-  """
-  general Particle object
-  """
-  def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None):
-    super(Particle, self).__init__(name)
-    self.J = J
-    self.P = P
-    if spins is None:
-      spins = tuple(range(-J, J+1))
-    self.spins = tuple(spins)
-    self.mass = mass
-    self.width = width
-
+    """
+    general Particle object
+    """
+    def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None):
+        super(Particle, self).__init__(name)
+        self.J = J
+        self.P = P
+        if spins is None:
+            spins = tuple(range(-J, J+1))
+        self.spins = tuple(spins)
+        self.mass = mass
+        self.width = width
 
 def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
   dl = 0 if pa * pb * pc == 1 else  1 # pa = pb * pc * (-1)^l
@@ -258,9 +257,10 @@ def split_len(dicts):
 class DecayChain(object):
   def __init__(self, chain):
     self.chain = chain
-    top, self.inner, self.outs = split_particle_type(chain)
+    top, self.inner, outs = split_particle_type(chain)
     assert len(top) == 1, "top particles must be only one particle"
     self.top = top.pop()
+    self.outs = sorted(list(outs))
 
   def __iter__(self):
     return iter(self.chain)
@@ -391,6 +391,7 @@ class DecayChain(object):
       raise TypeError("unsupport type {}".format(type(other)))
     return self.topology_id(identical) == other.topology_id(identical)
 
+
 class _Chain_Graph(object):
   def __init__(self):
     self.nodes = []
@@ -443,7 +444,7 @@ class DecayGroup(object):
       first_chain = chains[0]
     self.chains = chains
     self.top = first_chain.top
-    self.outs = list(first_chain.outs)
+    self.outs = sorted(list(first_chain.outs))
     for i in chains:
       assert i.top == first_chain.top, ""
       assert i.outs == first_chain.outs, ""
@@ -467,7 +468,19 @@ class DecayGroup(object):
       else:
         ret.append(i)
     return ret
-
+  
+  @functools.lru_cache()
+  def get_chains_map(self):
+    chain_maps = []
+    for decays in self.topology_structure():
+        decay_chain = DecayChain(list(decays))
+        tmp = {}
+        for j in self:
+            if decay_chain.topology_same(j):
+                chain_map = decay_chain.topology_map(j)
+                tmp[j] = chain_map
+        chain_maps.append(tmp)
+    return chain_maps
 
 def load_decfile_particle(fname):
   with open(fname) as f:
@@ -500,6 +513,7 @@ def load_decfile_particle(fname):
   return top, inner, outs
 
 
+    
 
 def test():
   a = Particle("a", 1, -1)

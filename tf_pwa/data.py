@@ -381,6 +381,11 @@ def get_relativate_momentum(data: dict, decay: BaseDecay, m0=None, m1=None, m2=N
     p = Getp(m0, m1, m2)
     return p
 
+def prepare_data_from_decay(fnames, decs):
+    p = load_dat_file(fnames, decs.outs)
+    data = cal_angle_from_momentum(p, decs)
+    return data
+
 def prepare_data_from_dat_file(fnames):
     a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
     bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
