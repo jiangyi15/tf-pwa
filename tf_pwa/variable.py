@@ -36,7 +36,7 @@ class Vars(object):
       pass #比如D1_2430r会两次出现
     return self.variables[name]
 
-  def add_complex_var(self,name,polar=True, trainable=True):
+  def add_complex_var(self,name,polar=True, trainable=True,fix_vals=(1.0,0.0)):
     var_r = name+'r'
     var_i = name+'i'
     if trainable:
@@ -47,13 +47,30 @@ class Vars(object):
         var_r = self.add_var(name=var_r,range_=(-1,1))
         var_i = self.add_var(name=var_i,range_=(-1,1))
     else:
-      var_r = self.add_var(name=var_r,value=1.0,False)
-      var_i = self.add_var(name=var_i,value=0.0,False)
+      var_r = self.add_var(name=var_r,value=fix_vals[0],False)
+      var_i = self.add_var(name=var_i,value=fix_vals[1],False)
     self.complex_vars[name] = [[var_r,var_i],polar] #var_r的值会随着变？
 
   #def set_complex_pair(self,name,var_r,var_i,polar=True):#add_complex_var相当于先分别add_var再set_complex_pair
   #  if name not in self.complex_vars:
   #    self.complex_vars[name] = [[var_r,var_i],polar]
+
+  def add_norm_factor(self,name,head=None, trainable=True,fix_vals=(1.0,0.0)):
+    if not head:
+      head = name
+    if head not in self.norm_factor:
+      if trainable:
+        var_r = self.add_var(name=name+'r',range_=(0,2.0))
+        var_i = self.add_var(name=name+'i',range_=(-np.pi,np.pi))
+      else:
+        var_r = self.add_var(name=name+'r',value=fix_vals[0],False)
+        var_i = self.add_var(name=name+'i',value=fix_vals[1],False)
+      self.norm_factor[head] = [var_r,var_i]
+    else:
+      if not trainable:
+        raise Exception("{0} should be defined before {1}".format(head,name))
+      var_i = self.add_var(name=name+'i',range_=(-np.pi,np.pi))
+      self.norm_factor[head].append(var_i)
 
 
   def get(self,name):
@@ -67,10 +84,10 @@ class Vars(object):
     return self.variables[name].assign(value)
 
 
-  def rp2xy(name,polar=True):
+  def rp2xy(self,name):
     if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    if not polar:
+    if not self.complex_vars[name][1]: # if not polar (already xy)
       return
     r,p = self.complex_vars[name][0]
     x = r * np.cos(p)
@@ -78,10 +95,10 @@ class Vars(object):
     self.complex_vars[name][0] = [x,y]
     self.complex_vars[name][1] = False
 
-  def xy2rp(name,polar=False):
+  def xy2rp(self,name):
     if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    if polar:
+    if self.complex_vars[name][1]:
       return
     x,y = self.complex_vars[name][0]
     r = np.sqrt(x*x+y*y)
@@ -89,35 +106,81 @@ class Vars(object):
     self.complex_vars[name][0] = [r,p]
     self.complex_vars[name][1] = True
 
-  def std_polar(name,polar=True):
+
+  def std_polar(self,name):
     if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    if not polar:
-      xy2rp(name)
+    if not self.complex_vars[name][1]:
+      self.xy2rp(name)
+      self.complex_vars[name][1] = True
     r,p = self.complex_vars[name][0]
     if r<0:
       r.assign(tf.abs(r))
       p.assign_add(np.pi)
-    while p<=-np.pi:
-      p.assign_add(2*np.pi)
-    while p>=np.pi:
-      p.assign_add(-2*np.pi)
+    self.std_polar_angle(p)
+
+  @staticmethod
+  def std_polar_angle(p,a=-np.pi,b=np.pi)
+    twopi = b-a
+    while p<=a:
+      p.assign_add(twopi)
+    while p>=b:
+      p.assign_add(-twopi)
 
 
-  def initialize():
+  def initialize(self):
     pass
 
-  def get_all():
+  def get_all(self,after_trans=False): # array (for dict, use self.variables)
     vals = []
-    for name in self.trainable_vars:
-      vals.append(self.get(name).numpy())
+    if after_trans:
+      for name in self.trainable_vars:
+        yval = self.get(name).numpy()
+        if name in self.bnd_dic:
+          xval = self.bnd_dic[name].get_y2x(yval)
+        else:
+          xval = yval
+        vals.append(xval)
+    else:
+      for name in self.trainable_vars:
+        yval = self.get(name).numpy()
+        vals.append(yval)
     return vals
       
-  def set_all(vals):
-    i = 0
-    for name in self.trainable_vars:
-      self.set(name,vals[i])
-      i+=1
+  def set_all(self,vals):
+    if type(vals)==dict:
+      for name in vals:
+        self.set(name,vals[name])
+    else:
+      i = 0
+      for name in self.trainable_vars:
+        self.set(name,vals[i])
+        i+=1
+
+  def rp2xy_all(self,name_list=None):
+    if not name_list:
+      name_list = self.complex_vars
+    for name in name_list:
+      self.rp2xy(name)
+
+  def xy2rp_all(self,name_list=None):
+    if not name_list:
+      name_list = self.complex_vars
+    for name in name_list:
+      self.xy2rp(name)
+
+  def std_polar_all(self):
+    for name in self.complex_vars:
+      self.std_polar(name)
+    for head in self.norm_factor:
+      r = self.norm_factor[head][0]
+      if r<0:
+        r.assign(tf.abs(r))
+        for p in self.norm_factor[head][1:]:
+          p.assign_add(np.pi)
+      for p in self.norm_factor[head][1:]:
+        self.std_polar_angle(p)
+
 
   def trans_fcn(self,fcn,grad): # bound transform fcn and grad
     def fcn_t(xvals):
