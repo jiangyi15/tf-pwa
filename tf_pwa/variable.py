@@ -4,7 +4,7 @@ from .utils import is_complex
 
 
 class Vars(object):
-  def __init__(self, model, fix_dic={}, bnd_dic={}):
+  def __init__(self, add_method, fix_dic={}, bnd_dic={}):
     self.variables = {}
     self.trainable_vars = []
     self.complex_vars = {}
@@ -12,7 +12,7 @@ class Vars(object):
     self.fix_dic = fix_dic
     self.bnd_dic = bnd_dic
     #self.model = model
-    self.add_method = model.add_weight # keras.Model.add_weight 不够通用化
+    self.add_method = add_method # keras.Model.add_weight 不够通用化
 
 
   def add_var(self,name,value=None,range_=None,trainable=True,*arg,**kwarg):
@@ -47,8 +47,8 @@ class Vars(object):
         var_r = self.add_var(name=var_r,range_=(-1,1))
         var_i = self.add_var(name=var_i,range_=(-1,1))
     else:
-      var_r = self.add_var(name=var_r,value=fix_vals[0],False)
-      var_i = self.add_var(name=var_i,value=fix_vals[1],False)
+      var_r = self.add_var(name=var_r,value=fix_vals[0],trainable=False)
+      var_i = self.add_var(name=var_i,value=fix_vals[1],trainable=False)
     self.complex_vars[name] = [[var_r,var_i],polar] #var_r的值会随着变？
 
   #def set_complex_pair(self,name,var_r,var_i,polar=True):#add_complex_var相当于先分别add_var再set_complex_pair
@@ -63,8 +63,8 @@ class Vars(object):
         var_r = self.add_var(name=name+'r',range_=(0,2.0))
         var_i = self.add_var(name=name+'i',range_=(-np.pi,np.pi))
       else:
-        var_r = self.add_var(name=name+'r',value=fix_vals[0],False)
-        var_i = self.add_var(name=name+'i',value=fix_vals[1],False)
+        var_r = self.add_var(name=name+'r',value=fix_vals[0],trainable=False)
+        var_i = self.add_var(name=name+'i',value=fix_vals[1],trainable=False)
       self.norm_factor[head] = [var_r,var_i]
     else:
       if not trainable:
@@ -120,7 +120,7 @@ class Vars(object):
     self.std_polar_angle(p)
 
   @staticmethod
-  def std_polar_angle(p,a=-np.pi,b=np.pi)
+  def std_polar_angle(p,a=-np.pi,b=np.pi):
     twopi = b-a
     while p<=a:
       p.assign_add(twopi)
