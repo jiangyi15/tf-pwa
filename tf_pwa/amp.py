@@ -3,7 +3,7 @@ import numpy as np
 
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
-from .data import prepare_data_from_decay
+from .data import prepare_data_from_decay, split_generator
 from .breit_wigner import barrier_factor as default_barrier_factor, BW
 from .dfun import get_D_matrix_lambda
 
@@ -11,7 +11,7 @@ def simple_cache_fun(f):
   name = "simple_cached_"+f.__name__
   @functools.wraps(f)
   def g(self, *args, **kwargs):
-    if not hasattr(self,name):
+    if not hasattr(self, name):
       setattr(self, name, f(self, *args, **kwargs))
     return getattr(self, name)
   return g
@@ -29,25 +29,33 @@ class Particle(BaseParticle):
             g0 = params["g"]
         m = data["m"]
         return BW(m, m0, g0)
-    
+
     def amp_shape(self):
         return ()
 
 
 class HelicityDecay(Decay):
+    def __init__(self, *args, **kwargs):
+        super(HelicityDecay, self).__init__(*args, **kwargs)
+        self.H = tf.Variable(tf.ones(self.amp_shape()), trainable=True)
+    def get_helicity_amp(self, data, data_p, params):
+        H = tf.ones(self.amp_shape())
+        return self.H
+
     def get_amp(self, data, data_p, params=None):
         a = self.core
         b = self.outs[0]
         c = self.outs[1]
         ang = data[b]["ang"]
         ret = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
-        H = tf.ones((len(a.spins),len(b.spins),len(c.spins)),dtype=ret.dtype)
+        H = self.get_helicity_amp(data, data_p, params)
+        H = tf.cast(H, dtype=ret.dtype)
         return H * ret
     def amp_shape(self):
         ret = [len(self.core.spins)]
         for i in self.outs:
             ret.append(len(i.spins))
-        return tuple(amp_shape)
+        return tuple(ret)
     @simple_cache_fun
     def amp_index(self, base_map):
         ret = [base_map[self.core]]
@@ -74,7 +82,7 @@ class DecayChain(BaseDecayChain):
         for i in self.inner:
             amp_p.append(i.get_amp(data_p[i], params))
         rs = tf.reduce_sum(amp_p, axis=0)
-        return amp
+        return amp * tf.reshape(rs, [-1] + [1]*len(self.amp_shape()))
     def amp_shape(self):
         ret = [len(self.top.spins)]
         for i in self.outs:
@@ -118,7 +126,7 @@ class DecayGroup(BaseDecayGroup):
         chain_maps = self.get_chains_map()
         base_map = self.get_base_map()
         ret = []
-        amp_idx =  self.amp_index(base_map)
+        amp_idx = self.amp_index(base_map)
         idx_ein = "".join(["i"] + amp_idx)
         for chains, data_d in zip(chain_maps, data_decay):
             amp_same = []
@@ -131,16 +139,24 @@ class DecayGroup(BaseDecayGroup):
             aligned = {}
             for dec in data_d:
                 for j in dec.outs:
-                    if "aligned_angle" in data_d[dec][j]:
+                    if j.J != 0 and "aligned_angle" in data_d[dec][j]:
                         ang = data_d[dec][j]["aligned_angle"]
                         dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
                         aligned[j] = dt
                         idx = base_map[j]
-                        ein = "{},{}->{}".format(idx_ein,"i"+idx+idx.upper(),idx_ein.replace(idx,idx.upper()))
+                        ein = "{},{}->{}".format(idx_ein, "i"+idx+idx.upper(), 
+                                                 idx_ein.replace(idx, idx.upper()))
                         amp_same = tf.einsum(ein, amp_same, dt)
             ret.append(amp_same)
         ret = tf.reduce_sum(ret, axis=0)
         return ret
+    def sum_amp(self, data):
+        amp = self.get_amp(data)
+        amp2s = tf.math.real(amp * tf.math.conj(amp))
+        idx = list(range(1, len(amp2s.shape)))
+        sum_A = tf.reduce_sum(amp2s, idx)
+        return sum_A
+    
     @simple_cache_fun
     def amp_index(self, gen=None, base_map=None):
         if base_map is None:
@@ -177,7 +193,7 @@ def rename_data_dict(data, idx_map):
     return data
 
 def test_amp(fnames="data/data_test.dat"):
-    a = Particle("A", J=1, P=-1, spins=(-1,1))
+    a = Particle("A", J=1, P=-1, spins=(-1, 1))
     b = Particle("B", J=1, P=-1)
     c = Particle("C", J=0, P=-1)
     d = Particle("D", J=1, P=-1)
@@ -196,7 +212,14 @@ def test_amp(fnames="data/data_test.dat"):
     de = DecayGroup(a.chain_decay())
     data = prepare_data_from_decay(fnames, de)
     import time
-    a= time.time()
-    ret = de.get_amp(data)
-    print(time.time() -a)
+    a = time.time()
+    ret = de.sum_amp(data)
+    print(time.time()-a)
+    data_s = list(split_generator(data, 65000))
+    a = time.time()
+    for i in data_s:
+        with tf.GradientTape() as tape:
+            s = de.sum_amp(i)
+        g = tape.gradient(s, [])
+    print(time.time()-a)
     return ret
