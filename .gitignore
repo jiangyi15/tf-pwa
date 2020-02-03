@@ -12,6 +12,7 @@ __pycache__
 trash
 figure
 build
+cached_dir
 dist
 *.egg-info
 site

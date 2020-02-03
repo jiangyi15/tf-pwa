@@ -1,8 +1,8 @@
 """
 module for describing data process.
 
-All data structure is decaribing as nested combination of `dict` or `list` for `ndarray`.
-Aata process is a transation from data structure to another data structure or typical `ndarray`.
+All data structure is describing as nested combination of `dict` or `list` for `ndarray`.
+Data process is a transaction from data structure to another data structure or typical `ndarray`.
 Data cache can be implemented based on the dynamic features of `list` and `dict`.
 
 The full data structure is
@@ -33,7 +33,7 @@ The full data structure is
           "aligned_angle":{
             "alpha":[...],
             "beta":[...],
-            "gamme":[...]
+            "gamma":[...]
           }
         },
         "D": {...}
@@ -52,8 +52,8 @@ The full data structure is
 
 from pprint import pprint
 import numpy as np
-#import tensorflow as tf
-#from pysnooper import  snoop
+# import tensorflow as tf
+# from pysnooper import  snoop
 
 from .particle import BaseParticle, BaseDecay, DecayChain, DecayGroup
 from .angle_tf import LorentzVector, EularAngle
@@ -61,8 +61,9 @@ from .tensorflow_wrapper import tf
 
 try:
     from collections.abc import Iterable
-except ImportError: # python version < 3.7
+except ImportError:  # python version < 3.7
     from collections import Iterable
+
 
 def load_dat_file(fnames, particles, split=None, order=None, _force_list=False):
     """
@@ -89,7 +90,7 @@ def load_dat_file(fnames, particles, split=None, order=None, _force_list=False):
         if n_total % n != 0:
             raise ValueError("number of data find {}/{}".format(n_total, n))
         n_data = n_total // n
-        split = [size//n_data for size in sizes]
+        split = [size // n_data for size in sizes]
 
     if order is None:
         order = (1, 0, 2)
@@ -106,7 +107,9 @@ def load_dat_file(fnames, particles, split=None, order=None, _force_list=False):
 
     return ret
 
+
 save_data = np.save
+
 
 def load_data(*args, **kwargs):
     if "allow_pickle" not in kwargs:
@@ -117,22 +120,25 @@ def load_data(*args, **kwargs):
     except ValueError:
         return data
 
+
 def data_split(dat, batch_size, axis=0):
     data_size = dat.shape[axis]
     if axis == 0:
         for i in range(0, data_size, batch_size):
-            yield dat[i:min(i+batch_size, data_size)]
+            yield dat[i:min(i + batch_size, data_size)]
     elif axis == -1:
         for i in range(0, data_size, batch_size):
-            yield dat[..., i:min(i+batch_size, data_size)]
+            yield dat[..., i:min(i + batch_size, data_size)]
     else:
-        raise Exception("unsupport axis: {}".format(axis))
+        raise Exception("unsupported axis: {}".format(axis))
+
 
 def data_generator(data, fun=data_split, args=(), kwargs=None):
     """
     split data generator.
     """
     kwargs = kwargs if kwargs is not None else {}
+
     def _gen(dat):
         if isinstance(dat, dict):
             ks, vs = [], []
@@ -156,61 +162,81 @@ def data_generator(data, fun=data_split, args=(), kwargs=None):
         else:
             for i in fun(dat, *args, **kwargs):
                 yield i
+
     return _gen(data)
+
 
 def split_generator(data, batch_size, axis=0):
     return data_generator(data, fun=data_split, args=(batch_size,), kwargs={"axis": axis})
 
+
 def data_map(data, fun, args=(), kwargs=None):
     kwargs = kwargs if kwargs is not None else {}
+
     def g_fun(*args1, **kwargs1):
         return [fun(*args1, **kwargs1)]
+
     g = data_generator(data, fun=g_fun, args=args, kwargs=kwargs)
     return next(g)
+
 
 def data_merge(data1, data2, axis=0):
     def flatten(data):
         ret = []
+
         def data_list(dat):
             ret.append(dat)
+
         data_map(data, data_list)
         return ret
+
     def rebuild(data, ret):
         idx = -1
+
         def data_build(_dat):
             nonlocal idx
             idx += 1
             return ret[idx]
+
         data = data_map(data, data_build)
         return data
+
     f_data1 = flatten(data1)
     f_data2 = flatten(data2)
     m_data = [tf.concat(data_i, axis=axis) for data_i in zip(f_data1, f_data2)]
     return rebuild(data1, m_data)
 
+
 def data_shape(data, axis=0, all_list=False):
     def flatten(dat):
         ret = []
+
         def data_list(dat1):
             ret.append(dat1.shape)
+
         data_map(dat, data_list)
         return ret
+
     shapes = flatten(data)
     if all_list:
         return shapes
     return shapes[0][axis]
+
 
 def data_to_numpy(dat):
     def to_numpy(data):
         if hasattr(data, "numpy"):
             return data.numpy()
         return data
+
     dat = data_map(dat, to_numpy)
     return dat
+
 
 def flatten_dict_data(data, fun="{}/{}".format):
     def dict_gen(data):
         return data.items()
+
     def list_gen(data):
         return enumerate(data)
 
@@ -227,6 +253,7 @@ def flatten_dict_data(data, fun="{}/{}".format):
                 ret[i] = tmp
         return ret
     return data
+
 
 def struct_momentum(p, center_mass=True) -> dict:
     """
@@ -245,6 +272,7 @@ def struct_momentum(p, center_mass=True) -> dict:
             ret[i] = {"p": p[i]}
     return ret
 
+
 # data process
 def infer_momentum(data, decay_chain: DecayChain) -> dict:
     """
@@ -260,6 +288,7 @@ def infer_momentum(data, decay_chain: DecayChain) -> dict:
         data[i] = {"p": tf.reduce_sum(ps, 0)}
     return data
 
+
 def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
     """
     {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
@@ -270,6 +299,7 @@ def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
             data[i]["m"] = LorentzVector.M(p)
     return data
 
+
 def add_weight(data: dict, weight: float = 1.0) -> dict:
     """
     {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
@@ -278,6 +308,7 @@ def add_weight(data: dict, weight: float = 1.0) -> dict:
     weight = [1.0] * data_size
     data["weight"] = np.array(weight)
     return data
+
 
 def cal_helicity_angle(data: dict, decay_chain: DecayChain = None) -> dict:
     """
@@ -315,13 +346,14 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain = None) -> dict:
         set_decay = extra_decay
     return ret
 
-def cal_angle_from_particle(data: list, decay_group: DecayGroup) -> dict:
+
+def cal_angle_from_particle(data: dict, decay_group: DecayGroup) -> dict:
     decay_chain_struct = decay_group.topology_structure()
     decay_data = []
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i)
         decay_data.append(data_i)
-    set_x = {} # reference particles
+    set_x = {}  # reference particles
     # for particle from a the top rest frame
     for idx, decay_chain in enumerate(decay_chain_struct):
         for decay in decay_chain:
@@ -357,8 +389,9 @@ def Getp(M_0, M_1, M_2):
     M12S = M_1 + M_2
     M12D = M_1 - M_2
     p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
-    q = (p + tf.abs(p))/2 # if p is negative, which results from bad data, the return value is 0.0
+    q = (p + tf.abs(p)) / 2  # if p is negative, which results from bad data, the return value is 0.0
     return tf.sqrt(q) / (2 * M_0)
+
 
 def get_relativate_momentum(data: dict, decay_chain: DecayChain):
     ret = {}
@@ -371,6 +404,7 @@ def get_relativate_momentum(data: dict, decay_chain: DecayChain):
         ret[decay]["|q|"] = p
     return ret
 
+
 def get_relativate_momentum(data: dict, decay: BaseDecay, m0=None, m1=None, m2=None):
     if m0 is None:
         m0 = data[decay.core]["m"]
@@ -380,6 +414,7 @@ def get_relativate_momentum(data: dict, decay: BaseDecay, m0=None, m1=None, m2=N
         m2 = data[decay.outs[1]]["m"]
     p = Getp(m0, m1, m2)
     return p
+
 
 def prepare_data_from_dat_file(fnames):
     a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
@@ -391,11 +426,12 @@ def prepare_data_from_dat_file(fnames):
         [BaseDecay(a, [bd, c]), BaseDecay(bd, [b, d])],
         [BaseDecay(a, [cd, b]), BaseDecay(cd, [c, d])]
     ])
-    #decs = DecayChain.from_particles(a, [d, b, c])
+    # decs = DecayChain.from_particles(a, [d, b, c])
     data = cal_angle_from_momentum(p, decs)
     data = data_to_numpy(data)
     data = flatten_dict_data(data)
     return data
+
 
 def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
     data_p = struct_momentum(p)
@@ -405,6 +441,7 @@ def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
     data_d = cal_angle_from_particle(data_p, decs)
     data = {"particle": data_p, "decay": data_d}
     return data
+
 
 def prepare_data_from_dat_file4(fnames):
     a, b, c, d, e, f = [BaseParticle(i) for i in "ABCDEF"]
@@ -420,11 +457,12 @@ def prepare_data_from_dat_file4(fnames):
     BaseDecay(bd, [b, d])
     BaseDecay(d, [e, f])
     decs = DecayGroup(a.chain_decay())
-    #decs = DecayChain.from_particles(a, [d, b, c])
+    # decs = DecayChain.from_particles(a, [d, b, c])
     data = cal_angle_from_momentum(p, decs)
     data = data_to_numpy(data)
     data = flatten_dict_data(data)
     return data
+
 
 def test_process(fnames=None):
     a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
