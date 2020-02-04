@@ -85,19 +85,22 @@ def small_d_matrix(theta, j):
     ret = tf.einsum("il,lab->iab", sc, w)
     return ret
 
+
+def exp_i(theta, mi):
+    theta_i = tf.reshape(theta, (-1, 1))
+    mi = tf.cast(mi, dtype=theta.dtype)
+    m_theta = mi * theta_i
+    im_theta = tf.complex(tf.zeros_like(m_theta), m_theta)
+    exp_theta = tf.exp(im_theta)
+    return exp_theta
+
+
 def D_matrix_conj(alpha, beta, gamma, j):
     r"""
      D^{j}_{m_1,m_2}(\alpha, \beta, \gamma)^\star =
             e^{i m_1 \alpha} d^{j}_{m_1,m_2}(\beta) e^{i m_2 \gamma}
     """
-    m = tf.reshape(tf.range(-j, j+1, 2), (1, -1))
-    def exp_i(theta, mi):
-        theta = tf.reshape(theta, (-1, 1))
-        mi = tf.cast(mi, dtype=theta.dtype)
-        m_theta = mi * theta
-        im_theta = tf.complex(tf.zeros_like(m_theta), m_theta)
-        exp_theta = tf.exp(im_theta)
-        return exp_theta
+    m = tf.reshape(np.arange(-j, j+1, 2), (1, -1))
 
     d = small_d_matrix(beta, j)
     expi_alpha = tf.reshape(exp_i(alpha, m), (-1, j+1, 1))

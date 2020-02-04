@@ -58,5 +58,5 @@ setup(
           'release': ('setup.py', version["__version__"]),
           'source_dir': ('setup.py', 'docs')
         }
-    },
+    }
 )

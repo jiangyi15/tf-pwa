@@ -155,6 +155,12 @@ class BaseDecay(object):
       return False
     return self.get_id() == other.get_id()
 
+  def __lt__(self, other):
+    if not isinstance(other, BaseDecay):
+      return False
+    return self.get_id() < other.get_id()
+
+
 class Decay(BaseDecay): # add useful methods to BaseDecay
   """
   general Decay object

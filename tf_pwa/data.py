@@ -164,7 +164,7 @@ def split_generator(data, batch_size, axis=0):
 def data_map(data, fun, args=(), kwargs=None):
     kwargs = kwargs if kwargs is not None else {}
     def g_fun(*args1, **kwargs1):
-        return [fun(*args1, **kwargs1)]
+        yield fun(*args1, **kwargs1)
     g = data_generator(data, fun=g_fun, args=args, kwargs=kwargs)
     return next(g)
 
@@ -360,7 +360,7 @@ def Getp(M_0, M_1, M_2):
     q = (p + tf.abs(p))/2 # if p is negative, which results from bad data, the return value is 0.0
     return tf.sqrt(q) / (2 * M_0)
 
-def get_relativate_momentum(data: dict, decay_chain: DecayChain):
+def get_relative_momentum(data: dict, decay_chain: DecayChain):
     ret = {}
     for decay in decay_chain:
         m0 = data[decay.core]["m"]
@@ -370,16 +370,6 @@ def get_relativate_momentum(data: dict, decay_chain: DecayChain):
         ret[decay] = {}
         ret[decay]["|q|"] = p
     return ret
-
-def get_relativate_momentum(data: dict, decay: BaseDecay, m0=None, m1=None, m2=None):
-    if m0 is None:
-        m0 = data[decay.core]["m"]
-    if m1 is None:
-        m1 = data[decay.outs[0]]["m"]
-    if m2 is None:
-        m2 = data[decay.outs[1]]["m"]
-    p = Getp(m0, m1, m2)
-    return p
 
 def prepare_data_from_decay(fnames, decs):
     p = load_dat_file(fnames, decs.outs)
