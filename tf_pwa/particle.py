@@ -488,6 +488,7 @@ class DecayGroup(object):
         chain_maps.append(tmp)
     return chain_maps
 
+
 def load_decfile_particle(fname):
   with open(fname) as f:
     dec = load_dec_file(f)

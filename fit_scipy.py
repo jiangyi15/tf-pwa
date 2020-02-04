@@ -176,8 +176,8 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   x0 = []
   bnds = []
   bounds_dict = {
-      "Zc_4160_m0:0":(4.1,4.22),
-      "Zc_4160_g0:0":(0,None)
+      #"Zc_4160_m:0":(4.1,4.22),
+      #"Zc_4160_g:0":(0,None)
   }
   
   for i in a.Amp.trainable_variables:

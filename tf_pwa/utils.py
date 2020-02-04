@@ -79,6 +79,13 @@ def pprint(dicts):
   except:
     print(dicts,flush=True)
 
+def print_dic(dic):
+  if type(dic)==dict:
+    for i in dic:
+      print(i+" :\t",dic[i])
+  else:
+    print(dic)
+
 def std_polar(rho,phi):
   if rho<0:
     rho = -rho
@@ -111,3 +118,33 @@ def deep_ordered_range(size, deep=1, start=0):
       for j in deep_ordered_range(size, deep-1, i+1):
         yield [i] + j
 
+# from amplitude.py
+def is_complex(x):
+  try:
+    y = complex(x)
+  except:
+    return False
+  return True
+
+#from model.py
+def array_split(data,batch=None):
+  if batch is None:
+    return [data]
+  ret = []
+  n_data = data[0].shape[0]
+  n_split = (n_data + batch-1)//batch
+  for i in range(n_split):
+    tmp = []
+    for data_i in data:
+      tmp.append(data_i[i*batch:min(i*batch+batch,n_data)])
+    ret.append(tmp)
+  return ret
+
+def time_print(f):
+  @functools.wraps(f)
+  def g(*args,**kwargs):
+    now = time.time()
+    ret = f(*args,**kwargs)
+    print(f.__name__ ," cost time:",time.time()-now)
+    return ret
+  return g

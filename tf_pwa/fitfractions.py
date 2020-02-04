@@ -10,7 +10,7 @@ def nll_grad(f, var, args=(), kwargs=None, options=None):
     with tf.GradientTape() as tape:
       ret = f(*args, **kwargs)
     g = tape.gradient(ret, var, unconnected_gradients="zero", **options)
-    return ret, g
+    return ret, g #到底返回个啥？
   return f_w
 
 def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
@@ -103,19 +103,19 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, args=(), kwargs=None):
 def sum_gradient(amp, data, var, weight=1.0, func=lambda x: x, grad=True, args=(), kwargs=None):
   kwargs = kwargs if kwargs is not None else {}
   # n_variables = len(var)
-  if isinstance(weight, float):
+  if isinstance(weight, float): #给data乘weight
     weight = [weight] * len(data)
   nll_list = []
   g_list = []
 
   def f(d, w):
-    amp2s = amp(d, *args, **kwargs)
-    l_a = func(amp2s)
+    amp2s = amp(d, *args, **kwargs) #amp是振幅表达式
+    l_a = func(amp2s) #ampPDF转换成每组数据的NLL表达式
     return tf.reduce_sum(tf.cast(w, l_a.dtype) * l_a)
 
   for d, w in zip(data, weight):
-    if grad:
-      p_nll, a = nll_grad(f, var, args=(d, w))()
+    if grad: #是否提供grad表达式
+      p_nll, a = nll_grad(f, var, args=(d, w))() #调用上面定义的nll_grad，返回f(d,w)和f对var的导数
       g_list.append([i.numpy() for i in a])
     else:
       p_nll = f(d, w)
@@ -123,7 +123,7 @@ def sum_gradient(amp, data, var, weight=1.0, func=lambda x: x, grad=True, args=(
   nll = sum(nll_list)
   if grad:
     g = np.array(g_list).sum(0)
-    return nll, g
+    return nll, g #nll值和各var的导数g值
   return nll
 
 sum_no_gradient = functools.partial(sum_gradient, grad=False)

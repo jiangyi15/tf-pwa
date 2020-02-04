@@ -18,14 +18,14 @@ def bounds_trans(x,a=None,b=None):
     else:
       return (b-a)/2*(np.sin(x)+1) + a
 
-def trans_non(x):
+def trans_non(x):#无变化
   return x
-def g_trans_non(x,y):
+def g_trans_non(x,y):#导数
   return 1
-def trans_inv_non(y):
+def trans_inv_non(y):#逆变换
   return y
 
-def trans_a(x,a):
+def trans_a(x,a):#有下界
   return a-1+np.sqrt(x**2+1)
 def g_trans_a(x,y,a):
   return x/(y+1-a)
@@ -33,7 +33,7 @@ def trans_inv_a(y,a):
   if y<=a : return 0.0
   return np.sqrt((y+1-a)**2-1)
 
-def trans_b(x,b):
+def trans_b(x,b):#有上界
   return b+1-np.sqrt(x**2+1)
 def g_trans_b(x,y,b):
   return x/(y-b-1)
@@ -46,10 +46,10 @@ def trans_ab(x,a,b):
 def g_trans_ab(x,y,a,b):
   return (b-a)/2*np.cos(x)
 def trans_inv_ab(y,a,b):
-  if y<=a : return -1.0
-  if y>=b : return 1.0
-  if a==b : return 0.0
-  return np.arcsin((y-a)/(b-a)*2-1)
+  if y<=a : return -np.pi/2
+  if y>=b : return np.pi/2
+  if a==b : return a
+  return np.arcsin((2*y-a-b)/(b-a))
 
 
 def get_trans_f(bnds):

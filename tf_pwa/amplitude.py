@@ -3,7 +3,7 @@ import numpy as np
 
 from contextlib import contextmanager
 from .particle import Particle,Decay
-from .variable import Vars
+from .variable import Variable
 from .dfun_tf import D_Cache as D_fun_Cache
 from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict
 from .config import regist_config
@@ -12,12 +12,7 @@ import os
 import copy
 import functools
 
-def is_complex(x):
-  try:
-    y = complex(x)
-  except:
-    return False
-  return True
+from .utils import print_dic
 
 
 param_list = [
@@ -54,25 +49,21 @@ class AllAmplitude(tf.keras.Model):
     self.C = Particle("C",self.JC,self.ParC)
     self.D = Particle("D",self.JD,self.ParD)
     
-    self.add_var = Vars(self) # 通过Vars类来操作variables
     self.res = copy.deepcopy(res) # RESON Params #直接用等号会修改res
-    self.polar = polar # r*e^{ip} or x+iy
     self.res_decay = self.init_res_decay() # DECAY for each type of process
-    self.reg_float_mass_width() # FP(fitting parameters) mass, width
-    self.coef = {} # FP gls inside H
-    self.coef_norm = {} # FP norm factor for each resonance
-    self.init_res_param() # initialize FPs
+    self.polar = polar
+    fix_dic = {}#"D1_2420r":3.12}
+    bnd_dic = {}#"D1_2420r":(0.3334301945,0.3334301945)}
+    self.fit_params = Variable(self.res,self.res_decay,self.polar,fix_dic=fix_dic,bnd_dic=bnd_dic,dtype=tf.float64)
+    self.fit_params.init_fit_params() # initialize FPs
+    
+    #print_dic(self.fit_params.variables)
+    #print_dic(self.fit_params.trainable_vars)
+    
+    self.coef = self.fit_params.coef # FP gls inside H
+    self.coef_norm = self.fit_params.coef_norm # FP norm factor for each resonance
     self.init_used_res() # used RESON'NAMES in config
-  
-
-  def reg_float_mass_width(self): # add "mass" "width" fitting parameters
-    for i in self.res:
-      if "float" in self.res[i]:
-        is_float = self.res[i]["float"]
-        if is_float:
-          self.res[i]["m0"] = self.add_var(name=i+"_m0",var = self.res[i]["m0"],trainable=True)
-          self.res[i]["g0"] = self.add_var(name=i+"_g0",var = self.res[i]["g0"],trainable=True)
-  
+ 
 
   def init_used_res(self):
     self.used_res = [i for i in self.res]
@@ -83,8 +74,6 @@ class AllAmplitude(tf.keras.Model):
     for i in self.res:
       J_reson = self.res[i]["J"]
       P_reson = self.res[i]["Par"]
-      m0 = self.res[i]["m0"]
-      g0 = self.res[i]["g0"]
       chain = self.res[i]["Chain"]
       if "bw" in self.res[i]: # BW的形式
         self.res[i]["bwf"] = bw_dict[self.res[i]["bw"]]
@@ -106,101 +95,12 @@ class AllAmplitude(tf.keras.Model):
       else :
         raise Exception("unknown chain")
     return ret
-  
-
-  def init_res_param(self):
-    const_first = True # 第一个共振态系数为1，除非Resonance.yml里指定了某个"total"
-    for i in self.res:
-      if "total" in self.res[i]:
-        const_first = False
-    res_tmp = [i for i in self.res]
-    res_all = [] # ensure D2_2460 in front of D2_2460p
-    # order for coef_head
-    while len(res_tmp) > 0:
-      i = res_tmp.pop()
-      if "coef_head" in self.res[i]: # e.g. "D2_2460" for D2_2460p
-        coef_head = self.res[i]["coef_head"]
-        if coef_head in res_tmp:
-          res_all.append(coef_head)
-          res_tmp.remove(coef_head)
-      res_all.append(i)
-    for i in res_all:
-      const_first = self.init_res_param_sig(i,self.res[i],const_first=const_first)
-    
-  def init_res_param_sig(self,head,config,const_first=False): #head名字，config参数
-    self.coef[head] = []
-    chain = config["Chain"]
-    coef_head = head
-    if "coef_head" in config:
-      coef_head = config["coef_head"] #这一步把D2_2460p参数变成D2_2460的了
-    if chain < 0:
-        jc,jd,je = self.JC,self.JB,self.JD
-    elif chain>0 and chain< 100:
-        jc,jd,je = self.JD,self.JB,self.JC
-    elif chain>100 :
-        jc,jd,je = self.JB,self.JD,self.JC
-    if "total" in config:
-      N_tot = config["total"]
-      if is_complex(N_tot):
-        N_tot = complex(N_tot)
-        rho,phi = N_tot.real,N_tot.imag
-      else:
-        rho,phi = N_tot #其他类型的complex. raise error?
-      r = self.add_var(name=coef_head+"r",var=rho,trainable=False)
-      i = self.add_var(name=head+"i",var=phi,trainable=False)
-    elif const_first:#先判断有么有total，否则就用const_first
-      r = self.add_var(name=coef_head+"r",var=1.0,trainable=False)
-      i = self.add_var(name=head+"i",var=0.0,trainable=False)
-    else:
-      r = self.add_var(name=coef_head+"r",size=2.0)
-      i = self.add_var(name=head+"i",range=(-np.pi,np.pi))
-    self.coef_norm[head] = [r,i]
-    if "const" in config: # H里哪一个参数设为常数1
-      const = list(config["const"])
-    else:
-      const = [0,0]
-    ls,arg = self.gen_coef(head,0,coef_head+"_",const[0])
-    self.coef[head].append(arg)
-    ls,arg = self.gen_coef(head,1,coef_head+"_d_",const[1])
-    self.coef[head].append(arg)
-    return False # const_first
-    
-  def gen_coef(self,idx,layer,coef_head,const = 0) :
-    if const is None:
-      const = 0 # set the first to be constant 1 by default
-    if isinstance(const,int):
-      const = [const] # int2list, in case more than one constant
-    ls = self.res_decay[idx][layer].get_ls_list() # allowed l-s pairs
-    n_ls = len(ls)
-    const_list = []
-    for i in const:
-      if i<0:
-        const_list.append(n_ls + i) # then -1 means the last one
-      else:
-        const_list.append(i)
-    arg_list = []
-    for i in range(n_ls):
-      l,s = ls[i]
-      name = "{head}BLS_{l}_{s}".format(head=coef_head,l=l,s=s)
-      if i in const_list:
-        tmp_r = self.add_var(name=name+"r",var=1.0,trainable=False)
-        tmp_i = self.add_var(name=name+"i",var=0.0,trainable=False)
-        arg_list.append((name+"r",name+"i"))
-      else :
-        if self.polar:
-          tmp_r = self.add_var(name=name+"r",size=2.0)
-          tmp_i = self.add_var(name=name+"i",range=(-np.pi,np.pi))
-        else:
-          tmp_r = self.add_var(name=name+"r",range=(-1,1))
-          tmp_i = self.add_var(name=name+"i",range=(-1,1))
-        arg_list.append((name+"r",name+"i"))
-    return ls,arg_list
 
 
   def Get_BWReson(self,m_A,m_B,m_C,m_D,m_BC,m_BD,m_CD):
     ret = {}
     for i in self.used_res:
-      m = self.res[i]["m0"]
+      m = self.res[i]["m0"] # either var or const
       g = self.res[i]["g0"]
       J_reson = self.res[i]["J"]
       P_reson = self.res[i]["Par"]
@@ -242,8 +142,8 @@ class AllAmplitude(tf.keras.Model):
     M_r = []
     M_i = []
     for r,i in self.coef[idx][layer]:
-      M_r.append(self.add_var.get(r))
-      M_i.append(self.add_var.get(i))
+      M_r.append(self.fit_params.get(r))
+      M_i.append(self.fit_params.get(i))
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
     bf = barrier_factor(decay.get_l_list(),q,q0,d)
@@ -387,8 +287,7 @@ class AllAmplitude(tf.keras.Model):
         ret.append(s*res_cache[i][-1]*self.get_res_total(i))
 
       else:
-        pass
-        #print("unknown chain")
+        print("unknown chain")
 
     ret = tf.stack(ret)
     amp = tf.reduce_sum(ret,axis=[0])
@@ -403,7 +302,7 @@ class AllAmplitude(tf.keras.Model):
     if cached:
       return self.get_amp2s_matrix(*x)
     return self.get_amp2s(*x)
-  
+
 
   def trans_params(self,polar=True,force=False):
     """
@@ -421,8 +320,8 @@ class AllAmplitude(tf.keras.Model):
         for k in j:
           t_p.add(k)
     for r,i in t_p:
-      o_r = self.add_var.get(r)
-      o_i = self.add_var.get(i)
+      o_r = self.fit_params.get(r)
+      o_i = self.fit_params.get(i)
       if self.polar: # rp2xy
         o_r,o_i = o_r * tf.cos(o_i), o_r * tf.sin(o_i)
       if polar: # xy2rp
@@ -430,8 +329,8 @@ class AllAmplitude(tf.keras.Model):
         n_i = tf.math.atan2(o_i, o_r)
       else: # if force, xy remains the same, rp will be standardized
         n_r, n_i = o_r, o_i
-      self.add_var.set(r,n_r)
-      self.add_var.set(i,n_i)
+      self.fit_params.set(r,n_r)
+      self.fit_params.set(i,n_i)
     self.polar = polar
     return self.get_params()
   
@@ -481,7 +380,7 @@ class AllAmplitude(tf.keras.Model):
       if i in self.res:
         ret.append(i)
       else:
-        raise Exception("unknow res {}".format(i))
+        raise Exception("unknown res {}".format(i))
     self.used_res = ret
 
 param_list = [

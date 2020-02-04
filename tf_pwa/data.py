@@ -164,7 +164,7 @@ def split_generator(data, batch_size, axis=0):
 def data_map(data, fun, args=(), kwargs=None):
     kwargs = kwargs if kwargs is not None else {}
     def g_fun(*args1, **kwargs1):
-        yield fun(*args1, **kwargs1)
+        return [fun(*args1, **kwargs1)]
     g = data_generator(data, fun=g_fun, args=args, kwargs=kwargs)
     return next(g)
 
@@ -227,6 +227,7 @@ def flatten_dict_data(data, fun="{}/{}".format):
                 ret[i] = tmp
         return ret
     return data
+
 
 def struct_momentum(p, center_mass=True) -> dict:
     """
@@ -351,6 +352,40 @@ def cal_angle_from_particle(data: list, decay_group: DecayGroup) -> dict:
                     ang = EularAngle.angle_zx_zx(z1, x1, z2, x2)
                     part_data[i]["aligned_angle"] = ang
     return decay_data
+
+
+def cal_angle(data: list, decay_group: DecayGroup) -> dict:
+  for i in decay_group:
+    data = cal_helicity_angle(data, i)
+  decay_chain_struct = decay_group.topology_structure()
+  set_x = {}
+  # for a the top rest farme
+  for decay_chain in decay_chain_struct:
+    for decay in decay_chain:
+      if decay.core == decay_group.top:
+        for i in decay.outs:
+          if (i not in set_x) and (i in decay_group.outs):
+            set_x[i] = decay
+  # or the first chain
+  for i in decay_group.outs:
+    if i not in set_x:
+      decay_chain = next(iter(decay_chain_struct))
+      for decay in decay_chain:
+        for j in decay.outs:
+          if i == j:
+            set_x[i] = decay
+  for decay_chain in decay_group:
+    for decay in decay_chain:
+      for i in decay.outs:
+        if i in decay_group.outs:
+          if decay != set_x[i]:
+            x1 = data[decay][i]["x"]
+            x2 = data[set_x[i]][i]["x"]
+            z1 = data[decay][i]["z"]
+            z2 = data[set_x[i]][i]["z"]
+            ang = EularAngle.angle_zx_zx(z1, x1, z2, x2)
+            data[decay][i]["aligned_angle"] = ang
+  return data
 
 
 def Getp(M_0, M_1, M_2):
