@@ -19,18 +19,16 @@ from .breit_wigner import barrier_factor, BW
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
 from .variable import VarsManager, real_var, complex_var, norm_var
+from .data import data_shape, split_generator
 
-
-vm = VarsManager(dtype="float64",fix_dic={}, bnd_dic={})
-real_var = functools.partial(real_var, vm=vm)
-complex_var = functools.partial(complex_var, vm=vm)
-norm_var = functools.partial(norm_var, vm=vm)
+from .config import regist_config, get_config, temp_config
+regist_config("vm", VarsManager(dtype="float64",fix_dic={}, bnd_dic={}))
 
 
 def add_var(self, var, *args, trainable=False, **kwargs):
     var = tf.Variable(var, dtype="float64")
     name = (str(self) + "_" + var.name).replace("/", "").replace(":", "__").replace("+", "_").replace("->", "_")
-    ret = real_var(name=name, value=var, trainable=trainable)
+    ret = real_var(vm=get_config("vm"), name=name, value=var, trainable=trainable)
     print(ret)
     return ret
 
@@ -343,11 +341,11 @@ def test_amp(fnames="data/data_test.dat"):
     a = time.time()
     gs = []
     ss = []
-    print(vm.get_all())
+    print(get_config("vm").get_all())
     for i in data_s:
         def f(var):
             return tf.reduce_sum(de.sum_amp(i))
-        s, g = value_and_grad(f, vm.get_all())
+        s, g = value_and_grad(f, get_config("vm").get_all())
         gs.append(g)
         ss.append(s)
     print(time.time() - a)
@@ -361,3 +359,39 @@ def value_and_grad(f, var):
         s = f(var)
     g = tape.gradient(s, var)
     return s, g
+
+
+class AmplitudeModel(object):
+    def __init__(self, decay_group):
+        self.decay_group = decay_group
+        self.vm = get_config("vm")
+
+    def cache_data(self, data, split=None, batch=None):
+        for i in self.decay_group:
+            for j in i.inner:
+                print(j)
+        if split is None and batch is None:
+            return data
+        else:
+            n = data_shape(data)
+            if batch is None:  # split个一组，共batch组
+                batch = (n + split - 1) // split
+            ret = list(split_generator(data, batch))
+            return ret
+
+    def get_params(self):
+        return self.vm.get_all()
+
+    def set_params(self, var):
+        self.vm.set_all(var)
+
+    @property
+    def variables(self):
+        return self.vm.get_all()
+
+    @property
+    def trainable_variables(self):
+        return self.vm.get_all()
+
+    def __call__(self, data, cached=False):
+        return self.decay_group.sum_amp(data)
