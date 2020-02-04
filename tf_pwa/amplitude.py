@@ -53,7 +53,7 @@ class AllAmplitude(tf.keras.Model):
     self.polar = polar
     fix_dic = {}#"D1_2420r":3.12}
     bnd_dic = {}#"D1_2420r":(0.3334301945,0.3334301945)}
-    self.fit_params = Variable(self.add_weight,self.res,self.res_decay,self.polar,fix_dic=fix_dic,bnd_dic=bnd_dic)
+    self.fit_params = Variable(self.res,self.res_decay,self.polar,fix_dic=fix_dic,bnd_dic=bnd_dic,dtype=tf.float64)
     self.fit_params.init_fit_params() # initialize FPs
     
     #print_dic(self.fit_params.variables)
