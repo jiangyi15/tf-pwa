@@ -10,10 +10,10 @@ complex_var = partial(complex_var,vm=vm)
 norm_var = partial(norm_var,vm=vm)
 '''
 
-def real_var(name,vm=VarsManager(),value=None,range_=None,trainable=True):
+def real_var(name,vm,value=None,range_=None,trainable=True):
   return vm.add_real_var(name,value,range_,trainable)
     
-def complex_var(name,num=1,vm=VarsManager(),polar=True, fix_which=0,fix_vals=(1.0,0.0)):
+def complex_var(name,vm, num=1,polar=True, fix_which=0,fix_vals=(1.0,0.0)):
   if num==1:
     trainable = not fix_which
     return vm.add_complex_var(name=name,polar=polar,trainable=trainable,fix_vals=fix_vals)
@@ -25,7 +25,7 @@ def complex_var(name,num=1,vm=VarsManager(),polar=True, fix_which=0,fix_vals=(1.
       var_list.append(var)
     return var_list #tf.Variable(var_list)
 
-def norm_var(name,head=None,vm=VarsManager(), fix=False,fix_vals=(1.0,0.0)):
+def norm_var(name,vm,head=None, fix=False,fix_vals=(1.0,0.0)):
   trainable = not fix
   return vm.add_norm_var(name=name,head=head,trainable=trainable,fix_vals=fix_vals)
 
@@ -162,7 +162,7 @@ class VarsManager(object):
         vals.append(xval)
     else:
       for name in self.trainable_vars:
-        yval = self.get(name).numpy()
+        yval = self.get(name)
         vals.append(yval)
     return vals
       

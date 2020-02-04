@@ -18,14 +18,20 @@ from .data import prepare_data_from_decay, split_generator
 from .breit_wigner import barrier_factor, BW
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
+from .variable import VarsManager, real_var, complex_var, norm_var
 
-all_var = []
+
+vm = VarsManager(dtype="float64",fix_dic={}, bnd_dic={})
+real_var = functools.partial(real_var, vm=vm)
+complex_var = functools.partial(complex_var, vm=vm)
+norm_var = functools.partial(norm_var, vm=vm)
 
 
 def add_var(self, var, *args, trainable=False, **kwargs):
-    ret = tf.Variable(var, *args, dtype="float64", trainable=trainable, **kwargs)
-    if trainable:
-        all_var.append(ret)
+    var = tf.Variable(var, dtype="float64")
+    name = (str(self) + "_" + var.name).replace("/", "").replace(":", "__").replace("+", "_").replace("->", "_")
+    ret = real_var(name=name, value=var, trainable=trainable)
+    print(ret)
     return ret
 
 
@@ -337,10 +343,11 @@ def test_amp(fnames="data/data_test.dat"):
     a = time.time()
     gs = []
     ss = []
+    print(vm.get_all())
     for i in data_s:
         def f(var):
             return tf.reduce_sum(de.sum_amp(i))
-        s, g = value_and_grad(f, all_var)
+        s, g = value_and_grad(f, vm.get_all())
         gs.append(g)
         ss.append(s)
     print(time.time() - a)
