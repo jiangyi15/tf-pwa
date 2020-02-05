@@ -11,6 +11,7 @@ TODO: using indices order to reduce transpose
 
 import functools
 import numpy as np
+import contextlib
 
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
@@ -22,15 +23,50 @@ from .variable import VarsManager, real_var, complex_var, norm_var
 from .data import data_shape, split_generator
 
 from .config import regist_config, get_config, temp_config
-regist_config("vm", VarsManager(dtype="float64",fix_dic={}, bnd_dic={}))
 
 
-def add_var(self, var, *args, trainable=False, **kwargs):
-    var = tf.Variable(var, dtype="float64")
-    name = (str(self) + "_" + var.name).replace("/", "").replace(":", "__").replace("+", "_").replace("->", "_")
-    ret = real_var(vm=get_config("vm"), name=name, value=var, trainable=trainable)
+regist_config("vm", VarsManager(dtype="float64", fix_dic={}, bnd_dic={}))
+
+
+def add_var(self, names, complex_=False, shape=(), trainable=True, **kwargs):
+    name = (str(self) + "_" + names).replace("/", "")\
+        .replace(":", "__").replace("+", "_").replace("->", "_")\
+        .replace(",", "").replace("[", "").replace("]", "").replace(" ", "")
+    if complex_:
+        if shape == ():
+            tmp = complex_var(vm=get_config("vm"), name=name)
+            return lambda: tf.complex(*tmp)
+        else:
+            tmp = complex_var(vm=get_config("vm"), name=name, num=shape[0])
+            if shape[0] == 1:
+                tmp = [tmp]
+            return lambda: tf.complex(*[tf.stack(i) for i in zip(*tmp)])
+    else:
+        ret = real_var(vm=get_config("vm"), name=name, trainable=trainable)
     print(ret)
-    return ret
+    return lambda: ret
+
+
+@contextlib.contextmanager
+def variable_scope(vm=None):
+    if vm is None:
+        vm = VarsManager(dtype="float64")
+    with temp_config("vm", vm):
+        yield vm
+
+
+class Var(object):
+    def __init__(self, name):
+        self.name = name
+
+    def __set__(self, instance, value):
+        instance.__dict__[self.name] = value
+
+    def __get__(self, instance, var):
+        value = instance.__dict__[self.name]
+        if callable(value):
+            return value()
+        return value
 
 
 def simple_cache_fun(f):
@@ -54,36 +90,35 @@ def get_relative_p(m_0, m_1, m_2):
 
 
 class Particle(BaseParticle):
+    mass = Var("mass")
+    width = Var("width")
+
     def __init__(self, *args, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
-        self.init_params()
 
     def init_params(self):
         if self.mass is None:
-            self.mass = add_var(self, 1.0, trainable=True)
+            self.mass = add_var(self, "mass", trainable=True)
         if self.width is None:
-            self.width = add_var(self, 1.0)
+            self.width = add_var(self, "width")
 
-    def get_amp(self, data, data_c=None):
-        m = data["m"]
-        m0 = self.mass
-        g0 = self.width
-        return BW(m, m0, g0)
+    def get_amp(self, data):
+        return tf.convert_to_tensor(complex(1.0), dtype="complex128")
 
     def amp_shape(self):
         return ()
 
 
 class HelicityDecay(Decay):
+    g_ls = Var("g_ls")
+
     def __init__(self, *args, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
-        self.init_params()
 
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
-        self.g_ls_r = add_var(self, tf.ones(shape=(len(ls)), dtype="float64"), trainable=True)
-        self.g_ls_i = add_var(self, tf.ones(shape=(len(ls)), dtype="float64"), trainable=True)
+        self.g_ls = add_var(self, "g_ls", complex_=True, shape=(len(ls),))
 
     def get_relative_momentum(self, data, from_data=False):
 
@@ -124,7 +159,8 @@ class HelicityDecay(Decay):
         return ret
 
     def get_helicity_amp(self, data, data_p, params):
-        norm_r, norm_i = self.g_ls_r, self.g_ls_i
+        g_ls = self.g_ls
+        norm_r, norm_i = tf.math.real(g_ls), tf.math.imag(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
         if "|q|" in data:
@@ -166,13 +202,13 @@ class HelicityDecay(Decay):
 
 
 class DecayChain(BaseDecayChain):
+    total = Var("total")
+
     def __init__(self, *args, **kwargs):
         super(DecayChain, self).__init__(*args, **kwargs)
-        self.init_params()
 
     def init_params(self):
-        self.total_r = tf.Variable(1.0, dtype="float64")
-        self.total_i = tf.Variable(0.0, dtype="float64")
+        self.total = add_var(self, "total", complex_=True)
 
     def get_amp(self, data_c, data_p, params=None, base_map=None):
         base_map = self.get_base_map(base_map)
@@ -190,13 +226,10 @@ class DecayChain(BaseDecayChain):
         amp = tf.einsum(idx_s, *amp_d)
         amp_p = []
         for i in self.inner:
-            if len(i.decay) <= 0:
-                amp_p.append(i.get_amp(data_p[i]))
-            else:
-                amp_p.append(i.get_amp(data_p[i], data_c[i.decay[0]]))
+            amp_p.append(i.get_amp(data_p[i]))
         rs = tf.reduce_sum(amp_p, axis=0)
         ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
-        return tf.complex(self.total_r, self.total_i) * ret
+        return self.total * ret
 
     def amp_shape(self):
         ret = [len(self.top.spins)]
@@ -235,6 +268,18 @@ class DecayGroup(BaseDecayGroup):
         if not isinstance(first_chain, DecayChain):
             chains = [DecayChain(i) for i in chains]
         super(DecayGroup, self).__init__(chains)
+        self.init_params()
+
+    def init_params(self):
+        for i in self.resonances:
+            i.init_params()
+        inited_set = set()
+        for i in self:
+            i.init_params()
+            for j in i:
+                if j not in inited_set:
+                    j.init_params()
+                    inited_set.add(j)
 
     def get_amp(self, data):
         data_particle = data["particle"]
@@ -314,6 +359,51 @@ def rename_data_dict(data, idx_map):
     return data
 
 
+def value_and_grad(f, var):
+    with tf.GradientTape() as tape:
+        s = f(var)
+    g = tape.gradient(s, var)
+    return s, g
+
+
+class AmplitudeModel(object):
+    def __init__(self, decay_group):
+        self.decay_group = decay_group
+        with variable_scope() as vm:
+            decay_group.init_params()
+        self.vm = vm
+
+    def cache_data(self, data, split=None, batch=None):
+        for i in self.decay_group:
+            for j in i.inner:
+                print(j)
+        if split is None and batch is None:
+            return data
+        else:
+            n = data_shape(data)
+            if batch is None:  # split个一组，共batch组
+                batch = (n + split - 1) // split
+            ret = list(split_generator(data, batch))
+            return ret
+
+    def get_params(self):
+        return self.vm.get_all()
+
+    def set_params(self, var):
+        self.vm.set_all(var)
+
+    @property
+    def variables(self):
+        return self.vm.get_all()
+
+    @property
+    def trainable_variables(self):
+        return self.vm.get_all()
+
+    def __call__(self, data, cached=False):
+        return self.decay_group.sum_amp(data)
+
+
 def test_amp(fnames="data/data_test.dat"):
     a = Particle("A", J=1, P=-1, spins=(-1, 1))
     b = Particle("B", J=1, P=-1)
@@ -352,46 +442,3 @@ def test_amp(fnames="data/data_test.dat"):
     print(list(map(sum, zip(*gs))))
     print(sum(ss))
     return tf.reduce_sum(ret)
-
-
-def value_and_grad(f, var):
-    with tf.GradientTape() as tape:
-        s = f(var)
-    g = tape.gradient(s, var)
-    return s, g
-
-
-class AmplitudeModel(object):
-    def __init__(self, decay_group):
-        self.decay_group = decay_group
-        self.vm = get_config("vm")
-
-    def cache_data(self, data, split=None, batch=None):
-        for i in self.decay_group:
-            for j in i.inner:
-                print(j)
-        if split is None and batch is None:
-            return data
-        else:
-            n = data_shape(data)
-            if batch is None:  # split个一组，共batch组
-                batch = (n + split - 1) // split
-            ret = list(split_generator(data, batch))
-            return ret
-
-    def get_params(self):
-        return self.vm.get_all()
-
-    def set_params(self, var):
-        self.vm.set_all(var)
-
-    @property
-    def variables(self):
-        return self.vm.get_all()
-
-    @property
-    def trainable_variables(self):
-        return self.vm.get_all()
-
-    def __call__(self, data, cached=False):
-        return self.decay_group.sum_amp(data)

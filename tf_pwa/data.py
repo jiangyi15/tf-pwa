@@ -169,24 +169,14 @@ def data_map(data, fun, args=(), kwargs=None):
     return next(g)
 
 def data_merge(data1, data2, axis=0):
-    def flatten(data):
-        ret = []
-        def data_list(dat):
-            ret.append(dat)
-        data_map(data, data_list)
-        return ret
-    def rebuild(data, ret):
-        idx = -1
-        def data_build(_dat):
-            nonlocal idx
-            idx += 1
-            return ret[idx]
-        data = data_map(data, data_build)
-        return data
-    f_data1 = flatten(data1)
-    f_data2 = flatten(data2)
-    m_data = [tf.concat(data_i, axis=axis) for data_i in zip(f_data1, f_data2)]
-    return rebuild(data1, m_data)
+    if isinstance(data1, dict):
+        return {i: data_merge(data1[i], data2[i]) for i in set(list(data1)) & set(list(data2))}
+    if isinstance(data2, list):
+        return [data_merge(data, data2[i]) for i, data in enumerate(data1)]
+    if isinstance(data1, tuple):
+        return tuple([data_merge(data, data2[i]) for i, data in enumerate(data1)])
+    m_data = tf.concat([data1, data2], axis=axis)
+    return m_data
 
 def data_shape(data, axis=0, all_list=False):
     def flatten(dat):
@@ -406,8 +396,8 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
         ret[decay]["|q|"] = p
     return ret
 
-def prepare_data_from_decay(fnames, decs):
-    p = load_dat_file(fnames, decs.outs)
+def prepare_data_from_decay(fnames, decs, dtype="float64"):
+    p = load_dat_file(fnames, decs.outs, dtype=dtype)
     data = cal_angle_from_momentum(p, decs)
     return data
 

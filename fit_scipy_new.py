@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from tf_pwa.model_new import CachedModel, FCN
+from tf_pwa.model_new import Model, FCN
 import tensorflow as tf
 import time
 import numpy as np
@@ -40,13 +40,17 @@ def save_cached_data(cached_data, cached_data_file="cached_data.npy"):
 
 def prepare_data(decs, dtype="float64"):
     fname = [
-      ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
-      ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
-      ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
+        ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
+        ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
+        ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
     ]
     tname = ["data", "bg", "PHSP"]
-    cached_data = load_cached_data()
-    if False and cached_data is not None:
+    try:
+        cached_data = load_cached_data()
+    except Exception as e:
+        print(e)
+        cached_data = None
+    if cached_data is not None:
         data = cached_data["data"]
         bg = cached_data["bg"]
         mcdata = cached_data["PHSP"]
@@ -54,18 +58,17 @@ def prepare_data(decs, dtype="float64"):
         return data, bg, mcdata
     data_np = {}
     for i, name in enumerate(fname):
-        data_np[tname[i]] = prepare_data_from_decay(name[0], decs)
+        data_np[tname[i]] = prepare_data_from_decay(name[0], decs, dtype=dtype)
 
     data, bg, mcdata = [data_np[i] for i in tname]
-    save_cached_data({"data": data, "bg": bg, "PHSP": mcdata})
+    # save_cached_data({"data": data, "bg": bg, "PHSP": mcdata})
     return data, bg, mcdata
 
 
-def cal_hesse_error(Amp, val, w_bkg, data, mcdata, bg, args_name, batch):
-    a_h = CachedModel(Amp, w_bkg, data, mcdata, bg=bg, batch=batch)
-    a_h.set_params(val)
+def cal_hesse_error(amp, val, w_bkg, data, mcdata, bg, args_name, batch):
+    a_h = FCN(Model(amp, w_bkg), data, mcdata, bg=bg, batch=batch)
     t = time.time()
-    nll, g, h = a_h.cal_nll_hessian()  # data_w,mcdata,weight=weights,batch=50000)
+    nll, g, h = a_h.nll_grad_hessian(val)  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     # print(nll)
     # print([i.numpy() for i in g])
@@ -109,16 +112,61 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     data, bg, mcdata = prepare_data(decs, dtype=dtype)
 
     amp = AmplitudeModel(decs)
-    model = CachedModel(amp, data, mcdata, bg=bg, w_bkg=w_bkg)
+    model = Model(amp, w_bkg=w_bkg)
     now = time.time()
     print(model.nll(data, mcdata))
     print(time.time() - now)
-    now = time.time()
-    print(model.nll_grad(data, mcdata))
-    print(time.time() - now)
-    fcn = FCN(model)
+    # now = time.time()
+    # print(model.nll_grad(data, mcdata, batch=20000))
+    # print(time.time() - now)
+    # now = time.time()
+    # print(model.nll_grad_hessian(data, mcdata, batch=10000))
+    # print(time.time() - now)
+    fcn = FCN(model, data, mcdata, bg=bg)
     print(fcn.grad({}))
 
+    # fit configure
+    args = {}
+    args_name = []
+    x0 = []
+    bnds = []
+    bounds_dict = {
+        # "Zc_4160_m:0":(4.1,4.22),
+        # "Zc_4160_g:0":(0,None)
+    }
+
+    for i in model.Amp.trainable_variables:
+        args[i.name] = i.numpy()
+        x0.append(i.numpy())
+        args_name.append(i.name)
+        if i.name in bounds_dict:
+            bnds.append(bounds_dict[i.name])
+        else:
+            bnds.append((None, None))
+        args["error_" + i.name] = 0.1
+
+    points = []
+    nlls = []
+    now = time.time()
+    maxiter = 2000
+    bd = Bounds(bnds)
+    f_g = bd.trans_f_g(fcn.nll_grad)
+
+    def callback(x):
+        if np.fabs(x).sum() > 1e7:
+            x_p = dict(zip(args_name, x))
+            raise Exception("x too large: {}".format(x_p))
+        points.append([float(i) for i in bd.get_y(x)])
+        nlls.append(float(fcn.cached_nll))
+        if len(nlls) > maxiter:
+            with open("fit_curve.json", "w") as f:
+                json.dump({"points": points, "nlls": nlls}, f, indent=2)
+            raise Exception("Reached the largest iterations: {}".format(maxiter))
+        print(fcn.cached_nll)
+
+    s = minimize(f_g, np.array(bd.get_x(x0)), method=method, jac=True, callback=callback, options={"disp": 1})
+    xn = bd.get_y(s.x)
+    print(xn)
 
 
 def main():

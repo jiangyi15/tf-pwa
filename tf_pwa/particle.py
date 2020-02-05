@@ -343,7 +343,6 @@ class DecayChain(object):
     """
     build possible Decay Chain Topology
     a -> [b,c,d] => [[a->rb,r->cd],[a->rc,r->bd],[a->rd,r->bc]]
-    TODO: support identical particles
     """
     assert len(finals) > 0, " "
 
