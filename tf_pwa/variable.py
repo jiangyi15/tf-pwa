@@ -5,36 +5,63 @@ from functools import partial
 
 '''
 vm = VarsManager(dtype=tf.float64)
-def Variable(name,complex_=False,vm=vm, num=1,**kwargs):
-  name = (str(name) + "_" + var.name).replace("/", "").replace(":", "__").replace("+", "_").replace("->", "_")
-  if complex_:
-    return complex_var(name=name,num=num,vm=vm,**kwargs)
-  else:
-    return real_var(name=name,vm=vm,**kwargs)
 
-mass = Variable(self,value=1)() #trainable is True by default
-g_ls = Variable(self,complex_=True,num=len(ls))() # [[g_ls0r,g_ls0i],...]
+mass = Variable("R_m",value=1) #trainable is True by default
+g_ls = Variable("A2BR_H",len(ls),cplx=True) # [[g_ls0r,g_ls0i],...]
+mass()
+g_ls()
+
 
 vm.set_fix(var_name,value)#var_name是实变量的name（复变量name的两个实分量分别叫namer，namei）
 vm.set_bound({var_name:(a,b)},func="(b-a)*(sin(x)+1)/2+a")
 vm.set_share_r([var_name1,var_name2])#var_name是复变量的name
+vm.set_all(init_params)
+vm.std_polar_all()
+vm.trans_fcn(fcn,grad)#bound转换
 '''
 
-def real_var(name,vm=VarsManager(), value=None,range_=None,trainable=True):
-  return vm.add_real_var(name,value,range_,trainable)
+class Variable(object):
+  def __init__(self,name,length=1,cplx=False,vm=vm, **kwargs):
+    self.vm = vm
+    self.name = name
+    self.length = length
+    if cplx:
+      self.var = self.cplx_var(**kwargs)
+    else:
+      self.var = self.real_var(**kwargs)
 
-def complex_var(name,vm=VarsManager(), num=1,polar=True,fix_which=0,fix_vals=(1.0,0.0)):
-  if num==1:
-    trainable = not fix_which
-    return vm.add_complex_var(name=name,polar=polar,trainable=trainable,fix_vals=fix_vals)
-  else:
-    var_list = []
-    for i in range(num):
-      trainable = i!=fix_which
-      var = name+str(i)
-      vm.add_complex_var(name=var,polar=polar,trainable=trainable,fix_vals=fix_vals)
-      var_list.append([vm.variables[var+'r'],vm.variables[var+'i'])
-  return lambda: var_list # lambda:[[name0r,name0i],...]
+  def __call__(self):
+    return self.var() # a lambda
+
+  def real_var(self, value=None,range_=None,fix=False):
+    trainable = not fix
+    if self.length==1:
+      return self.vm.add_real_var(self.name, value,range_,trainable)
+    else:
+      var_list = []
+      for i in range(self.length):
+        name = self.name+str(i)
+        self.vm.add_real_var(name, value,range_,trainable)
+        var_list.append(self.vm.variables[name])
+      return lambda: var_list
+  
+  def cplx_var(self, polar=True,fix_which=0,fix_vals=(1.0,0.0)):
+    if self.length==1:
+      trainable = not fix_which
+      return self.vm.add_complex_var(self.name, polar,trainable,fix_vals)
+    else:
+      var_list = []
+      for i in range(self.length):
+        trainable = i!=fix_which
+        name = self.name+str(i)
+        self.vm.add_complex_var(name, polar,trainable,fix_vals)
+        var_list.append([self.vm.variables[name+'r'],self.vm.variables[name+'i'])
+      return lambda: var_list # lambda:[[name0r,name0i],...]
+
+
+    @property
+    def value(self):
+      return tf.Variable(self.var()).numpy()
 
 
 class VarsManager(object):
@@ -283,7 +310,7 @@ class Bound(object):
 
 
 
-class Variable(VarsManager): # fitting parameters for the amplitude model
+'''class Variable(VarsManager): # fitting parameters for the amplitude model
   def __init__(self,res,res_decay,polar,**kwarg):
     super(Variable,self).__init__(**kwarg)
     self.res = res
@@ -385,4 +412,4 @@ class Variable(VarsManager): # fitting parameters for the amplitude model
           tmp_i = self.add_real_var(name=name+"i",range_=(-1,1))
         arg_list.append((name+"r",name+"i"))
     return ls,arg_list
-
+'''
