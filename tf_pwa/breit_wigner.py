@@ -88,4 +88,12 @@ def barrier_factor(l,q,q0,d=3.0, axis=0): # cache q^l * B_l 只用于H里
   for i in l:
     tmp = q**i * tf.cast(Bprime(i,q,q0,d),q.dtype)
     ret.append(tmp)
+  return tf.stack(ret)
+
+def barrier_factor2(l,q,q0,d=3.0, axis=-1): # cache q^l * B_l 只用于H里
+  ret = []
+  for i in l:
+    tmp = q**i * tf.cast(Bprime(i,q,q0,d),q.dtype)
+    ret.append(tf.reshape(tmp, (-1, 1)))
   return tf.concat(ret, axis=axis)
+

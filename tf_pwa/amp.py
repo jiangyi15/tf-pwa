@@ -16,16 +16,13 @@ import contextlib
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
 from .data import prepare_data_from_decay, split_generator
-from .resonances import barrier_factor2 as barrier_factor, BWR
+from .breit_wigner import barrier_factor2 as barrier_factor, BWR
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
-from .variable import VarsManager, real_var, complex_var, norm_var
+from .variable import VarsManager, Variable
 from .data import data_shape, split_generator
 
 from .config import regist_config, get_config, temp_config
-
-
-regist_config("vm", VarsManager(dtype=get_config("dtype"), fix_dic={}, bnd_dic={}))
 
 
 def get_name(self, names):
@@ -35,21 +32,9 @@ def get_name(self, names):
     return name
 
 
-def add_var(self, names, complex_=False, shape=(), trainable=True, **kwargs):
+def add_var(self, names, is_complex=False, shape=(), **kwargs):
     name = get_name(self, names)
-    if complex_:
-        if shape == ():
-            tmp = complex_var(vm=get_config("vm"), name=name)
-            return lambda: tf.complex(*tmp)
-        else:
-            tmp = complex_var(vm=get_config("vm"), name=name, num=shape[0])
-            if shape[0] == 1:
-                tmp = [tmp]
-            return lambda: tf.complex(*[tf.stack(i) for i in zip(*tmp)])
-    else:
-        ret = real_var(vm=get_config("vm"), name=name, trainable=trainable)
-    print(ret)
-    return lambda: ret
+    return Variable(name, shape, is_complex,**kwargs)
 
 
 @contextlib.contextmanager
@@ -129,7 +114,7 @@ class HelicityDecay(Decay):
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
-        self.g_ls = add_var(self, "g_ls", complex_=True, shape=(len(ls),))
+        self.g_ls = add_var(self, "g_ls", is_complex=True, shape=(len(ls),))
 
     def get_relative_momentum(self, data, from_data=False):
 
@@ -170,7 +155,7 @@ class HelicityDecay(Decay):
         return ret
 
     def get_helicity_amp(self, data, data_p, params):
-        g_ls = self.g_ls
+        g_ls = tf.complex(*list(zip(* self.g_ls)))
         norm_r, norm_i = tf.math.real(g_ls), tf.math.imag(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
@@ -222,7 +207,7 @@ class DecayChain(BaseDecayChain):
         super(DecayChain, self).__init__(*args, **kwargs)
 
     def init_params(self):
-        self.total = add_var(self, "total", complex_=True)
+        self.total = add_var(self, "total", is_complex=True)
 
     def get_amp(self, data_c, data_p, params=None, base_map=None):
         base_map = self.get_base_map(base_map)
@@ -246,7 +231,7 @@ class DecayChain(BaseDecayChain):
                 amp_p.append(i.get_amp(data_p[i]))
         rs = tf.reduce_sum(amp_p, axis=0)
         ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
-        return self.total * ret
+        return tf.complex(*self.total) * ret
 
     def amp_shape(self):
         ret = [len(self.top.spins)]

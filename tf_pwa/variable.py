@@ -1,134 +1,125 @@
 import tensorflow as tf
 import numpy as np
-from .utils import is_complex
 from functools import partial
+import warnings
+from .config import regist_config, get_config
 
-'''
-vm = VarsManager(fix_dic={},bnd_dic={})
-real_var = partial(real_var,vm=vm)
-complex_var = partial(complex_var,vm=vm)
-norm_var = partial(norm_var,vm=vm)
-'''
-
-def real_var(name,vm,value=None,range_=None,trainable=True):
-  return vm.add_real_var(name,value,range_,trainable)
-    
-def complex_var(name,vm, num=1,polar=True, fix_which=0,fix_vals=(1.0,0.0)):
-  if num==1:
-    trainable = not fix_which
-    return vm.add_complex_var(name=name,polar=polar,trainable=trainable,fix_vals=fix_vals)
-  else:
-    var_list = []
-    for i in range(num):
-      trainable = i!=fix_which
-      var = vm.add_complex_var(name=name+str(i),polar=polar,trainable=trainable,fix_vals=fix_vals)
-      var_list.append(var)
-    return var_list #tf.Variable(var_list)
-
-def norm_var(name,vm,head=None, fix=False,fix_vals=(1.0,0.0)):
-  trainable = not fix
-  return vm.add_norm_var(name=name,head=head,trainable=trainable,fix_vals=fix_vals)
 
 class VarsManager(object):
-  def __init__(self, dtype, fix_dic={}, bnd_dic={}):
+  def __init__(self, dtype):
     self.dtype = dtype
-    self.variables = {} #tf.Variable
-    self.trainable_vars = [] #str
-    self.complex_vars = {}
-    self.norm_vars = {} #isopin constr
-    self.fix_dic = fix_dic
-    self.bnd_dic = bnd_dic
+    self.variables = {} # {name:tf.Variable,...}
+    self.trainable_vars = [] # [name,...]
+    #self.trainable_variables = [] # [tf.Variable,...]
+
+    self.complex_vars = {} # {name:polar(bool),...}
+    self.share_r = [] # [[name1,name2],...]
+    
+    self.fix_dic = {} # {name:value,...}
+    self.bnd_dic = {} # {name:(a,b),...}
 
 
   def add_real_var(self,name,value=None,range_=None,trainable=True):
-    if name not in self.variables: # a new var
-      if name in self.fix_dic: # a fixed var
-        value = self.fix_dic[name]
-        trainable = False
-      if trainable:
-        self.trainable_vars.append(name)
-      if name in self.bnd_dic: # set boundary for this var
-        self.bnd_dic[name] = Bound(*self.bnd_dic[name],func=None)
+    if name in self.variables: # not a new var
+      if name in self.trainable_vars:
+        self.trainable_vars.remove(name)
+      warnings.warn("overwrite variable {}".format(name))
 
-      if value is None:
-        if range_ is None: # random [0,1]
-          self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=0.,maxval=1.,dtype=self.dtype),name=name,trainable=trainable)
-        else: # random [a,b]
-          self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=range_[0],maxval=range_[1],dtype=self.dtype),name=name,trainable=trainable)
-      else: # constant value
-        self.variables[name] = tf.Variable(value,name=name,dtype=self.dtype,trainable=trainable)
+    if value is None:
+      if range_ is None: # random [0,1]
+        self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=0.,maxval=1.,dtype=self.dtype),name=name,trainable=trainable)
+      else: # random [a,b]
+        self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=range_[0],maxval=range_[1],dtype=self.dtype),name=name,trainable=trainable)
+    else: # constant value
+      self.variables[name] = tf.Variable(value,name=name,dtype=self.dtype,trainable=trainable)
 
-    else:
-      pass #比如D1_2430r会两次出现
-    return self.variables[name]
+    if trainable:
+      self.trainable_vars.append(name)
+    #return lambda: self.variables[name] # need call ()
 
   def add_complex_var(self,name,polar=True, trainable=True,fix_vals=(1.0,0.0)):
     var_r = name+'r'
     var_i = name+'i'
     if trainable:
       if polar:
-        var_r = self.add_real_var(name=var_r,range_=(0,2.0))
-        var_i = self.add_real_var(name=var_i,range_=(-np.pi,np.pi))
+        self.add_real_var(name=var_r,range_=(0,2.0))
+        self.add_real_var(name=var_i,range_=(-np.pi,np.pi))
       else:
-        var_r = self.add_real_var(name=var_r,range_=(-1,1))
-        var_i = self.add_real_var(name=var_i,range_=(-1,1))
+        self.add_real_var(name=var_r,range_=(-1,1))
+        self.add_real_var(name=var_i,range_=(-1,1))
     else:
-      var_r = self.add_real_var(name=var_r,value=fix_vals[0],trainable=False)
-      var_i = self.add_real_var(name=var_i,value=fix_vals[1],trainable=False)
-    self.complex_vars[name] = [[var_r,var_i],polar]
-    return [var_r,var_i]
+      self.add_real_var(name=var_r,value=fix_vals[0],trainable=False)
+      self.add_real_var(name=var_i,value=fix_vals[1],trainable=False)
+    self.complex_vars[name] = polar
+    #return lambda: [self.variables[var_r],self.variables[var_i]]
 
-  def add_norm_var(self,name,head=None, trainable=True,fix_vals=(1.0,0.0)):
-    if not head:
-      head = name
-    if head not in self.norm_vars:
-      if trainable:
-        var_r = self.add_real_var(name=name+'r',range_=(0,2.0))
-        var_i = self.add_real_var(name=name+'i',range_=(-np.pi,np.pi))
+
+  def set_fix(self,name,value): # fix a var (make it untrainable)
+    var = tf.Variable(value,name=name,dtype=self.dtype,trainable=False)
+    self.variables[name] = var
+    self.trainable_vars.remove(name)
+
+  def set_bound(self,bound_dic,func=None): # set boundary for a var
+    for name in bound_dic:
+      self.bnd_dic[name] = Bound(*bound_dic[name],func=func)
+
+  def set_share_r(self,name_list): # name_list==[name1,name2,...]
+    for name in name_list:
+      if not self.complex_vars[name]: # is not polar
+        self.xy2rp(name)
+      del self.complex_vars[name]
+    name_r_list = [name+'r' for name in name_list]
+    self.set_same(name_r_list)
+    self.share_r.append(name_list)
+
+  def set_same(self,name_list):
+    var = self.variables[name_list[0]]
+    for name in name_list[1:]:
+      if self.variables[name].trainable:
+        self.trainable_vars.remove(name)
       else:
-        var_r = self.add_real_var(name=name+'r',value=fix_vals[0],trainable=False)
-        var_i = self.add_real_var(name=name+'i',value=fix_vals[1],trainable=False)
-      self.norm_factor[head] = [var_r,var_i]
-    else:
-      if not trainable:
-        raise Exception("{0} should be defined before {1}".format(head,name))
-      var_r = self.norm_factor[head][0]
-      var_i = self.add_real_var(name=name+'i',range_=(-np.pi,np.pi))
-      self.norm_factor[head].append(var_i)
-    return [var_r,var_i]
-
+        var = self.variables[name] # if one is untrainable, the others will all be untrainable
+        if name_list[0] in self.trainable_vars:
+          self.trainable_vars.remove(name_list[0])
+    for name in name_list:
+      self.variables[name] = var
+      
 
   def get(self,name):
     if name not in self.variables:
       raise Exception("{} not found".format(name))
     return self.variables[name] #tf.Variable
-  
+
   def set(self,name,value):
     if name not in self.variables:
       raise Exception("{} not found".format(name))
-    return self.variables[name].assign(value)
+    self.variables[name].assign(value)
 
   def rp2xy(self,name):
     if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    if not self.complex_vars[name][1]: # if not polar (already xy)
+    if not self.complex_vars[name]: # if not polar (already xy)
       return
-    r,p = self.complex_vars[name][0]
+    r = self.variables[name+'r']
+    p = self.variables[name+'i']
     x = r * np.cos(p)
     y = r * np.sin(p)
-    self.complex_vars[name][0] = [x,y]
-    self.complex_vars[name][1] = False
+    self.variables[name+'r'] = x
+    self.variables[name+'i'] = y
+    self.complex_vars[name] = False
 
   def xy2rp(self,name):
     if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    if self.complex_vars[name][1]:
+    if self.complex_vars[name]: # if already polar
       return
-    x,y = self.complex_vars[name][0]
+    x = self.variables[name+'r']
+    y = self.variables[name+'i']
     r = np.sqrt(x*x+y*y)
     p = np.arctan2(y,x)
-    self.complex_vars[name][0] = [r,p]
-    self.complex_vars[name][1] = True
+    self.variables[name+'r'] = r
+    self.variables[name+'i'] = p
+    self.complex_vars[name] = True
 
   @staticmethod
   def std_polar_angle(p,a=-np.pi,b=np.pi):
@@ -140,17 +131,24 @@ class VarsManager(object):
   def std_polar(self,name):
     if name not in self.complex_vars:
       raise Exception("{} not found".format(name))
-    if not self.complex_vars[name][1]:
+    if not self.complex_vars[name]:
       self.xy2rp(name)
-      self.complex_vars[name][1] = True
-    r,p = self.complex_vars[name][0]
+      self.complex_vars[name] = True
+    r = self.variables[name+'r']
+    p = self.variables[name+'i']
     if r<0:
       r.assign(tf.abs(r))
       p.assign_add(np.pi)
     self.std_polar_angle(p)
 
 
-  def get_all(self,after_trans=False): # array (for dict, use self.variables)
+  def get_trainable_vars(self):
+    vars_list = []
+    for name in self.trainable_vars:
+      vars_list.append(self.variables[name])
+    return vars_list
+
+  def get_all(self,after_trans=False):
     vals = []
     if after_trans:
       for name in self.trainable_vars:
@@ -164,8 +162,8 @@ class VarsManager(object):
       for name in self.trainable_vars:
         yval = self.get(name)
         vals.append(yval)
-    return vals
-      
+    return vals # list (for list of tf.Variable use self.get_trainable_vars(); for dict of all vars, use self.variables)
+
   def set_all(self,vals): # use either dict or list
     if type(vals)==dict:
       for name in vals:
@@ -191,14 +189,16 @@ class VarsManager(object):
   def std_polar_all(self): # std polar expression: r>0, -pi<p<pi
     for name in self.complex_vars:
       self.std_polar(name)
-    for head in self.norm_vars:
-      r = self.norm_vars[head][0]
+    for name_list in self.share_r:
+      r = self.variables[name_list[0]+'r']
       if r<0:
         r.assign(tf.abs(r))
-        for p in self.norm_vars[head][1:]:
+        for p in name_list:
           p.assign_add(np.pi)
-      for p in self.norm_vars[head][1:]:
-        self.std_polar_angle(p)
+          self.std_polar_angle(p)
+      else:
+        for p in name_list:
+          self.std_polar_angle(p)
 
 
   def trans_fcn(self,fcn,grad): # bound transform fcn and grad
@@ -259,8 +259,133 @@ class Bound(object):
     return self.df.evalf(subs={x:val})
 
 
+regist_config("vm", VarsManager(dtype="float64"))
+# vm = VarsManager(dtype=tf.float64)
+class Variable(object):
+  def __init__(self,name,shape=(),cplx=False,vm=None, **kwargs):
+    self.vm = vm
+    if vm is None:
+      self.vm = get_config("vm")
+    self.name = name
+    self.shape = shape
+    self.cplx = cplx
+    if cplx:
+      self.cplx_var(**kwargs)
+    else:
+      self.real_var(**kwargs)
 
-class Variable(VarsManager): # fitting parameters for the amplitude model
+  def real_var(self, value=None,range_=None,fix=False):
+    trainable = not fix
+    if not self.shape:
+      self.vm.add_real_var(self.name, value,range_,trainable)
+    else:
+      #for n in self.shape:
+      for i in range(self.shape[0]):
+        name = self.name+'_'+str(i)
+        self.vm.add_real_var(name, value,range_,trainable)
+  
+  def cplx_var(self, polar=True,fix_which=0,fix_vals=(1.0,0.0)):
+    if not self.shape:
+      trainable = not fix_which
+      self.vm.add_complex_var(self.name, polar,trainable,fix_vals)
+    else:
+      #for n in self.shape:
+      for i in range(self.shape[0]):
+        trainable = i!=fix_which
+        name = self.name+'_'+str(i)
+        self.vm.add_complex_var(name, polar,trainable,fix_vals)
+
+
+  @property
+  def value(self):
+    return tf.Variable(self()).numpy()
+
+  def fixed(self,value):
+    if self.shape==():
+      self.vm.set_fix(self.name,value)
+    else:
+      raise Exception("Only shape==() real var supports 'fixed' method.")
+    
+
+  def r_shareto(self,Var):
+    if self.shape != Var.shape:
+      raise Exception("Shapes are not the same.")
+    if not (self.cplx and Var.cplx):
+      raise Exception("Type is not complex var.")
+
+    if not self.shape:
+      self.vm.set_same([self.name+'r',Var.name+'r'])
+    else:
+      for i in range(self.shape[0]):
+        name1 = self.name+'_'+str(i)
+        name2 = Var.name+'_'+str(i)
+        self.vm.set_same([name1+'r',name2+'r'])
+
+  def sameas(self,Var):
+    if self.shape != Var.shape:
+      raise Exception("Shapes are not the same.")
+    if self.cplx != Var.cplx:
+      raise Exception("Types are not the same.")
+
+    if self.cplx:
+      if not self.shape:
+        self.vm.set_same([self.name+'r',Var.name+'r'])
+        self.vm.set_same([self.name+'i',Var.name+'i'])
+      else:
+        for i in range(self.shape[0]):
+          name1 = self.name+'_'+str(i)
+          name2 = Var.name+'_'+str(i)
+          self.vm.set_same([name1+'r',name2+'r'])
+          self.vm.set_same([name1+'i',name2+'i'])
+    else:
+      if not self.shape:
+        self.vm.set_same([self.name,Var.name])
+      else:
+        for i in range(self.shape[0]):
+          name1 = self.name+'_'+str(i)
+          name2 = Var.name+'_'+str(i)
+          self.vm.set_same([name1,name2])
+
+  def __call__(self):
+    if self.cplx:
+      if not self.shape:
+        return [self.vm.variables[self.name+'r'],self.vm.variables[self.name+'i']]
+      else:
+        var_list = []
+        for i in range(self.shape[0]):
+          name = self.name+'_'+str(i)
+          var_list.append([self.vm.variables[name+'r'],self.vm.variables[name+'i']])
+        return var_list
+    
+    else:
+      if not self.shape:
+        return self.vm.variables[self.name]
+      else:
+        var_list = []
+        for i in range(self.shape[0]):
+          name = self.name+'_'+str(i)
+          var_list.append(self.vm.variables[name])
+        return var_list
+
+
+def __main__():
+  m = Variable("R_m",value=2.1) #trainable is True by default
+  g_ls = Variable("A2BR_H",shape=[3],cplx=True)
+  fcr = Variable("R_total",cplx=True)
+  m1 = Variable("R1_m",value=2.3)
+  g_ls1 = Variable("A2BR1_H",shape=[3],cplx=True)
+  fcr1 = Variable("R1_total",cplx=True)
+
+  g_ls.value
+  g_ls()
+  
+  m.fixed(2.4)
+  g_ls.sameas(g_ls_1)
+  fcr.r_shareto(fcr1)
+
+
+  
+'''class Variable(VarsManager): # fitting parameters for the amplitude model
   def __init__(self,res,res_decay,polar,**kwarg):
     super(Variable,self).__init__(**kwarg)
     self.res = res
@@ -362,4 +487,4 @@ class Variable(VarsManager): # fitting parameters for the amplitude model
           tmp_i = self.add_real_var(name=name+"i",range_=(-1,1))
         arg_list.append((name+"r",name+"i"))
     return ls,arg_list
-
+'''
