@@ -58,17 +58,20 @@ import numpy as np
 from .particle import BaseParticle, BaseDecay, DecayChain, DecayGroup
 from .angle_tf import LorentzVector, EularAngle
 from .tensorflow_wrapper import tf
+from .config import get_config
 
 try:
     from collections.abc import Iterable
 except ImportError: # python version < 3.7
     from collections import Iterable
 
-def load_dat_file(fnames, particles, split=None, order=None, _force_list=False):
+def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_list=False):
     """
     load *.dat file(s) for particles momentum.
     """
     n = len(particles)
+    if dtype is None:
+        dtype = get_config("dtype")
 
     if isinstance(fnames, str):
         fnames = [fnames]
@@ -80,7 +83,7 @@ def load_dat_file(fnames, particles, split=None, order=None, _force_list=False):
     datas = []
     sizes = []
     for fname in fnames:
-        data = np.loadtxt(fname)
+        data = np.loadtxt(fname, dtype=dtype)
         sizes.append(data.shape[0])
         datas.append(data)
 
@@ -396,8 +399,12 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
         ret[decay]["|q|"] = p
     return ret
 
-def prepare_data_from_decay(fnames, decs, dtype="float64"):
-    p = load_dat_file(fnames, decs.outs, dtype=dtype)
+def prepare_data_from_decay(fnames, decs, particles=None, dtype=None):
+    if dtype is None:
+        dtype = get_config("dtype")
+    if particles is None:
+        particles = sorted(decs.outs)
+    p = load_dat_file(fnames, particles, dtype=dtype)
     data = cal_angle_from_momentum(p, decs)
     return data
 

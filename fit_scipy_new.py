@@ -14,7 +14,7 @@ import math
 from tf_pwa.bounds import Bounds
 from plot_amp import calPWratio
 
-from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle
+from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
 
 from tf_pwa.data import prepare_data_from_decay
 
@@ -38,7 +38,7 @@ def save_cached_data(cached_data, cached_data_file="cached_data.npy"):
     tf_pwa.save_data(cached_path, cached_data)
 
 
-def prepare_data(decs, dtype="float64"):
+def prepare_data(decs, particles=None, dtype="float64"):
     fname = [
         ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
         ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
@@ -58,9 +58,11 @@ def prepare_data(decs, dtype="float64"):
         return data, bg, mcdata
     data_np = {}
     for i, name in enumerate(fname):
-        data_np[tname[i]] = prepare_data_from_decay(name[0], decs, dtype=dtype)
+        data_np[tname[i]] = prepare_data_from_decay(name[0], decs, particles=particles, dtype=dtype)
 
     data, bg, mcdata = [data_np[i] for i in tname]
+    import pprint
+    pprint.pprint(data)
     # save_cached_data({"data": data, "bg": bg, "PHSP": mcdata})
     return data, bg, mcdata
 
@@ -94,36 +96,76 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     b = Particle("B", J=1, P=-1)
     c = Particle("C", J=0, P=-1)
     d = Particle("D", J=1, P=-1)
+    decay = {}
     for i in config_list:
         config = config_list[i]
         res = Particle(i, config["J"], config["Par"], mass=config["m0"], width=config["g0"])
         chain = config["Chain"]
         if chain < 0:
-            HelicityDecay(a, [res, c])
-            HelicityDecay(res, [b, d])
+            dec1 = HelicityDecay(a, [res, c])
+            dec2 = HelicityDecay(res, [b, d])
         elif chain < 100:
-            HelicityDecay(a, [res, d])
-            HelicityDecay(res, [b, c])
+            dec1 = HelicityDecay(a, [res, d])
+            dec2 = HelicityDecay(res, [b, c])
         elif chain < 200:
-            HelicityDecay(a, [res, b])
-            HelicityDecay(res, [d, c])
+            dec1 = HelicityDecay(a, [res, b])
+            dec2 = HelicityDecay(res, [d, c])
+        else:
+            raise Exception("unknown chain")
+        decay[i] = [dec1, dec2]
 
     decs = DecayGroup(a.chain_decay())
-    data, bg, mcdata = prepare_data(decs, dtype=dtype)
+    data, bg, mcdata = prepare_data(decs, particles=[d, b, c], dtype=dtype)
 
     amp = AmplitudeModel(decs)
+
+    def coef_combine(a, b, r="r", g_ls="g_ls"):
+        name_a = get_name(a, g_ls)+r
+        name_b = get_name(b, g_ls)+r
+        if name_b in amp.vm.variables:
+            amp.vm.variables[name_a] = amp.vm.variables[name_b]
+        else:
+            print(name_b)
+        if name_a in amp.vm.trainable_vars:
+            amp.vm.trainable_vars.remove(name_a)
+
+    print(amp.vm.variables)
+    print(amp.vm.trainable_vars)
+    for i in config_list:
+        if "coef_head" in config_list[i]:
+            coef_head = config_list[i]["coef_head"]
+            for a, b in zip(decay[i], decay[coef_head]):
+                num = len(a.get_ls_list())
+                if num == 1:
+                    coef_combine(a, b)
+                    coef_combine(a, b, "i")
+                else:
+                    for j in range(num):
+                        coef_combine(a, b, str(j)+"r")
+                        coef_combine(a, b, str(j)+"i")
+            for j in decs:
+                if decay[i][0] in j:
+                    for k in decs:
+                        if decay[coef_head][0] in k:
+                            coef_combine(j, k, g_ls="total")
+    for j in decs:
+        name = get_name(j, "total")
+        amp.vm.trainable_vars.remove(name+"r")
+        amp.vm.trainable_vars.remove(name+"i")
+        break
+    print(amp.vm.trainable_vars)
     model = Model(amp, w_bkg=w_bkg)
     now = time.time()
     print(model.nll(data, mcdata))
     print(time.time() - now)
-    # now = time.time()
-    # print(model.nll_grad(data, mcdata, batch=20000))
-    # print(time.time() - now)
+    now = time.time()
+    print(model.nll_grad(data, mcdata, batch=65000))
+    print(time.time() - now)
     # now = time.time()
     # print(model.nll_grad_hessian(data, mcdata, batch=10000))
     # print(time.time() - now)
     fcn = FCN(model, data, mcdata, bg=bg)
-    print(fcn.grad({}))
+
 
     # fit configure
     args = {}
@@ -145,6 +187,19 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             bnds.append((None, None))
         args["error_" + i.name] = 0.1
 
+    check_grad = True
+    if check_grad:
+        _, gs0 = fcn.nll_grad(x0)
+        gs = []
+        for i, name in enumerate(args_name):
+            x0[i] += 1e-3
+            nll0, _ = fcn.nll_grad(x0)
+            x0[i] -= 2e-3
+            nll1, _ = fcn.nll_grad(x0)
+            x0[i] += 1e-3
+            gs.append((nll0-nll1)/2e-3)
+            print(gs[i], gs0[i])
+
     points = []
     nlls = []
     now = time.time()
@@ -156,7 +211,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         if np.fabs(x).sum() > 1e7:
             x_p = dict(zip(args_name, x))
             raise Exception("x too large: {}".format(x_p))
-        points.append([float(i) for i in bd.get_y(x)])
+        point = [float(i) for i in bd.get_y(x)]
+        print(dict(zip(args_name, point)))
+        points.append(point)
         nlls.append(float(fcn.cached_nll))
         if len(nlls) > maxiter:
             with open("fit_curve.json", "w") as f:

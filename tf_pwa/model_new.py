@@ -18,7 +18,7 @@ def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=No
         with tf.GradientTape() as tape:
             part_y = trans(f(data_i, *args, **kwargs))
             y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
-        g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
+        g_i = tape.gradient(y_i, var)
         ys.append(y_i)
         gs.append(g_i)
     nll = sum(ys)
@@ -71,7 +71,7 @@ class Model(object):
         ln_data = tf.math.log(self.Amp(data))
         int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
         nll_0 = - tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
-        return nll_0 + sw * int_mc
+        return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
 
     def nll_grad(self, data, mcdata, weight=1.0, batch=65000):
         r"""
@@ -94,12 +94,12 @@ class Model(object):
         ln_data, g_ln_data = sum_gradient(self.Amp, split_generator(data, batch),
                                           self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
-                                        self.Amp.trainable_variables)
+                                        self.Amp.trainable_variables, weight=1/n_mc)
 
         sw = tf.cast(sw, ln_data.dtype)
 
         g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
-        nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
+        nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
     def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000):
@@ -140,8 +140,9 @@ class FCN(object):
         if bg is not None:
             n_bg = data_shape(bg)
             data = data_merge(data, bg)
-        self.weight = tf.convert_to_tensor([1.0] * n_data + [-model.w_bkg] * n_bg)
-        self.sw = tf.reduce_sum(self.weight)
+        weight = tf.convert_to_tensor([1.0] * n_data + [-model.w_bkg] * n_bg)
+        self.sw = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
+        self.weight = self.sw * weight
         self.data = data
         self.mcdata = mcdata
         self.batch = batch

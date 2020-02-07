@@ -83,9 +83,9 @@ def Bprime(L, q, q0, d):
   denom = Bprime_num(L,q,d)
   return tf.cast(num,denom.dtype)/denom
 
-def barrier_factor(l,q,q0,d=3.0): # cache q^l * B_l 只用于H里
+def barrier_factor(l,q,q0,d=3.0, axis=0): # cache q^l * B_l 只用于H里
   ret = []
   for i in l:
     tmp = q**i * tf.cast(Bprime(i,q,q0,d),q.dtype)
     ret.append(tmp)
-  return tf.stack(ret)
+  return tf.concat(ret, axis=axis)

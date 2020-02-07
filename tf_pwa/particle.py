@@ -44,7 +44,8 @@ class BaseParticle(object):
     self.creators = [] # list of Decay which creates the particle
 
   def add_decay(self, d):
-    self.decay.append(d)
+    if d not in self.decay:
+      self.decay.append(d)
 
   def remove_decay(self, d):
     self.decay.remove(d)
@@ -131,11 +132,11 @@ class BaseDecay(object):
   def __init__(self, core, outs, name=None, disable=False):
     self.name = name
     self.core = core # mother particle
+    self.outs = tuple(outs) # daughter particles
     if not disable:
       self.core.add_decay(self)
       for i in outs:
         i.add_creator(self)
-    self.outs = tuple(outs) # daughter particles
 
   def __repr__(self):
     ret = str(self.core)

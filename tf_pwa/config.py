@@ -41,7 +41,9 @@ def create_config(default):
     return set_, get_, regist_
 
 set_config, get_config, regist_config = create_config({
-    "multi_gpus": False
+    "multi_gpus": False,
+    "dtype": "float64",
+    "complex_dtype": "complex128"
 })
 
 @contextmanager
