@@ -1,6 +1,7 @@
 import numpy as np
 from .data import data_shape, split_generator, data_merge, data_split
 from .tensorflow_wrapper import tf
+from .utils import time_print
 
 
 def loop_generator(var):
@@ -101,6 +102,29 @@ class Model(object):
         g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
+    
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
+        r"""
+        calculate negative log-likelihood with gradients
+
+        .. math::
+          - \frac{\partial \ln L}{\partial \theta_k } =
+            -\sum_{x_i \in data } w_i \frac{\partial}{\partial \theta_k} \ln f(x_i;\theta_k)
+            + (\sum w_j ) \left( \frac{ \partial }{\partial \theta_k} \sum_{x_i \in mc} f(x_i;\theta_k) \right)
+              \frac{1}{ \sum_{x_i \in mc} f(x_i;\theta_k) }
+
+        """
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data = sum_gradient(self.Amp, data,
+                                          self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
+        int_mc, g_int_mc = sum_gradient(self.Amp, mcdata,
+                                        self.Amp.trainable_variables, weight=mc_weight)
+
+        sw = tf.cast(sw, ln_data.dtype)
+
+        g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        nll = - ln_data + sw * tf.math.log(int_mc)
+        return nll, g
 
     def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000):
         n_data = data_shape(data)
@@ -109,9 +133,9 @@ class Model(object):
             sw = n_data * weight
         else:
             sw = tf.reduce_sum(weight)
-        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
+        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, data,
                                                     self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
-        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
+        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, mcdata,
                                                  self.Amp.trainable_variables)
         n_var = len(g_ln_data)
         sw = n_data
@@ -140,12 +164,16 @@ class FCN(object):
         if bg is not None:
             n_bg = data_shape(bg)
             data = data_merge(data, bg)
-        weight = tf.convert_to_tensor([1.0] * n_data + [-model.w_bkg] * n_bg)
+        weight = tf.convert_to_tensor([1.0] * n_data + [-model.w_bkg] * n_bg, dtype="float64")
         self.sw = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = self.sw * weight
+        print(data)
         self.data = data
+        self.batch_data = list(split_generator(data, batch))
         self.mcdata = mcdata
+        self.batch_mcdata = list(split_generator(mcdata, batch))
         self.batch = batch
+        self.mc_weight = tf.convert_to_tensor([1/n_mcdata] * n_mcdata, dtype="float64")
 
     # @time_print
     def __call__(self, x):
@@ -159,10 +187,12 @@ class FCN(object):
         nll, g = self.nll_grad(x)
         return g
 
+    @time_print
     def nll_grad(self, x):
         self.model.set_params(x)
-        nll, g = self.model.nll_grad(self.data, self.mcdata,
-                                     weight=data_split(self.weight, self.batch), batch=self.batch)
+        nll, g = self.model.nll_grad_batch(self.batch_data, self.batch_mcdata,
+                                     weight=list(data_split(self.weight, self.batch)),
+                                     mc_weight=data_split(self.mc_weight, self.batch))
         self.cached_nll = nll
         self.n_call += 1
         return nll, np.array(g)

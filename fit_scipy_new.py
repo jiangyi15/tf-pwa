@@ -3,6 +3,7 @@ from tf_pwa.model_new import Model, FCN
 import tensorflow as tf
 import time
 import numpy as np
+from pprint import pprint
 import json
 import os
 from scipy.optimize import minimize, BFGS, basinhopping
@@ -16,10 +17,10 @@ from plot_amp import calPWratio
 
 from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
 
-from tf_pwa.data import prepare_data_from_decay
+from tf_pwa.data import prepare_data_from_decay, data_to_numpy
 
 
-def load_cached_data(cached_data_file="cached_data.npy"):
+def load_cached_data(cached_data_file="cached_data_new.npy"):
     cached_dir = "./cached_dir"
     if not os.path.exists(cached_dir):
         return None
@@ -30,7 +31,7 @@ def load_cached_data(cached_data_file="cached_data.npy"):
     return None
 
 
-def save_cached_data(cached_data, cached_data_file="cached_data.npy"):
+def save_cached_data(cached_data, cached_data_file="cached_data_new.npy"):
     cached_dir = "./cached_dir"
     if not os.path.exists(cached_dir):
         os.mkdir(cached_dir)
@@ -51,6 +52,8 @@ def prepare_data(decs, particles=None, dtype="float64"):
         print(e)
         cached_data = None
     if cached_data is not None:
+        cached_data = data_to_numpy(cached_data)
+        pprint(cached_data)
         data = cached_data["data"]
         bg = cached_data["bg"]
         mcdata = cached_data["PHSP"]
@@ -61,9 +64,9 @@ def prepare_data(decs, particles=None, dtype="float64"):
         data_np[tname[i]] = prepare_data_from_decay(name[0], decs, particles=particles, dtype=dtype)
 
     data, bg, mcdata = [data_np[i] for i in tname]
-    import pprint
-    pprint.pprint(data)
-    # save_cached_data({"data": data, "bg": bg, "PHSP": mcdata})
+    #import pprint
+    #pprint.pprint(data)
+    save_cached_data({"data": data, "bg": bg, "PHSP": mcdata})
     return data, bg, mcdata
 
 
@@ -187,7 +190,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             bnds.append((None, None))
         args["error_" + i.name] = 0.1
 
-    check_grad = True
+    check_grad = False
     if check_grad:
         _, gs0 = fcn.nll_grad(x0)
         gs = []

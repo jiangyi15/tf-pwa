@@ -16,7 +16,7 @@ import contextlib
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
 from .data import prepare_data_from_decay, split_generator
-from .breit_wigner import barrier_factor2 as barrier_factor, BWR
+from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
 from .variable import VarsManager, Variable
@@ -92,12 +92,13 @@ class Particle(BaseParticle):
         if self.width is None:
             self.width = add_var(self, "width")
 
-    def get_amp(self, data, data_c=None):
+    def get_amp(self, data, data_c=None, cached_data = None):
         if data is None:
             return tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
         decay = self.decay[0]
-        q = data_c["|q|"]
-        q0 = data_c["|q0|"]
+        return BW(data["m"], self.mass, self.width)
+        q = cached_data["|q|"]
+        q0 = cached_data["|q0|"]
         ret = BWR(data["m"], self.mass, self.width, q, q0, min(decay.get_l_list()), decay.d)
         return ret  # tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
 
@@ -158,12 +159,10 @@ class HelicityDecay(Decay):
         g_ls = tf.complex(*list(zip(* self.g_ls)))
         norm_r, norm_i = tf.math.real(g_ls), tf.math.imag(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
-        data["|q0|"] = q0
         if "|q|" in data:
             q = data["|q|"]
         else:
             q = self.get_relative_momentum(data_p, True)
-            data["|q|"] = q
         bf = barrier_factor(self.get_l_list(), q, q0, self.d)
         mag = tf.complex(tf.cast(norm_r, bf.dtype), tf.cast(norm_i, bf.dtype))
         # meg = tf.reshape(meg, (-1, 1))
@@ -180,7 +179,7 @@ class HelicityDecay(Decay):
         a = self.core
         b = self.outs[0]
         c = self.outs[1]
-        ang = data[b]["ang"]
+        ang = data[b]["ang"].copy()
         ret = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
         H = self.get_helicity_amp(data, data_p, params)
         H = tf.cast(H, dtype=ret.dtype)
@@ -304,7 +303,7 @@ class DecayGroup(BaseDecayGroup):
             for dec in data_d:
                 for j in dec.outs:
                     if j.J != 0 and "aligned_angle" in data_d[dec][j]:
-                        ang = data_d[dec][j]["aligned_angle"]
+                        ang = data_d[dec][j]["aligned_angle"].copy()
                         dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
                         aligned[j] = dt
                         idx = base_map[j]
@@ -315,6 +314,7 @@ class DecayGroup(BaseDecayGroup):
         ret = tf.reduce_sum(ret, axis=0)
         return ret
 
+    # @tf.function(experimental_relax_shapes=True)
     def sum_amp(self, data):
         amp = self.get_amp(data)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
