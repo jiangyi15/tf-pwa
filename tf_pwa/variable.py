@@ -2,15 +2,11 @@ import tensorflow as tf
 import numpy as np
 from functools import partial
 import warnings
-from .config import regist_config
+#from .config import regist_config
 
 
 '''
 vm = VarsManager(dtype=tf.float64)
-mass = Variable("R_m",value=1) #trainable is True by default
-g_ls = Variable("A2BR_H",len(ls),cplx=True) # [[g_ls0r,g_ls0i],...]
-mass()
-g_ls()
 
 vm.set_fix(var_name,value)#var_name是实变量的name（复变量name的两个实分量分别叫namer，namei）
 vm.set_bound({var_name:(a,b)},func="(b-a)*(sin(x)+1)/2+a")
@@ -275,12 +271,20 @@ class Bound(object):
     return self.df.evalf(subs={x:val})
 
 
+def shape_func(f,shape,name,**kwargs):
+  if not shape:
+    f(name,**kwargs)
+  else:
+    for i in range(shape[0]):
+      shape_func(f,shape[1:],name+'_'+str(i),**kwargs)
 #regist_config("vm", VarsManager(dtype="float64"))
 vm = VarsManager(dtype=tf.float64)
 class Variable(object):
-  def __init__(self,name,shape=(),cplx=False,vm=vm, **kwargs):
+  def __init__(self,name,shape=[],cplx=False,vm=vm, **kwargs):
     self.vm = vm
     self.name = name
+    if type(shape)==int:
+      shape = [shape]
     self.shape = shape
     self.cplx = cplx
     if cplx:
@@ -288,34 +292,26 @@ class Variable(object):
     else:
       self.real_var(**kwargs)
 
+
   def real_var(self, value=None,range_=None,fix=False):
     trainable = not fix
-    if not self.shape:
-      self.vm.add_real_var(self.name, value,range_,trainable)
-    else:
-      #for n in self.shape:
-      for i in range(self.shape[0]):
-        name = self.name+'_'+str(i)
-        self.vm.add_real_var(name, value,range_,trainable)
-  
-  def cplx_var(self, polar=True,fix_which=0,fix_vals=(1.0,0.0)):
-    if not self.shape:
-      trainable = not fix_which
-      self.vm.add_complex_var(self.name, polar,trainable,fix_vals)
-    else:
-      #for n in self.shape:
-      for i in range(self.shape[0]):
-        trainable = i!=fix_which
-        name = self.name+'_'+str(i)
-        self.vm.add_complex_var(name, polar,trainable,fix_vals)
+    def func(name,**kwargs):
+      self.vm.add_real_var(name, value,range_,trainable)
+    shape_func(func,self.shape,self.name, value=value,range_=range_,trainable=trainable)
 
+  def cplx_var(self, polar=True,fix_which=0,fix_vals=(1.0,0.0)):
+    #fix_which = fix_which % self.shape[-1]
+    def func(name,**kwargs):
+      trainable = not (name[-2:]=='_'+str(fix_which))
+      self.vm.add_complex_var(name, polar,trainable,fix_vals)
+    shape_func(func,self.shape,self.name, polar=polar,fix_which=fix_which,fix_vals=fix_vals)
 
   @property
   def value(self):
     return tf.Variable(self()).numpy()
 
   def fixed(self,value):
-    if self.shape==():
+    if not self.shape:
       self.vm.set_fix(self.name,value)
     else:
       raise Exception("Only shape==() real var supports 'fixed' method.")
@@ -326,63 +322,52 @@ class Variable(object):
       raise Exception("Shapes are not the same.")
     if not (self.cplx and Var.cplx):
       raise Exception("Type is not complex var.")
-
-    if not self.shape:
-      self.vm.set_same([self.name+'r',Var.name+'r'])
-    else:
-      for i in range(self.shape[0]):
-        name1 = self.name+'_'+str(i)
-        name2 = Var.name+'_'+str(i)
-        self.vm.set_same([name1+'r',name2+'r'])
+    def func(name,**kwargs):
+      self.vm.set_same([self.name+name+'r',Var.name+name+'r'])
+    shape_func(func,self.shape,'')
 
   def sameas(self,Var):
     if self.shape != Var.shape:
       raise Exception("Shapes are not the same.")
     if self.cplx != Var.cplx:
       raise Exception("Types are not the same.")
+    def func(name,**kwargs):
+      if self.cplx:
+        self.vm.set_same([self.name+name+'r',Var.name+name+'r'])
+        self.vm.set_same([self.name+name+'i',Var.name+name+'i'])
+      else:
+        self.vm.set_same([self.name+name,Var.name+name])
+    shape_func(func,self.shape,'')
 
-    if self.cplx:
-      if not self.shape:
-        self.vm.set_same([self.name+'r',Var.name+'r'])
-        self.vm.set_same([self.name+'i',Var.name+'i'])
-      else:
-        for i in range(self.shape[0]):
-          name1 = self.name+'_'+str(i)
-          name2 = Var.name+'_'+str(i)
-          self.vm.set_same([name1+'r',name2+'r'])
-          self.vm.set_same([name1+'i',name2+'i'])
-    else:
-      if not self.shape:
-        self.vm.set_same([self.name,Var.name])
-      else:
-        for i in range(self.shape[0]):
-          name1 = self.name+'_'+str(i)
-          name2 = Var.name+'_'+str(i)
-          self.vm.set_same([name1,name2])
 
   def __call__(self):
+    shape = [i for i in self.shape]
     if self.cplx:
+      shape.append(2)
+    var_list = tf.Variable(tf.ones(shape=shape,dtype=self.vm.dtype))
+    def func(name,**kwargs):
+      #if not self.shape:
+      #  if self.cplx:
+      #    var_list[0].assign(self.vm.variables[name+'r'])
+      #    var_list[1].assign(self.vm.variables[name+'i'])
+      #  else:
+      #    var_list.assign(self.vm.variables[name])
+      #else:
       if not self.shape:
-        return [self.vm.variables[self.name+'r'],self.vm.variables[self.name+'i']]
+        idx = []
       else:
-        var_list = []
-        for i in range(self.shape[0]):
-          name = self.name+'_'+str(i)
-          var_list.append([self.vm.variables[name+'r'],self.vm.variables[name+'i']])
-        return var_list
-    
-    else:
-      if not self.shape:
-        return self.vm.variables[self.name]
+        idx_str = name.split('_')[-len(self.shape):]
+        idx = [int(i) for i in idx_str]
+      if self.cplx:
+        var_list[idx+[0]].assign(self.vm.variables[name+'r'])
+        var_list[idx+[1]].assign(self.vm.variables[name+'i'])
       else:
-        var_list = []
-        for i in range(self.shape[0]):
-          name = self.name+'_'+str(i)
-          var_list.append(self.vm.variables[name])
-        return var_list
+        var_list[idx].assign(self.vm.variables[name])
+    shape_func(func,self.shape,self.name)
+    return var_list
 
 
-def __main__():
+if __name__ == "__main__":
   m = Variable("R_m",value=2.1) #trainable is True by default
   g_ls = Variable("A2BR_H",shape=[3],cplx=True)
   fcr = Variable("R_total",cplx=True)
@@ -390,11 +375,11 @@ def __main__():
   g_ls1 = Variable("A2BR1_H",shape=[3],cplx=True)
   fcr1 = Variable("R1_total",cplx=True)
 
-  g_ls.value
-  g_ls()
+  print(g_ls.value)
+  print(g_ls())
   
   m.fixed(2.4)
-  g_ls.sameas(g_ls_1)
+  g_ls.sameas(g_ls1)
   fcr.r_shareto(fcr1)
 
 
