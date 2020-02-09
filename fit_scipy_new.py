@@ -6,6 +6,7 @@ import numpy as np
 from pprint import pprint
 import json
 import os
+import datetime
 from scipy.optimize import minimize, BFGS, basinhopping
 import tf_pwa
 from tf_pwa.angle import cal_ang_file, cal_ang_file4
@@ -17,8 +18,9 @@ from plot_amp import calPWratio
 
 from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
 
-from tf_pwa.data import prepare_data_from_decay, data_to_numpy
+from tf_pwa.data import prepare_data_from_decay, data_to_numpy, data_to_tensor
 
+log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") 
 
 def load_cached_data(cached_data_file="cached_data_new.npy"):
     cached_dir = "./cached_dir"
@@ -52,7 +54,7 @@ def prepare_data(decs, particles=None, dtype="float64"):
         print(e)
         cached_data = None
     if cached_data is not None:
-        cached_data = data_to_numpy(cached_data)
+        cached_data = data_to_tensor(cached_data)
         pprint(cached_data)
         data = cached_data["data"]
         bg = cached_data["bg"]
@@ -63,10 +65,10 @@ def prepare_data(decs, particles=None, dtype="float64"):
     for i, name in enumerate(fname):
         data_np[tname[i]] = prepare_data_from_decay(name[0], decs, particles=particles, dtype=dtype)
 
-    data, bg, mcdata = [data_np[i] for i in tname]
+    data, bg, mcdata = data_to_tensor([data_np[i] for i in tname])
     #import pprint
     #pprint.pprint(data)
-    save_cached_data({"data": data, "bg": bg, "PHSP": mcdata})
+    save_cached_data(data_to_numpy({"data": data, "bg": bg, "PHSP": mcdata}))
     return data, bg, mcdata
 
 
@@ -128,7 +130,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         if name_b in amp.vm.variables:
             amp.vm.variables[name_a] = amp.vm.variables[name_b]
         else:
-            print(name_b)
+            print("not found,",name_b)
         if name_a in amp.vm.trainable_vars:
             amp.vm.trainable_vars.remove(name_a)
 
@@ -144,8 +146,8 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
                     coef_combine(a, b, "i")
                 else:
                     for j in range(num):
-                        coef_combine(a, b, str(j)+"r")
-                        coef_combine(a, b, str(j)+"i")
+                        coef_combine(a, b, "_"+str(j)+"r")
+                        coef_combine(a, b, "_"+str(j)+"i")
             for j in decs:
                 if decay[i][0] in j:
                     for k in decs:
@@ -158,12 +160,16 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         break
     print(amp.vm.trainable_vars)
     model = Model(amp, w_bkg=w_bkg)
+    # tf.summary.trace_on(graph=True, profiler = True)
     now = time.time()
-    print(model.nll(data, mcdata))
+    nll = model.nll(data, mcdata)
+    print(nll)
     print(time.time() - now)
+    # tf.summary.trace_export(name="sum_amp", step=0, profiler_outdir=log_dir)
     now = time.time()
     print(model.nll_grad(data, mcdata, batch=65000))
     print(time.time() - now)
+    exit()
     # now = time.time()
     # print(model.nll_grad_hessian(data, mcdata, batch=10000))
     # print(time.time() - now)
@@ -223,6 +229,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
                 json.dump({"points": points, "nlls": nlls}, f, indent=2)
             raise Exception("Reached the largest iterations: {}".format(maxiter))
         print(fcn.cached_nll)
+        # tf.summary.scalar("nll", fcn.cached_nll, 1)
 
     s = minimize(f_g, np.array(bd.get_x(x0)), method=method, jac=True, callback=callback, options={"disp": 1})
     xn = bd.get_y(s.x)
@@ -246,4 +253,7 @@ def main():
 
 
 if __name__ == "__main__":
+    
+    # summary_writer = tf.summary.create_file_writer(log_dir)
+    # with summary_writer.as_default():
     main()

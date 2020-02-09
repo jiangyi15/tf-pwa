@@ -9,6 +9,7 @@ __pycache__
 *.json
 *.log
 
+cached_dir
 trash
 figure
 build

@@ -201,6 +201,12 @@ def data_to_numpy(dat):
     dat = data_map(dat, to_numpy)
     return dat
 
+def data_to_tensor(dat):
+    def to_tensor(data):
+        return tf.convert_to_tensor(data)
+    dat = data_map(dat, to_tensor)
+    return dat
+
 def flatten_dict_data(data, fun="{}/{}".format):
     def dict_gen(data):
         return data.items()
