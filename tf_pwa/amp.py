@@ -127,7 +127,7 @@ class Particle(BaseParticle):
         if data_c is None:
             return tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
         decay = self.decay[0]
-        return BW(data["m"], self.mass, self.width)
+        # return BW(data["m"], self.mass, self.width)
         q = data_c["|q|"]
         q0 = data_c["|q0|"]
         ret = BWR(data["m"], self.mass, self.width, q, q0, min(decay.get_l_list()), decay.d)
@@ -187,7 +187,13 @@ class HelicityDecay(Decay):
         return tf.convert_to_tensor(ret)
 
     def get_helicity_amp(self, data, data_p):
-        g_ls = tf.complex(*list(zip(* self.g_ls)))
+
+        def polar2xy(rho, phi):
+            rho = tf.convert_to_tensor(rho)
+            phi = tf.convert_to_tensor(phi)
+            return tf.complex(rho*tf.cos(phi), rho*tf.sin(phi))
+
+        g_ls = polar2xy(*list(zip(* self.g_ls)))
         norm_r, norm_i = tf.math.real(g_ls), tf.math.imag(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
@@ -214,6 +220,12 @@ class HelicityDecay(Decay):
         c = self.outs[1]
         ang = data[b]["ang"]
         D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
+        H = self.get_helicity_amp(data, data_p)
+        H = tf.cast(H, dtype=D_conj.dtype)
+
+        ret = H * D_conj
+        # print(self, H, D_conj)
+        # exit()
         amp_d = []
         for j in range(2):
             particle = self.outs[j]
@@ -227,13 +239,11 @@ class HelicityDecay(Decay):
                 dt_shape[j+3] = len(particle.spins)
                 dt = tf.reshape(dt, dt_shape)
                 D_shape = [-1, len(a.spins), len(b.spins), len(c.spins)]
-                D_shape.insert(j+3, 1)
-                D_conj = tf.reshape(D_conj, D_shape)
-                D_conj = dt * D_conj
-                D_conj = tf.reduce_sum(D_conj, axis=j+2)
-        H = self.get_helicity_amp(data, data_p)
-        H = tf.cast(H, dtype=D_conj.dtype)
-        ret = H * D_conj
+                D_shape.insert(j+3, 2)
+                D_shape[j+3] = 1
+                ret = tf.reshape(ret, D_shape)
+                ret = dt * ret
+                ret = tf.reduce_sum(ret, axis=j+2)
         return ret
 
     def amp_shape(self):
@@ -259,6 +269,12 @@ class DecayChain(BaseDecayChain):
     def init_params(self):
         self.total = add_var(self, "total", is_complex=True)
 
+    def get_amp_total(self):
+        rho, phi = self.total
+        r = rho * tf.cos(phi)
+        i = rho * tf.sin(phi)
+        return tf.complex(r, i)
+
     def get_amp(self, data_c, data_p, base_map=None):
         base_map = self.get_base_map(base_map)
         iter_idx = ["..."]
@@ -275,18 +291,20 @@ class DecayChain(BaseDecayChain):
                 amp_p.append(i.get_amp(data_p[i], data_c[i.decay[0]]))
             else:
                 amp_p.append(i.get_amp(data_p[i]))
-        rs = tf.complex(*self.total) * tf.reduce_sum(amp_p, axis=0)
+        rs = self.get_amp_total() * tf.reduce_sum(amp_p, axis=0)
         amp_d[0] = rs
-        
+
         idxs = []
         for i in indices:
             tmp = "".join(iter_idx + i)
             idxs.append(tmp)
         idx = ",".join(idxs)
         idx_s = "{}->{}".format(idx, final_indices)
-        #ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
-        # ret = contract(idx_s, *amp_d, backend="tensorflow")
-        ret = einsum(idx_s, *amp_d)
+        # ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
+        ret = contract(idx_s, *amp_d, backend="tensorflow")
+        # print(self, ret[0])
+        # exit()
+        #ret = einsum(idx_s, *amp_d)
         return ret
 
     def amp_shape(self):

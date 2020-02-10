@@ -32,8 +32,13 @@ def Dfun_delta(d, ja, la, lb, lc = None):
         lc = (0,)
         ein_str = "ijd,jdabc->iab"
     t = delta_D_trans(ja, la, lb, lc)
+    # print(tf.reshape(t, ((2*ja+1) * (2*ja+1), len(la) * len(lb) *len(lc))))
     t_cast = tf.cast(t, d.dtype)
+    # print(d[0])
+
     ret = tf.einsum(ein_str, d, t_cast)
+    # print(ret[0])
+    # exit()
     return ret
 
 @functools.lru_cache()
@@ -55,7 +60,7 @@ def small_d_weight(j):# the prefactor in the d-function of β
     """
     ret = np.zeros(shape=(j+1, j+1, j+1))
     def f(x):
-        return math.factorial(x//2)
+        return math.factorial(x >> 1)
     for m in range(-j, j+1, 2):
         for n in range(-j, j+1, 2):
             for k in range(max(0, n-m), min(j-m, j+n)+1, 2):
@@ -79,11 +84,16 @@ def small_d_matrix(theta, j):
     a = tf.cast(a, dtype=sintheta.dtype)
     s = tf.pow(sintheta, a)
     c = tf.pow(costheta, j - a)
+    # print("theta", s[0], c[0])
     sc = s*c
     w = small_d_weight(j)
+
     w = tf.cast(w, sc.dtype)
-    ret = tf.einsum("il,lab->iab", sc, w)
-    return ret
+    w = tf.reshape(w, (j+1, (j+1) * (j+1)))
+    ret = tf.matmul(sc, w)
+    # ret = tf.einsum("il,lab->iab", sc, w)
+
+    return tf.reshape(ret, (-1, j+1, j+1))
 
 
 def exp_i(theta, mi):
@@ -96,17 +106,18 @@ def exp_i(theta, mi):
 
 
 def D_matrix_conj(alpha, beta, gamma, j):
-    r"""
+    r""" j is 2j
      D^{j}_{m_1,m_2}(\alpha, \beta, \gamma)^\star =
             e^{i m_1 \alpha} d^{j}_{m_1,m_2}(\beta) e^{i m_2 \gamma}
     """
-    m = tf.reshape(np.arange(-j, j+1, 2), (1, -1))
+    m = tf.reshape(np.arange(-j/2, j/2+1, 1), (1, -1))
 
     d = small_d_matrix(beta, j)
     expi_alpha = tf.reshape(exp_i(alpha, m), (-1, j+1, 1))
     expi_gamma = tf.reshape(exp_i(gamma, m), (-1, 1, j+1))
     expi_gamma = tf.cast(expi_gamma, dtype=expi_alpha.dtype)
     dc = tf.complex(d, tf.zeros_like(d))
+    # print(expi_alpha[0], expi_gamma[0])
     ret = tf.cast(expi_alpha*expi_gamma, dc.dtype) * dc
     return ret
 

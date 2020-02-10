@@ -57,7 +57,7 @@ class Model(object):
         self.Amp = amp
         self.w_bkg = w_bkg
 
-    def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None):
+    def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None):
         r"""
         calculate negative log-likelihood
 
@@ -65,8 +65,18 @@ class Model(object):
           -\ln L = -\sum_{x_i \in data } w_i \ln f(x_i;\theta_k) +  (\sum w_j ) \ln \sum_{x_i \in mc } f(x_i;\theta_k)
 
         """
+        n_data = data_shape(data)
+        has_bg = False
+        if bg is not None:
+            data = data_merge(data, bg)
+            has_bg = True
         if isinstance(weight, float):
-            sw = data_shape(data) * weight
+            if has_bg:
+                n_bg = data_shape(bg)
+                weight = tf.convert_to_tensor([weight] * n_data + [-self.w_bkg]*n_bg)
+                sw = tf.reduce_sum(weight)
+            else:
+                sw = n_data * weight
         else:
             sw = tf.reduce_sum(weight)
         ln_data = tf.math.log(self.Amp(data))
@@ -167,7 +177,6 @@ class FCN(object):
         weight = tf.convert_to_tensor([1.0] * n_data + [-model.w_bkg] * n_bg, dtype="float64")
         self.sw = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = self.sw * weight
-        print(data)
         self.data = data
         self.batch_data = list(split_generator(data, batch))
         self.mcdata = mcdata

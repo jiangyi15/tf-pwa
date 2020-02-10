@@ -52,7 +52,7 @@ def prepare_data(decs, particles=None, dtype="float64"):
         cached_data = load_cached_data()
     except Exception as e:
         print(e)
-        cached_data = None
+    cached_data = None
     if cached_data is not None:
         cached_data = data_to_tensor(cached_data)
         pprint(cached_data)
@@ -159,17 +159,36 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         amp.vm.trainable_vars.remove(name+"i")
         break
     print(amp.vm.trainable_vars)
+
+    try:
+        with open(init_params) as f:
+            param_0 = json.load(f)
+            param = {}
+            for k, v in param_0.items():
+                if k.endswith(":0"):
+                    k = k[:-2]
+                param[k] = v
+            print("using {}".format(init_params))
+            amp.set_params(param)
+        RDM_INI = False
+    except Exception as e:
+        print(e)
+        RDM_INI = True
+        print("using RANDOM parameters")
+
+    print(amp.vm.variables)
     model = Model(amp, w_bkg=w_bkg)
+    # print(model.Amp(data))
     # tf.summary.trace_on(graph=True, profiler = True)
     now = time.time()
-    nll = model.nll(data, mcdata)
+    nll = model.nll(data, mcdata, bg=bg)
     print(nll)
     print(time.time() - now)
     # tf.summary.trace_export(name="sum_amp", step=0, profiler_outdir=log_dir)
     now = time.time()
     print(model.nll_grad(data, mcdata, batch=65000))
     print(time.time() - now)
-    exit()
+    # exit()
     # now = time.time()
     # print(model.nll_grad_hessian(data, mcdata, batch=10000))
     # print(time.time() - now)
@@ -234,6 +253,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     s = minimize(f_g, np.array(bd.get_x(x0)), method=method, jac=True, callback=callback, options={"disp": 1})
     xn = bd.get_y(s.x)
     print(xn)
+    with open("final_params.json", "w") as f:
+        json.dump(model.Amp.variables, f)
+
 
 
 def main():

@@ -73,7 +73,7 @@ def prepare_data(dtype="float64", model="3"):
         dat = []
         tmp = data_np[name]
         for i in param_list_test:
-            tmp_data = tf.Variable(tmp[i], name=i, dtype=dtype)
+            tmp_data = tf.Variable(tmp[i], dtype=dtype)
             dat.append(tmp_data)
         return dat
     data, bg, mcdata = [load_data(i) for i in tname]
