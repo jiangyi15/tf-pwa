@@ -186,7 +186,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     print(time.time() - now)
     # tf.summary.trace_export(name="sum_amp", step=0, profiler_outdir=log_dir)
     now = time.time()
-    print(model.nll_grad(data, mcdata, batch=65000))
+    print(model.nll_grad(data, mcdata, bg=bg, batch=65000))
     print(time.time() - now)
     # exit()
     # now = time.time()
@@ -250,11 +250,10 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         print(fcn.cached_nll)
         # tf.summary.scalar("nll", fcn.cached_nll, 1)
 
-    s = minimize(f_g, np.array(bd.get_x(x0)), method=method, jac=True, callback=callback, options={"disp": 1})
-    xn = bd.get_y(s.x)
-    print(xn)
+
     with open("final_params.json", "w") as f:
-        json.dump(model.Amp.variables, f)
+        variables = {k: v.numpy() for k, v in model.Amp.variables.items()}
+        json.dump(variables, f, indent=2)
 
 
 

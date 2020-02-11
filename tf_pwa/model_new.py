@@ -2,6 +2,7 @@ import numpy as np
 from .data import data_shape, split_generator, data_merge, data_split
 from .tensorflow_wrapper import tf
 from .utils import time_print
+from .config import get_config
 
 
 def loop_generator(var):
@@ -57,6 +58,21 @@ class Model(object):
         self.Amp = amp
         self.w_bkg = w_bkg
 
+    def get_weight_data(self, data, weight=1.0, bg=None, alpha=True):
+        has_bg = False
+        if isinstance(weight, float):
+            n_data = data_shape(data)
+            weight = tf.convert_to_tensor([weight]*n_data, dtype=get_config("dtype"))
+        if bg is not None:
+            n_bg = data_shape(bg)
+            data = data_merge(data, bg)
+            bg_weight = tf.convert_to_tensor([-self.w_bkg] * n_bg, dtype=get_config("dtype"))
+            weight = tf.concat([weight, bg_weight], axis=0)
+        if alpha:
+            alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
+            return data, alpha * weight
+        return data, weight
+
     def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None):
         r"""
         calculate negative log-likelihood
@@ -65,26 +81,15 @@ class Model(object):
           -\ln L = -\sum_{x_i \in data } w_i \ln f(x_i;\theta_k) +  (\sum w_j ) \ln \sum_{x_i \in mc } f(x_i;\theta_k)
 
         """
-        n_data = data_shape(data)
-        has_bg = False
-        if bg is not None:
-            data = data_merge(data, bg)
-            has_bg = True
-        if isinstance(weight, float):
-            if has_bg:
-                n_bg = data_shape(bg)
-                weight = tf.convert_to_tensor([weight] * n_data + [-self.w_bkg]*n_bg)
-                sw = tf.reduce_sum(weight)
-            else:
-                sw = n_data * weight
-        else:
-            sw = tf.reduce_sum(weight)
+        data, weight = self.get_weight_data(data, weight, bg=bg)
+        sw = tf.reduce_sum(weight)
         ln_data = tf.math.log(self.Amp(data))
         int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
         nll_0 = - tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
+        print(nll_0, sw, int_mc)
         return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
 
-    def nll_grad(self, data, mcdata, weight=1.0, batch=65000):
+    def nll_grad(self, data, mcdata, weight=1.0, batch=65000, bg=None):
         r"""
         calculate negative log-likelihood with gradients
 
@@ -95,13 +100,9 @@ class Model(object):
               \frac{1}{ \sum_{x_i \in mc} f(x_i;\theta_k) }
 
         """
-        n_data = data_shape(data)
+        data, weight = self.get_weight_data(data, weight, bg=bg)
         n_mc = data_shape(mcdata)
-        if isinstance(weight, float):
-            sw = n_data * weight
-        else:
-            weight = list(weight)
-            sw = tf.reduce_sum(weight)
+        sw = tf.reduce_sum(weight)
         ln_data, g_ln_data = sum_gradient(self.Amp, split_generator(data, batch),
                                           self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
@@ -168,15 +169,10 @@ class FCN(object):
         self.n_call = 0
         self.n_grad = 0
         self.cached_nll = None
-        n_data = data_shape(data)
+        data, weight = self.model.get_weight_data(data, bg=bg, alpha=False)
         n_mcdata = data_shape(mcdata)
-        n_bg = 0
-        if bg is not None:
-            n_bg = data_shape(bg)
-            data = data_merge(data, bg)
-        weight = tf.convert_to_tensor([1.0] * n_data + [-model.w_bkg] * n_bg, dtype="float64")
-        self.sw = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
-        self.weight = self.sw * weight
+        self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
+        self.weight = weight
         self.data = data
         self.batch_data = list(split_generator(data, batch))
         self.mcdata = mcdata
@@ -200,8 +196,8 @@ class FCN(object):
     def nll_grad(self, x):
         self.model.set_params(x)
         nll, g = self.model.nll_grad_batch(self.batch_data, self.batch_mcdata,
-                                     weight=list(data_split(self.weight, self.batch)),
-                                     mc_weight=data_split(self.mc_weight, self.batch))
+                                           weight=list(data_split(self.weight, self.batch)),
+                                           mc_weight=data_split(self.mc_weight, self.batch))
         self.cached_nll = nll
         self.n_call += 1
         return nll, np.array(g)

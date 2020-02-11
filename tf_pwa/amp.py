@@ -56,17 +56,30 @@ def einsum(eins, *args, **kwargs):
     has_ellipsis = False
     if "..." in eins:
         has_ellipsis = True
-        eins = eins.replace("...","I")
+        eins = eins.replace("...", "I")
     inputs, final = eins.split("->")
     idx = inputs.split(",")
     order = "".join(idx)
     shapes = [list(i.shape) for i in args]
     idx_size = {}
-    for i, j in zip(idx,shapes):
-        for k, v in zip(i,j):
+    for i, j in zip(idx, shapes):
+        for k, v in zip(i, j):
             idx_size[k] = v
-    return tf.einsum(eins, *args, **kwargs)
-
+    final_shape = [idx_size[i] for i in final]
+    a_args = []
+    idx_1 = []
+    for i, shape, arg in zip(idx, shapes, args):
+        shape_2 = []
+        for j, s in zip(i, shape):
+            if s != 1:
+                shape_2.append(s)
+            else:
+                idx_1.append(j)
+        a_args.append(tf.reshape(arg, shape_2))
+    for i in idx_1:
+        eins = eins.replace(i, "")
+    ret = tf.einsum(eins, *a_args, **kwargs)
+    return tf.reshape(ret, final_shape)
 
 @contextlib.contextmanager
 def variable_scope(vm=None):
@@ -303,7 +316,7 @@ class DecayChain(BaseDecayChain):
         idx = ",".join(idxs)
         idx_s = "{}->{}".format(idx, final_indices)
         # ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
-        ret = contract(idx_s, *amp_d, backend="tensorflow")
+        ret = einsum(idx_s, *amp_d)
         # print(self, ret[0])
         # exit()
         #ret = einsum(idx_s, *amp_d)
