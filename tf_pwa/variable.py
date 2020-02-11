@@ -382,12 +382,26 @@ class Variable(object):
         for i in idx_str[:-1]:
           tmp = tmp[int(i)]
         if self.cplx:
-          tmp[int(idx_str[-1])] = [self.vm.variables[name+'r'],self.vm.variables[name+'i']]
+          if (name in self.complex_vars) and self.complex_vars[name]:
+            real = self.vm.variables[name+'r']*tf.cos(self.vm.variables[name+'i'])
+            imag = self.vm.variables[name+'r']*tf.sin(self.vm.variables[name+'i'])
+            tmp[int(idx_str[-1])] = tf.complex(real,imag)
+          else:
+            tmp[int(idx_str[-1])] = tf.complex(self.vm.variables[name+'r'],self.vm.variables[name+'i'])
         else:
           tmp[int(idx_str[-1])] = self.vm.variables[name]
       shape_func(func,self.shape,self.name)
     else:
-      var_list = self.vm.variables[self.name]
+      if self.cplx:
+        if (name in self.complex_vars) and self.complex_vars[name]:
+          real = self.vm.variables[name+'r']*tf.cos(self.vm.variables[name+'i'])
+          imag = self.vm.variables[name+'r']*tf.sin(self.vm.variables[name+'i'])
+          var_list = tf.complex(real,imag)
+        else:
+          var_list = tf.complex(self.vm.variables[self.name+'r'],self.vm.variables[self.name+'i'])
+      else:
+        var_list = self.vm.variables[self.name]
+
     return tf.stack(var_list)
 
 
