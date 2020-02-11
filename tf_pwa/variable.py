@@ -365,30 +365,24 @@ class Variable(object):
 
 
   def __call__(self):
-    shape = [i for i in self.shape]
-    if self.cplx:
-      shape.append(2)
-    var_list = tf.Variable(tf.ones(shape=shape,dtype=self.vm.dtype))
-    def func(name,**kwargs):
-      #if not self.shape:
-      #  if self.cplx:
-      #    var_list[0].assign(self.vm.variables[name+'r'])
-      #    var_list[1].assign(self.vm.variables[name+'i'])
-      #  else:
-      #    var_list.assign(self.vm.variables[name])
-      #else:
-      if not self.shape:
-        idx = []
-      else:
+    var_list = np.ones(shape=self.shape).tolist()
+    if self.shape:
+      def func(name,**kwargs):
+        tmp = var_list
         idx_str = name.split('_')[-len(self.shape):]
-        idx = [int(i) for i in idx_str]
+        for i in idx_str[:-1]:
+          tmp = tmp[int(i)]
+        if self.cplx:
+          tmp[int(idx_str[-1])] = [self.vm.variables[name+'r'],self.vm.variables[name+'i']]
+        else:
+          tmp[int(idx_str[-1])] = self.vm.variables[name]
+      shape_func(func,self.shape,self.name)
+    else:
       if self.cplx:
-        var_list[idx+[0]].assign(self.vm.variables[name+'r'])
-        var_list[idx+[1]].assign(self.vm.variables[name+'i'])
+        var_list = self.vm.variables[self.name+"r"], self.vm.variables[self.name+"i"]
       else:
-        var_list[idx].assign(self.vm.variables[name])
-    shape_func(func,self.shape,self.name)
-    return var_list
+        var_list = self.vm.variables[self.name]
+    return tf.stack(var_list)
 
 
 if __name__ == "__main__":
@@ -407,10 +401,10 @@ if __name__ == "__main__":
   fcr.r_shareto(fcr1)
 
 
-  
-'''class Variable(VarsManager): # fitting parameters for the amplitude model
+
+'''class AmpVar(object): # fitting parameters for the amplitude model
   def __init__(self,res,res_decay,polar,**kwarg):
-    super(Variable,self).__init__(**kwarg)
+    #super(AmpVar,self).__init__(**kwarg)
     self.res = res
     self.polar = polar # r*e^{ip} or x+iy
     self.res_decay = res_decay
@@ -444,10 +438,10 @@ if __name__ == "__main__":
         floating = self.res[i]["float"]
         floating = str(floating)
         if "m" in floating:
-          self.res[i]["m0"] = self.add_real_var(name=i+"_m",value = self.res[i]["m0"]) #然后self.res[i]["m0"]就成一个变量了（BW里会调用）
+          self.res[i]["m0"] = Variable(name=i+"_m",value = self.res[i]["m0"]) #然后self.res[i]["m0"]就成一个变量了（BW里会调用）
         if "g" in floating:
-          self.res[i]["g0"] = self.add_real_var(name=i+"_g",value = self.res[i]["g0"])
-    
+          self.res[i]["g0"] = Variable(name=i+"_g",value = self.res[i]["g0"])
+
   def init_partial_wave_coef(self,head,config,const_first=False): #head名字，config参数
     self.coef[head] = []
     chain = config["Chain"]
@@ -461,15 +455,18 @@ if __name__ == "__main__":
         rho,phi = N_tot.real,N_tot.imag
       else:
         rho,phi = N_tot #其他类型的complex. raise error?
-      r = self.add_real_var(name=coef_head+"r",value=rho,trainable=False)
-      i = self.add_real_var(name=head+"i",value=phi,trainable=False)
+      #fcr = Variable(head,cplx=True,fix_which=True,fix_vals=(rho,phi))
+      r = Variable(coef_head+"r",value=rho,fix=True)
+      i = Variable(head+"i",value=phi,fix=True)
     elif const_first:#先判断有么有total，否则就用const_first
-      r = self.add_real_var(name=coef_head+"r",value=1.0,trainable=False)
-      i = self.add_real_var(name=head+"i",value=0.0,trainable=False)
+      #fcr = Variable(head,cplx=True,fix_which=True)
+      r = Variable(coef_head+"r",value=1.0,fix=True)
+      i = Variable(head+"i",value=0.0,fix=True)
     else:
-      r = self.add_real_var(name=coef_head+"r",range_=(0,2.0))
-      i = self.add_real_var(name=head+"i",range_=(-np.pi,np.pi))
-    self.coef_norm[head] = [r,i]
+      #fcr = Variable(head,cplx=True)
+      r = Variable(coef_head+"r",range_=(0,2.0))
+      i = Variable(head+"i",range_=(-np.pi,np.pi))
+    self.coef_norm[head] = [r,i] #fcr
     if "const" in config: # H里哪一个参数设为常数1
       const = list(config["const"])
     else:
@@ -498,16 +495,19 @@ if __name__ == "__main__":
       l,s = ls[i]
       name = "{head}BLS_{l}_{s}".format(head=coef_head,l=l,s=s)
       if i in const_list:
-        tmp_r = self.add_real_var(name=name+"r",value=1.0,trainable=False)
-        tmp_i = self.add_real_var(name=name+"i",value=0.0,trainable=False)
+        Variable(name,cplx=True,fix_which=True)
+        #tmp_r = self.add_real_var(name=name+"r",value=1.0,trainable=False)
+        #tmp_i = self.add_real_var(name=name+"i",value=0.0,trainable=False)
         arg_list.append((name+"r",name+"i"))
       else :
         if self.polar:
-          tmp_r = self.add_real_var(name=name+"r",range_=(0,2.0))
-          tmp_i = self.add_real_var(name=name+"i",range_=(-np.pi,np.pi))
+          Variable(name,cplx=True)
+          #tmp_r = self.add_real_var(name=name+"r",range_=(0,2.0))
+          #tmp_i = self.add_real_var(name=name+"i",range_=(-np.pi,np.pi))
         else:
-          tmp_r = self.add_real_var(name=name+"r",range_=(-1,1))
-          tmp_i = self.add_real_var(name=name+"i",range_=(-1,1))
+          Variable(name,cplx=True,polar=False)
+          #tmp_r = self.add_real_var(name=name+"r",range_=(-1,1))
+          #tmp_i = self.add_real_var(name=name+"i",range_=(-1,1))
         arg_list.append((name+"r",name+"i"))
     return ls,arg_list
 '''

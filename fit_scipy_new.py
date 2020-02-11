@@ -186,7 +186,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     print(time.time() - now)
     # tf.summary.trace_export(name="sum_amp", step=0, profiler_outdir=log_dir)
     now = time.time()
-    print(model.nll_grad(data, mcdata, bg=bg, batch=65000))
+    print(model.nll_grad(data, mcdata, bg=bg, batch=15000))
     print(time.time() - now)
     # exit()
     # now = time.time()

@@ -78,7 +78,7 @@ def einsum(eins, *args, **kwargs):
         a_args.append(tf.reshape(arg, shape_2))
     for i in idx_1:
         eins = eins.replace(i, "")
-    ret = tf.einsum(eins, *a_args, **kwargs)
+    ret = contract(eins, *a_args, **kwargs)
     return tf.reshape(ret, final_shape)
 
 @contextlib.contextmanager
