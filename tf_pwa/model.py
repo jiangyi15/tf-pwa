@@ -297,15 +297,7 @@ class Model(object):
     return self.Amp.get_params()
   
   def set_params(self,param): #改到amplitude里？
-    if isinstance(param,dict) and "value" in param:
-      param = param["value"]
-    var_list = self.Amp.variables
-    var_name = [i.name for i in var_list]
-    var = dict(zip(var_name,var_list))
-    for i in param:
-      if i in var_name:
-        tmp = param[i]
-        var[i].assign(tmp)
+    self.Amp.set_params(param)
 
 
 class Cache_Model(Model):

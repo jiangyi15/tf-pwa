@@ -329,10 +329,13 @@ class Variable(object):
       self.variables.append(name)
     shape_func(func,self.shape,self.name, value=value,range_=range_,trainable=trainable)
 
-  def cplx_var(self, polar=True,fix_which=0,fix_vals=(1.0,0.0)):
+  def cplx_var(self, polar=True,fix=False,fix_which=0,fix_vals=(1.0,0.0)):
     #fix_which = fix_which % self.shape[-1]
     def func(name,**kwargs):
-      trainable = not (name[-2:]=='_'+str(fix_which))
+      if self.shape:
+        trainable = not (name[-2:]=='_'+str(fix_which))
+      else:
+        trainable = not fix
       self.vm.add_complex_var(name, polar,trainable,fix_vals)
       self.variables.append(name+'r')
       self.variables.append(name+'i')
@@ -402,7 +405,8 @@ class Variable(object):
       else:
         var_list = self.vm.variables[self.name]
 
-    return tf.stack(var_list)
+    #return tf.stack(var_list)
+    return var_list
 
 
 if __name__ == "__main__":

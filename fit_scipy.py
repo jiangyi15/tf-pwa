@@ -68,7 +68,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   dtype = "float64"
   w_bkg = 0.768331
   #set_gpu_mem_growth()
-  tf.keras.backend.set_floatx(dtype)
+  #tf.keras.backend.set_floatx(dtype)
   # open Resonances list as dict 
   config_list = load_config_file("Resonances")
   
