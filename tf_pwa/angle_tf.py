@@ -27,7 +27,7 @@ class Vector3(tf.Tensor):
         return ret
 
     def cross(self, other):
-        p = tf.linalg.cross(self, other)
+        p = tf.cross(self, other)
         return p
 
     def unit(self):
@@ -35,10 +35,7 @@ class Vector3(tf.Tensor):
         return p
 
     def cross_unit(self, other):
-        shape = tf.broadcast_dynamic_shape(self.shape, other.shape)
-        a = tf.broadcast_to(self, shape)
-        b = tf.broadcast_to(other, shape)
-        p, _n = tf.linalg.normalize(tf.linalg.cross(a, b), axis=-1)
+        p, _n = tf.linalg.normalize(np.cross(self, other), axis=-1)
         return p
 
     def angle_from(self, x, y):
