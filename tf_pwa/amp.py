@@ -201,14 +201,7 @@ class HelicityDecay(Decay):
 
     def get_helicity_amp(self, data, data_p):
 
-        def polar2xy(rho, phi):
-            rho = tf.convert_to_tensor(rho)
-            phi = tf.convert_to_tensor(phi)
-            return tf.complex(rho*tf.cos(phi), rho*tf.sin(phi))
-
-        rho, phi = self.g_ls[..., 0], self.g_ls[..., 1]
-
-        g_ls = polar2xy(rho, phi)
+        g_ls = tf.stack(self.g_ls)
         norm_r, norm_i = tf.math.real(g_ls), tf.math.imag(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
@@ -285,10 +278,7 @@ class DecayChain(BaseDecayChain):
         self.total = add_var(self, "total", is_complex=True)
 
     def get_amp_total(self):
-        rho, phi = self.total[..., 0], self.total[..., 1]
-        r = rho * tf.cos(phi)
-        i = rho * tf.sin(phi)
-        return tf.complex(r, i)
+        return self.total
 
     def get_amp(self, data_c, data_p, base_map=None):
         base_map = self.get_base_map(base_map)
