@@ -294,10 +294,10 @@ class Model(object):
  
 
   def get_params(self):
-    return self.Amp.get_params()
+    return self.Amp.get_all_dic()
   
   def set_params(self,param): #改到amplitude里？
-    self.Amp.set_params(param)
+    self.Amp.set_all(param)
 
 
 class Cache_Model(Model):

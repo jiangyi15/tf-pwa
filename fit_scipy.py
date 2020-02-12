@@ -9,7 +9,7 @@ from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
 from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import math
-from tf_pwa.bounds import Bounds
+#from tf_pwa.bounds import Bounds
 from generate_toy import generate_data
 from plot_amp import calPWratio
 
@@ -101,10 +101,8 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         a.set_params(param["value"])
       else :
         a.set_params(param)
-    RDM_INI = False
   except Exception as e:
     #print(e)
-    RDM_INI = True
     print("using RANDOM parameters")
   amp.trans_params(polar=POLAR)
   #print(a.Amp(data))
@@ -112,38 +110,26 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #a.Amp.polar=POLAR
 
   # fit configure
-  args = {}
-  args_name = []
-  x0 = []
-  bnds = []
+  #args = {}
+  #args_name = []
+  #x0 = []
+  #bnds = []
   bounds_dict = {
-      #"Zc_4160_m:0":(4.1,4.22),
-      #"Zc_4160_g:0":(0,None)
+      #"Zc_4160_m":(4.1,4.22),
+      #"Zc_4160_g":(0,None)
   }
-  
-  for i in a.Amp.trainable_variables:
-    args[i.name] = i.numpy()
-    x0.append(i.numpy())
-    args_name.append(i.name)
-    if i.name in bounds_dict:
-      bnds.append(bounds_dict[i.name])
-    else:
-      bnds.append((None,None))
-    args["error_"+i.name] = 0.1
-  
-  '''if RDM_INI and (not POLAR): # change random initial params to x,y coordinates
-    val = a.get_params()
-    i = 0 
-    for v in args_name:
-      if len(v)>15:
-        if i%2==0:
-          tmp_name = v
-          tmp_val = val[v]
-        else:
-          val[tmp_name] = tmp_val*np.cos(val[v])
-          val[v] = tmp_val*np.sin(val[v])
-        i+=1
-    a.set_params(val)'''
+
+  #for i in a.Amp.trainable_variables:
+    #args[i.name] = i.numpy()
+    #x0.append(i.numpy())
+    #args_name.append(i.name)
+    #if i.name in bounds_dict:
+    #  bnds.append(bounds_dict[i.name])
+    #else:
+    #  bnds.append((None,None))
+    #args["error_"+i.name] = 0.1
+  args = a.Amp.get_all_dic(trainable_only=True)
+  args_name = a.Amp.trainable_vars
   
   pprint(a.get_params())
   #print(data,bg,mcdata)
@@ -166,17 +152,21 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       if np.fabs(x).sum() > 1e7:
         x_p = dict(zip(args_name,x))
         raise Exception("x too large: {}".format(x_p))
-      points.append([float(i) for i in bd.get_y(x)])
+      points.append([float(i) for i in a.Amp.get_all_val()])#bd.get_y(x)])
       nlls.append(float(fcn.cached_nll))
       if len(nlls)>maxiter:
         with open("fit_curve.json","w") as f:
           json.dump({"points":points,"nlls":nlls},f,indent=2)
         raise Exception("Reached the largest iterations: {}".format(maxiter))
       print(fcn.cached_nll)
-    bd = Bounds(bnds)
-    f_g = bd.trans_f_g(fcn.nll_grad)
-    s = minimize(f_g,np.array(bd.get_x(x0)),method=method,jac=True,callback=callback,options={"disp":1})
-    xn = bd.get_y(s.x)
+    #bd = Bounds(bnds)
+
+    a.Amp.set_bound(bounds_dict)
+    f_g = a.Amp.trans_fcn_grad(fcn.nll_grad)
+
+    #f_g = bd.trans_f_g(fcn.nll_grad)
+    s = minimize(f_g,np.array(a.Amp.get_all_val(True)),method=method,jac=True,callback=callback,options={"disp":1})
+    xn = a.Amp.get_all_val()#bd.get_y(s.x)
   elif method in ["L-BFGS-B"]:
     def callback(x):
       if np.fabs(x).sum() > 1e7:
@@ -184,7 +174,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         raise Exception("x too large: {}".format(x_p))
       points.append([float(i) for i in x])
       nlls.append(float(fcn.cached_nll))
-    s = minimize(fcn.nll_grad,x0,method=method,jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
+    s = minimize(fcn.nll_grad,a.Amp.get_all_val(),method=method,jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
     xn = s.x
   else :
     raise Exception("unknown method")
@@ -274,7 +264,7 @@ def main():
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
-  parser.add_argument("--no-GPU", action="store_false", default=True,dest="has_gpu")
+  parser.add_argument("--no-GPU", action="store_false", default=False,dest="has_gpu")
   parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
   if results.has_gpu:

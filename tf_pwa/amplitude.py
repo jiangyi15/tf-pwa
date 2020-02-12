@@ -51,14 +51,9 @@ class AllAmplitude(VarsManager):
     self.res = copy.deepcopy(res) # RESON Params #直接用等号会修改res
     self.res_decay = self.init_res_decay() # DECAY for each type of process
     self.polar = polar
-    #fix_dic = {}#"D1_2420r":3.12}
-    #bnd_dic = {}#"D1_2420r":(0.3334301945,0.3334301945)}
     self.coef = {} # [name..
     self.coef_norm = {} # [Variable..
     self.init_fit_params() # initialize FPs
-
-    #print_dic(self.fit_params.variables)
-    #print_dic(self.fit_params.trainable_vars)
 
     self.init_used_res() # used RESON'NAMES in config
 
@@ -407,80 +402,6 @@ class AllAmplitude(VarsManager):
     return self.get_amp2s(*x)
 
 
-  def trans_params(self,polar=True,force=False):
-    """
-    transform parameters for self.polar to polar coordinates
-
-.. math::
-    r + ij \leftrightarrow r e^{ij} 
-    
-    """
-    if self.polar is polar and not force:
-      return self.get_params()#本身就是想要的坐标系了
-    t_p = set() # the order doesn't matter
-    for i in self.coef:
-      for j in self.coef[i]:
-        for k in j:
-          t_p.add(k)
-    for r,i in t_p:
-      o_r = self.get(r)
-      o_i = self.get(i)
-      if self.polar: # rp2xy
-        o_r,o_i = o_r * tf.cos(o_i), o_r * tf.sin(o_i)
-      if polar: # xy2rp
-        n_r = tf.sqrt(o_r*o_r + o_i*o_i)
-        n_i = tf.math.atan2(o_i, o_r)
-      else: # if force, xy remains the same, rp will be standardized
-        n_r, n_i = o_r, o_i
-      self.set(r,n_r)
-      self.set(i,n_i)
-    self.polar = polar
-    return self.get_params()
-  
-
-  @contextmanager
-  def params_form(self,polar=True): # switch temporately between xy and rp
-    origin_polar = self.polar
-    self.trans_params(polar)
-    yield self.get_params()
-    self.trans_params(origin_polar)
-  
-
-  def _std_polar_total(self): # standardize polar expression for norm factors
-    polar_sign = {}
-    for idx in self.res:
-      r,i = self.coef_norm[idx]
-      r=r();i=i()
-      polar_sign[idx] = np.sign(r.numpy())
-    
-    for idx in self.res:
-      r,i =  self.coef_norm[idx]
-      r=r();i=i()
-      r.assign(tf.abs(r)) # r is positive
-      if polar_sign[idx] < 0:
-        i.assign_add(np.pi) # -r->r, then p+=np.pi
-      while i.numpy() >= np.pi:
-        i.assign_add(-2*np.pi) # p<=pi
-      while i.numpy() < -np.pi:
-        i.assign_add(2*np.pi) # p>-pi
-
-  def get_params(self):
-    ret = {}
-    self._std_polar_total()
-    for i in self.variables:
-      i = self.variables[i]
-      tmp = i.numpy()
-      ret[i.name] = float(tmp)
-    return ret
-  
-  def set_params(self,param):
-    for j in param:
-      for i in self.variables:
-        i = self.variables[i]
-        if j == i.name:
-          tmp = param[i.name]
-          i.assign(tmp)
-  
   def set_used_res(self,ires):
     ret = []
     for i in ires:
