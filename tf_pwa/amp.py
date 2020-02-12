@@ -19,7 +19,7 @@ from pysnooper import snoop
 
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
-from .data import prepare_data_from_decay, split_generator
+from .cal_angle import prepare_data_from_decay, split_generator
 from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef

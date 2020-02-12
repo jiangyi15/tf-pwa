@@ -39,6 +39,7 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
         with tf.GradientTape(persistent=True) as tape0:
             with tf.GradientTape() as tape:
                 part_y = trans(f(data_i, *args, **kwargs))
+                print(weight_i, part_y)
                 y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
             g_i = tape.gradient(y_i, var)
         for gi in g_i:
@@ -86,7 +87,6 @@ class Model(object):
         ln_data = tf.math.log(self.Amp(data))
         int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
         nll_0 = - tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
-        print(nll_0, sw, int_mc)
         return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
 
     def nll_grad(self, data, mcdata, weight=1.0, batch=65000, bg=None):
@@ -104,7 +104,8 @@ class Model(object):
         n_mc = data_shape(mcdata)
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data = sum_gradient(self.Amp, split_generator(data, batch),
-                                          self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
+                                          self.Amp.trainable_variables, weight=split_generator(weight, batch),
+                                          trans=tf.math.log)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
                                         self.Amp.trainable_variables, weight=1/n_mc)
 
@@ -137,19 +138,16 @@ class Model(object):
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
-    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000):
-        n_data = data_shape(data)
+    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000, bg=None):
+        data, weight = self.get_weight_data(data, weight, bg=bg)
         n_mc = data_shape(mcdata)
-        if isinstance(weight, float):
-            sw = n_data * weight
-        else:
-            sw = tf.reduce_sum(weight)
-        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, data,
-                                                    self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
-        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, mcdata,
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
+                                                    self.Amp.trainable_variables, weight=split_generator(weight, batch),
+                                                    trans=tf.math.log)
+        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata),
                                                  self.Amp.trainable_variables)
         n_var = len(g_ln_data)
-        sw = n_data
         nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
         g = - g_ln_data + sw * g_int_mc / int_mc
         g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
@@ -169,7 +167,7 @@ class FCN(object):
         self.n_call = 0
         self.n_grad = 0
         self.cached_nll = None
-        data, weight = self.model.get_weight_data(data, bg=bg, alpha=False)
+        data, weight = self.model.get_weight_data(data, bg=bg)
         n_mcdata = data_shape(mcdata)
         self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = weight

@@ -18,7 +18,8 @@ from plot_amp import calPWratio
 
 from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
 
-from tf_pwa.data import prepare_data_from_decay, data_to_numpy, data_to_tensor
+from tf_pwa.data import data_to_numpy, data_to_tensor
+from tf_pwa.cal_angle import prepare_data_from_decay
 
 log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") 
 
@@ -176,7 +177,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         RDM_INI = True
         print("using RANDOM parameters")
 
-    print(amp.vm.variables)
+    # print(amp.vm.variables)
     model = Model(amp, w_bkg=w_bkg)
     # print(model.Amp(data))
     # tf.summary.trace_on(graph=True, profiler = True)
@@ -188,12 +189,10 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     now = time.time()
     print(model.nll_grad(data, mcdata, bg=bg, batch=15000))
     print(time.time() - now)
-    # exit()
     # now = time.time()
     # print(model.nll_grad_hessian(data, mcdata, batch=10000))
     # print(time.time() - now)
-    fcn = FCN(model, data, mcdata, bg=bg)
-
+    fcn = FCN(model, data, mcdata, bg=bg, batch=27000)
 
     # fit configure
     args = {}
@@ -232,24 +231,41 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     nlls = []
     now = time.time()
     maxiter = 2000
-    bd = Bounds(bnds)
-    f_g = bd.trans_f_g(fcn.nll_grad)
 
-    def callback(x):
-        if np.fabs(x).sum() > 1e7:
-            x_p = dict(zip(args_name, x))
-            raise Exception("x too large: {}".format(x_p))
-        point = [float(i) for i in bd.get_y(x)]
-        print(dict(zip(args_name, point)))
-        points.append(point)
-        nlls.append(float(fcn.cached_nll))
-        if len(nlls) > maxiter:
-            with open("fit_curve.json", "w") as f:
-                json.dump({"points": points, "nlls": nlls}, f, indent=2)
-            raise Exception("Reached the largest iterations: {}".format(maxiter))
-        print(fcn.cached_nll)
-        # tf.summary.scalar("nll", fcn.cached_nll, 1)
+    # s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
+    if method in ["BFGS", "CG", "Nelder-Mead"]:
+        def callback(x):
+            if np.fabs(x).sum() > 1e7:
+                x_p = dict(zip(args_name, x))
+                raise Exception("x too large: {}".format(x_p))
+            points.append([float(i) for i in bd.get_y(x)])
+            nlls.append(float(fcn.cached_nll))
+            if len(nlls) > maxiter:
+                with open("fit_curve.json", "w") as f:
+                    json.dump({"points": points, "nlls": nlls}, f, indent=2)
+                raise Exception("Reached the largest iterations: {}".format(maxiter))
+            print(fcn.cached_nll)
 
+        bd = Bounds(bnds)
+        f_g = bd.trans_f_g(fcn.nll_grad)
+        s = minimize(f_g, np.array(bd.get_x(x0)), method=method, jac=True, callback=callback, options={"disp": 1})
+        xn = bd.get_y(s.x)
+    elif method in ["L-BFGS-B"]:
+        def callback(x):
+            if np.fabs(x).sum() > 1e7:
+                x_p = dict(zip(args_name, x))
+                raise Exception("x too large: {}".format(x_p))
+            points.append([float(i) for i in x])
+            nlls.append(float(fcn.cached_nll))
+
+        s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
+                     options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
+        xn = s.x
+    else:
+        raise Exception("unknown method")
+    print("########## fit state:")
+    print(s)
+    print("\nTime for fitting:", time.time() - now)
 
     with open("final_params.json", "w") as f:
         variables = {k: v.numpy() for k, v in model.Amp.variables.items()}

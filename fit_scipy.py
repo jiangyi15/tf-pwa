@@ -21,10 +21,10 @@ if mode=="4":
 else:
   from tf_pwa.amplitude import AllAmplitude,param_list
 
-from tf_pwa.data import prepare_data_from_dat_file
+from tf_pwa.cal_angle import prepare_data_from_dat_file
 
 param_list_test = [
-  "particle/A/m","particle/B/m","particle/C/m","particle/D/m","particle/BC/m", "particle/BD/m", "particle/CD/m", 
+  "particle/A/m","particle/B/m","particle/C/m","particle/D/m","particle/BC/m", "particle/BD/m", "particle/CD/m",
   "decay/0/A->BC+D/BC/ang/beta", "decay/0/BC->B+C/B/ang/beta", "decay/0/A->BC+D/BC/ang/alpha", "decay/0/BC->B+C/B/ang/alpha",
   "decay/1/A->BD+C/BD/ang/beta", "decay/1/BD->B+D/B/ang/beta", "decay/1/A->BD+C/BD/ang/alpha", "decay/1/BD->B+D/B/ang/alpha", 
   "decay/2/A->CD+B/CD/ang/beta", "decay/2/CD->C+D/D/ang/beta", "decay/2/A->CD+B/CD/ang/alpha", "decay/2/CD->C+D/D/ang/alpha",
