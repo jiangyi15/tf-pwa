@@ -418,6 +418,7 @@ class FCN(object):
     self.cached_nll = nll
     self.ncall += 1
     self.n_grad += 1
+    #print("#####",nll)
     return nll.numpy().astype("float64"), np.array([i.numpy() for i in g]).astype("float64")
   
   def nll_grad_hessian(self,x):

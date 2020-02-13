@@ -76,8 +76,8 @@ class VarsManager(object):
           l.remove(name_r)
         if name_i in l:
           l.remove(name_i)
-      self.variables[name_r]
-      self.variables[name_i]
+      del self.variables[name_r]
+      del self.variables[name_i]
     else:
       if self.variables[name].trainable:
         self.trainable_vars.remove(name)
@@ -254,7 +254,7 @@ class VarsManager(object):
       p.assign_add(np.pi)
       if type(self.complex_vars[name])==list:
         for name_r in self.complex_vars[name]:
-          pp = self.variables[name[:-1]+'i']
+          pp = self.variables[name_r[:-1]+'i']
           pp.assign_add(np.pi)
     self.std_polar_angle(p)
 
@@ -290,6 +290,8 @@ class VarsManager(object):
 import sympy as sy
 class Bound(object):
   def __init__(self,a,b,func=None):
+    if a!=None and b!=None and a>b:
+      raise Exception("Lower bound is larger than upper bound!")
     self.lower = a
     self.upper = b
     if func:
@@ -322,6 +324,10 @@ class Bound(object):
     return float(self.f.evalf(subs={x:val}))
   def get_y2x(self,val): # gls->var
     y = sy.symbols('y')
+    if self.lower!=None and val<self.lower:
+      val = self.lower
+    elif self.upper!=None and val>self.upper:
+      val = self.upper
     return float(self.inv.evalf(subs={y:val}))
   def get_dydx(self,val): # gradient in fitting: dNLL/dx = dNLL/dy * dy/dx
     x = sy.symbols('x')

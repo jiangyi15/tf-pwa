@@ -11,7 +11,7 @@ from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import math
 #from tf_pwa.bounds import Bounds
 from generate_toy import generate_data
-from plot_amp import calPWratio
+from tf_pwa.applications import fit_fractions,cal_hesse_error,calPWratio
 
 mode = "3"
 if mode=="4":
@@ -19,21 +19,6 @@ if mode=="4":
 else:
   from tf_pwa.amplitude import AllAmplitude,param_list
 
-
-
-def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
-  a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
-  a_h.set_params(val)
-  t = time.time()
-  nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
-  print("Time for calculating errors:",time.time()-t)
-  #print(nll)
-  #print([i.numpy() for i in g])
-  #print(h.numpy())
-  inv_he = np.linalg.pinv(h.numpy())
-  np.save("error_matrix.npy",inv_he)
-  #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
-  return inv_he
 
 
 def prepare_data(dtype="float64",model="3"):
@@ -116,7 +101,8 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #bnds = []
   bounds_dict = {
       #"Zc_4160_m":(4.1,4.22),
-      #"Zc_4160_g":(0,None)
+      #"Zc_4160_g":(0,None),
+      #"D1_2420r": (3.12,10.0)
   }
 
   #for i in a.Amp.trainable_variables:
@@ -192,7 +178,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     json.dump(outdic,f,indent=2)
   err=None
   if hesse:
-    inv_he = cal_hesse_error(a.Amp,val,w_bkg,data,mcdata,bg,args_name,batch=10000)
+    inv_he = cal_hesse_error(a)
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(diag_he).tolist()
     err = dict(zip(args_name,hesse_error))
@@ -202,7 +188,8 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       print("  ",i,":",error_print(val[i],err[i]))
     else:
       print("  ",i,":",val[i])
-      
+
+  '''    
   print("\n########## fitting params in polar expression")
   i = 0
   for v in params:
@@ -232,7 +219,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #a.set_params(params)
   
   #with a.Amp.params_form(polar=True) as params:
-    #pprint(params)
+    #pprint(params)'''
 
   outdic={"value":params,"error":err,"config":config_list}
   with open("final_params.json","w") as f:                                      
@@ -241,18 +228,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #calPWratio(params,POLAR)
   
   if frac:
-    if hesse:
-      mcdata_cached = a.Amp.cache_data(*mcdata,batch=10000)
-      frac, grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
-    else:
-      mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
-      frac = cal_fitfractions_no_grad(a.Amp,mcdata_cached,kwargs={"cached":True})
-    err_frac = {}
-    for i in config_list:
-      if hesse:
-        err_frac[i] = np.sqrt(np.dot(np.dot(inv_he,grad[i]),grad[i]))
-      else :
-        err_frac[i] = None
+    frac, err_frac = fit_fractions(a,mcdata,config_list,inv_he,hesse)
     print("########## fit fractions")
     for i in config_list:
       print(i,":",error_print(frac[i],err_frac[i]))
@@ -264,7 +240,7 @@ def main():
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
-  parser.add_argument("--no-GPU", action="store_false", default=False,dest="has_gpu")
+  parser.add_argument("--no-GPU", action="store_false", default=True,dest="has_gpu")
   parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
   if results.has_gpu:
