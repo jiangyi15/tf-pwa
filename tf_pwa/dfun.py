@@ -96,7 +96,8 @@ def exp_i(theta, mi):
     theta_i = tf.reshape(theta, (-1, 1))
     mi = tf.cast(mi, dtype=theta.dtype)
     m_theta = mi * theta_i
-    im_theta = tf.complex(tf.zeros_like(m_theta), m_theta)
+    zeros = tf.zeros_like(m_theta)
+    im_theta = tf.complex(zeros, m_theta)
     exp_theta = tf.exp(im_theta)
     return exp_theta
 

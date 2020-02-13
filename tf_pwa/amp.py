@@ -78,8 +78,9 @@ def einsum(eins, *args, **kwargs):
         a_args.append(tf.reshape(arg, shape_2))
     for i in idx_1:
         eins = eins.replace(i, "")
-    ret = contract(eins, *a_args, **kwargs)
+    ret = tf.einsum(eins, *a_args, **kwargs)
     return tf.reshape(ret, final_shape)
+
 
 @contextlib.contextmanager
 def variable_scope(vm=None):
@@ -87,6 +88,16 @@ def variable_scope(vm=None):
         vm = VarsManager(dtype=get_config("dtype"))
     with temp_config("vm", vm):
         yield vm
+
+
+def simple_deepcopy(dic):
+    if isinstance(dic, dict):
+        return {k: simple_deepcopy(v) for k, v in dic.items()}
+    if isinstance(dic, list):
+        return [simple_deepcopy(v) for v in dic]
+    if isinstance(dic, tuple):
+        return tuple([simple_deepcopy(v) for v in dic])
+    return dic
 
 
 class Var(object):
@@ -269,6 +280,7 @@ class HelicityDecay(Decay):
 
 
 class DecayChain(BaseDecayChain):
+    """A list of Decay as a chain decay"""
     total = Var("total")
 
     def __init__(self, *args, **kwargs):
@@ -344,7 +356,9 @@ class DecayChain(BaseDecayChain):
 
 
 class DecayGroup(BaseDecayGroup):
+    """ A Group of Decay Chains with the same final particles."""
     def __init__(self, chains):
+        self.chains_idx = list(range(len(chains)))
         first_chain = chains[0]
         if not isinstance(first_chain, DecayChain):
             chains = [DecayChain(i) for i in chains]
@@ -366,7 +380,8 @@ class DecayGroup(BaseDecayGroup):
         data_particle = data["particle"]
         data_decay = data["decay"]
 
-        chain_maps = self.get_chains_map()
+        used_chains = tuple([self.chains[i] for i in self.chains_idx])
+        chain_maps = self.get_chains_map(used_chains)
         base_map = self.get_base_map()
         ret = []
         amp_idx = self.amp_index(base_map)
@@ -380,9 +395,9 @@ class DecayGroup(BaseDecayGroup):
         ret = tf.reduce_sum(ret, axis=0)
         return ret
 
-    # @tf.function(experimental_relax_shapes=True)
-    def sum_amp(self, data):
-        data = data_to_tensor(data)
+    def sum_amp(self, data, cached=True):
+        if not cached:
+            data = simple_deepcopy(data)
         amp = self.get_amp(data)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         idx = list(range(1, len(amp2s.shape)))
@@ -406,6 +421,31 @@ class DecayGroup(BaseDecayGroup):
         for i in self.outs:
             base_map[i] = next(gen)
         return base_map
+
+    def get_res_map(self):
+        res_map = {}
+        for i, decay in enumerate(self.chains):
+            for j in decay.inner:
+                if j not in res_map:
+                    res_map[j] = []
+                res_map[j].append(i)
+        return res_map
+
+    def set_used_res(self, res):
+        unused_res = set(self.resonances) - set(res)
+        unused_decay = set()
+        res_map = self.get_res_map()
+        for i in unused_res:
+            for j in res_map[i]:
+                unused_decay.add(j)
+        used_decay = []
+        for i, _ in enumerate(self.chains):
+            if i not in unused_decay:
+                used_decay.append(i)
+        self.set_used_chains(used_decay)
+
+    def set_used_chains(self, used_chains):
+        self.chains_idx = list(used_chains)
 
 
 def index_generator(base_map=None):
@@ -440,6 +480,9 @@ class AmplitudeModel(object):
         with variable_scope() as vm:
             decay_group.init_params()
         self.vm = vm
+        res = decay_group.resonances
+        self.used_res = res
+        self.res = res
 
     def cache_data(self, data, split=None, batch=None):
         for i in self.decay_group:
@@ -453,6 +496,9 @@ class AmplitudeModel(object):
                 batch = (n + split - 1) // split
             ret = list(split_generator(data, batch))
             return ret
+
+    def set_used_res(self, res):
+        self.decay_group.set_used_res(res)
 
     def get_params(self):
         return self.vm.get_all()

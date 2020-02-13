@@ -39,7 +39,6 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
         with tf.GradientTape(persistent=True) as tape0:
             with tf.GradientTape() as tape:
                 part_y = trans(f(data_i, *args, **kwargs))
-                print(weight_i, part_y)
                 y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
             g_i = tape.gradient(y_i, var)
         for gi in g_i:
@@ -114,7 +113,8 @@ class Model(object):
         g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
-    
+
+    # @tf.function
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
         r"""
         calculate negative log-likelihood with gradients
@@ -145,7 +145,7 @@ class Model(object):
         ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
                                                     self.Amp.trainable_variables, weight=split_generator(weight, batch),
                                                     trans=tf.math.log)
-        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata),
+        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
                                                  self.Amp.trainable_variables)
         n_var = len(g_ln_data)
         nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
@@ -203,5 +203,5 @@ class FCN(object):
     def nll_grad_hessian(self, x):
         self.model.set_params(x)
         nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
-                                                weight=data_split(self.weight, self.batch), batch=self.batch)
+                                                weight=self.weight, batch=self.batch)
         return nll, g, h

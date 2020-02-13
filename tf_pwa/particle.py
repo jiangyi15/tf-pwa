@@ -476,12 +476,14 @@ class DecayGroup(object):
     return ret
   
   @functools.lru_cache()
-  def get_chains_map(self):
+  def get_chains_map(self, chains=None):
+    if chains is None:
+      chains = self.chains
     chain_maps = []
     for decays in self.topology_structure():
         decay_chain = DecayChain(list(decays))
         tmp = {}
-        for j in self:
+        for j in chains:
             if decay_chain.topology_same(j):
                 chain_map = decay_chain.topology_map(j)
                 tmp[j] = chain_map

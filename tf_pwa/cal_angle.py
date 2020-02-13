@@ -4,6 +4,7 @@ from .angle_tf import EularAngle, LorentzVector
 from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy
 from .tensorflow_wrapper import tf
 from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
+from .config import get_config
 
 
 def struct_momentum(p, center_mass=True) -> dict:
@@ -147,7 +148,7 @@ def cal_angle(data, decay_group: DecayGroup) -> dict:
         data = cal_helicity_angle(data, i)
     decay_chain_struct = decay_group.topology_structure()
     set_x = {}
-    # for a the top rest farme
+    # for a the top rest frame
     for decay_chain in decay_chain_struct:
         for decay in decay_chain:
             if decay.core == decay_group.top:

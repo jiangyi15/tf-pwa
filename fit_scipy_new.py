@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from tf_pwa.model_new import Model, FCN
-import tensorflow as tf
+from tf_pwa.tensorflow_wrapper import tf
 import time
 import numpy as np
 from pprint import pprint
@@ -18,7 +18,7 @@ from plot_amp import calPWratio
 
 from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
 
-from tf_pwa.data import data_to_numpy, data_to_tensor
+from tf_pwa.data import data_to_numpy, data_to_tensor, split_generator
 from tf_pwa.cal_angle import prepare_data_from_decay
 
 log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") 
@@ -135,8 +135,8 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         if name_a in amp.vm.trainable_vars:
             amp.vm.trainable_vars.remove(name_a)
 
-    print(amp.vm.variables)
-    print(amp.vm.trainable_vars)
+    # print(amp.vm.variables)
+    # print(amp.vm.trainable_vars)
     for i in config_list:
         if "coef_head" in config_list[i]:
             coef_head = config_list[i]["coef_head"]
@@ -159,7 +159,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         amp.vm.trainable_vars.remove(name+"r")
         amp.vm.trainable_vars.remove(name+"i")
         break
-    print(amp.vm.trainable_vars)
+    # print(amp.vm.trainable_vars)
 
     try:
         with open(init_params) as f:
@@ -196,7 +196,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
 
     # fit configure
     args = {}
-    args_name = []
+    args_name = model.Amp.vm.trainable_vars
     x0 = []
     bnds = []
     bounds_dict = {
@@ -207,7 +207,6 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     for i in model.Amp.trainable_variables:
         args[i.name] = i.numpy()
         x0.append(i.numpy())
-        args_name.append(i.name)
         if i.name in bounds_dict:
             bnds.append(bounds_dict[i.name])
         else:
@@ -230,7 +229,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     points = []
     nlls = []
     now = time.time()
-    maxiter = 2000
+    maxiter = 1  ##000
 
     # s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
     if method in ["BFGS", "CG", "Nelder-Mead"]:
@@ -243,7 +242,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             if len(nlls) > maxiter:
                 with open("fit_curve.json", "w") as f:
                     json.dump({"points": points, "nlls": nlls}, f, indent=2)
-                raise Exception("Reached the largest iterations: {}".format(maxiter))
+                pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
 
         bd = Bounds(bnds)
@@ -262,14 +261,45 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
                      options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
         xn = s.x
     else:
-        raise Exception("unknown method")
+        pass  # raise Exception("unknown method")
     print("########## fit state:")
-    print(s)
+    # print(s)
     print("\nTime for fitting:", time.time() - now)
-
+    val = {k: v.numpy() for k, v in model.Amp.variables.items()}
     with open("final_params.json", "w") as f:
-        variables = {k: v.numpy() for k, v in model.Amp.variables.items()}
-        json.dump(variables, f, indent=2)
+        json.dump({"value": val}, f, indent=2)
+    err = {}
+    if hesse:
+        inv_he = cal_hesse_error(model.Amp, val, w_bkg, data, mcdata, bg, args_name, batch=20000)
+        diag_he = inv_he.diagonal()
+        hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+        print(hesse_error)
+        err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
+    print("\n########## fit results:")
+    for i in val:
+        print("  ", i, ":", error_print(val[i], err.get(i, None)))
+
+    outdic = {"value": val, "error": err, "config": config_list}
+    with open("final_params.json", "w") as f:
+        json.dump(outdic, f, indent=2)
+    # print("\n########## ratios of partial wave amplitude square")
+    # calPWratio(params,POLAR)
+
+    if frac:
+        err_frac = {}
+        if hesse:
+            frac, grad = cal_fitfractions(model.Amp, list(split_generator(mcdata, 25000)))
+        else:
+            frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
+
+        for i in frac:
+            if hesse:
+                err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
+        print("########## fit fractions")
+        for i in frac:
+            print(i, ":", error_print(frac[i], err_frac.get(i, None)))
+    print("\nEND\n")
+
 
 
 
