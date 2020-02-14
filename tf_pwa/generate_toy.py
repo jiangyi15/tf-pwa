@@ -1,9 +1,9 @@
 import tensorflow as tf
 import numpy as np
 import json
-from tf_pwa.model import *
-from tf_pwa.angle import cal_ang_file,cal_ang_file4
-from tf_pwa.utils import load_config_file,flatten_np_data
+from .model import *
+from .angle import cal_ang_file,cal_ang_file4
+from .utils import load_config_file,flatten_np_data
 
 def prepare_data(fname,dtype="float64"):
   data_np = cal_ang_file(fname,dtype)

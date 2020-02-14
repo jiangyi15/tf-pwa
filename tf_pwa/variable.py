@@ -1,7 +1,8 @@
 import tensorflow as tf
 import numpy as np
 import warnings
-#from .config import regist_config
+import copy
+from .config import regist_config
 
 
 '''
@@ -271,7 +272,7 @@ class VarsManager(object):
 
   def trans_fcn_grad(self,fcn_grad): # bound transform fcn and grad
     def fcn_t(xvals):
-      yvals = xvals
+      yvals = copy.copy(xvals)
       dydxs = []
       i = 0
       for name in self.trainable_vars:
@@ -360,6 +361,7 @@ class Variable(object):
       self.cplx_var(**kwargs)
     else:
       self.real_var(**kwargs)
+    self.bound = None
 
 
   def real_var(self, value=None,range_=None,fix=False):
@@ -394,6 +396,13 @@ class Variable(object):
       self.vm.set_fix(self.name,value)
     else:
       raise Exception("Only shape==() real var supports 'fixed' method.")
+
+  def set_bound(self,bound,func=None):
+    if not self.shape:
+      self.vm.set_bound({self.name:bound},func)
+      self.bound = self.vm.bnd_dic[self.name]
+    else:
+      raise Exception("Only shape==() real var supports 'set_bound' method.")
 
 
   def r_shareto(self,Var):

@@ -10,7 +10,7 @@ from tf_pwa.angle import cal_ang_file,cal_ang_file4,EularAngle
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint
 import os
 from math import pi
-from generate_toy import generate_data
+from tf_pwa.applications import gen_data
 
 def config_split(config):
   ret = {}
@@ -218,7 +218,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   pprint(a.get_params())
   
   data, bg, mcdata = prepare_data()
-  #data = generate_data(8065,3445,w_bkg,1.1,True)
+  #data = gen_data(8065,3445,w_bkg,1.1,True)
   data_cache = a.Amp.cache_data(*data)
   bg_cache = a.Amp.cache_data(*bg)
   mcdata_cache = a.Amp.cache_data(*mcdata)

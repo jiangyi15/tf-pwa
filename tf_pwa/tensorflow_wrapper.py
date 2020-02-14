@@ -4,7 +4,7 @@ import tensorflow as tf
 # default configurations
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
-#os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE" # for Mac
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE" # for Mac
 
 # pylint: disable=no-member
 tf_version = int(tf.__version__.split(".")[0])

@@ -4,6 +4,15 @@ import time
 
 from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 def fit_fractions(model,mcdata,config_list,inv_he,hesse):
+    '''
+    calculate fit fractions of all resonances
+    :param model:
+    :param mcdata:
+    :param config_list:
+    :param inv_he:
+    :param hesse:
+    :return:
+    '''
     if hesse:
         mcdata_cached = model.Amp.cache_data(*mcdata, batch=10000)
         frac, grad = cal_fitfractions(model.Amp, mcdata_cached, kwargs={"cached": True})
@@ -19,11 +28,27 @@ def fit_fractions(model,mcdata,config_list,inv_he,hesse):
     return frac, err_frac
 
 
-def error_matrix():
-    pass
+def corr_coef_matrix(npy_name):
+    '''
+    obtain correlation coefficients matrix of all trainable variables
+    :param npy_name:
+    :return:
+    '''
+    err_mtx = np.load(npy_name)
+    err = np.sqrt(err_mtx.diagonal())
+    diag_mtx = np.diag(1/err)
+    tmp_mtx = np.matmul(diag_mtx,err_mtx)
+    cc_mtx = np.matmul(tmp_mtx,diag_mtx)
+    return cc_mtx
 
 
 def calPWratio(params, POLAR=True):
+    '''
+    calculate the ratio of different partial waves
+    :param params:
+    :param POLAR:
+    :return:
+    '''
     dtype = "float64"
     w_bkg = 0.768331
     # set_gpu_mem_growth()
@@ -132,9 +157,79 @@ def calPWratio(params, POLAR=True):
 
 
 def cal_hesse_error(model):
+    '''
+    calculate the hesse error of all trainable variables
+    :param model:
+    :return:
+    '''
     t = time.time()
     nll,g,h = model.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:",time.time()-t)
     inv_he = np.linalg.pinv(h.numpy())
     np.save("error_matrix.npy",inv_he)
     return inv_he
+
+
+from .generate_toy import generate_data
+def gen_data(Ndata, Nbg, wbg, scale=1.2, Poisson_fluc=False, save_pkl=True, file_name='toy'):
+    '''
+    generate data including the effect of detector performance
+    :param Ndata:
+    :param Nbg:
+    :param wbg:
+    :param scale:
+    :param Poisson_fluc:
+    :param save_pkl:
+    :param file_name:
+    :return:
+    '''
+    #Ndata = 8065; Nbg = 3445; wbg = 0.768331
+    data = generate_data(Ndata,Nbg,wbg,scale,Poisson_fluc)
+    #print(data)
+    if save_pkl:
+        import pickle
+        output = open(file_name+'.pkl', 'wb')
+        pickle.dump(data, output, -1)
+        output.close()
+    return data
+
+
+
+### plot-related ###
+
+def compare_result(rslt_file1,rslt_file2,figname=None,yrange=None):
+  '''
+  compare two final_params
+  :param rslt_file1:
+  :param rslt_file2:
+  :param figname:
+  :param yrange:
+  :return:
+  '''
+  with open(rslt_file1) as f:
+    rslt1 = json.load(f)
+  value1 = rslt1["value"]
+  error1 = rslt1["error"]
+  with open(rslt_file2) as f:
+    rslt2 = json.load(f)
+  value2 = rslt2["value"]
+  error2 = rslt2["error"]
+  diff_dict = {}
+  for v in error1:
+    diff = value1[v]-value2[v]
+    sigma = math.sqrt(error1[v]**2+error2[v]**2)
+    diff_dict[v] = diff/sigma
+  if figname:
+    arr = []
+    for v in diff_dict:
+      arr.append(diff_dict[v])
+    arr_x = np.arange(len(arr))
+    plt.scatter(arr_x,arr)
+    if yrange:
+      plt.ylim(-yrange,yrange)
+    plt.xlabel("parameter index")
+    plt.ylabel("sigma")
+    plt.title("difference between "+rslt_file1+" and "+rslt_file2)
+    plt.savefig(figname)
+    plt.clf()
+  return diff_dict

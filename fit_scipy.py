@@ -9,9 +9,8 @@ from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
 from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import math
-#from tf_pwa.bounds import Bounds
-from generate_toy import generate_data
-from tf_pwa.applications import fit_fractions,cal_hesse_error,calPWratio
+
+from tf_pwa.applications import fit_fractions,cal_hesse_error,calPWratio,gen_data
 
 mode = "3"
 if mode=="4":
@@ -61,9 +60,9 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   
   if GEN_TOY:
     print("########## begin generate_data")
-    #data = generate_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
+    #data = gen_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
     import pickle
-    toy_file = open("toy1.pkl","rb")
+    toy_file = open("toy.pkl","rb") # load pkl data
     data = pickle.load(toy_file)
     toy_file.close()
     print("########## finish generate_data")
@@ -94,27 +93,13 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #exit()
   #a.Amp.polar=POLAR
 
-  # fit configure
-  #args = {}
-  #args_name = []
-  #x0 = []
-  #bnds = []
   bounds_dict = {
-      #"Zc_4160_m":(4.1,4.22),
-      #"Zc_4160_g":(0,None),
+      "Zc_4160_m":(4.1,4.22),
+      "Zc_4160_g":(0,None),
       #"D1_2420r": (3.12,10.0)
   }
 
-  #for i in a.Amp.trainable_variables:
-    #args[i.name] = i.numpy()
-    #x0.append(i.numpy())
-    #args_name.append(i.name)
-    #if i.name in bounds_dict:
-    #  bnds.append(bounds_dict[i.name])
-    #else:
-    #  bnds.append((None,None))
-    #args["error_"+i.name] = 0.1
-  args = a.Amp.get_all_dic(trainable_only=True)
+  #args = a.Amp.get_all_dic(trainable_only=True)
   args_name = a.Amp.trainable_vars
   
   pprint(a.get_params())
@@ -145,12 +130,12 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
           json.dump({"points":points,"nlls":nlls},f,indent=2)
         raise Exception("Reached the largest iterations: {}".format(maxiter))
       print(fcn.cached_nll)
-    #bd = Bounds(bnds)
 
+    #bd = Bounds(bnds)
     a.Amp.set_bound(bounds_dict)
     f_g = a.Amp.trans_fcn_grad(fcn.nll_grad)
-
     #f_g = bd.trans_f_g(fcn.nll_grad)
+
     s = minimize(f_g,np.array(a.Amp.get_all_val(True)),method=method,jac=True,callback=callback,options={"disp":1})
     xn = a.Amp.get_all_val()#bd.get_y(s.x)
   elif method in ["L-BFGS-B"]:
@@ -240,7 +225,7 @@ def main():
   parser = argparse.ArgumentParser(description="simple fit scripts")
   parser.add_argument("--no-hesse", action="store_false", default=True,dest="hesse")
   parser.add_argument("--no-frac", action="store_false", default=True,dest="frac")
-  parser.add_argument("--no-GPU", action="store_false", default=True,dest="has_gpu")
+  parser.add_argument("--no-GPU", action="store_false", default=False,dest="has_gpu")
   parser.add_argument("--method", default="BFGS",dest="method")
   results = parser.parse_args()
   if results.has_gpu:
