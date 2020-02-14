@@ -1,4 +1,5 @@
 from .tensorflow_wrapper import tf
+np = tf
 #import functools
 #from pysnooper import snoop
 
@@ -35,7 +36,7 @@ class Vector3(tf.Tensor):
         return p
 
     def cross_unit(self, other):
-        p, _n = tf.linalg.normalize(np.cross(self, other), axis=-1)
+        p, _n = tf.linalg.normalize(tf.cross(self, other), axis=-1)
         return p
 
     def angle_from(self, x, y):

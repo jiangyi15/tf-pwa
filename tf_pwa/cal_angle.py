@@ -96,12 +96,6 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain) -> dict:
             else:
                 extra_decay.append(i)
         set_decay = extra_decay
-    for i in set_decay:
-        for j in i.outs:
-            if "x" in ret[i][j]:
-                del ret[i][j]["x"]
-            if "z" in ret[i][j]:
-                del ret[i][j]["z"]
     return ret
 
 
@@ -131,7 +125,7 @@ def cal_angle_from_particle(data, decay_group: DecayGroup):
         for decay in decay_chain:
             part_data = decay_data[idx][decay]
             for i in decay.outs:
-                if i in decay_group.outs and decay != set_x[i]:
+                if i in decay_group.outs and decay != set_x[i][1]:
                     idx2, decay2 = set_x[i]
                     part_data2 = decay_data[idx2][decay2]
                     x1 = part_data[i]["x"]

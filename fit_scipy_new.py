@@ -9,7 +9,6 @@ import os
 import datetime
 from scipy.optimize import minimize, BFGS, basinhopping
 import tf_pwa
-from tf_pwa.angle import cal_ang_file, cal_ang_file4
 from tf_pwa.utils import load_config_file, flatten_np_data, pprint, error_print, std_polar
 from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import math
@@ -22,6 +21,7 @@ from tf_pwa.data import data_to_numpy, data_to_tensor, split_generator
 from tf_pwa.cal_angle import prepare_data_from_decay
 
 log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") 
+
 
 def load_cached_data(cached_data_file="cached_data_new.npy"):
     cached_dir = "./cached_dir"
@@ -87,17 +87,7 @@ def cal_hesse_error(amp, val, w_bkg, data, mcdata, bg, args_name, batch):
     return inv_he
 
 
-def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
-    POLAR = True  # fit in polar coordinates. should be consistent with init_params.json if any
-    GEN_TOY = False  # use toy data (mcdata and bg stay the same). REMEMBER to update gen_params.json
-
-    dtype = "float64"
-    w_bkg = 0.768331
-    # set_gpu_mem_growth()
-    tf.keras.backend.set_floatx(dtype)
-    # open Resonances list as dict
-    config_list = load_config_file("Resonances")
-
+def get_decay_chains(config_list):
     a = Particle("A", J=1, P=-1, spins=(-1, 1))
     b = Particle("B", J=1, P=-1)
     c = Particle("C", J=0, P=-1)
@@ -121,8 +111,10 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         decay[i] = [dec1, dec2]
 
     decs = DecayGroup(a.chain_decay())
-    data, bg, mcdata = prepare_data(decs, particles=[d, b, c], dtype=dtype)
+    return decs, [d, b, c], decay
 
+
+def get_amplitude(decs, config_list, decay):
     amp = AmplitudeModel(decs)
 
     def coef_combine(a, b, r="r", g_ls="g_ls"):
@@ -131,7 +123,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         if name_b in amp.vm.variables:
             amp.vm.variables[name_a] = amp.vm.variables[name_b]
         else:
-            print("not found,",name_b)
+            print("not found,", name_b)
         if name_a in amp.vm.trainable_vars:
             amp.vm.trainable_vars.remove(name_a)
 
@@ -160,10 +152,15 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         amp.vm.trainable_vars.remove(name+"i")
         break
     # print(amp.vm.trainable_vars)
+    return amp
 
+
+def load_params(amp, init_params):
     try:
         with open(init_params) as f:
             param_0 = json.load(f)
+            if "value" in param_0:
+                param_0 = param_0["value"]
             param = {}
             for k, v in param_0.items():
                 if k.endswith(":0"):
@@ -176,6 +173,23 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         print(e)
         RDM_INI = True
         print("using RANDOM parameters")
+
+
+def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
+    POLAR = True  # fit in polar coordinates. should be consistent with init_params.json if any
+    GEN_TOY = False  # use toy data (mcdata and bg stay the same). REMEMBER to update gen_params.json
+
+    dtype = "float64"
+    w_bkg = 0.768331
+    # set_gpu_mem_growth()
+    tf.keras.backend.set_floatx(dtype)
+    # open Resonances list as dict
+    config_list = load_config_file("Resonances")
+
+    decs, final_particles, decay = get_decay_chains(config_list)
+    data, bg, mcdata = prepare_data(decs, particles=final_particles, dtype=dtype)
+    amp = get_amplitude(decs, config_list, decay)
+    load_params(amp, init_params)
 
     # print(amp.vm.variables)
     model = Model(amp, w_bkg=w_bkg)

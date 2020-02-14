@@ -29,7 +29,7 @@ def Dfun_delta(d, ja, la, lb, lc=(0,)):
     D_{ma,mb-mc} = \delta[(m1,m2)->(ma, mb,mc))] D_{m1,m2}
     """
     t = delta_D_trans(ja, la, lb, lc)
-    t_trans = tf.reshape(t, ((2*ja+1) * (2*ja+1), len(la) * len(lb) *len(lc)))
+    t_trans = tf.reshape(t, ((2*ja+1) * (2*ja+1), len(la) * len(lb) * len(lc)))
     t_cast = tf.cast(t_trans, d.dtype)
     # print(d[0])
     d = tf.reshape(d, (-1, (2*ja+1) * (2*ja+1)))

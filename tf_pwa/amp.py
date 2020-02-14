@@ -241,14 +241,13 @@ class HelicityDecay(Decay):
         D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
         H = self.get_helicity_amp(data, data_p)
         H = tf.cast(H, dtype=D_conj.dtype)
-
         ret = H * D_conj
         # print(self, H, D_conj)
         # exit()
         amp_d = []
         for j in range(2):
             particle = self.outs[j]
-            if particle.J != 0:
+            if particle.J != 0 and "aligned_angle" in data[particle]:
                 ang = data[particle].get("aligned_angle", None)
                 if ang is None:
                     continue
@@ -432,7 +431,15 @@ class DecayGroup(BaseDecayGroup):
         return res_map
 
     def set_used_res(self, res):
-        unused_res = set(self.resonances) - set(res)
+        res_set = set()
+        for i in res:
+            if isinstance(i, str):
+                res_set.add(BaseParticle(i))
+            elif isinstance(i, BaseParticle):
+                res_set.add(i)
+            else:
+                raise TypeError("type(res) = {} not a Particle".format(type(res)))
+        unused_res = set(self.resonances) - res_set
         unused_decay = set()
         res_map = self.get_res_map()
         for i in unused_res:
