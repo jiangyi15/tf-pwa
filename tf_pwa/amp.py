@@ -430,7 +430,7 @@ class DecayGroup(BaseDecayGroup):
                 res_map[j].append(i)
         return res_map
 
-    def set_used_res(self, res):
+    def set_used_res(self, res, only=False):
         res_set = set()
         for i in res:
             if isinstance(i, str):
@@ -438,18 +438,26 @@ class DecayGroup(BaseDecayGroup):
             elif isinstance(i, BaseParticle):
                 res_set.add(i)
             else:
-                raise TypeError("type(res) = {} not a Particle".format(type(res)))
-        unused_res = set(self.resonances) - res_set
-        unused_decay = set()
-        res_map = self.get_res_map()
-        for i in unused_res:
-            for j in res_map[i]:
-                unused_decay.add(j)
-        used_decay = []
-        for i, _ in enumerate(self.chains):
-            if i not in unused_decay:
-                used_decay.append(i)
-        self.set_used_chains(used_decay)
+                raise TypeError("type({}) = {} not a Particle".format(i, type(i)))
+        if not only:
+            used_res = set()
+            for i in res_set:
+                for j, c in enumerate(self.chains):
+                    if i in c.inner:
+                        used_res.add(j)
+            self.set_used_chains(list(used_res))
+        else:
+            unused_res = set(self.resonances) - res_set
+            unused_decay = set()
+            res_map = self.get_res_map()
+            for i in unused_res:
+                for j in res_map[i]:
+                    unused_decay.add(j)
+            used_decay = []
+            for i, _ in enumerate(self.chains):
+                if i not in unused_decay:
+                    used_decay.append(i)
+            self.set_used_chains(used_decay)
 
     def set_used_chains(self, used_chains):
         self.chains_idx = list(used_chains)
