@@ -31,7 +31,7 @@ digraph {
         def format_particle(ps):
             s = ['"{}"'.format(i) for i in ps]
             return ",".join(s)
-        decay_dict = {}
+
         for i in top:
             ret += DotGenerator.dot_default_node.format(i)
         for i in outs:
@@ -75,3 +75,33 @@ def test_dot():
     chains = DecayChain.from_particles(a, [b, c, d, e, f])
     print(DotGenerator.dot_chain(chains[0], False))
     return g.get_dot_source()
+
+'''
+digraph {
+    rankdir=LR;
+    node [shape=point];
+    edge [arrowhead=none, labelfloat=true];
+    "A" [shape=none];
+    "B" [shape=none];
+    "D" [shape=none];
+    "E" [shape=none];
+    "F" [shape=none];
+    "C" [shape=none];
+    { rank=same "A" };
+    { rank=same "B","D","E","F","C" };
+    "A" -> "A->chain0_node_0+D";
+    "A->chain0_node_0+D" -> "chain0_node_0->chain0_node_2+chain0_node_3";
+    "A->chain0_node_0+D" -> "D";
+    "chain0_node_0->chain0_node_2+chain0_node_3" -> "chain0_node_2->B+F";
+    "chain0_node_0->chain0_node_2+chain0_node_3" -> "chain0_node_3->C+E";
+    "chain0_node_2->B+F" -> "B";
+    "chain0_node_2->B+F" -> "F";
+    "chain0_node_3->C+E" -> "C";
+    "chain0_node_3->C+E" -> "E";
+}
+
+['\ndigraph {\n    rankdir=LR;\n    node [shape=point];\n    edge [arrowhead=none, labelfloat=true];\n    "A" [shape=non
+e];\n    "B" [shape=none];\n    "D" [shape=none];\n    "C" [shape=none];\n    { rank=same "A" };\n    { rank=same "B","D
+","C" };\n    "A" -> "A->R+C";\n    "A->R+C" -> "R->B+D" [label="R"];\n    "A->R+C" -> "C";\n    "R->B+D" -> "B";\n    "
+R->B+D" -> "D";\n}\n']
+'''

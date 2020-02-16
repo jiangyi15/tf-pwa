@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 import warnings
-import copy
 from .config import regist_config
 
 
@@ -272,7 +271,7 @@ class VarsManager(object):
 
   def trans_fcn_grad(self,fcn_grad): # bound transform fcn and grad
     def fcn_t(xvals):
-      yvals = copy.copy(xvals)
+      yvals = xvals.copy()
       dydxs = []
       i = 0
       for name in self.trainable_vars:

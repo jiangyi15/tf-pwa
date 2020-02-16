@@ -16,7 +16,7 @@ def prob(chi_2,ndf):
   the value chi2 by chance, even for a correct model.
   
   """
-  if ndf <= 0.0: return 0.0 # Set CL to zero in case ndf<=0
+  if ndf <= 0.0: return 0.0 # Set CL(confidential level) to zero in case ndf<=0
   if chi_2 <= 0.0: 
     if chi_2 < 0.0: return 0.0
     else: return 1.0
@@ -38,7 +38,7 @@ def normal_quantile(p):
   return norm.ppf(p)
 
 def significance(l1,l2,ndf):
-  DeltaLL = 2.0 * abs(l1 - l2)
+  DeltaLL = 2.0 * abs(l1 - l2)  # significance不就是sqrt(DeltaLL)???还和多出来的ndf有关？
   p = prob(DeltaLL,ndf)
   # math.sqrt(2) * erfc_inverse(p)
   return - normal_quantile(p / 2.0)

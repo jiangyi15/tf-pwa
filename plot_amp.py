@@ -31,7 +31,7 @@ def part_config(config,name=[]):
 def equal_pm(a,b):
   def remove_pm(s):
     ret = s
-    if s.endswith("p"):
+    if s.endswith("p"):  # 可能不够通用
       ret = s[:-1]
     elif s.endswith("m"):
       ret = s[:-1]
@@ -170,12 +170,12 @@ model = 3
 
 for i in range(len(param_list)):
   name = param_list[i]
-  if name.startswith("beta"):
+  if name.startswith("beta"):  # 不够通用化？
     name = "cos" + name
   if name in params_config:
     params_config[name]["idx"] = i
 
-def prepare_data(dtype="float64",model="3"):
+def prepare_data(dtype="float64",model="3"):  # 这个函数可以搞到data或application里
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
@@ -206,7 +206,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   w_bkg = 0.768331
   #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
-  config_list = config_list = load_config_file(res_file)
+  config_list = load_config_file(res_file)
   a = Model(config_list,w_bkg,kwargs={"polar":POLAR})
   #a.Amp.polar=POLAR
   with open(params_file) as f:  
@@ -259,7 +259,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   colors = [
     "black","red","green","blue","yellow","magenta","cyan","purple","teal","springgreen","azure"
   ] + colors
-  
+
   def plot_params(ax,name,bins=None,xrange=None,idx=0,display=None,units="GeV",legend=True):
     fd = lambda x:x
     if name.startswith("cos"):
@@ -296,6 +296,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
       ax.set_xlim(xrange[0], xrange[1])
     ax.set_ylim(0, None)
     ax.set_title(display)
+
   plot_list = [
     "m_BC","m_BD","m_CD",
     "alpha_BD","cosbeta_BD","alpha_B_BD","cosbeta_B_BD",
@@ -309,7 +310,6 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   for i in range(n):
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
-    
     name = plot_list[i]
     plot_params(ax,name,**params_config[name])
     fig.savefig("figure/"+name+".pdf")

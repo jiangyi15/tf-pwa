@@ -16,12 +16,12 @@ def main():
   pd = flat_mc_data[2]
   pd_a = np.array([pd.T,pd.X,pd.Y,pd.Z])
   #print(pd_a)
-  pd_a = pd_a.reshape((4,-1))
+  pd_a = pd_a.reshape((4,-1)) #放上面去
   
   pa = np.array([pd_a,pb_a,pc_a])
   #print(pa.shape)
   pa = np.transpose(pa,(2,0,1))
-  np.savetxt("data/flat_mc.dat",pa.reshape((-1,4)))
+  np.savetxt("data/flat_mc.dat",pa.reshape((-1,4)))  # 一个不包含探测器效率的MC样本
 
 if __name__=="__main__":
   main()

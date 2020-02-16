@@ -123,7 +123,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       if np.fabs(x).sum() > 1e7:
         x_p = dict(zip(args_name,x))
         raise Exception("x too large: {}".format(x_p))
-      points.append([float(i) for i in a.Amp.get_all_val()])#bd.get_y(x)])
+      points.append([float(i) for i in a.Amp.get_all_val()])
       nlls.append(float(fcn.cached_nll))
       if len(nlls)>maxiter:
         with open("fit_curve.json","w") as f:
@@ -131,13 +131,11 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
         raise Exception("Reached the largest iterations: {}".format(maxiter))
       print(fcn.cached_nll)
 
-    #bd = Bounds(bnds)
     a.Amp.set_bound(bounds_dict)
     f_g = a.Amp.trans_fcn_grad(fcn.nll_grad)
-    #f_g = bd.trans_f_g(fcn.nll_grad)
 
     s = minimize(f_g,np.array(a.Amp.get_all_val(True)),method=method,jac=True,callback=callback,options={"disp":1})
-    xn = a.Amp.get_all_val()#bd.get_y(s.x)
+    xn = a.Amp.get_all_val()
   elif method in ["L-BFGS-B"]:
     def callback(x):
       if np.fabs(x).sum() > 1e7:

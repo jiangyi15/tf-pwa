@@ -24,7 +24,7 @@ param_list = [
 ]
 
 
-def Getp(M_0, M_1, M_2) :
+def Getp(M_0, M_1, M_2) :  # M0->M1,M2时M1或M2的动量大小
   M12S = M_1 + M_2
   M12D = M_1 - M_2
   p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
