@@ -48,6 +48,11 @@ class LorentzVector(tf.Tensor):
     """
     LorentzVector functions
     """
+    @staticmethod
+    def from_p4(p_0, p_1, p_2, p_3):
+        zeros = tf.zeros_like(p_1)
+        return tf.stack([p_0 + zeros, p_1, p_2, p_3], axis=-1)
+
     def get_X(self):
         return self[..., 1]
 

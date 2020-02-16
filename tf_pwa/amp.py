@@ -12,7 +12,7 @@ TODO: using indices order to reduce transpose
 import functools
 import numpy as np
 import contextlib
-from opt_einsum import contract
+from opt_einsum import contract_path, contract
 from pprint import pprint
 import copy
 from pysnooper import snoop
@@ -49,7 +49,7 @@ def get_name(self, names):
 
 def add_var(self, names, is_complex=False, shape=(), **kwargs):
     name = get_name(self, names)
-    return Variable(name, shape, is_complex,**kwargs)
+    return Variable(name, shape, is_complex, **kwargs)
 
 
 def einsum(eins, *args, **kwargs):
@@ -76,9 +76,11 @@ def einsum(eins, *args, **kwargs):
             else:
                 idx_1.append(j)
         a_args.append(tf.reshape(arg, shape_2))
+    # print(eins, *shapes)
+    # print(contract_path(eins, shapes))
     for i in idx_1:
         eins = eins.replace(i, "")
-    ret = tf.einsum(eins, *a_args, **kwargs)
+    ret = contract(eins, *a_args, **kwargs)
     return tf.reshape(ret, final_shape)
 
 
@@ -98,20 +100,6 @@ def simple_deepcopy(dic):
     if isinstance(dic, tuple):
         return tuple([simple_deepcopy(v) for v in dic])
     return dic
-
-
-class Var(object):
-    def __init__(self, name):
-        self.name = name
-
-    def __set__(self, instance, value):
-        instance.__dict__[self.name] = value
-
-    def __get__(self, instance, var):
-        value = instance.__dict__[self.name]
-        if callable(value):
-            return value()
-        return value
 
 
 def simple_cache_fun(f):
@@ -135,9 +123,6 @@ def get_relative_p(m_0, m_1, m_2):
 
 
 class Particle(BaseParticle):
-    mass = Var("mass")
-    width = Var("width")
-
     def __init__(self, *args, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
 
@@ -148,21 +133,33 @@ class Particle(BaseParticle):
             self.width = add_var(self, "width")
 
     def get_amp(self, data, data_c=None):
+        mass = self.get_mass()
+        width = self.get_width()
         if data_c is None:
+            BW(data["m"], mass, width)
             return tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
         decay = self.decay[0]
         # return BW(data["m"], self.mass, self.width)
         q = data_c["|q|"]
         q0 = data_c["|q0|"]
-        ret = BWR(data["m"], self.mass, self.width, q, q0, min(decay.get_l_list()), decay.d)
+        ret = BWR(data["m"], mass, width, q, q0, min(decay.get_l_list()), decay.d)
         return ret  # tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
 
     def amp_shape(self):
         return ()
 
+    def get_mass(self):
+        if callable(self.mass):
+            return self.mass()
+        return self.mass
+
+    def get_width(self):
+        if callable(self.width):
+            return self.width()
+        return self.width
+
 
 class HelicityDecay(Decay):
-    g_ls = Var("g_ls")
 
     def __init__(self, *args, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
@@ -212,7 +209,7 @@ class HelicityDecay(Decay):
 
     def get_helicity_amp(self, data, data_p):
 
-        g_ls = tf.stack(self.g_ls)
+        g_ls = tf.stack(self.g_ls())
         norm_r, norm_i = tf.math.real(g_ls), tf.math.imag(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
@@ -280,7 +277,6 @@ class HelicityDecay(Decay):
 
 class DecayChain(BaseDecayChain):
     """A list of Decay as a chain decay"""
-    total = Var("total")
 
     def __init__(self, *args, **kwargs):
         super(DecayChain, self).__init__(*args, **kwargs)
@@ -289,7 +285,7 @@ class DecayChain(BaseDecayChain):
         self.total = add_var(self, "total", is_complex=True)
 
     def get_amp_total(self):
-        return self.total
+        return self.total()
 
     def get_amp(self, data_c, data_p, base_map=None):
         base_map = self.get_base_map(base_map)
@@ -462,6 +458,34 @@ class DecayGroup(BaseDecayGroup):
     def set_used_chains(self, used_chains):
         self.chains_idx = list(used_chains)
 
+    def partial_weight(self, data, combine=None):
+        chains = list(self.chains)
+        if combine is None:
+            combine = [[i] for i in range(len(chains))]
+        o_used_chains = self.chains_idx
+        weights = []
+        for i in combine:
+            self.set_used_chains(i)
+            weight = self.sum_amp(data)
+            weights.append(weight)
+        self.set_used_chains(o_used_chains)
+        return weights
+
+    def generate_phasespace(self, num=100000):
+
+        def get_mass(i):
+            mass = i.get_mass()
+            if mass is None:
+                raise Exception("mass is required for particle {}".format(i))
+            return mass
+
+        top_mass = get_mass(self.top)
+        final_mass = [get_mass(i) for i in self.outs]
+        from .phasespace_tf import PhaseSpaceGenerator
+        a = PhaseSpaceGenerator(top_mass, final_mass)
+        data = a.generate(num)
+        return dict(zip(self.outs, data))
+
 
 def index_generator(base_map=None):
     indices = "abcdefghjklmnopqrstuvwxyz"
@@ -514,6 +538,12 @@ class AmplitudeModel(object):
 
     def set_used_res(self, res):
         self.decay_group.set_used_res(res)
+
+    def set_used_chains(self, used_chains):
+        self.decay_group.set_used_chains(used_chains)
+
+    def partial_weight(self, data, combine=None):
+        return self.decay_group.partial_weight(data, combine)
 
     def get_params(self):
         return self.vm.get_all()
