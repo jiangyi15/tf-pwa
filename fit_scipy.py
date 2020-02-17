@@ -4,13 +4,12 @@ import tensorflow as tf
 import time
 import numpy as np
 import json
-from scipy.optimize import minimize,BFGS,basinhopping
+#from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
-from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import math
 
-from tf_pwa.applications import fit_fractions,cal_hesse_error,calPWratio,gen_data
+from tf_pwa.applications import fit_scipy,fit_fractions,cal_hesse_error,calPWratio,gen_data
 
 mode = "3"
 if mode=="4":
@@ -108,45 +107,12 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
   #print("nll:",nll,"Time:",time.time()-t)
   #exit()
-  fcn = FCN(a)
   print("########## chain decay:")
   for i in a.Amp.A.chain_decay():
     print(i)
-  
-  points = []
-  nlls = []
   now = time.time()
-  maxiter = 2000
-  #s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
-  if method in ["BFGS","CG","Nelder-Mead"]:
-    def callback(x):
-      if np.fabs(x).sum() > 1e7:
-        x_p = dict(zip(args_name,x))
-        raise Exception("x too large: {}".format(x_p))
-      points.append([float(i) for i in a.Amp.get_all_val()])
-      nlls.append(float(fcn.cached_nll))
-      if len(nlls)>maxiter:
-        with open("fit_curve.json","w") as f:
-          json.dump({"points":points,"nlls":nlls},f,indent=2)
-        raise Exception("Reached the largest iterations: {}".format(maxiter))
-      print(fcn.cached_nll)
+  s, nlls, points = fit_scipy(model=a,bounds_dict=bounds_dict)
 
-    a.Amp.set_bound(bounds_dict)
-    f_g = a.Amp.trans_fcn_grad(fcn.nll_grad)
-
-    s = minimize(f_g,np.array(a.Amp.get_all_val(True)),method=method,jac=True,callback=callback,options={"disp":1})
-    xn = a.Amp.get_all_val()
-  elif method in ["L-BFGS-B"]:
-    def callback(x):
-      if np.fabs(x).sum() > 1e7:
-        x_p = dict(zip(args_name,x))
-        raise Exception("x too large: {}".format(x_p))
-      points.append([float(i) for i in x])
-      nlls.append(float(fcn.cached_nll))
-    s = minimize(fcn.nll_grad,a.Amp.get_all_val(),method=method,jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":10000,"ftol":1e-15,"maxiter":maxiter})
-    xn = s.x
-  else :
-    raise Exception("unknown method")
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)
@@ -155,10 +121,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   a.set_params(val)
   params = a.get_params()
   with open("fit_curve.json","w") as f:
-    json.dump({"points":points,"nlls":nlls},f,indent=2)
-  outdic={"value":params,"config":config_list}
-  with open("final_params.json","w") as f:                                      
-    json.dump(outdic,f,indent=2)
+    json.dump({"nlls": nlls, "points": points},f,indent=2)
   err=None
   if hesse:
     inv_he = cal_hesse_error(a)

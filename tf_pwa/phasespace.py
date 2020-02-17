@@ -4,7 +4,7 @@ from math import pi
 from .angle import LorentzVector
 import numpy as np
 
-def get_p(M, ma, mb):  # 同amplitude.Getp
+def get_p(M, ma, mb):  # 同amplitude.Getp，放到particle.decay里比较好吧
   m2 = M * M
   m_p = (ma + mb)**2
   m_m = (ma - mb)**2

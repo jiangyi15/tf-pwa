@@ -18,6 +18,7 @@ if mode=="4":
 else:
   from tf_pwa.amplitude import AllAmplitude,param_list
 
+from tf_pwa.applications import fit_scipy
 
 
 def prepare_data(dtype="float64",model="3"):
@@ -142,27 +143,13 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,init_params={},batch=65000,niter=1
   #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
   #print("nll:",nll,"Time:",time.time()-t)
   #exit()
-  fcn = FCN(a)
+
   print("########## chain decay:")
   for i in a.Amp.A.chain_decay():
     print(i,flush=True)
-  
-  points = []
-  nlls = []
   now = time.time()
-  #maxiter = 10000
-  def callback(x):
-    if np.fabs(x).sum() > 1e7:
-      x_p = dict(zip(args_name,x))
-      raise Exception("x too large: {}".format(x_p))
-    points.append([float(i) for i in a.Amp.get_all_val()])
-    nlls.append(float(fcn.cached_nll))
-    print(fcn.cached_nll)
-  f_g = a.Amp.trans_fcn_grad(fcn.nll_grad)
-  #s = minimize(f_g,np.array(bd.get_x(x0)),method=method,jac=True,callback=callback,options={"disp":1})
-  with tf.device("/device:CPU:0"):
-    s = basinhopping(f_g,np.array(a.Amp.get_all_val(True)),niter=niter,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
-  
+
+  s, nlls, points = fit_scipy(a,method="basinhopping",bounds_dict=bounds_dict,niter=niter)
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)

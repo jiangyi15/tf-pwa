@@ -24,7 +24,7 @@ class VarsManager(object):
     self.complex_vars = {} # {name:polar(bool),...}
     self.same_list = [] # [[name1,name2],...]
 
-    self.fix_dic = {} # {name:value,...}
+    #self.range = {}
     self.bnd_dic = {} # {name:(a,b),...}
 
     self.var_head = {} # {head:[name1,name2],...}
@@ -45,7 +45,6 @@ class VarsManager(object):
 
     if trainable:
       self.trainable_vars.append(name)
-
 
   def add_complex_var(self,name, polar=True,trainable=True,fix_vals=(1.0,0.0)):
     var_r = name+'r'
@@ -86,14 +85,46 @@ class VarsManager(object):
           l.remove(name)
       del self.variables[name]
 
+  def refresh_vars(self,name):
+    cplx_vars = []
+    for name in self.complex_vars:
+      name_r = name+'r'
+      name_i = name+'i'
+      if self.complex_vars[name]==False:  # xy coordinate
+        if name_r in self.trainable_vars:
+          cplx_vars.append(name_r)
+          self.variables[name_r].assign(tf.random.uniform(shape=[], minval=-1, maxval=1, dtype=self.dtype))
+        if name_i in self.trainable_vars:
+          cplx_vars.append(name_i)
+          self.variables[name_i].assign(tf.random.uniform(shape=[], minval=-1, maxval=1, dtype=self.dtype))
+      else:  # polar coordinate
+        if name_r in self.trainable_vars:
+          cplx_vars.append(name_r)
+          self.variables[name_r].assign(tf.random.uniform(shape=[], minval=0, maxval=2, dtype=self.dtype))
+        if name_i in self.trainable_vars:
+          cplx_vars.append(name_i)
+          self.variables[name_i].assign(tf.random.uniform(shape=[], minval=-np.pi, maxval=np.pi, dtype=self.dtype))
+    real_vars = self.trainable_vars.copy()  # 实变量还没refresh
+    for i in real_vars:
+      if i in cplx_vars:
+        real_vars.remove(i)
 
-  def set_fix(self,name,value): # fix a var (make it untrainable)
-    var = tf.Variable(value,name=name,dtype=self.dtype,trainable=False)
+
+  def set_fix(self,name,value=None,unfix=False): # fix or unfix a var (change the trainablity)
+    if value==None:
+      value = self.variables[name].value
+    var = tf.Variable(value,name=name,dtype=self.dtype,trainable=unfix)
     self.variables[name] = var
-    try:
-      self.trainable_vars.remove(name)
-    except:
-      warnings.warn("{} has been fixed already!".format(name))
+    if unfix:
+      if name in self.trainable_vars:
+        warnings.warn("{} has been freed already!".format(name))
+      else:
+        self.trainable_vars.append(name)
+    else:
+      if name in self.trainable_vars:
+        self.trainable_vars.remove(name)
+      else:
+        warnings.warn("{} has been fixed already!".format(name))
 
   def set_bound(self,bound_dic,func=None): # set boundary for a var
     for name in bound_dic:
@@ -395,6 +426,12 @@ class Variable(object):
       self.vm.set_fix(self.name,value)
     else:
       raise Exception("Only shape==() real var supports 'fixed' method.")
+
+  def freed(self):
+    if not self.shape:
+      self.vm.set_fix(self.name, unfix=False)
+    else:
+      raise Exception("Only shape==() real var supports 'freed' method.")
 
   def set_bound(self,bound,func=None):
     if not self.shape:

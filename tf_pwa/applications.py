@@ -194,6 +194,51 @@ def gen_data(Ndata, Nbg, wbg, scale=1.2, Poisson_fluc=False, save_pkl=True, file
     return data
 
 
+from tf_pwa.phasespace import PhaseSpaceGenerator
+def gen_mc(mother,daughters,number,outfile="data/flat_mc.dat"):
+    '''
+    generate phase space MC data not considering the effect of detector performance
+    :param mother: 4.59925
+    :param daughters: [2.01026,0.13957061,2.00685]
+    :param number:
+    :param outfile:
+    :return:
+    '''
+    phsp = PhaseSpaceGenerator(mother, daughters)
+    flat_mc_data = phsp.generate(number)
+    pf = []
+    for i in len(daughters):
+        p = flat_mc_data[i]
+        p_a = np.array([p.T, p.X, p.Y, p.Z]).reshape((4, -1))  # (T,X,Y,Z)
+        pf.append(p_a)  # daughters和pf的顺序须一致
+    pf = np.transpose(pf, (2, 0, 1)).reshape((-1, 4))
+    np.savetxt(outfile, pf)  # 一个不包含探测器效率的MC样本
+    return pf
+
+
+from .fit import fit_scipy, fit_minuit, fit_multinest
+def fit(Use="scipy",**kwargs):
+    '''
+    fit using scipy, iminuit or pymultinest
+    :param Use:
+    :param kwargs:
+    :return:
+    '''
+    if Use=="scipy":
+        ret = fit_scipy(**kwargs)
+    elif Use=="minuit":
+        ret = fit_minuit(**kwargs)
+    elif Use=="multinest":
+        ret = fit_multinest(**kwargs)
+    else:
+        raise Exception("Unknown fit tool {}".format(Use))
+    return ret
+
+
+from .significance import significance
+def cal_significance():
+    pass
+
 
 ### plot-related ###
 
