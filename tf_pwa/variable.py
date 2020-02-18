@@ -246,15 +246,17 @@ class VarsManager(object):
         dic[i] = self.variables[i].numpy()
     return dic
 
-  def set_all(self,vals): # use either dict or list
-    if type(vals)==dict:
+  def set_all(self,vals,bound_trans=False): # use either dict or list
+    if type(vals)!=dict:
+      vals = dict(zip(self.trainable_vars,vals))
+    if bound_trans:
+      for name in vals:
+        if name in self.bnd_dic:
+          vals[name] = self.bnd_dic[name].get_x2y(vals[name])
+        self.set(name, vals[name])
+    else:
       for name in vals:
         self.set(name,vals[name])
-    else:
-      i = 0
-      for name in self.trainable_vars:
-        self.set(name,vals[i])
-        i+=1
 
 
   def rp2xy_all(self,name_list=None):
