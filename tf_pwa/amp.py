@@ -27,7 +27,7 @@ from .variable import VarsManager, Variable
 from .data import data_shape, split_generator, data_to_tensor, data_map
 
 from .config import regist_config, get_config, temp_config
-
+from .einsum import einsum
 
 def data_device(data):
     
@@ -50,38 +50,6 @@ def get_name(self, names):
 def add_var(self, names, is_complex=False, shape=(), **kwargs):
     name = get_name(self, names)
     return Variable(name, shape, is_complex, **kwargs)
-
-
-def einsum(eins, *args, **kwargs):
-    has_ellipsis = False
-    if "..." in eins:
-        has_ellipsis = True
-        eins = eins.replace("...", "I")
-    inputs, final = eins.split("->")
-    idx = inputs.split(",")
-    order = "".join(idx)
-    shapes = [list(i.shape) for i in args]
-    idx_size = {}
-    for i, j in zip(idx, shapes):
-        for k, v in zip(i, j):
-            idx_size[k] = v
-    final_shape = [idx_size[i] for i in final]
-    a_args = []
-    idx_1 = []
-    for i, shape, arg in zip(idx, shapes, args):
-        shape_2 = []
-        for j, s in zip(i, shape):
-            if s != 1:
-                shape_2.append(s)
-            else:
-                idx_1.append(j)
-        a_args.append(tf.reshape(arg, shape_2))
-    # print(eins, *shapes)
-    # print(contract_path(eins, shapes))
-    for i in idx_1:
-        eins = eins.replace(i, "")
-    ret = contract(eins, *a_args, **kwargs)
-    return tf.reshape(ret, final_shape)
 
 
 @contextlib.contextmanager
@@ -210,7 +178,6 @@ class HelicityDecay(Decay):
     def get_helicity_amp(self, data, data_p):
 
         g_ls = tf.stack(self.g_ls())
-        norm_r, norm_i = tf.math.real(g_ls), tf.math.imag(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
         if "|q|" in data:
@@ -219,7 +186,7 @@ class HelicityDecay(Decay):
             q = self.get_relative_momentum(data_p, True)
             data["|q|"] = q
         bf = barrier_factor(self.get_l_list(), q, q0, self.d)
-        mag = tf.complex(tf.cast(norm_r, bf.dtype), tf.cast(norm_i, bf.dtype))
+        mag = g_ls
         # meg = tf.reshape(meg, (-1, 1))
         m_dep = mag * tf.cast(bf, mag.dtype)
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)

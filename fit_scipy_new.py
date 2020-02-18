@@ -206,7 +206,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     # now = time.time()
     # print(model.nll_grad_hessian(data, mcdata, batch=10000))
     # print(time.time() - now)
-    fcn = FCN(model, data, mcdata, bg=bg, batch=27000)
+    fcn = FCN(model, data, mcdata, bg=bg, batch=65000)
 
     # fit configure
     args = {}
@@ -227,7 +227,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             bnds.append((None, None))
         args["error_" + i.name] = 0.1
 
-    check_grad = False
+    check_grad = True
     if check_grad:
         _, gs0 = fcn.nll_grad(x0)
         gs = []

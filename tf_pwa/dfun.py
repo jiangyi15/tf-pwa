@@ -74,8 +74,10 @@ def small_d_matrix(theta, j):
     """
     a = tf.reshape(tf.range(0, j+1, 1), (1, -1))
 
-    sintheta = tf.reshape(tf.sin(theta/2), (-1, 1))
-    costheta = tf.reshape(tf.cos(theta/2), (-1, 1))
+    half_theta = 0.5 * theta
+
+    sintheta = tf.reshape(tf.sin(half_theta), (-1, 1))
+    costheta = tf.reshape(tf.cos(half_theta), (-1, 1))
 
     a = tf.cast(a, dtype=sintheta.dtype)
     s = tf.pow(sintheta, a)
