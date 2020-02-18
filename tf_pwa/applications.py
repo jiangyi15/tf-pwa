@@ -241,6 +241,27 @@ def cal_significance():
 
 
 ### plot-related ###
+import matplotlib.pyplot as plt
+
+def likelihood_profile(var_name,start=None,end=None,step=None,values=None,errors=None,mode="bothsides"):
+    if start==None or end==None:
+        x_mean = values[var_name]
+        x_sigma = errors[var_name]
+        start = x_mean-10*x_sigma
+        end = x_mean+10*x_sigma
+    else:
+        x_mean = (end+start)/2
+    if step==None:
+        step = (end-start)/100
+    if mode=="bothsides":
+        x1 = np.arange(x_mean,start,-step)
+        x2 = np.arange(x_mean,end,step)
+        #
+    elif mode=="back&forth":
+        x1 = np.arange(start,end,step)
+        x2 = x1[::-1]
+        #
+
 
 def compare_result(rslt_file1,rslt_file2,figname=None,yrange=None):
   '''

@@ -37,11 +37,11 @@ class VarsManager(object):
 
     if value is None:
       if range_ is None: # random [0,1]
-        self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=0.,maxval=1.,dtype=self.dtype),name=name,trainable=trainable)
+        self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=0.,maxval=1.,dtype=self.dtype),trainable=trainable)
       else: # random [a,b]
-        self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=range_[0],maxval=range_[1],dtype=self.dtype),name=name,trainable=trainable)
+        self.variables[name] = tf.Variable(tf.random.uniform(shape=[],minval=range_[0],maxval=range_[1],dtype=self.dtype),trainable=trainable)
     else: # constant value
-      self.variables[name] = tf.Variable(value,name=name,dtype=self.dtype,trainable=trainable)
+      self.variables[name] = tf.Variable(value,dtype=self.dtype,trainable=trainable)
 
     if trainable:
       self.trainable_vars.append(name)
@@ -113,7 +113,7 @@ class VarsManager(object):
   def set_fix(self,name,value=None,unfix=False): # fix or unfix a var (change the trainablity)
     if value==None:
       value = self.variables[name].value
-    var = tf.Variable(value,name=name,dtype=self.dtype,trainable=unfix)
+    var = tf.Variable(value,dtype=self.dtype,trainable=unfix)
     self.variables[name] = var
     if unfix:
       if name in self.trainable_vars:
