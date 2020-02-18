@@ -10,7 +10,7 @@ from tf_pwa.angle import cal_ang_file,cal_ang_file4,EularAngle
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint
 import os
 from math import pi
-from generate_toy import generate_data
+from tf_pwa.applications import gen_data
 
 def config_split(config):
   ret = {}
@@ -31,7 +31,7 @@ def part_config(config,name=[]):
 def equal_pm(a,b):
   def remove_pm(s):
     ret = s
-    if s.endswith("p"):
+    if s.endswith("p"):  # 可能不够通用
       ret = s[:-1]
     elif s.endswith("m"):
       ret = s[:-1]
@@ -170,12 +170,12 @@ model = 3
 
 for i in range(len(param_list)):
   name = param_list[i]
-  if name.startswith("beta"):
+  if name.startswith("beta"):  # 不够通用化？
     name = "cos" + name
   if name in params_config:
     params_config[name]["idx"] = i
 
-def prepare_data(dtype="float64",model="3"):
+def prepare_data(dtype="float64",model="3"):  # 这个函数可以搞到data或application里
   fname = [["./data/data4600_new.dat","data/Dst0_data4600_new.dat"],
        ["./data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
        ["./data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
@@ -206,7 +206,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   w_bkg = 0.768331
   #set_gpu_mem_growth()
   tf.keras.backend.set_floatx(dtype)
-  config_list = config_list = load_config_file(res_file)
+  config_list = load_config_file(res_file)
   a = Model(config_list,w_bkg,kwargs={"polar":POLAR})
   #a.Amp.polar=POLAR
   with open(params_file) as f:  
@@ -218,7 +218,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   pprint(a.get_params())
   
   data, bg, mcdata = prepare_data()
-  #data = generate_data(8065,3445,w_bkg,1.1,True)
+  #data = gen_data(8065,3445,w_bkg,1.1,True)
   data_cache = a.Amp.cache_data(*data)
   bg_cache = a.Amp.cache_data(*bg)
   mcdata_cache = a.Amp.cache_data(*mcdata)
@@ -259,7 +259,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   colors = [
     "black","red","green","blue","yellow","magenta","cyan","purple","teal","springgreen","azure"
   ] + colors
-  
+
   def plot_params(ax,name,bins=None,xrange=None,idx=0,display=None,units="GeV",legend=True):
     fd = lambda x:x
     if name.startswith("cos"):
@@ -296,6 +296,7 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
       ax.set_xlim(xrange[0], xrange[1])
     ax.set_ylim(0, None)
     ax.set_title(display)
+
   plot_list = [
     "m_BC","m_BD","m_CD",
     "alpha_BD","cosbeta_BD","alpha_B_BD","cosbeta_B_BD",
@@ -309,119 +310,11 @@ def plot(params_file="final_params.json",res_file="Resonances",res_list=None,pm_
   for i in range(n):
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
-    
     name = plot_list[i]
     plot_params(ax,name,**params_config[name])
     fig.savefig("figure/"+name+".pdf")
     fig.savefig("figure/"+name+".png",dpi=300)
  
-
-
-def calPWratio(params,POLAR=True):
-  dtype = "float64"
-  w_bkg = 0.768331
-  #set_gpu_mem_growth()
-  tf.keras.backend.set_floatx(dtype)
-  config_list = load_config_file("Resonances")
-  a = Model(config_list,w_bkg,kwargs={"polar":POLAR})
-  
-  args_name = []
-  for i in a.Amp.trainable_variables:
-    args_name.append(i.name)
-  #a.Amp.polar=True
-
-  a.set_params(params)
-  if not POLAR:# if final_params.json is not in polar coordinates
-    i = 0 
-    for v in args_name:
-      if len(v)>15:
-        if i%2==0:
-          tmp_name = v
-          tmp_val = params[v]
-        else:
-          params[tmp_name] = np.sqrt(tmp_val**2+params[v]**2)
-          params[v] = np.arctan2(params[v],tmp_val)
-      i+=1
-    a.set_params(params)
-  fname = [["data/data4600_new.dat","data/Dst0_data4600_new.dat"],
-       ["data/bg4600_new.dat","data/Dst0_bg4600_new.dat"],
-       ["data/PHSP4600_new.dat","data/Dst0_PHSP4600_new.dat"]
-  ]
-  tname = ["data","bg","PHSP"]
-  data_np = {}
-  for i in range(3):
-    data_np[tname[i]] = cal_ang_file(fname[i][0],dtype)
-  
-  def load_data(name):
-    dat = []
-    tmp = flatten_np_data(data_np[name])
-    for i in param_list:
-      tmp_data = tf.Variable(tmp[i],name=i,dtype=dtype)
-      dat.append(tmp_data)
-    return dat
-  data = load_data("data")
-  bg = load_data("bg")
-  mcdata = load_data("PHSP")
-  data_cache = a.Amp.cache_data(*data)
-  bg_cache = a.Amp.cache_data(*bg)
-  mcdata_cache = a.Amp.cache_data(*mcdata)
-  total = a.Amp(mcdata_cache,cached=True)
-  a_sig = {}
-
-  #res_list = [[i] for i in config_list]
-  res_list = [
-    ["Zc_4025"],
-    ["Zc_4160"],
-    ["D1_2420","D1_2420p"],
-    ["D1_2430","D1_2430p"],
-    ["D2_2460","D2_2460p"],
-  ]
-  
-  config_res = [part_config(config_list,i) for i in res_list]
-  PWamp = {}
-  for i in range(len(res_list)):
-    name = res_list[i]
-    if isinstance(name,list):
-      if len(name) > 1:
-        name = reduce(lambda x,y:"{}+{}".format(x,y),res_list[i])
-      else :
-        name = name[0]
-    a_sig[i] = Model(config_res[i],w_bkg,kwargs={"polar":POLAR})
-    p_list = [[],[]]
-    for p in a_sig[i].get_params():
-      if p[-3]=='r' and len(p)>15:
-        if p[8]=='d':
-          p_list[1].append(p)
-        else:
-          p_list[0].append(p)
-    first = True
-    for p in p_list[0]:
-      a_sig[i].set_params(params)
-      for q in p_list[0]:
-        a_sig[i].set_params({q:0})
-      a_sig[i].set_params({p:params[p]})
-      if first:
-        norm = a_sig[i].Amp(mcdata_cache,cached=True).numpy().sum()
-        print(p[:-3],"\t",1.0)
-        first = False
-      else:
-        print(p[:-3],"\t",a_sig[i].Amp(mcdata_cache,cached=True).numpy().sum()/norm)
-    first = True
-    for p in p_list[1]:
-      a_sig[i].set_params(params)
-      for q in p_list[1]:
-        a_sig[i].set_params({q:0})
-      a_sig[i].set_params({p:params[p]})
-      if first:
-        norm = a_sig[i].Amp(mcdata_cache,cached=True).numpy().sum()
-        print(p[:-3],"\t",1.0)
-        first = False
-      else:
-        print(p[:-3],"\t",a_sig[i].Amp(mcdata_cache,cached=True).numpy().sum()/norm)
-    print()
-    #print(a_sig[i].get_params())
-    #a_weight[i] = a_sig[i].Amp(mcdata_cache,cached=True).numpy()
-    #PWamp[name] = a_weight[i].sum()/(n_data - w_bkg*n_bg)
 
 
 if __name__=="__main__":

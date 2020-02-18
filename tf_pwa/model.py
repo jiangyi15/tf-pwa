@@ -294,10 +294,10 @@ class Model(object):
  
 
   def get_params(self):
-    return self.Amp.get_params()
+    return self.Amp.get_all_dic()
   
   def set_params(self,param): #改到amplitude里？
-    self.Amp.set_params(param)
+    self.Amp.set_all(param)
 
 
 class Cache_Model(Model):
@@ -418,6 +418,8 @@ class FCN(object):
     self.cached_nll = nll
     self.ncall += 1
     self.n_grad += 1
+    #print("#####",nll)
+    #print("&&&&&",[i.numpy() for i in g])
     return nll.numpy().astype("float64"), np.array([i.numpy() for i in g]).astype("float64")
   
   def nll_grad_hessian(self,x):

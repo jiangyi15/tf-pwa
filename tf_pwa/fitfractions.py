@@ -10,7 +10,7 @@ def nll_grad(f, var, args=(), kwargs=None, options=None):
     with tf.GradientTape() as tape:
       ret = f(*args, **kwargs)
     g = tape.gradient(ret, var, unconnected_gradients="zero", **options)
-    return ret, g #到底返回个啥？
+    return ret, g
   return f_w
 
 def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):

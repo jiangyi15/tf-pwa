@@ -5,9 +5,8 @@ from tf_pwa.model import Cache_Model,param_list,FCN
 from tf_pwa.angle import cal_ang_file,EularAngle
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
 from tf_pwa.fitfractions import cal_fitfractions
-from generate_toy import generate_data
-from plot_amp import calPWratio
-from iminuit import Minuit
+from tf_pwa.applications import fit_fractions, fit_minuit
+#from iminuit import Minuit
 import time
 import json
 
@@ -44,7 +43,7 @@ def fit(init_params="init_params.json",hesse=True,minos=False,frac=True):
   dtype = "float64"
   w_bkg = 0.768331
   #set_gpu_mem_growth()
-  tf.keras.backend.set_floatx(dtype)
+  #tf.keras.backend.set_floatx(dtype)
   config_list = load_config_file("Resonances")
 
   data, bg, mcdata = prepare_data(dtype=dtype)
@@ -62,10 +61,8 @@ def fit(init_params="init_params.json",hesse=True,minos=False,frac=True):
         a.set_params(param["value"])
       else :
         a.set_params(param)
-    RDM_INI = False
   except Exception as e:
     #print(e)
-    RDM_INI = True
     print("using random parameters")
   a.Amp.trans_params(polar=POLAR)
 
@@ -100,65 +97,26 @@ def fit(init_params="init_params.json",hesse=True,minos=False,frac=True):
       for j in range(len(g0)):
         print((g0[j]-g1[j]).numpy()/2e-3)
   '''
-  
-  args = {}
-  args_name = []
-  x0 = []
-  bounds_dict = {
-      "Zc_4160_m0:0":(4.1,4.22),
-      "Zc_4160_g0:0":(0,None)
-  }
-  for i in a.Amp.trainable_variables:
-    args[i.name] = i.numpy()
-    x0.append(i.numpy())
-    args_name.append(i.name)
-    if i.name in bounds_dict:
-      args["limit_{}".format(i)] = bounds_dict[i]
-    args["error_"+i.name] = 0.1
- 
-  '''if RDM_INI and (not POLAR): # change random initial params to x,y coordinates
-    val = a.get_params()
-    i = 0 
-    for v in args_name:
-      if len(v)>15:
-        if i%2==0:
-          tmp_name = v
-          tmp_val = val[v]
-        else:
-          val[tmp_name] = tmp_val*np.cos(val[v])
-          val[v] = tmp_val*np.sin(val[v])
-        i+=1
-    a.set_params(val)'''
+
   pprint(a.get_params())
+  bounds_dict = {
+    "Zc_4160_m0:0": (4.1, 4.22),
+    "Zc_4160_g0:0": (0, None)
+  }
 
-  fcn = FCN(a)
-  m = Minuit(fcn,forced_parameters=args_name,errordef = 0.5,grad=fcn.grad,print_level=2,use_array_call=True,**args)
+  m = fit_minuit(a,bounds_dict=bounds_dict,hesse=True,minos=False)
 
-  print("########## begin MIGRAD")
-  now = time.time()
-  m.migrad()#(ncall=10000))#,precision=5e-7))
-  print("MIGRAD Time",time.time() - now)
-  if hesse:
-    print("########## begin HESSE")
-    now = time.time()
-    m.hesse()
-    print("HESSE Time",time.time() - now)
-  if minos:
-    print("########## begin MINOS")
-    now = time.time()
-    m.minos()#(var="")
-    print("MINOS Time",time.time() - now)
   print("########## fit results")
   print(m.values)
   print(m.errors)
   #print(m.get_param_states())
-  
+
   err_mtrx=m.np_covariance()
   np.save("error_matrix.npy",err_mtrx)
   err=dict(m.errors)
 
   params = a.get_params()
-  print("\n########## fitting params in polar expression")
+  '''print("\n########## fitting params in polar expression")
   i = 0
   for v in params:
     if len(v)>15:
@@ -184,23 +142,15 @@ def fit(init_params="init_params.json",hesse=True,minos=False,frac=True):
     params[v.rstrip('pm')+'r:0'] = rho
     params[v+'i:0'] = phi
     print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
-  a.set_params(params)
+  a.set_params(params)'''
 
   outdic={"value":params,"error":err}
   with open("final_params.json","w") as f:                                      
     json.dump(outdic,f,indent=2)
-  print("\n########## ratios of partial wave amplitude square")
-  calPWratio(params,POLAR)
+
 
   if frac:
-    mcdata_cached = a.Amp.cache_data(*mcdata,batch=65000)
-    frac,grad = cal_fitfractions(a.Amp,mcdata_cached,kwargs={"cached":True})
-    err_frac = {}
-    for i in config_list:
-      if hesse:
-        err_frac[i] = np.sqrt(np.dot(np.dot(err_mtrx,grad[i]),grad[i]))
-      else :
-        err_frac[i] = None
+    frac, err_frac = fit_fractions(a,mcdata,config_list,inv_he,hesse)
     print("########## fit fractions")
     for i in config_list:
       print(i,":",error_print(frac[i],err_frac[i]))

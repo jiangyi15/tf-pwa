@@ -7,9 +7,8 @@ import json
 from scipy.optimize import minimize,BFGS,basinhopping
 from tf_pwa.angle import cal_ang_file,cal_ang_file4
 from tf_pwa.utils import load_config_file,flatten_np_data,pprint,error_print,std_polar
-from tf_pwa.fitfractions import cal_fitfractions
+
 import math
-from tf_pwa.bounds import Bounds
 from tf_pwa.significance import significance
 import functools
 
@@ -18,21 +17,8 @@ if mode=="4":
   from tf_pwa.amplitude4 import AllAmplitude4 as AllAmplitude,param_list
 else:
   from tf_pwa.amplitude import AllAmplitude,param_list
-  
 
-def cal_hesse_error(Amp,val,w_bkg,data,mcdata,bg,args_name,batch):
-  a_h = Cache_Model(Amp,w_bkg,data,mcdata,bg=bg,batch=24000)
-  a_h.set_params(val)
-  t = time.time()
-  nll,g,h = a_h.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
-  print("Time for calculating errors:",time.time()-t)
-  #print(nll)
-  #print([i.numpy() for i in g])
-  #print(h.numpy())
-  inv_he = np.linalg.pinv(h.numpy())
-  np.save("error_matrix.npy",inv_he)
-  #print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
-  return inv_he
+from tf_pwa.applications import fit_scipy
 
 
 def prepare_data(dtype="float64",model="3"):
@@ -65,30 +51,29 @@ def cal_significance(config_list,delta_res=None,method="-",prefix=""):
   dtype = "float64"
   w_bkg = 0.768331
   #set_gpu_mem_growth()
-  tf.keras.backend.set_floatx(dtype)
+  #tf.keras.backend.set_floatx(dtype)
   # open Resonances list as dict 
   
   data, bg, mcdata = prepare_data(dtype=dtype,model=mode)
   curves = {}
   sigmas = {}
+  base_config_list = config_list.copy()
   if method == "-":
     if delta_res is None:
       delta_res = [[i] for i in config_list]
     delta_config = {}
-    base_config_list = config_list.copy()
     for i in delta_res:
       tmp = config_list.copy()
       for j in i:
-        tmp.pop(j)
+        tmp.pop(j) # pop的参数应该是个int吧？？？
       if len(i)==1:
         delta_config[i[0]] = tmp
       else:
-        name = functools.reduce(lambda x,y:x+"+"+y,i)
+        name = functools.reduce(lambda x,y:x+"+"+y,i) # "D+Dp+Dm"
         delta_config[name] = tmp
   elif method == "+":
     if delta_res is None:
       raise Exception("for method `+` delta_res is required!")
-    base_config_list = config_list.copy()
     delta_config = {}
     for i in delta_res:
       for j in i:
@@ -108,7 +93,7 @@ def cal_significance(config_list,delta_res=None,method="-",prefix=""):
   base_fit,val,curve = fit(base_config_list,w_bkg,data,mcdata,bg)
   print("########## base FCN",base_fit.fun)
   curves["all"] = curve
-  n_all = len(base_fit.x)
+  n_all = len(base_fit.x) # number of fitting parameters
   for i in delta_config:
     print("########## fit",i)
     sig_fit,val,curve = fit(delta_config[i],w_bkg,data,mcdata,bg)
@@ -158,46 +143,31 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,init_params={},batch=65000,niter=1
   #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
   #print("nll:",nll,"Time:",time.time()-t)
   #exit()
-  fcn = FCN(a)
+
   print("########## chain decay:")
   for i in a.Amp.A.chain_decay():
     print(i,flush=True)
-  
-  points = []
-  nlls = []
   now = time.time()
-  maxiter = 10000
-  bd = Bounds(bnds)
-  def callback(x):
-    if np.fabs(x).sum() > 1e7:
-      x_p = dict(zip(args_name,x))
-      raise Exception("x too large: {}".format(x_p))
-    points.append([float(i) for i in bd.get_y(x)])
-    nlls.append(float(fcn.cached_nll))
-    print(fcn.cached_nll)
-  f_g = bd.trans_f_g(fcn.nll_grad)
-  #s = minimize(f_g,np.array(bd.get_x(x0)),method=method,jac=True,callback=callback,options={"disp":1})
-  with tf.device("/device:GPU:0"):
-    s = basinhopping(f_g,np.array(bd.get_x(x0)),niter=niter,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
-  
+
+  s, nlls, points = fit_scipy(a,method="basinhopping",bounds_dict=bounds_dict,niter=niter)
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)
   
-  val = dict(zip(args_name,bd.get_y(s.x)))
+  val = dict(zip(args_name,a.Amp.get_all_val()))
   pprint(val)
-  if "Zc_4160" in config_list:
+  if "Zc_4160" in config_list:  # 为什么Zc4160又算一遍？浮动mg？
     if "float" in config_list["Zc_4160"]:
       if config_list["Zc_4160"]["float"] == False:
         config_list["Zc_4160"]["float"] = True
-        s,val,tmp =  fit(config_list,w_bkg,data,mcdata,bg=bg,init_params=val,batch=batch,niter=0)
-        return s,val,{"nlls":nlls + tmp["nlls"],"points":points+tmp["points"]}
+        s,val,tmp = fit(config_list,w_bkg,data,mcdata,bg=bg,init_params=val,batch=batch,niter=0)
+        return s,val,{"nlls":nlls + tmp["nlls"],"points":points+tmp["points"]}  #mg浮动不浮动的轨迹接上
   return s,val,{"nlls":nlls,"points":points}
-  
+
 
 def main():
   config_list = load_config_file("Resonances")
-  delta_res = [["Zc_4160"],["D1_2600","D1_2600p"]]
+  delta_res = [["Zc_4160"],["D2_2460","D2_2460p"]]
   cal_significance(config_list,delta_res,method="+")
 
 if __name__ == "__main__":

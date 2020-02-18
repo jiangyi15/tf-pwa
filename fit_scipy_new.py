@@ -12,8 +12,7 @@ import tf_pwa
 from tf_pwa.utils import load_config_file, flatten_np_data, pprint, error_print, std_polar
 from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import math
-from tf_pwa.bounds import Bounds
-from plot_amp import calPWratio
+# from tf_pwa.bounds import Bounds
 
 from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
 
@@ -227,7 +226,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             bnds.append((None, None))
         args["error_" + i.name] = 0.1
 
-    check_grad = True
+    check_grad = False
     if check_grad:
         _, gs0 = fcn.nll_grad(x0)
         gs = []
@@ -251,7 +250,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
                 raise Exception("x too large: {}".format(x_p))
-            points.append([float(i) for i in bd.get_y(x)])
+            points.append([float(i.numpy()) for i in model.Amp.vm.get_all_val()])
             nlls.append(float(fcn.cached_nll))
             if len(nlls) > maxiter:
                 with open("fit_curve.json", "w") as f:
@@ -259,10 +258,11 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
                 pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
 
-        bd = Bounds(bnds)
-        f_g = bd.trans_f_g(fcn.nll_grad)
-        s = minimize(f_g, np.array(bd.get_x(x0)), method=method, jac=True, callback=callback, options={"disp": 1})
-        xn = bd.get_y(s.x)
+        #bd = Bounds(bnds)
+        fcn.model.Amp.vm.set_bound(bounds_dict)
+        f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+        s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method=method, jac=True, callback=callback, options={"disp": 1})
+        xn = fcn.model.Amp.vm.get_all_val() #bd.get_y(s.x)
     elif method in ["L-BFGS-B"]:
         def callback(x):
             if np.fabs(x).sum() > 1e7:
