@@ -111,7 +111,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   for i in a.Amp.A.chain_decay():
     print(i)
   now = time.time()
-  s, nlls, points = fit_scipy(model=a,bounds_dict=bounds_dict)
+  s, nlls, points = fit_scipy(model=a,bounds_dict=bounds_dict,method=method)
 
   print("########## fit state:")
   print(s)
