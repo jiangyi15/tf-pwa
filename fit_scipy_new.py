@@ -231,13 +231,26 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         _, gs0 = fcn.nll_grad(x0)
         gs = []
         for i, name in enumerate(args_name):
-            x0[i] += 1e-3
+            x0[i] += 1e-5
             nll0, _ = fcn.nll_grad(x0)
-            x0[i] -= 2e-3
+            x0[i] -= 2e-5
             nll1, _ = fcn.nll_grad(x0)
-            x0[i] += 1e-3
-            gs.append((nll0-nll1)/2e-3)
+            x0[i] += 1e-5
+            gs.append((nll0-nll1)/2e-5)
             print(gs[i], gs0[i])
+            
+    check_hessian = False
+    if check_hessian:
+        nll, g, hs0 = fcn.nll_grad_hessian(x0, 20000)
+        hs = []
+        for i, name in enumerate(args_name):
+            x0[i] += 1e-5
+            _, gi1 = fcn.nll_grad(x0)
+            x0[i] -= 2e-5
+            _, gi2 = fcn.nll_grad(x0)
+            x0[i] += 1e-5
+            hs.append((gi1 - gi2)/2e-5)
+            print(hs[i], hs0[i])
 
     points = []
     nlls = []

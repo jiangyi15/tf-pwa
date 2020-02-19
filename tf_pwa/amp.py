@@ -208,24 +208,24 @@ class HelicityDecay(Decay):
         ret = H * D_conj
         # print(self, H, D_conj)
         # exit()
-        amp_d = []
-        for j in range(2):
-            particle = self.outs[j]
-            if particle.J != 0 and "aligned_angle" in data[particle]:
-                ang = data[particle].get("aligned_angle", None)
-                if ang is None:
-                    continue
-                dt = get_D_matrix_lambda(ang, particle.J, particle.spins, particle.spins)
-                dt_shape = [-1, 1, 1, 1, 1]
-                dt_shape[j+2] = len(particle.spins)
-                dt_shape[j+3] = len(particle.spins)
-                dt = tf.reshape(dt, dt_shape)
-                D_shape = [-1, len(a.spins), len(b.spins), len(c.spins)]
-                D_shape.insert(j+3, 2)
-                D_shape[j+3] = 1
-                ret = tf.reshape(ret, D_shape)
-                ret = dt * ret
-                ret = tf.reduce_sum(ret, axis=j+2)
+        aligned = False
+        if aligned:
+          for j, particle in enumerate(self.outs):
+              if particle.J != 0 and "aligned_angle" in data[particle]:
+                  ang = data[particle].get("aligned_angle", None)
+                  if ang is None:
+                      continue
+                  dt = get_D_matrix_lambda(ang, particle.J, particle.spins, particle.spins)
+                  dt_shape = [-1, 1, 1, 1, 1]
+                  dt_shape[j+2] = len(particle.spins)
+                  dt_shape[j+3] = len(particle.spins)
+                  dt = tf.reshape(dt, dt_shape)
+                  D_shape = [-1, len(a.spins), len(b.spins), len(c.spins)]
+                  D_shape.insert(j+3, 2)
+                  D_shape[j+3] = 1
+                  ret = tf.reshape(ret, D_shape)
+                  ret = dt * ret
+                  ret = tf.reduce_sum(ret, axis=j+2)
         return ret
 
     def amp_shape(self):
@@ -272,7 +272,18 @@ class DecayChain(BaseDecayChain):
                 amp_p.append(i.get_amp(data_p[i]))
         rs = self.get_amp_total() * tf.reduce_sum(amp_p, axis=0)
         amp_d[0] = rs
-
+        
+        aligned = True
+        if aligned:
+            for i in self:
+                for j in i.outs:
+                    if j.J != 0 and "aligned_angle" in data_c[i][j]:
+                        ang = data_c[i][j]["aligned_angle"]
+                        dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
+                        amp_d.append(dt)
+                        idx = [base_map[j], base_map[j].upper()]
+                        indices.append(idx)
+                        final_indices = final_indices.replace(*idx)
         idxs = []
         for i in indices:
             tmp = "".join(iter_idx + i)
