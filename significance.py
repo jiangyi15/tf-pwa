@@ -126,7 +126,8 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,init_params={},batch=65000,niter=1
       "Zc_4160_m0:0":(4.1,4.25),
       "Zc_4160_g0:0":(0,None)
   }
-  
+  a.Amp.set_bound(bounds_dict)
+
   for i in a.Amp.trainable_variables:
     args[i.name] = i.numpy()
     x0.append(i.numpy())
@@ -149,7 +150,7 @@ def fit(config_list,w_bkg,data,mcdata,bg=None,init_params={},batch=65000,niter=1
     print(i,flush=True)
   now = time.time()
 
-  s, nlls, points = fit_scipy(a,method="basinhopping",bounds_dict=bounds_dict,niter=niter)
+  s, nlls, points = fit_scipy(a,method="basinhopping",niter=niter)
   print("########## fit state:")
   print(s)
   print("\nTime for fitting:",time.time()-now)
