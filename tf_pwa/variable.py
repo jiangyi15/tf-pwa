@@ -231,7 +231,7 @@ class VarsManager(object):
         vals.append(xval)
     else:
       for name in self.trainable_vars:
-        yval = self.get(name)
+        yval = self.get(name).numpy()
         vals.append(yval)
     return vals # list (for list of tf.Variable use self.trainable_variables; for dict of all vars, use self.variables)
 
