@@ -94,9 +94,9 @@ class AllAmplitude(VarsManager):
   def init_partial_wave_coef(self,head,config,const_first=False): #head名字，config参数
     self.coef[head] = []
     chain = config["Chain"]
-    coef_head = head
-    if "coef_head" in config:
-      coef_head = config["coef_head"] #这一步把D2_2460p参数变成D2_2460的了
+    #coef_head = head
+    #if "coef_head" in config:
+    #  coef_head = config["coef_head"] #这一步把D2_2460p参数变成D2_2460的了
     if "total" in config:
       N_tot = config["total"]
       if is_complex(N_tot):
@@ -104,34 +104,47 @@ class AllAmplitude(VarsManager):
         rho,phi = N_tot.real,N_tot.imag
       else:
         rho,phi = N_tot #其他类型的complex. raise error?
-      #fcr = Variable(head,cplx=True,fix_which=True,fix_vals=(rho,phi))
-      r = Variable(vm=self,name=coef_head+"r",value=rho,fix=True)
-      i = Variable(vm=self,name=head+"i",value=phi,fix=True)
+      fcr = Variable(vm=self,name=head,cplx=True,fix=True,fix_vals=(rho,phi))
+      #r = Variable(vm=self,name=coef_head+"r",value=rho,fix=True)
+      #i = Variable(vm=self,name=head+"i",value=phi,fix=True)
     elif const_first:#先判断有么有total，否则就用const_first
-      #fcr = Variable(head,cplx=True,fix_which=True)
-      r = Variable(vm=self,name=coef_head+"r",value=1.0,fix=True)
-      i = Variable(vm=self,name=head+"i",value=0.0,fix=True)
+      fcr = Variable(vm=self,name=head,cplx=True,fix=True)
+      #r = Variable(vm=self,name=coef_head+"r",value=1.0,fix=True)
+      #i = Variable(vm=self,name=head+"i",value=0.0,fix=True)
     else:
-      #fcr = Variable(head,cplx=True)
-      r = Variable(vm=self,name=coef_head+"r",range_=(0,2.0))
-      i = Variable(vm=self,name=head+"i",range_=(-np.pi,np.pi))
-    self.coef_norm[head] = [r,i] #fcr
+      fcr = Variable(vm=self,name=head,cplx=True)
+      #r = Variable(vm=self,name=coef_head+"r",range_=(0,2.0))
+      #i = Variable(vm=self,name=head+"i",range_=(-np.pi,np.pi))
+    self.coef_norm[head] = fcr #fcr
+
     if "const" in config: # H里哪一个参数设为常数1
       const = list(config["const"])
     else:
       const = [0,0]
-    ls,arg = self.gen_coef_gls(head,0,coef_head+"_",const[0])
+    ls,arg = self.gen_coef_gls(head,0,const[0])
     self.coef[head].append(arg)
-    ls,arg = self.gen_coef_gls(head,1,coef_head+"_d_",const[1])
+    ls,arg = self.gen_coef_gls(head,1,const[1])
     self.coef[head].append(arg)
+    
+    if "coef_head" in config:
+      coef_head = config["coef_head"]
+      fcr.r_shareto(self.coef_norm[coef_head])
+      for i,j in zip(self.coef[head][0],self.coef[coef_head][0]):
+        self.set_same([i,j],cplx=True)
+      for i,j in zip(self.coef[head][1],self.coef[coef_head][1]):
+        self.set_same([i,j],cplx=True)
     return False # const_first
     
-  def gen_coef_gls(self,idx,layer,coef_head,const = 0) :
+  def gen_coef_gls(self,head,layer,const = 0):
+    if layer==0:
+      prefix = head+"_"
+    elif layer==1:
+      prefix = head+"_d_"
     if const is None:
       const = 0 # set the first to be constant 1 by default
     if isinstance(const,int):
       const = [const] # int2list, in case more than one constant
-    ls = self.res_decay[idx][layer].get_ls_list() # allowed l-s pairs
+    ls = self.res_decay[head][layer].get_ls_list() # allowed l-s pairs
     n_ls = len(ls)
     const_list = []
     for i in const:
@@ -142,12 +155,11 @@ class AllAmplitude(VarsManager):
     arg_list = []
     for i in range(n_ls):
       l,s = ls[i]
-      name = "{head}BLS_{l}_{s}".format(head=coef_head,l=l,s=s)
+      name = "{head}BLS_{l}_{s}".format(head=prefix,l=l,s=s)
       if i in const_list:
         Variable(vm=self,name=name,cplx=True,fix=True)
         #tmp_r = self.add_real_var(name=name+"r",value=1.0,trainable=False)
         #tmp_i = self.add_real_var(name=name+"i",value=0.0,trainable=False)
-        arg_list.append((name+"r",name+"i"))
       else :
         if self.polar:
           Variable(vm=self,name=name,cplx=True)
@@ -157,7 +169,7 @@ class AllAmplitude(VarsManager):
           Variable(vm=self,name=name,cplx=True,polar=False)
           #tmp_r = self.add_real_var(name=name+"r",range_=(-1,1))
           #tmp_i = self.add_real_var(name=name+"i",range_=(-1,1))
-        arg_list.append((name+"r",name+"i"))
+      arg_list.append(name)
     return ls,arg_list
 
 
@@ -238,9 +250,9 @@ class AllAmplitude(VarsManager):
     jc = decay.outs[1].J
     M_r = []
     M_i = []
-    for r,i in self.coef[idx][layer]:
-      M_r.append(self.get(r))
-      M_i.append(self.get(i))
+    for name in self.coef[idx][layer]:
+      M_r.append(self.get(name+'r'))
+      M_i.append(self.get(name+'i'))
     M_r = tf.stack(M_r)
     M_i = tf.stack(M_i)
     bf = barrier_factor(decay.get_l_list(),q,q0,d)
@@ -261,11 +273,10 @@ class AllAmplitude(VarsManager):
 
 
   def get_res_total(self,idx): # get??? change a name
-    r,i =  self.coef_norm[idx]
-    r=r();i=i()
-    M_r = r*tf.cos(i)
-    M_i = r*tf.sin(i)
-    return tf.complex(M_r,M_i) #switch norm factor into xy coordinates
+    return self.coef_norm[idx]()
+    #M_r = r*tf.cos(i)
+    #M_i = r*tf.sin(i)
+    #return tf.complex(M_r,M_i) #switch norm factor into xy coordinates
  
 
   def get_amp2s(self,*x):

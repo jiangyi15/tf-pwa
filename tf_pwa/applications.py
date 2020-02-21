@@ -242,6 +242,23 @@ def cal_significance():
 
 ### plot-related ###
 import matplotlib.pyplot as plt
+from scipy.stats import norm as Norm
+
+def plot_pull(data,name,nbins=20,norm=False,value=None,error=None):
+    data = np.array(data)
+    n, bins, patches = plt.hist(data, nbins, density=1, alpha=0.6)
+    if norm:
+        if value==None or error==None:
+            raise Exception("Need value or error for normed pull!")
+        data = (data-value)/error
+    mean, sigma = Norm.fit(data)
+    y = Norm.pdf(bins, mean, sigma)
+    plt.plot(bins, y, "r*-")
+    plt.xlabel(name)
+    plt.title(name + ": mean=%.3f, sigma=%.3f" % (mean, sigma))
+    plt.savefig("Pull_"+name)
+    plt.clf()
+
 
 def likelihood_profile(var_name,start=None,end=None,step=None,values=None,errors=None,mode="bothsides"):
     if start==None or end==None:
