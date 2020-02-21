@@ -263,7 +263,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
                 raise Exception("x too large: {}".format(x_p))
-            points.append([float(i.numpy()) for i in model.Amp.vm.get_all_val()])
+            points.append(model.Amp.vm.get_all_val())
             nlls.append(float(fcn.cached_nll))
             if len(nlls) > maxiter:
                 with open("fit_curve.json", "w") as f:

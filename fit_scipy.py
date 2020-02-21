@@ -177,7 +177,7 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
   print(s)
   print("\nTime for fitting:",time.time()-now)
   
-  val = dict(zip(args_name,xn))
+  val = dict(zip(args_name,s.x))
   a.set_params(val)
   params = a.get_params()
   with open("fit_curve.json","w") as f:
