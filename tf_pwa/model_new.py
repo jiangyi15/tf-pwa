@@ -153,7 +153,10 @@ class Model(object):
         n_var = len(g_ln_data)
         nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
         g = - g_ln_data + sw * g_int_mc / int_mc
+        
+        g_int_mc = g_int_mc / int_mc
         g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
+        
         h = - h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
         return nll, g, h
 

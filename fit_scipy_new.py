@@ -149,6 +149,8 @@ def get_amplitude(decs, config_list, decay):
         name = get_name(j, "total")
         amp.vm.trainable_vars.remove(name+"r")
         amp.vm.trainable_vars.remove(name+"i")
+        amp.vm.variables[name+"r"].assign(1.0)
+        amp.vm.variables[name+"i"].assign(0.0)
         break
     # print(amp.vm.trainable_vars)
     return amp
@@ -237,7 +239,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             nll1, _ = fcn.nll_grad(x0)
             x0[i] += 1e-5
             gs.append((nll0-nll1)/2e-5)
-            print(gs[i], gs0[i])
+            print(args_name[i], gs[i], gs0[i])
             
     check_hessian = False
     if check_hessian:
@@ -250,7 +252,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             _, gi2 = fcn.nll_grad(x0)
             x0[i] += 1e-5
             hs.append((gi1 - gi2)/2e-5)
-            print(hs[i], hs0[i])
+            print(args_name[i], hs[i], hs0[i])
 
     points = []
     nlls = []
