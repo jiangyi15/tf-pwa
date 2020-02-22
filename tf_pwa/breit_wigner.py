@@ -28,7 +28,8 @@ def BW(m, m0,g0,*args):
       BW(m) = \frac{1}{m_0^2 - m^2 -  i m_0 \Gamma_0 }
   
   """
-  gamma = g0
+  m0 = tf.cast(m0, m.dtype)
+  gamma = tf.cast(g0, m.dtype)
   num = 1.0
   denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
   return num/denom
@@ -44,7 +45,9 @@ def BWR(m, m0,g0,q,q0,L,d):
   """
   gamma = Gamma(m, g0, q, q0, L, m0, d)
   num = 1.0
-  denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
+  a = (tf.cast(m0, m.dtype) + m)
+  b = (tf.cast(m0, m.dtype) - m)
+  denom = tf.complex(a * b, -tf.cast(m0, m.dtype) * gamma)
   return num/denom
 
 def Gamma(m, gamma0, q, q0, L, m0,d):
@@ -62,7 +65,7 @@ def Gamma(m, gamma0, q, q0, L, m0,d):
 def Bprime_num(L,q,d):
   z = (q * d)**2
   if L == 0:
-    return 1.0
+    return tf.constant(1.0)
   if L == 1:
     return tf.sqrt(1.0 + z)
   if L == 2:
@@ -73,16 +76,24 @@ def Bprime_num(L,q,d):
     return tf.sqrt((z * (z * (z * (z + 10.) + 135.) + 1575.) + 11025.));
   if L == 5:
     return tf.sqrt((z * (z * (z * (z * (z + 15.) + 315.) + 6300.) + 99225.) + 893025.));
-  return 1.0
+  return tf.constant(1.0)
 
 def Bprime(L, q, q0, d):
   num = Bprime_num(L,q0,d)
   denom = Bprime_num(L,q,d)
-  return num/denom
+  return tf.cast(num,denom.dtype)/denom
 
-def barrier_factor(l,q,q0,d=3.0): # cache q^l * B_l 只用于H里
+def barrier_factor(l,q,q0,d=3.0, axis=0): # cache q^l * B_l 只用于H里
   ret = []
   for i in l:
     tmp = q**i * tf.cast(Bprime(i,q,q0,d),q.dtype)
     ret.append(tmp)
   return tf.stack(ret)
+
+def barrier_factor2(l,q,q0,d=3.0, axis=-1): # cache q^l * B_l 只用于H里
+  ret = []
+  for i in l:
+    tmp = q**i * tf.cast(Bprime(i,q,q0,d),q.dtype)
+    ret.append(tf.reshape(tmp, (-1, 1)))
+  return tf.concat(ret, axis=axis)
+

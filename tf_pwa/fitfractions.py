@@ -54,7 +54,7 @@ def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
         name = res[i]
         amp_tmp.set_used_res([res[i]])
       else:
-        name = res[i] +"x"+ res[j]
+        name = "{}x{}".format(res[i], res[j])
         amp_tmp.set_used_res([res[i], res[j]])
       int_tmp, g_int_tmp = sum_gradient(amp_tmp, mcdata, var=var, args=args, kwargs=kwargs)
       if i == j:
@@ -90,7 +90,7 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, args=(), kwargs=None):
         name = res[i]
         amp_tmp.set_used_res([res[i]])
       else:
-        name = res[i]+"x"+res[j]
+        name = "{}x{}".format(res[i], res[j])
         amp_tmp.set_used_res([res[i], res[j]])
       int_tmp = sum_no_gradient(amp_tmp, mcdata, var=var, args=args, kwargs=kwargs)
       if i == j:
