@@ -15,7 +15,7 @@ import contextlib
 from opt_einsum import contract_path, contract
 from pprint import pprint
 import copy
-from pysnooper import snoop
+#from pysnooper import snoop
 
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
@@ -523,8 +523,8 @@ class AmplitudeModel(object):
     def partial_weight(self, data, combine=None):
         return self.decay_group.partial_weight(data, combine)
 
-    def get_params(self):
-        return self.vm.get_all()
+    def get_params(self,trainable_only=False):
+        return self.vm.get_all_dic(trainable_only)
 
     def set_params(self, var):
         self.vm.set_all(var)
