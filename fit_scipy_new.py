@@ -115,42 +115,25 @@ def get_decay_chains(config_list):
 
 def get_amplitude(decs, config_list, decay):
     amp = AmplitudeModel(decs)
-
-    def coef_combine(a, b, r="r", g_ls="g_ls"):
-        name_a = get_name(a, g_ls)+r
-        name_b = get_name(b, g_ls)+r
-        if name_b in amp.vm.variables:
-            amp.vm.variables[name_a] = amp.vm.variables[name_b]
-        else:
-            print("not found,", name_b)
-        if name_a in amp.vm.trainable_vars:
-            amp.vm.trainable_vars.remove(name_a)
-
-    # print(amp.vm.variables)
-    # print(amp.vm.trainable_vars)
     for i in config_list:
         if "coef_head" in config_list[i]:
             coef_head = config_list[i]["coef_head"]
             for a, b in zip(decay[i], decay[coef_head]):
-                num = len(a.get_ls_list())
-                if num == 1:
-                    coef_combine(a, b)
-                    coef_combine(a, b, "i")
-                else:
-                    for j in range(num):
-                        coef_combine(a, b, "_"+str(j)+"r")
-                        coef_combine(a, b, "_"+str(j)+"i")
-            for j in decs:
+                b.g_ls.sameas(a.g_ls)
+            for j in decs.chains:
                 if decay[i][0] in j:
-                    for k in decs:
+                    for k in decs.chains:
                         if decay[coef_head][0] in k:
-                            coef_combine(j, k, g_ls="total")
-    for j in decs:
-        name = get_name(j, "total")
-        amp.vm.trainable_vars.remove(name+"r")
-        amp.vm.trainable_vars.remove(name+"i")
-        break
-    # print(amp.vm.trainable_vars)
+                            k.total.r_shareto(j.total)
+        if "total" in config_list[i]:
+            for j in decs.chains:
+                if decay[i][0] in j:
+                    j.total.fixed(config_list[i]["total"])
+        '''if ("float" in config_list[i]) and config_list[i]["float"]:
+            if 'm' in config_list[i]["float"]:
+                decay[i][1].core.mass.freed()
+            if 'g' in config_list[i]["float"]:
+                decay[i][1].core.width.freed()'''
     return amp
 
 
@@ -189,9 +172,11 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     data, bg, mcdata = prepare_data(decs, particles=final_particles, dtype=dtype)
     amp = get_amplitude(decs, config_list, decay)
     load_params(amp, init_params)
+    amp.vm.trans_params(POLAR)
 
-    # print(amp.vm.variables)
     model = Model(amp, w_bkg=w_bkg)
+    print(model.Amp.vm.trainable_vars)
+    pprint(model.get_params())
     # print(model.Amp(data))
     # tf.summary.trace_on(graph=True, profiler = True)
     now = time.time()
@@ -231,13 +216,26 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         _, gs0 = fcn.nll_grad(x0)
         gs = []
         for i, name in enumerate(args_name):
-            x0[i] += 1e-3
+            x0[i] += 1e-5
             nll0, _ = fcn.nll_grad(x0)
-            x0[i] -= 2e-3
+            x0[i] -= 2e-5
             nll1, _ = fcn.nll_grad(x0)
-            x0[i] += 1e-3
-            gs.append((nll0-nll1)/2e-3)
-            print(gs[i], gs0[i])
+            x0[i] += 1e-5
+            gs.append((nll0-nll1)/2e-5)
+            print(args_name[i], gs[i], gs0[i])
+            
+    check_hessian = False
+    if check_hessian:
+        nll, g, hs0 = fcn.nll_grad_hessian(x0, 20000)
+        hs = []
+        for i, name in enumerate(args_name):
+            x0[i] += 1e-5
+            _, gi1 = fcn.nll_grad(x0)
+            x0[i] -= 2e-5
+            _, gi2 = fcn.nll_grad(x0)
+            x0[i] += 1e-5
+            hs.append((gi1 - gi2)/2e-5)
+            print(args_name[i], hs[i], hs0[i])
 
     points = []
     nlls = []
@@ -250,7 +248,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
                 raise Exception("x too large: {}".format(x_p))
-            points.append([float(i.numpy()) for i in model.Amp.vm.get_all_val()])
+            points.append(model.Amp.vm.get_all_val())
             nlls.append(float(fcn.cached_nll))
             if len(nlls) > maxiter:
                 with open("fit_curve.json", "w") as f:
@@ -279,6 +277,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     print("########## fit state:")
     # print(s)
     print("\nTime for fitting:", time.time() - now)
+    model.Amp.vm.trans_params(POLAR)
     val = {k: v.numpy() for k, v in model.Amp.variables.items()}
     with open("final_params.json", "w") as f:
         json.dump({"value": val}, f, indent=2)

@@ -37,7 +37,7 @@ def fit_minuit(model,bounds_dict={},hesse=True,minos=False):
 
 
 from scipy.optimize import minimize,BFGS,basinhopping
-def fit_scipy(model, method="BFGS", **kwargs):
+def fit_scipy(model, method="BFGS",bounds_dict={}, **kwargs):
     fcn = FCN(model)
     points = []
     nlls = []
@@ -50,18 +50,18 @@ def fit_scipy(model, method="BFGS", **kwargs):
                 return False, {"nlls": nlls, "points": points}
                 raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
+        model.Amp.set_bound(bounds_dict)
         f_g = model.Amp.trans_fcn_grad(fcn.nll_grad)
         fitres = minimize(f_g, np.array(model.Amp.get_all_val(True)), method=method, jac=True, callback=callback,
                      options={"disp": 1})
-        model.Amp.set_all(fitres.x,bound_trans=True)
     elif method in ["L-BFGS-B"]:
         def callback(x):
             points.append([float(i) for i in x])
             nlls.append(float(fcn.cached_nll))
         bnds = []
         for name in model.Amp.trainable_vars:
-            if name in model.Amp.bounds_dict:
-                bnds.append(model.Amp.bounds_dict[name])
+            if name in bounds_dict:
+                bnds.append(bounds_dict[name])
             else:
                 bnds.append((None, None))
         fitres = minimize(fcn.nll_grad, model.Amp.get_all_val(), method=method, jac=True, bounds=bnds, callback=callback,
@@ -71,13 +71,13 @@ def fit_scipy(model, method="BFGS", **kwargs):
             points.append([float(i) for i in model.Amp.get_all_val()])
             nlls.append(float(fcn.cached_nll))
             print(fcn.cached_nll)
+        model.Amp.set_bound(bounds_dict)
         f_g = model.Amp.trans_fcn_grad(fcn.nll_grad)
         if "niter" in kwargs:
             niter = kwargs["niter"]
         else:
             niter = 1
         fitres = basinhopping(f_g,np.array(model.Amp.get_all_val(True)),niter=niter,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
-        model.Amp.set_all(fitres.x,bound_trans=True)
     else:
         raise Exception("unknown method")
 

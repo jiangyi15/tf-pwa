@@ -131,6 +131,9 @@ def get_D_matrix_for_angle(angle, j, cached=True):
         return angle[name]
     return D_matrix_conj(alpha, beta, gamma, j)
 
-def get_D_matrix_lambda(angle, ja, la, lb, lc=(0,)):
+def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     d = get_D_matrix_for_angle(angle, 2*ja)
-    return Dfun_delta(d, ja, la, lb, lc)
+    if lc is None:
+        return tf.reshape(Dfun_delta(d, ja, la, lb, (0,)), (-1, len(la), len(lb)))
+    else:
+        return Dfun_delta(d, ja, la, lb, lc)

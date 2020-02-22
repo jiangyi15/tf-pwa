@@ -41,11 +41,13 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
                 part_y = trans(f(data_i, *args, **kwargs))
                 y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
             g_i = tape.gradient(y_i, var)
+        h_s_i = []
         for gi in g_i:
-            h_s.append(tape0.gradient(gi, var, unconnected_gradients="zero"))  # 2nd order derivative
+            h_s_i.append(tape0.gradient(gi, var, unconnected_gradients="zero"))  # 2nd order derivative
         del tape0
         y_s.append(y_i)
         g_s.append(g_i)
+        h_s.append(h_s_i)
     nll = tf.reduce_sum(y_s)
     g = tf.reduce_sum(g_s, axis=0)
     h = tf.reduce_sum(h_s, axis=0)
@@ -147,18 +149,22 @@ class Model(object):
                                                     trans=tf.math.log)
         int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
                                                  self.Amp.trainable_variables)
+
         n_var = len(g_ln_data)
         nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
         g = - g_ln_data + sw * g_int_mc / int_mc
+        
+        g_int_mc = g_int_mc / int_mc
         g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
+        
         h = - h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
         return nll, g, h
 
     def set_params(self, var):
         self.Amp.set_params(var)
 
-    def get_params(self):
-        self.Amp.get_params()
+    def get_params(self,trainable_only=False):
+        return self.Amp.get_params(trainable_only)
 
 
 class FCN(object):
@@ -200,8 +206,10 @@ class FCN(object):
         self.n_call += 1
         return nll, np.array(g)
 
-    def nll_grad_hessian(self, x):
+    def nll_grad_hessian(self, x, batch=None):
+        if batch is None:
+            batch = self.batch
         self.model.set_params(x)
         nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
-                                                weight=self.weight, batch=self.batch)
+                                                weight=self.weight, batch=batch)
         return nll, g, h

@@ -30,7 +30,7 @@ D2_2460: {
   # order of the fixed amplitudes
   const: [0,0],
   # fixed total amplitude (rho,phi) [option]
-  #total: 1.0,
+  total: 1.0,
 }
 
 #other resonance
@@ -99,7 +99,7 @@ Zc_4025: {
   Chain: -1, J: 1, Par: 1, 
   g0: 0.0248, 
   m0: 4.0263,
-  total: 1.0,
+  #total: 1.0,
 }
 
 Zc_4160: {
