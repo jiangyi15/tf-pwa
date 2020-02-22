@@ -1,6 +1,12 @@
 
 # A Partial Wave Analysis program using Tensorflow
 
+
+
+[![pipeline status](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/pipeline.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
+[![coverage report](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/coverage.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
+
+
 ## Install 
 ### conda
 

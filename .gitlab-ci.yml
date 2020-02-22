@@ -6,8 +6,8 @@ pytest:
   stage: test
   image: conda/miniconda3
   script:
-  - conda install pytest numpy scipy tensorflow
-  - py.test
+  - conda install pytest numpy scipy sympy tensorflow pytest-cov
+  - py.test --cov=tf_pwa
 
 build_wheel:
   stage: build
@@ -18,5 +18,4 @@ build_wheel:
   - python3 setup.py bdist_wheel
 
   artifacts:
-    paths:
-    - dist/*.whl
+    untracked: true
