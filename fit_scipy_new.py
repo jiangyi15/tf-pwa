@@ -315,7 +315,7 @@ def main():
     parser = argparse.ArgumentParser(description="simple fit scripts")
     parser.add_argument("--no-hesse", action="store_false", default=True, dest="hesse")
     parser.add_argument("--no-frac", action="store_false", default=True, dest="frac")
-    parser.add_argument("--no-GPU", action="store_false", default=False, dest="has_gpu")
+    parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
     parser.add_argument("--method", default="BFGS", dest="method")
     results = parser.parse_args()
     if results.has_gpu:
