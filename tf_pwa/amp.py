@@ -13,6 +13,7 @@ import numpy as np
 import contextlib
 from opt_einsum import contract_path, contract
 from pprint import pprint
+import warnings
 import copy
 # from pysnooper import snoop
 
@@ -27,6 +28,40 @@ from .data import data_shape, split_generator, data_to_tensor, data_map
 
 from .config import regist_config, get_config, temp_config
 from .einsum import einsum
+
+
+PARTICLE_MODEL = "particle_model"
+regist_config(PARTICLE_MODEL, {})
+DECAY_MODEL = "decay_model"
+regist_config(DECAY_MODEL, {})
+
+
+def regist_model(name=None, f=None, types=PARTICLE_MODEL):
+    def regist(g):
+        if name is None:
+            my_name = g.__name__
+        else:
+            my_name = name
+        config = get_config(types)
+        if my_name in config:
+            warnings.warn("Override model {}", my_name)
+        config[my_name] = g
+        return g
+    if f is None:
+        return regist
+    return regist(f)
+
+
+regist_particle = functools.partial(regist_model, types=PARTICLE_MODEL)
+regist_decay = functools.partial(regist_model, types=DECAY_MODEL)
+
+
+def get_particle(*args, model="default", **kwargs):
+    return get_config(PARTICLE_MODEL)[model](*args, **kwargs)
+
+
+def get_decay(*args, model="default", **kwargs):
+    return get_config(DECAY_MODEL)[model](*args, **kwargs)
 
 
 def data_device(data):
@@ -89,6 +124,8 @@ def get_relative_p(m_0, m_1, m_2):
     return tf.sqrt(q) / (2 * m_0)
 
 
+@regist_particle("default")
+@regist_particle("BWR")
 class Particle(BaseParticle):
     def __init__(self, *args, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
@@ -97,15 +134,16 @@ class Particle(BaseParticle):
         self.d = 3.0
         if self.mass is None:
             self.mass = add_var(self, "mass", fix=True)
+        else:
+            self.mass = add_var(self, "mass", value=self.mass, fix=True)
         if self.width is None:
             self.width = add_var(self, "width", fix=True)
+        else:
+            self.width = add_var(self, "width", value=self.width, fix=True)
 
-    def get_amp(self, data, data_c=None):
+    def get_amp(self, data, data_c):
         mass = self.get_mass()
         width = self.get_width()
-        if data_c is None:
-            ret = BW(data["m"], mass, width)
-            return ret
         decay = self.decay[0]
         # return BW(data["m"], self.mass, self.width)
         q = data_c["|q|"]
@@ -127,8 +165,24 @@ class Particle(BaseParticle):
         return self.width
 
 
-class HelicityDecay(Decay):
+@regist_particle("BW")
+class ParticleBW(Particle):
+    def get_amp(self, data, _data_c=None):
+        mass = self.get_mass()
+        width = self.get_width()
+        ret = BW(data["m"], mass, width)
+        return ret
 
+
+@regist_particle("one")
+class ParticleBW(Particle):
+    def get_amp(self, data, _data_c=None):
+        return tf.ones((1, ), dtype=get_config("dtype"))
+
+
+@regist_decay("default")
+@regist_decay("gls-bf")
+class HelicityDecay(Decay):
     def __init__(self, *args, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
 
@@ -243,6 +297,7 @@ class HelicityDecay(Decay):
         return ret
 
 
+@regist_decay("helicity_full")
 class HelicityDecayNP(HelicityDecay):
     def init_params(self):
         a = self.outs[0].spins
@@ -258,6 +313,7 @@ def get_parity_term(j1, p1, j2, p2, j3, p3):
     return p
 
 
+@regist_decay("helicity_parity")
 class HelicityDecayP(HelicityDecay):
     def init_params(self):
         a = self.core
