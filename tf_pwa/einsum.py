@@ -1,7 +1,7 @@
 from opt_einsum import get_symbol, contract_path, contract
 from .tensorflow_wrapper import tf
 
-from pysnooper import snoop
+# from pysnooper import snoop
 
 
 class Einsum(object):
@@ -25,16 +25,16 @@ def symbol_generate(base_map):
 def replace_ellipsis(expr, shapes):
     ret = expr
     idx = expr.split("->")[0].split(",")[0]
+    extra = []
     if "..." in expr:
         extra_size = len(shapes[0]) - len(idx) + 3
-        base_map = set(expr) - {".","-",">",","}
+        base_map = set(expr) - {".", "-", ">", ","}
         base_map = dict(enumerate(base_map))
         ig = symbol_generate(base_map)
-        extra = []
         for i in range(extra_size):
             extra.append(next(ig))
         ret = expr.replace("...", "".join(extra))
-    return ret
+    return ret, extra
 
 
 def _get_order_bound_list(bd_dict, ord_dict, idx, left=0):
@@ -94,7 +94,9 @@ def ordered_indices(expr, shapes):
     return base_order
 
 
-def remove_size1(expr, *args):
+def remove_size1(expr, *args, extra=None):
+    if extra is None:
+        extra = []
     sub = expr.replace("->", "").replace(",", "")
     shapes = []
     for i in args:
@@ -103,34 +105,37 @@ def remove_size1(expr, *args):
     size_map = dict(zip(sub, shapes))
     remove_idx = []
     for i in size_map:
-        if size_map[i] == 1:
+        if size_map[i] == 1 and i not in extra:
             remove_idx.append(i)
 
     for i in remove_idx:
         expr = expr.replace(i, "")
 
+    idxs = expr.split("->")[0].split(",")
+
     ret = []
-    for i in args:
-        shape = list(i.shape)
-        if 1 in shape:
-            shape.remove(1)
-        ret.append(tf.reshape(i, shape))
+    for idx, arg in zip(idxs, args):
+        shape = []
+        for i in idx:
+            if i not in remove_idx:
+                shape.append(size_map[i])
+        ret.append(tf.reshape(arg, shape))
 
     return expr, ret, size_map
 
 
 def einsum(expr, *args, **kwargs):
+    path, path_info = contract_path(expr, *args, optimize="auto")
     shapes = [i.shape for i in args]
-    expr = replace_ellipsis(expr, shapes)
+    expr, extra = replace_ellipsis(expr, shapes)
     final_idx = expr.split("->")[1]
-    expr2, args, size_map = remove_size1(expr, *args)
+    expr2, args, size_map = remove_size1(expr, *args, extra=extra)
     final_shape = [size_map[i] for i in final_idx]
     base_order = ordered_indices(expr2, shapes)
     ein_s = expr2.split("->")
     final_index = ein_s[1]
     idxs = ein_s[0].split(",")
 
-    path, path_info = contract_path(expr2, *args, optimize="auto")
     data = list(args)
     in_idx = list(idxs)
     for idx in path:
