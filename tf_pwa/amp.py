@@ -14,7 +14,7 @@ import contextlib
 from opt_einsum import contract_path, contract
 from pprint import pprint
 import copy
-from pysnooper import snoop
+# from pysnooper import snoop
 
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf

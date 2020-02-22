@@ -4,9 +4,10 @@ stages:
 
 pytest:
   stage: test
-  image: conda/miniconda3
+  image: tensorflow/tensorflow:2.0.1-py3
   script:
-  - conda install pytest numpy scipy sympy tensorflow pytest-cov
+  - pip install numpy scipy sympy matplotlib
+  - pip install pysnooper pytest pytest-cov
   - py.test --cov=tf_pwa
 
 build_wheel:
