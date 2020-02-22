@@ -1,0 +1,22 @@
+stages:
+  - build
+  - test
+
+pytest:
+  stage: test
+  image: tensorflow/tensorflow:2.0.1-py3
+  script:
+  - pip install numpy scipy sympy matplotlib
+  - pip install pysnooper pytest pytest-cov
+  - py.test --cov=tf_pwa
+
+build_wheel:
+  stage: build
+  script:
+  - apt-get update -qy
+  - apt-get install -y python3-dev python3-pip
+  - pip3 install setuptools
+  - python3 setup.py bdist_wheel
+
+  artifacts:
+    untracked: true

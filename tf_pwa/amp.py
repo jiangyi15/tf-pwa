@@ -6,7 +6,6 @@ DecayGroup: addition
     DecayChain: multiplication
         Decay, Particle(Propagator)
 
-TODO: using indices order to reduce transpose
 """
 
 import functools
@@ -15,7 +14,7 @@ import contextlib
 from opt_einsum import contract_path, contract
 from pprint import pprint
 import copy
-from pysnooper import snoop
+# from pysnooper import snoop
 
 from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
@@ -29,13 +28,13 @@ from .data import data_shape, split_generator, data_to_tensor, data_map
 from .config import regist_config, get_config, temp_config
 from .einsum import einsum
 
+
 def data_device(data):
-    
     def get_device(dat):
         if hasattr(dat, "device"):
             return dat.device
         return None
-    
+
     pprint(data_map(data, get_device))
     return data
 
@@ -95,22 +94,23 @@ class Particle(BaseParticle):
         super(Particle, self).__init__(*args, **kwargs)
 
     def init_params(self):
+        self.d = 3.0
         if self.mass is None:
-            self.mass = add_var(self, "mass", trainable=True)
+            self.mass = add_var(self, "mass", fix=True)
         if self.width is None:
-            self.width = add_var(self, "width")
+            self.width = add_var(self, "width", fix=True)
 
     def get_amp(self, data, data_c=None):
         mass = self.get_mass()
         width = self.get_width()
         if data_c is None:
-            BW(data["m"], mass, width)
-            return tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
+            ret = BW(data["m"], mass, width)
+            return ret
         decay = self.decay[0]
         # return BW(data["m"], self.mass, self.width)
         q = data_c["|q|"]
         q0 = data_c["|q0|"]
-        ret = BWR(data["m"], mass, width, q, q0, min(decay.get_l_list()), decay.d)
+        ret = BWR(data["m"], mass, width, q, q0, min(decay.get_l_list()), self.d)
         return ret  # tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
 
     def amp_shape(self):
@@ -142,7 +142,7 @@ class HelicityDecay(Decay):
         def _get_mass(p):
             if from_data or p.mass is None:
                 return data[p]["m"]
-            return p.mass
+            return p.get_mass()
 
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
@@ -171,8 +171,8 @@ class HelicityDecay(Decay):
             for i1, lambda_b in enumerate(range(-jb, jb + 1)):
                 for i2, lambda_c in enumerate(range(-jc, jc + 1)):
                     ret[i][i1][i2] = np.sqrt((2 * l + 1) / (2 * ja + 1)) \
-                                * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
-                                * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
+                                     * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
+                                     * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
         return tf.convert_to_tensor(ret)
 
     def get_helicity_amp(self, data, data_p):
@@ -204,28 +204,29 @@ class HelicityDecay(Decay):
         ang = data[b]["ang"]
         D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
         H = self.get_helicity_amp(data, data_p)
+        H = tf.reshape(H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         H = tf.cast(H, dtype=D_conj.dtype)
         ret = H * D_conj
         # print(self, H, D_conj)
         # exit()
         aligned = False
         if aligned:
-          for j, particle in enumerate(self.outs):
-              if particle.J != 0 and "aligned_angle" in data[particle]:
-                  ang = data[particle].get("aligned_angle", None)
-                  if ang is None:
-                      continue
-                  dt = get_D_matrix_lambda(ang, particle.J, particle.spins, particle.spins)
-                  dt_shape = [-1, 1, 1, 1, 1]
-                  dt_shape[j+2] = len(particle.spins)
-                  dt_shape[j+3] = len(particle.spins)
-                  dt = tf.reshape(dt, dt_shape)
-                  D_shape = [-1, len(a.spins), len(b.spins), len(c.spins)]
-                  D_shape.insert(j+3, 2)
-                  D_shape[j+3] = 1
-                  ret = tf.reshape(ret, D_shape)
-                  ret = dt * ret
-                  ret = tf.reduce_sum(ret, axis=j+2)
+            for j, particle in enumerate(self.outs):
+                if particle.J != 0 and "aligned_angle" in data[particle]:
+                    ang = data[particle].get("aligned_angle", None)
+                    if ang is None:
+                        continue
+                    dt = get_D_matrix_lambda(ang, particle.J, particle.spins, particle.spins)
+                    dt_shape = [-1, 1, 1, 1, 1]
+                    dt_shape[j + 2] = len(particle.spins)
+                    dt_shape[j + 3] = len(particle.spins)
+                    dt = tf.reshape(dt, dt_shape)
+                    D_shape = [-1, len(a.spins), len(b.spins), len(c.spins)]
+                    D_shape.insert(j + 3, 2)
+                    D_shape[j + 3] = 1
+                    ret = tf.reshape(ret, D_shape)
+                    ret = dt * ret
+                    ret = tf.reduce_sum(ret, axis=j + 2)
         return ret
 
     def amp_shape(self):
@@ -242,6 +243,47 @@ class HelicityDecay(Decay):
         return ret
 
 
+class HelicityDecayNP(HelicityDecay):
+    def init_params(self):
+        a = self.outs[0].spins
+        b = self.outs[1].spins
+        self.H = add_var(self, "H", is_complex=True, shape=(len(a), len(b)))
+
+    def get_helicity_amp(self, data, data_p):
+        return tf.stack(self.H())
+
+
+def get_parity_term(j1, p1, j2, p2, j3, p3):
+    p = p1 * p2 * p3 * (-1) ** (j1 - j2 - j3)
+    return p
+
+
+class HelicityDecayP(HelicityDecay):
+    def init_params(self):
+        a = self.core
+        b = self.outs[0]
+        c = self.outs[1]
+        n_b = len(b.spins)
+        n_c = len(c.spins)
+        self.parity_term = get_parity_term(a.J, a.P, b.J, b.P, c.J, c.P)
+        if n_b != 1:
+            self.H = add_var(self, "H", is_complex=True, shape=((n_b+1) // 2, n_c))
+            self.part_H = 0
+        else:
+            self.H = add_var(self, "H", is_complex=True, shape=(n_b, (n_c+1) // 2))
+            self.part_H = 1
+
+    def get_helicity_amp(self, data, data_p):
+        n_b = len(self.outs[0].spins)
+        n_c = len(self.outs[1].spins)
+        H_part = tf.stack(self.H())
+        if self.part_H == 0:
+            H = tf.concat([H_part, self.parity_term * H_part[(n_b - 2) // 2::-1]], axis=0)
+        else:
+            H = tf.concat([H_part, self.parity_term * H_part[:, (n_c - 2) // 2::-1]], axis=1)
+        return H
+
+
 class DecayChain(BaseDecayChain):
     """A list of Decay as a chain decay"""
 
@@ -250,6 +292,7 @@ class DecayChain(BaseDecayChain):
 
     def init_params(self):
         self.total = add_var(self, "total", is_complex=True)
+        self.aligned = True
 
     def get_amp_total(self):
         return self.total()
@@ -266,15 +309,19 @@ class DecayChain(BaseDecayChain):
 
         amp_p = []
         for i in self.inner:
-            if len(i.decay) == 1:
-                amp_p.append(i.get_amp(data_p[i], data_c[i.decay[0]]))
+            if len(i.decay) == 1 and i.decay[0] in self:
+                data_c_i = data_c[i.decay[0]]
+                if "|q|" not in data_c_i:
+                    data_c_i["|q|"] = i.decay[0].get_relative_momentum(data_p, True)
+                if "|q0|" not in data_c_i:
+                    data_c_i["|q0|"] = i.decay[0].get_relative_momentum(data_p, False)
+                amp_p.append(i.get_amp(data_p[i], data_c_i))
             else:
                 amp_p.append(i.get_amp(data_p[i]))
         rs = self.get_amp_total() * tf.reduce_sum(amp_p, axis=0)
         amp_d[0] = rs
-        
-        aligned = True
-        if aligned:
+
+        if self.aligned:
             for i in self:
                 for j in i.outs:
                     if j.J != 0 and "aligned_angle" in data_c[i][j]:
@@ -294,7 +341,7 @@ class DecayChain(BaseDecayChain):
         ret = einsum(idx_s, *amp_d)
         # print(self, ret[0])
         # exit()
-        #ret = einsum(idx_s, *amp_d)
+        # ret = einsum(idx_s, *amp_d)
         return ret
 
     def amp_shape(self):
@@ -330,6 +377,7 @@ class DecayChain(BaseDecayChain):
 
 class DecayGroup(BaseDecayGroup):
     """ A Group of Decay Chains with the same final particles."""
+
     def __init__(self, chains):
         self.chains_idx = list(range(len(chains)))
         first_chain = chains[0]
@@ -523,8 +571,8 @@ class AmplitudeModel(object):
     def partial_weight(self, data, combine=None):
         return self.decay_group.partial_weight(data, combine)
 
-    def get_params(self):
-        return self.vm.get_all()
+    def get_params(self,trainable_only=False):
+        return self.vm.get_all_dic(trainable_only)
 
     def set_params(self, var):
         self.vm.set_all(var)
@@ -539,43 +587,3 @@ class AmplitudeModel(object):
 
     def __call__(self, data, cached=False):
         return self.decay_group.sum_amp(data)
-
-
-def test_amp(fnames="data/data_test.dat"):
-    a = Particle("A", J=1, P=-1, spins=(-1, 1))
-    b = Particle("B", J=1, P=-1)
-    c = Particle("C", J=0, P=-1)
-    d = Particle("D", J=1, P=-1)
-    bd = Particle("BD", 1, 1)
-    cd = Particle("CD", 1, 1)
-    bc = Particle("BC", 1, 1)
-    R = Particle("R", 1, 1)
-    dec1 = HelicityDecay(a, [bc, d])
-    dec2 = HelicityDecay(bc, [b, c])
-    dec3 = HelicityDecay(a, [cd, b])
-    HelicityDecay(cd, [c, d])
-    HelicityDecay(a, [bd, c])
-    HelicityDecay(bd, [b, d])
-    HelicityDecay(a, [R, c])
-    HelicityDecay(R, [b, d])
-    de = DecayGroup(a.chain_decay())
-    data = prepare_data_from_decay(fnames, de)
-    import time
-    a = time.time()
-    ret = de.sum_amp(data)
-    print(time.time() - a)
-    data_s = list(split_generator(data, 60000))
-    a = time.time()
-    gs = []
-    ss = []
-    print(get_config("vm").get_all())
-    for i in data_s:
-        def f(var):
-            return tf.reduce_sum(de.sum_amp(i))
-        s, g = value_and_grad(f, get_config("vm").get_all())
-        gs.append(g)
-        ss.append(s)
-    print(time.time() - a)
-    print(list(map(sum, zip(*gs))))
-    print(sum(ss))
-    return tf.reduce_sum(ret)

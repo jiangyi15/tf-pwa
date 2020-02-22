@@ -163,8 +163,8 @@ class Model(object):
     def set_params(self, var):
         self.Amp.set_params(var)
 
-    def get_params(self):
-        self.Amp.get_params()
+    def get_params(self,trainable_only=False):
+        return self.Amp.get_params(trainable_only)
 
 
 class FCN(object):

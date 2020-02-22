@@ -136,7 +136,7 @@ class VarsManager(object):
     name_r_list = [name+'r' for name in name_list]
     self.set_same(name_r_list)
     for name in name_r_list:
-      self.complex_vars[name] = name_r_list
+      self.complex_vars[name[:-1]] = name_r_list
 
   def set_same(self,name_list,cplx=False):
     tmp_list = []
@@ -146,8 +146,9 @@ class VarsManager(object):
           tmp_list += add_list
           self.same_list.remove(add_list)
           break
-    name_list += tmp_list
-    name_list = list(set(name_list)) #去掉重复元素
+    for i in tmp_list:
+      if i not in name_list:
+        name_list.append(i) #去掉重复元素
     def same_real(name_list):
       var = self.variables[name_list[0]]
       for name in name_list[1:]:
@@ -236,7 +237,7 @@ class VarsManager(object):
     return vals # list (for list of tf.Variable use self.trainable_variables; for dict of all vars, use self.variables)
 
   def get_all_dic(self,trainable_only=False):
-    self.std_polar_all()
+    #self.std_polar_all()
     dic = {}
     if trainable_only:
       for i in self.trainable_vars:
@@ -282,11 +283,11 @@ class VarsManager(object):
     p = self.variables[name+'i']
     if r<0:
       r.assign(tf.abs(r))
-      p.assign_add(np.pi)
       if type(self.complex_vars[name])==list:
         for name_r in self.complex_vars[name]:
-          pp = self.variables[name_r[:-1]+'i']
-          pp.assign_add(np.pi)
+          self.variables[name_r[:-1]+'i'].assign_add(np.pi)
+      else:
+        p.assign_add(np.pi)
     self.std_polar_angle(p)
 
   def std_polar_all(self): # std polar expression: r>0, -pi<p<pi
@@ -426,15 +427,24 @@ class Variable(object):
 
   def fixed(self,value):
     if not self.shape:
-      self.vm.set_fix(self.name,value)
+      if self.cplx:
+        value = complex(value)
+        self.vm.set_fix(self.name + 'r', value.real)
+        self.vm.set_fix(self.name + 'i', value.imag)
+      else:
+        self.vm.set_fix(self.name,value)
     else:
       raise Exception("Only shape==() real var supports 'fixed' method.")
 
   def freed(self):
     if not self.shape:
-      self.vm.set_fix(self.name, unfix=False)
+      if self.cplx:
+        self.vm.set_fix(self.name + 'r', unfix=False)
+        self.vm.set_fix(self.name + 'i', unfix=False)
+      else:
+        self.vm.set_fix(self.name, unfix=False)
     else:
-      raise Exception("Only shape==() real var supports 'freed' method.")
+      raise Exception("Only shape==() var supports 'freed' method.")
 
   def set_bound(self,bound,func=None):
     if not self.shape:
@@ -450,7 +460,7 @@ class Variable(object):
     if not (self.cplx and Var.cplx):
       raise Exception("Type is not complex var.")
     def func(name,**kwargs):
-      self.vm.set_same([self.name+name+'r',Var.name+name+'r'])
+      self.vm.set_share_r([self.name+name,Var.name+name])
     shape_func(func,self.shape,'')
 
   def sameas(self,Var):

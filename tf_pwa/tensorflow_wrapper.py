@@ -1,5 +1,6 @@
 import os
 import tensorflow as tf
+import warnings
 
 # default configurations
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -10,6 +11,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE" # for Mac
 tf_version = int(tf.__version__.split(".")[0])
 if tf_version < 2:
   tf.compat.v1.enable_eager_execution()
+  import tensorflow.compat.v2 as tf
 
 def set_gpu_mem_growth():
   gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -48,7 +50,7 @@ def regist_function(name, var=None, base_mod=tensorflow_wrapper):
 
     def wrapper(f):
         if hasattr(mod, names[-1]):
-            raise Exception("{} already exists.".format(name))
+            warnings.warn("{} already exists.".format(name))
         setattr(mod, names[-1], f)
         return f
     if var is None:

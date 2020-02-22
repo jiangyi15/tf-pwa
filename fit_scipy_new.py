@@ -115,44 +115,20 @@ def get_decay_chains(config_list):
 
 def get_amplitude(decs, config_list, decay):
     amp = AmplitudeModel(decs)
-
-    def coef_combine(a, b, r="r", g_ls="g_ls"):
-        name_a = get_name(a, g_ls)+r
-        name_b = get_name(b, g_ls)+r
-        if name_b in amp.vm.variables:
-            amp.vm.variables[name_a] = amp.vm.variables[name_b]
-        else:
-            print("not found,", name_b)
-        if name_a in amp.vm.trainable_vars:
-            amp.vm.trainable_vars.remove(name_a)
-
-    # print(amp.vm.variables)
-    # print(amp.vm.trainable_vars)
     for i in config_list:
         if "coef_head" in config_list[i]:
             coef_head = config_list[i]["coef_head"]
             for a, b in zip(decay[i], decay[coef_head]):
-                num = len(a.get_ls_list())
-                if num == 1:
-                    coef_combine(a, b)
-                    coef_combine(a, b, "i")
-                else:
-                    for j in range(num):
-                        coef_combine(a, b, "_"+str(j)+"r")
-                        coef_combine(a, b, "_"+str(j)+"i")
-            for j in decs:
+                b.g_ls.sameas(a.g_ls)
+            for j in decs.chains:
                 if decay[i][0] in j:
-                    for k in decs:
+                    for k in decs.chains:
                         if decay[coef_head][0] in k:
-                            coef_combine(j, k, g_ls="total")
-    for j in decs:
-        name = get_name(j, "total")
-        amp.vm.trainable_vars.remove(name+"r")
-        amp.vm.trainable_vars.remove(name+"i")
-        amp.vm.variables[name+"r"].assign(1.0)
-        amp.vm.variables[name+"i"].assign(0.0)
-        break
-    # print(amp.vm.trainable_vars)
+                            k.total.r_shareto(j.total)
+        if "total" in config_list[i]:
+            for j in decs.chains:
+                if decay[i][0] in j:
+                    j.total.fixed(config_list[i]["total"])
     return amp
 
 
@@ -191,9 +167,10 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     data, bg, mcdata = prepare_data(decs, particles=final_particles, dtype=dtype)
     amp = get_amplitude(decs, config_list, decay)
     load_params(amp, init_params)
+    amp.vm.trans_params(POLAR)
 
-    # print(amp.vm.variables)
     model = Model(amp, w_bkg=w_bkg)
+    #pprint(model.get_params())
     # print(model.Amp(data))
     # tf.summary.trace_on(graph=True, profiler = True)
     now = time.time()
@@ -294,6 +271,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     print("########## fit state:")
     # print(s)
     print("\nTime for fitting:", time.time() - now)
+    model.Amp.vm.trans_params(POLAR)
     val = {k: v.numpy() for k, v in model.Amp.variables.items()}
     with open("final_params.json", "w") as f:
         json.dump({"value": val}, f, indent=2)
@@ -337,7 +315,7 @@ def main():
     parser = argparse.ArgumentParser(description="simple fit scripts")
     parser.add_argument("--no-hesse", action="store_false", default=True, dest="hesse")
     parser.add_argument("--no-frac", action="store_false", default=True, dest="frac")
-    parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
+    parser.add_argument("--no-GPU", action="store_false", default=False, dest="has_gpu")
     parser.add_argument("--method", default="BFGS", dest="method")
     results = parser.parse_args()
     if results.has_gpu:

@@ -4,7 +4,7 @@ from .particle import Particle,Decay
 from .variable import Vars
 from .dfun_tf import dfunctionJ,D_Cache
 import os
-from pysnooper import snoop
+# from pysnooper import snoop
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 import functools
