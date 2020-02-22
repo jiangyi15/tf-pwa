@@ -1,4 +1,5 @@
 from .tensorflow_wrapper import tf
+np = tf
 #import functools
 #from pysnooper import snoop
 
@@ -27,7 +28,7 @@ class Vector3(tf.Tensor):
         return ret
 
     def cross(self, other):
-        p = tf.linalg.cross(self, other)
+        p = tf.cross(self, other)
         return p
 
     def unit(self):
@@ -35,10 +36,7 @@ class Vector3(tf.Tensor):
         return p
 
     def cross_unit(self, other):
-        shape = tf.broadcast_dynamic_shape(self.shape, other.shape)
-        a = tf.broadcast_to(self, shape)
-        b = tf.broadcast_to(other, shape)
-        p, _n = tf.linalg.normalize(tf.linalg.cross(a, b), axis=-1)
+        p, _n = tf.linalg.normalize(tf.cross(self, other), axis=-1)
         return p
 
     def angle_from(self, x, y):
@@ -50,6 +48,11 @@ class LorentzVector(tf.Tensor):
     """
     LorentzVector functions
     """
+    @staticmethod
+    def from_p4(p_0, p_1, p_2, p_3):
+        zeros = tf.zeros_like(p_1)
+        return tf.stack([p_0 + zeros, p_1, p_2, p_3], axis=-1)
+
     def get_X(self):
         return self[..., 1]
 

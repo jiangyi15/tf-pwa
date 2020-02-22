@@ -1,86 +1,271 @@
+import numpy as np
+
 from .angle_tf import EularAngle, LorentzVector
-from .data import load_dat_file, flatten_dict_data
+from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy
 from .tensorflow_wrapper import tf
+from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
+from .config import get_config
 
 
-def cal_angle(p_B, p_C, p_D):
-    p_A = p_B + p_C + p_D
-    p_B_A = LorentzVector.rest_vector(p_A, p_B)
-    p_C_A = LorentzVector.rest_vector(p_A, p_C)
-    p_D_A = LorentzVector.rest_vector(p_A, p_D)
-    return cal_angle_rest(p_B_A, p_C_A, p_D_A)
-
-
-def cal_angle_rest(p4_B, p4_C, p4_D):
-    p4_BD = p4_B + p4_D
-    p4_BC = p4_B + p4_C
-    p4_CD = p4_C + p4_D
-    p4_B_BD = LorentzVector.rest_vector(p4_BD, p4_B)
-    p4_B_BC = LorentzVector.rest_vector(p4_BC, p4_B)
-    p4_D_CD = LorentzVector.rest_vector(p4_CD, p4_D)
-
-    zeros = tf.zeros_like(LorentzVector.get_e(p4_B))
-    ones = tf.ones_like(zeros)
-    u_z = tf.transpose([zeros, zeros, ones], (1, 0))
-    u_x = tf.transpose([ones, zeros, zeros], (1, 0))
-    ang_BC, x_BC = EularAngle.angle_zx_z_gety(
-        u_z, u_x, LorentzVector.vect(p4_BC))
-    ang_B_BC, x_B_BC = EularAngle.angle_zx_z_gety(
-        LorentzVector.vect(p4_BC), x_BC, LorentzVector.vect(p4_B_BC))
-    ang_BD, x_BD = EularAngle.angle_zx_z_gety(
-        u_z, u_x, LorentzVector.vect(p4_BD))
-    ang_B_BD, x_B_BD = EularAngle.angle_zx_z_gety(
-        LorentzVector.vect(p4_BD), x_BD, LorentzVector.vect(p4_B_BD))
-    ang_CD, x_CD = EularAngle.angle_zx_z_gety(
-        u_z, u_x, LorentzVector.vect(p4_CD))
-    ang_D_CD, x_D_CD = EularAngle.angle_zx_z_gety(
-        LorentzVector.vect(p4_CD), x_CD, LorentzVector.vect(p4_D_CD))
-
-    ang_BD_B = EularAngle.angle_zx_zx(
-        LorentzVector.vect(p4_B_BD), x_B_BD, LorentzVector.vect(p4_B), x_CD)
-    ang_BC_B = EularAngle.angle_zx_zx(
-        LorentzVector.vect(p4_B_BC), x_B_BC, LorentzVector.vect(p4_B), x_CD)
-    ang_BD_D = EularAngle.angle_zx_zx(-LorentzVector.vect(p4_B_BD),
-                                      x_B_BD, LorentzVector.vect(p4_D), x_BC)
-    ang_CD_D = EularAngle.angle_zx_zx(
-        LorentzVector.vect(p4_D_CD), x_D_CD, LorentzVector.vect(p4_D), x_BC)
-
-    return {
-        "ang_BC": ang_BC,
-        "ang_BD": ang_BD,
-        "ang_CD": ang_CD,
-        "ang_B_BC": ang_B_BC,
-        "ang_B_BD": ang_B_BD,
-        "ang_D_CD": ang_D_CD,
-        "ang_BD_B": ang_BD_B,
-        "ang_BD_D": ang_BD_D,
-        "ang_BC_B": ang_BC_B,
-        "ang_CD_D": ang_CD_D,
-    }
-
-
-def cal_ang_data(data):
-    p = [data[i] for i in ["B", "C", "D"]]
-    ret = cal_angle(*p)
-    ret["m_BC"] = LorentzVector.M(p[0] + p[1])
-    ret["m_CD"] = LorentzVector.M(p[1] + p[2])
-    ret["m_BD"] = LorentzVector.M(p[2] + p[0])
-    ret["m_A"] = LorentzVector.M(p[0] + p[1] + p[2])
-    ret["m_B"] = LorentzVector.M(p[0])
-    ret["m_C"] = LorentzVector.M(p[1])
-    ret["m_D"] = LorentzVector.M(p[2])
+def struct_momentum(p, center_mass=True) -> dict:
+    """
+    {outs:momentum} => {outs:{p:momentum}}
+    """
+    ret = {}
+    if center_mass:
+        ps_top = []
+        for i in p:
+            ps_top.append(p[i])
+        p_top = tf.reduce_sum(ps_top, 0)
+        for i in p:
+            ret[i] = {"p": LorentzVector.rest_vector(p_top, p[i])}
+    else:
+        for i in p:
+            ret[i] = {"p": p[i]}
     return ret
 
 
-def cal_ang_file(fname, _dtype="float64", flatten=True):
-    data = load_dat_file(fname, ["D", "B", "C"])
-    ret = cal_ang_data(data)
-    if flatten:
-        ret = flatten_dict_data(ret, fun=lambda x, y: y+x[3:])
+# data process
+def infer_momentum(data, decay_chain: DecayChain) -> dict:
+    """
+    {outs:{p:momentum}} => {top:{p:momentum},inner:{p:..},outs:{p:..}}
+    """
+    st = decay_chain.sorted_table()
+    for i in st:
+        if i in data:
+            continue
+        ps = []
+        for j in st[i]:
+            ps.append(data[j]["p"])
+        data[i] = {"p": tf.reduce_sum(ps, 0)}
+    return data
+
+
+def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
+    """
+    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    """
+    for i in data:
+        if isinstance(i, BaseParticle):
+            p = data[i]["p"]
+            data[i]["m"] = LorentzVector.M(p)
+    return data
+
+
+def add_weight(data: dict, weight: float = 1.0) -> dict:
+    """
+    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    """
+    data_size = data_shape(data)
+    weight = [1.0] * data_size
+    data["weight"] = np.array(weight)
+    return data
+
+
+def cal_helicity_angle(data: dict, decay_chain: DecayChain) -> dict:
+    """
+    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    """
+    part_data = {}
+    ret = {}
+    for i in decay_chain:
+        part_data[i] = {}
+        p_rest = data[i.core]["p"]
+        part_data[i]["rest_p"] = {}
+        for j in i.outs:
+            pj = data[j]["p"]
+            p = LorentzVector.rest_vector(p_rest, pj)
+            part_data[i]["rest_p"][j] = p
+    set_x = {decay_chain.top: np.array([[1.0, 0.0, 0.0]])}
+    set_z = {decay_chain.top: np.array([[0.0, 0.0, 1.0]])}
+    set_decay = list(decay_chain)
+    while set_decay:
+        extra_decay = []
+        for i in set_decay:
+            if i.core in set_x:
+                ret[i] = {}
+                for j in i.outs:
+                    ret[i][j] = {}
+                    z2 = LorentzVector.vect(part_data[i]["rest_p"][j])
+                    ang, x = EularAngle.angle_zx_z_getx(set_z[i.core], set_x[i.core], z2)
+                    set_x[j] = x
+                    set_z[j] = z2
+                    ret[i][j]["ang"] = ang
+                    ret[i][j]["x"] = x
+                    ret[i][j]["z"] = z2
+            else:
+                extra_decay.append(i)
+        set_decay = extra_decay
     return ret
 
 
-def load_dat_angle(fname, dtype="float64", flatten=True):
-    data = cal_ang_file(fname, dtype, flatten)
-    ret = tf.data.Dataset.from_tensor_slices(data)
+def cal_angle_from_particle(data, decay_group: DecayGroup):
+    decay_chain_struct = decay_group.topology_structure()
+    decay_data = []
+    for i in decay_chain_struct:
+        data_i = cal_helicity_angle(data, i)
+        decay_data.append(data_i)
+    set_x = {}  # reference particles
+    # for particle from a the top rest frame
+    for idx, decay_chain in enumerate(decay_chain_struct):
+        for decay in decay_chain:
+            if decay.core == decay_group.top:
+                for i in decay.outs:
+                    if (i not in set_x) and (i in decay_group.outs):
+                        set_x[i] = (idx, decay)
+    # or in the first chain
+    for i in decay_group.outs:
+        if i not in set_x:
+            decay_chain = next(iter(decay_chain_struct))
+            for decay in decay_chain:
+                for j in decay.outs:
+                    if i == j:
+                        set_x[i] = (0, decay)
+    for idx, decay_chain in enumerate(decay_chain_struct):
+        for decay in decay_chain:
+            part_data = decay_data[idx][decay]
+            for i in decay.outs:
+                if i in decay_group.outs and decay != set_x[i][1]:
+                    idx2, decay2 = set_x[i]
+                    part_data2 = decay_data[idx2][decay2]
+                    x1 = part_data[i]["x"]
+                    x2 = part_data2[i]["x"]
+                    z1 = part_data[i]["z"]
+                    z2 = part_data2[i]["z"]
+                    ang = EularAngle.angle_zx_zx(z1, x1, z2, x2)
+                    part_data[i]["aligned_angle"] = ang
+    return decay_data
+
+
+def cal_angle(data, decay_group: DecayGroup) -> dict:
+    for i in decay_group:
+        data = cal_helicity_angle(data, i)
+    decay_chain_struct = decay_group.topology_structure()
+    set_x = {}
+    # for a the top rest frame
+    for decay_chain in decay_chain_struct:
+        for decay in decay_chain:
+            if decay.core == decay_group.top:
+                for i in decay.outs:
+                    if (i not in set_x) and (i in decay_group.outs):
+                        set_x[i] = decay
+    # or the first chain
+    for i in decay_group.outs:
+        if i not in set_x:
+            decay_chain = next(iter(decay_chain_struct))
+            for decay in decay_chain:
+                for j in decay.outs:
+                    if i == j:
+                        set_x[i] = decay
+    for decay_chain in decay_group:
+        for decay in decay_chain:
+            for i in decay.outs:
+                if i in decay_group.outs:
+                    if decay != set_x[i]:
+                        x1 = data[decay][i]["x"]
+                        x2 = data[set_x[i]][i]["x"]
+                        z1 = data[decay][i]["z"]
+                        z2 = data[set_x[i]][i]["z"]
+                        ang = EularAngle.angle_zx_zx(z1, x1, z2, x2)
+                        data[decay][i]["aligned_angle"] = ang
+    return data
+
+
+def Getp(M_0, M_1, M_2):
+    M12S = M_1 + M_2
+    M12D = M_1 - M_2
+    p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
+    q = (p + tf.abs(p)) / 2  # if p is negative, which results from bad data, the return value is 0.0
+    return tf.sqrt(q) / (2 * M_0)
+
+
+def get_relative_momentum(data: dict, decay_chain: DecayChain):
+    ret = {}
+    for decay in decay_chain:
+        m0 = data[decay.core]["m"]
+        m1 = data[decay.outs[0]]["m"]
+        m2 = data[decay.outs[1]]["m"]
+        p = Getp(m0, m1, m2)
+        ret[decay] = {}
+        ret[decay]["|q|"] = p
     return ret
+
+
+def prepare_data_from_decay(fnames, decs, particles=None, dtype=None):
+    if dtype is None:
+        dtype = get_config("dtype")
+    if particles is None:
+        particles = sorted(decs.outs)
+    p = load_dat_file(fnames, particles, dtype=dtype)
+    data = cal_angle_from_momentum(p, decs)
+    return data
+
+
+def prepare_data_from_dat_file(fnames):
+    a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
+    bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
+    p = load_dat_file(fnames, [d, b, c])
+    # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
+    decs = DecayGroup([
+        [BaseDecay(a, [bc, d]), BaseDecay(bc, [b, c])],
+        [BaseDecay(a, [bd, c]), BaseDecay(bd, [b, d])],
+        [BaseDecay(a, [cd, b]), BaseDecay(cd, [c, d])]
+    ])
+    # decs = DecayChain.from_particles(a, [d, b, c])
+    data = cal_angle_from_momentum(p, decs)
+    data = data_to_numpy(data)
+    data = flatten_dict_data(data)
+    return data
+
+
+def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
+    data_p = struct_momentum(p)
+    for dec in decs:
+        data_p = infer_momentum(data_p, dec)
+        data_p = add_mass(data_p, dec)
+    data_d = cal_angle_from_particle(data_p, decs)
+    data = {"particle": data_p, "decay": data_d}
+    return data
+
+
+def prepare_data_from_dat_file4(fnames):
+    a, b, c, d, e, f = [BaseParticle(i) for i in "ABCDEF"]
+    bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
+    p = load_dat_file(fnames, [d, b, c, e, f])
+    p = {i: p[i] for i in [b, c, e, f]}
+    # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
+    BaseDecay(a, [bc, d])
+    BaseDecay(bc, [b, c])
+    BaseDecay(a, [cd, b])
+    BaseDecay(cd, [c, d])
+    BaseDecay(a, [bd, c])
+    BaseDecay(bd, [b, d])
+    BaseDecay(d, [e, f])
+    decs = DecayGroup(a.chain_decay())
+    # decs = DecayChain.from_particles(a, [d, b, c])
+    data = cal_angle_from_momentum(p, decs)
+    data = data_to_numpy(data)
+    data = flatten_dict_data(data)
+    return data
+
+
+def test_process(fnames=None):
+    a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
+    if fnames is None:
+        p = {
+            b: np.array([[1.0, 0.2, 0.3, 0.2]]),
+            c: np.array([[2.0, 0.1, 0.3, 0.4]]),
+            d: np.array([[3.0, 0.2, 0.5, 0.7]])
+        }
+    else:
+        p = load_dat_file(fnames, [b, c, d])
+    # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
+    decs = DecayGroup(DecayChain.from_particles(a, [b, c, d]))
+    data = cal_angle_from_momentum(p, decs)
+    data = add_weight(data)
+    print(data_shape(data, all_list=True))
+    print(len(list(split_generator(data, 5000))))
+    data = data_to_numpy(data)
+    from pprint import pprint
+    pprint(data)
+    return data
