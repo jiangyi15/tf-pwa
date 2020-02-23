@@ -174,8 +174,44 @@ class ParticleBW(Particle):
         return ret
 
 
+@regist_particle("LASS")
+class ParticleLass(Particle):
+    def init_params(self):
+        super(ParticleLass, self).init_params()
+        self.a = add_var(self, "a")
+        self.r = add_var(self, "r")
+    def get_amp(self, data, data_c=None):
+        r"""
+        .. math::
+          R(m) = \frac{m}{q cot \delta_B - i q} + e^{2i \delta_B}\frac{m_0 \Gamma_0 \frac{m_0}{q_0}}{(m_0^2 - m^2) - i m_0\Gamma_0 \frac{q}{m}\frac{m_0}{q_0}}
+        
+        .. math::
+          cot \delta_B = \frac{1}{a q} + \frac{1}{2} r q
+        
+        .. math::
+          e^{2i\delta_B} = \cos 2 \delta_B + i \sin 2\delta_B 
+                         = \frac{2 cot \delta_B }{cot^2 \delta_B +1 } + i \frac{cot^2\delta_B -1 }{cot^2 \delta_B +1}
+        
+        """
+        m = data["m"]
+        q = data_c["|q|"]
+        q0 = data_c["|q0|"]
+        mass = self.get_mass()
+        width = self.get_width()
+        cot_delta_B = (1.0/self.a()) / q + 0.5 * self.r() * q
+        cot2_delta_B = cot_delta_B * cot_delta_B
+        expi_2delta_B = tf.complex(2 * cot_delta_B, cot2_delta_B - 1 )
+        expi_2delta_B /= tf.cast(cot2_delta_B + 1, expi_2delta_B.dtype)
+        ret = 1.0 / tf.complex(q * cot_delta_B, q)
+        ret = tf.cast(m, ret.dtype) * ret
+        ret += expi_2delta_B * BWR(m, mass, width, q, q0, 0, 1.0) *  tf.cast(mass * width * mass / q0, ret.dtype)
+        return ret
+
+
 @regist_particle("one")
-class ParticleBW(Particle):
+class ParticleOne(Particle):
+    def init_params(self):
+        pass
     def get_amp(self, data, _data_c=None):
         return tf.ones((1, ), dtype=get_config("dtype"))
 
