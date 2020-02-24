@@ -4,7 +4,6 @@ import numpy as np
 
 from .cg import cg_coef
 from .breit_wigner import barrier_factor as default_barrier_factor
-from .dec_parser import load_dec_file
 from .utils import deep_ordered_iter
 
 
@@ -491,60 +490,4 @@ class DecayGroup(object):
     return chain_maps
 
 
-def load_decfile_particle(fname):
-  with open(fname) as f:
-    dec = load_dec_file(f)
-  dec = list(dec)
-  particles = {}
-  def get_particles(name):
-    if not name in particles:
-      a = Particle(name)
-      particles[name] = a
-    return particles[name]
-  decay = []
-  for i in dec:
-    cmd, var = i
-    if cmd == "Particle":
-      a = get_particles(var["name"])
-      setattr(a, "params", var["params"])
-    if cmd == "Decay":
-      for j in var["final"]:
-        outs = [get_particles(k) for k in j["outs"]]
-        de = Decay(get_particles(var["name"]), outs)
-        for k in j:
-          if k != "outs":
-            setattr(de, k, j[k])
-        decay.append(de)
-    if cmd == "RUNNINGWIDTH":
-      pa = get_particles(var[0])
-      setattr(pa, "running_width", True)
-  top, inner, outs = split_particle_type(decay)
-  return top, inner, outs
 
-
-    
-
-def test():
-  a = Particle("a", 1, -1)
-  b = Particle("b", 1, -1)
-  c = Particle("c", 0, -1)
-  d = Particle("d", 1, -1)
-  tmp = Particle("tmp", 1, -1)
-  tmp2 = Particle("tmp2", 1, -1)
-  decay = Decay(a, [tmp, c])
-  decay2 = Decay(tmp, [b, d])
-  decay3 = Decay(a, [tmp2, d])
-  decay4 = Decay(tmp2, [b, c])
-  decaychain = DecayChain([decay, decay2])
-  decaychain2 = DecayChain([decay3, decay4])
-  decaygroup = DecayGroup([decaychain, decaychain2])
-  print(decay.get_cg_matrix().T)
-  print(np.array(decay.get_ls_list()))
-  print(np.array(decay.get_ls_list())[:, 0])
-  print(decaychain)
-  print(decaychain.sorted_table())
-  print(decaygroup)
-  print(a.get_resonances())
-
-if __name__ == "__main__":
-  test()

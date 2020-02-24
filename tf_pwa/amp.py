@@ -17,7 +17,8 @@ import warnings
 import copy
 # from pysnooper import snoop
 
-from .particle import Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, DecayGroup as BaseDecayGroup
+from .particle import split_particle_type, Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, \
+    DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
 from .cal_angle import prepare_data_from_decay, split_generator
 from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW
@@ -28,7 +29,7 @@ from .data import data_shape, split_generator, data_to_tensor, data_map
 
 from .config import regist_config, get_config, temp_config
 from .einsum import einsum
-
+from .dec_parser import load_dec_file
 
 PARTICLE_MODEL = "particle_model"
 regist_config(PARTICLE_MODEL, {})
@@ -47,6 +48,7 @@ def regist_model(name=None, f=None, types=PARTICLE_MODEL):
             warnings.warn("Override model {}", my_name)
         config[my_name] = g
         return g
+
     if f is None:
         return regist
     return regist(f)
@@ -81,9 +83,18 @@ def get_name(self, names):
     return name
 
 
-def add_var(self, names, is_complex=False, shape=(), **kwargs):
+def _add_var(self, names, is_complex=False, shape=(), **kwargs):
     name = get_name(self, names)
     return Variable(name, shape, is_complex, **kwargs)
+
+
+class Vars(object):
+    def add_var(self, names, is_complex=False, shape=(), **kwargs):
+        """
+        default add_var method
+        """
+        name = get_name(self, names)
+        return Variable(name, shape, is_complex, **kwargs)
 
 
 @contextlib.contextmanager
@@ -126,20 +137,20 @@ def get_relative_p(m_0, m_1, m_2):
 
 @regist_particle("default")
 @regist_particle("BWR")
-class Particle(BaseParticle):
+class Particle(BaseParticle, Vars):
     def __init__(self, *args, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
 
     def init_params(self):
         self.d = 3.0
         if self.mass is None:
-            self.mass = add_var(self, "mass", fix=True)
+            self.mass = self.add_var("mass", fix=True)
         else:
-            self.mass = add_var(self, "mass", value=self.mass, fix=True)
+            self.mass = self.add_var("mass", value=self.mass, fix=True)
         if self.width is None:
-            self.width = add_var(self, "width", fix=True)
+            self.width = self.add_var("width", fix=True)
         else:
-            self.width = add_var(self, "width", value=self.width, fix=True)
+            self.width = self.add_var("width", value=self.width, fix=True)
 
     def get_amp(self, data, data_c):
         mass = self.get_mass()
@@ -178,8 +189,9 @@ class ParticleBW(Particle):
 class ParticleLass(Particle):
     def init_params(self):
         super(ParticleLass, self).init_params()
-        self.a = add_var(self, "a")
-        self.r = add_var(self, "r")
+        self.a = self.add_var("a")
+        self.r = self.add_var("r")
+
     def get_amp(self, data, data_c=None):
         r"""
         .. math::
@@ -198,13 +210,13 @@ class ParticleLass(Particle):
         q0 = data_c["|q0|"]
         mass = self.get_mass()
         width = self.get_width()
-        cot_delta_B = (1.0/self.a()) / q + 0.5 * self.r() * q
+        cot_delta_B = (1.0 / self.a()) / q + 0.5 * self.r() * q
         cot2_delta_B = cot_delta_B * cot_delta_B
-        expi_2delta_B = tf.complex(2 * cot_delta_B, cot2_delta_B - 1 )
+        expi_2delta_B = tf.complex(2 * cot_delta_B, cot2_delta_B - 1)
         expi_2delta_B /= tf.cast(cot2_delta_B + 1, expi_2delta_B.dtype)
         ret = 1.0 / tf.complex(q * cot_delta_B, q)
         ret = tf.cast(m, ret.dtype) * ret
-        ret += expi_2delta_B * BWR(m, mass, width, q, q0, 0, 1.0) *  tf.cast(mass * width * mass / q0, ret.dtype)
+        ret += expi_2delta_B * BWR(m, mass, width, q, q0, 0, 1.0) * tf.cast(mass * width * mass / q0, ret.dtype)
         return ret
 
 
@@ -212,20 +224,21 @@ class ParticleLass(Particle):
 class ParticleOne(Particle):
     def init_params(self):
         pass
+
     def get_amp(self, data, _data_c=None):
-        return tf.ones((1, ), dtype=get_config("dtype"))
+        return tf.ones((1,), dtype=get_config("dtype"))
 
 
 @regist_decay("default")
 @regist_decay("gls-bf")
-class HelicityDecay(Decay):
+class HelicityDecay(Decay, Vars):
     def __init__(self, *args, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
 
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
-        self.g_ls = add_var(self, "g_ls", is_complex=True, shape=(len(ls),))
+        self.g_ls = self.add_var("g_ls", is_complex=True, shape=(len(ls),))
 
     def get_relative_momentum(self, data, from_data=False):
 
@@ -338,7 +351,7 @@ class HelicityDecayNP(HelicityDecay):
     def init_params(self):
         a = self.outs[0].spins
         b = self.outs[1].spins
-        self.H = add_var(self, "H", is_complex=True, shape=(len(a), len(b)))
+        self.H = self.add_var("H", is_complex=True, shape=(len(a), len(b)))
 
     def get_helicity_amp(self, data, data_p):
         return tf.stack(self.H())
@@ -358,11 +371,11 @@ class HelicityDecayP(HelicityDecay):
         n_b = len(b.spins)
         n_c = len(c.spins)
         self.parity_term = get_parity_term(a.J, a.P, b.J, b.P, c.J, c.P)
-        if n_b != 1:
-            self.H = add_var(self, "H", is_complex=True, shape=((n_b+1) // 2, n_c))
+        if n_b > n_c:
+            self.H = self.add_var("H", is_complex=True, shape=((n_b + 1) // 2, n_c))
             self.part_H = 0
         else:
-            self.H = add_var(self, "H", is_complex=True, shape=(n_b, (n_c+1) // 2))
+            self.H = self.add_var("H", is_complex=True, shape=(n_b, (n_c + 1) // 2))
             self.part_H = 1
 
     def get_helicity_amp(self, data, data_p):
@@ -376,14 +389,14 @@ class HelicityDecayP(HelicityDecay):
         return H
 
 
-class DecayChain(BaseDecayChain):
+class DecayChain(BaseDecayChain, Vars):
     """A list of Decay as a chain decay"""
 
     def __init__(self, *args, **kwargs):
         super(DecayChain, self).__init__(*args, **kwargs)
 
     def init_params(self):
-        self.total = add_var(self, "total", is_complex=True)
+        self.total = self.add_var("total", is_complex=True)
         self.aligned = True
 
     def get_amp_total(self):
@@ -663,7 +676,7 @@ class AmplitudeModel(object):
     def partial_weight(self, data, combine=None):
         return self.decay_group.partial_weight(data, combine)
 
-    def get_params(self,trainable_only=False):
+    def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)
 
     def set_params(self, var):
@@ -679,3 +692,36 @@ class AmplitudeModel(object):
 
     def __call__(self, data, cached=False):
         return self.decay_group.sum_amp(data)
+
+
+def load_decfile_particle(fname):
+    with open(fname) as f:
+        dec = load_dec_file(f)
+    dec = list(dec)
+    particles = {}
+
+    def get_particles(name):
+        if name not in particles:
+            a = get_particle(name)
+            particles[name] = a
+        return particles[name]
+
+    decay = []
+    for i in dec:
+        cmd, var = i
+        if cmd == "Particle":
+            a = get_particles(var["name"])
+            setattr(a, "params", var["params"])
+        if cmd == "Decay":
+            for j in var["final"]:
+                outs = [get_particles(k) for k in j["outs"]]
+                de = Decay(get_particles(var["name"]), outs)
+                for k in j:
+                    if k != "outs":
+                        setattr(de, k, j[k])
+                decay.append(de)
+        if cmd == "RUNNINGWIDTH":
+            pa = get_particles(var[0])
+            setattr(pa, "running_width", True)
+    top, inner, outs = split_particle_type(decay)
+    return top, inner, outs
