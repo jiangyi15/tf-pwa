@@ -3,7 +3,6 @@ import numpy as np
 import warnings
 from .config import regist_config, get_config
 
-
 '''
 vm = VarsManager(dtype=tf.float64)
 
@@ -133,6 +132,7 @@ class VarsManager(object):
       self.bnd_dic[name] = Bound(*bound_dic[name],func=func)
 
   def set_share_r(self,name_list): # name_list==[name1,name2,...]
+    self.xy2rp_all(name_list)
     name_r_list = [name+'r' for name in name_list]
     self.set_same(name_r_list)
     for name in name_r_list:
@@ -185,10 +185,10 @@ class VarsManager(object):
       return
     r = self.variables[name+'r']
     p = self.variables[name+'i']
-    x = r * np.cos(p)
-    y = r * np.sin(p)
-    self.variables[name+'r'] = x
-    self.variables[name+'i'] = y
+    x = r * tf.cos(p)
+    y = r * tf.sin(p)
+    self.variables[name+'r'].assign(x)
+    self.variables[name+'i'].assign(y)
     self.complex_vars[name] = False
     for l in self.same_list:
       if name in l:
@@ -201,10 +201,10 @@ class VarsManager(object):
       return
     x = self.variables[name+'r']
     y = self.variables[name+'i']
-    r = np.sqrt(x*x+y*y)
-    p = np.arctan2(y,x)
-    self.variables[name+'r'] = r
-    self.variables[name+'i'] = p
+    r = tf.sqrt(x*x+y*y)
+    p = tf.atan2(y,x)
+    self.variables[name+'r'].assign(r)
+    self.variables[name+'i'].assign(p)
     self.complex_vars[name] = True
     for l in self.same_list:
       if name in l:
@@ -303,6 +303,7 @@ class VarsManager(object):
 
   def trans_fcn_grad(self,fcn_grad): # bound transform fcn and grad
     def fcn_t(xvals):
+      xvals = np.array(xvals)
       yvals = xvals.copy()
       dydxs = []
       i = 0
@@ -486,8 +487,11 @@ class Variable(object):
             real = self.vm.variables[name+'r']*tf.cos(self.vm.variables[name+'i'])
             imag = self.vm.variables[name+'r']*tf.sin(self.vm.variables[name+'i'])
             tmp[int(idx_str[-1])] = tf.complex(real,imag)
+            #print("&&&&&pg",name)
           else:
+            #print("$$$$$xg",name)
             tmp[int(idx_str[-1])] = tf.complex(self.vm.variables[name+'r'],self.vm.variables[name+'i'])
+          #print(tmp[int(idx_str[-1])])
         else:
           tmp[int(idx_str[-1])] = self.vm.variables[name]
       shape_func(func,self.shape,self.name)
@@ -498,8 +502,11 @@ class Variable(object):
           real = self.vm.variables[name+'r']*tf.cos(self.vm.variables[name+'i'])
           imag = self.vm.variables[name+'r']*tf.sin(self.vm.variables[name+'i'])
           var_list = tf.complex(real,imag)
+          #print("&&&pt",name)
         else:
+          #print("$$$xt",name)
           var_list = tf.complex(self.vm.variables[self.name+'r'],self.vm.variables[self.name+'i'])
+        #print(var_list)
       else:
         var_list = self.vm.variables[self.name]
 

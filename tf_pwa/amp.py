@@ -136,10 +136,10 @@ class HelicityDecay(Decay):
     def __init__(self, *args, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
 
-    def init_params(self):
+    def init_params(self,polar=True):
         self.d = 3.0
         ls = self.get_ls_list()
-        self.g_ls = add_var(self, "g_ls", is_complex=True, shape=(len(ls),))
+        self.g_ls = add_var(self, "g_ls", is_complex=True, polar=polar, shape=(len(ls),))
 
     def get_relative_momentum(self, data, from_data=False):
 
@@ -248,10 +248,10 @@ class HelicityDecay(Decay):
 
 
 class HelicityDecayNP(HelicityDecay):
-    def init_params(self):
+    def init_params(self,polar=True):
         a = self.outs[0].spins
         b = self.outs[1].spins
-        self.H = add_var(self, "H", is_complex=True, shape=(len(a), len(b)))
+        self.H = add_var(self, "H", is_complex=True, shape=(len(a), len(b)), polar=polar)
 
     def get_helicity_amp(self, data, data_p):
         return tf.stack(self.H())
@@ -263,7 +263,7 @@ def get_parity_term(j1, p1, j2, p2, j3, p3):
 
 
 class HelicityDecayP(HelicityDecay):
-    def init_params(self):
+    def init_params(self,polar=True):
         a = self.core
         b = self.outs[0]
         c = self.outs[1]
@@ -271,10 +271,10 @@ class HelicityDecayP(HelicityDecay):
         n_c = len(c.spins)
         self.parity_term = get_parity_term(a.J, a.P, b.J, b.P, c.J, c.P)
         if n_b != 1:
-            self.H = add_var(self, "H", is_complex=True, shape=((n_b+1) // 2, n_c))
+            self.H = add_var(self, "H", is_complex=True, shape=((n_b+1) // 2, n_c), polar=polar)
             self.part_H = 0
         else:
-            self.H = add_var(self, "H", is_complex=True, shape=(n_b, (n_c+1) // 2))
+            self.H = add_var(self, "H", is_complex=True, shape=(n_b, (n_c+1) // 2), polar=polar)
             self.part_H = 1
 
     def get_helicity_amp(self, data, data_p):
@@ -294,8 +294,8 @@ class DecayChain(BaseDecayChain):
     def __init__(self, *args, **kwargs):
         super(DecayChain, self).__init__(*args, **kwargs)
 
-    def init_params(self):
-        self.total = add_var(self, "total", is_complex=True)
+    def init_params(self,polar=True):
+        self.total = add_var(self, "total", is_complex=True, polar=polar)
         self.aligned = True
 
     def get_amp_total(self):
@@ -382,23 +382,23 @@ class DecayChain(BaseDecayChain):
 class DecayGroup(BaseDecayGroup):
     """ A Group of Decay Chains with the same final particles."""
 
-    def __init__(self, chains):
+    def __init__(self, chains, polar=True):
         self.chains_idx = list(range(len(chains)))
         first_chain = chains[0]
         if not isinstance(first_chain, DecayChain):
             chains = [DecayChain(i) for i in chains]
         super(DecayGroup, self).__init__(chains)
-        self.init_params()
+        self.init_params(polar)
 
-    def init_params(self):
+    def init_params(self,polar=True):
         for i in self.resonances:
             i.init_params()
         inited_set = set()
         for i in self:
-            i.init_params()
+            i.init_params(polar=polar)
             for j in i:
                 if j not in inited_set:
-                    j.init_params()
+                    j.init_params(polar=polar)
                     inited_set.add(j)
 
     def get_amp(self, data):
@@ -544,10 +544,10 @@ def value_and_grad(f, var):
 
 
 class AmplitudeModel(object):
-    def __init__(self, decay_group):
+    def __init__(self, decay_group,polar=True):
         self.decay_group = decay_group
         with variable_scope() as vm:
-            decay_group.init_params()
+            decay_group.init_params(polar)
         self.vm = vm
         res = decay_group.resonances
         self.used_res = res
