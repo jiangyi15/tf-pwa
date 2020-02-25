@@ -1,6 +1,7 @@
 import tempfile
 import os
 import contextlib
+import pytest
 
 from tf_pwa.amp import *
 from tf_pwa.cal_angle import cal_angle_from_momentum
@@ -13,6 +14,31 @@ def write_temp_file(s):
         f.write(s)
     yield a
     os.remove(a)
+
+
+@regist_particle("Gounaris–Sakurai")
+class ParticleGS(Particle):
+    def get_amp(self, data, data_c):
+        r"""
+        Gounaris G.J., Sakurai J.J., Phys. Rev. Lett., 21 (1968), pp. 244-247
+
+        .. math::
+          R(m) = \frac{1 + D \Gamma_0 / m_0}{(m_0^2 -m^2) + f(m) - i m_0 \Gamma(m)}
+
+        .. math::
+          f(m) = \Gamma_0 \frac{m_0 ^2 }{q_0^3} \left[q^2 [h(m)-h(m_0)] + (m_0^2 - m^2) q_0^2 \frac{d h}{d m}|_{m0} \right]
+
+        .. math::
+          h(m) = \frac{2}{\pi} \frac{q}{m} \ln \left(\frac{m+q}{2m_{\pi}} \right)
+
+        .. math::
+          \frac{d h}{d m}|_{m0} = h(m_0) [(8q_0^2)^{-1} - (2m_0^2)^{-1}] + (2\pi m_0^2)^{-1}
+
+        .. math::
+          D = \frac{f(0)}{\Gamma_0 m_0} = \frac{3}{\pi}\frac{m_\pi^2}{q_0^2} \ln \left(\frac{m_0 + 2q_0}{2 m_\pi }\right)
+            + \frac{m_0}{2\pi q_0} - \frac{m_\pi^2 m_0}{\pi q_0^3}
+        """
+        raise NotImplementedError
 
 
 def get_test_decay():
@@ -58,6 +84,12 @@ def test_amp():
         p = dict(zip(particle, p_data))
         data = cal_angle_from_momentum(p, decs)
         amp(data)
+
+
+def test_particle():
+    a = get_particle("ss", model="Gounaris–Sakurai")
+    with pytest.raises(NotImplementedError):
+        a.get_amp({},{})
 
 
 def test_dec():

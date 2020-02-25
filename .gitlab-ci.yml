@@ -7,7 +7,7 @@ pytest:
   image: tensorflow/tensorflow:2.0.1-py3
   script:
   - pip install numpy scipy sympy matplotlib
-  - pip install pysnooper pytest pytest-cov
+  - pip install pysnooper pytest pytest-cov pytest-benchmark
   - py.test --cov=tf_pwa
 
 build_wheel:
