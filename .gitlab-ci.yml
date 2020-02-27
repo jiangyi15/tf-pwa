@@ -20,3 +20,14 @@ build_wheel:
 
   artifacts:
     untracked: true
+
+build_docs:
+  stage: build
+  script:
+  - apt-get update -qy
+  - apt-get install -y python3-dev python3-pip make texlive-full
+  - pip3 install setuptools sphinx
+  - cd docs && make latexpdf
+  allow_failure: true
+  artifacts:
+    untracked: true
