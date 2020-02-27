@@ -12,13 +12,13 @@ def generate_mc(num):
 
 
 @pytest.mark.benchmark(group="generate_mc")
-def test_generate_mc(benchmark):
+def test_generate_mc_CPU(benchmark):
     with tf.device("CPU:0"):
         benchmark(generate_mc, 1000000)
 
 
 @pytest.mark.benchmark(group="generate_mc")
-def test_generate_mc_GPU(benchmark):
+def test_generate_mc(benchmark):
     benchmark(generate_mc, 1000000)
 
 

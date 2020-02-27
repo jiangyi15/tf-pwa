@@ -8,7 +8,7 @@ pytest:
   script:
   - pip install numpy scipy sympy matplotlib
   - pip install pysnooper pytest pytest-cov pytest-benchmark
-  - py.test --cov=tf_pwa
+  - py.test
 
 build_wheel:
   stage: build

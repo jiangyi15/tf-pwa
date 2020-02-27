@@ -95,6 +95,7 @@ def small_d_matrix(theta, j):
 
 
 def exp_i(theta, mi):
+    """ exp^i\\theta"""
     theta_i = tf.reshape(theta, (-1, 1))
     mi = tf.cast(mi, dtype=theta.dtype)
     m_theta = mi * theta_i

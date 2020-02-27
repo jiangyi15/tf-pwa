@@ -20,7 +20,6 @@ import copy
 from .particle import split_particle_type, Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, \
     DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
-from .cal_angle import prepare_data_from_decay, split_generator
 from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
@@ -195,7 +194,9 @@ class ParticleLass(Particle):
     def get_amp(self, data, data_c=None):
         r"""
         .. math::
-          R(m) = \frac{m}{q cot \delta_B - i q} + e^{2i \delta_B}\frac{m_0 \Gamma_0 \frac{m_0}{q_0}}{(m_0^2 - m^2) - i m_0\Gamma_0 \frac{q}{m}\frac{m_0}{q_0}}
+          R(m) = \frac{m}{q cot \delta_B - i q}
+            + e^{2i \delta_B}\frac{m_0 \Gamma_0 \frac{m_0}{q_0}}
+                                  {(m_0^2 - m^2) - i m_0\Gamma_0 \frac{q}{m}\frac{m_0}{q_0}}
         
         .. math::
           cot \delta_B = \frac{1}{a q} + \frac{1}{2} r q
