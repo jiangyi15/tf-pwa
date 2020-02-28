@@ -23,9 +23,10 @@ build_wheel:
 
 build_docs:
   stage: build
-  image: texlive/texlive
+  image: mirisbowring/texlive_ctan_full
   script:
-  - apk add python3 python3-dev make
+  - apt-get update -qy
+  - apt-get install -y python3 python3-dev make
   - pip3 install setuptools sphinx numpy scipy pyyaml
   - cd docs && make latexpdf
   allow_failure: true
