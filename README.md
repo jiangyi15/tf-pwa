@@ -15,11 +15,17 @@ get miniconda for python3 from [minicoda](https://docs.conda.io/en/latest/minico
 install following packages
 
 ```
-conda install tensorflow-gpu iminuit sympy matplotlib 
+conda install tensorflow iminuit sympy matplotlib scipy
 ```
 
 then get the packages using ```git clone```
 
+### pip
+
+```
+pip3 install -r requirements.txt
+python3 setup.py install
+```
 
 ## Scripts
 
@@ -59,7 +65,7 @@ script for cache state, using the latest *_params.json file as parameters and ca
 
 ## autodocs
 
-autodoc using sphinx, need sphinx 
+autodoc using sphinx-doc, need sphinx-doc 
 
 ```
   python setup.py build_sphinx 
@@ -74,4 +80,6 @@ sympy
 iminuit 
 
 matplotlib : for plot_amp.py
+
+scipy : for fit
 
