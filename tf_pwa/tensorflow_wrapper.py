@@ -8,7 +8,10 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 #os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE" # for Mac
 
 # pylint: disable=no-member
-tf_version = int(tf.__version__.split(".")[0])
+try:
+    tf_version = int(str(tf.__version__).split(".")[0])
+except Exception:
+    tf_version = 2
 if tf_version < 2:
   tf.compat.v1.enable_eager_execution()
   import tensorflow.compat.v2 as tf

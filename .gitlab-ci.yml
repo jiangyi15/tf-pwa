@@ -23,10 +23,10 @@ build_wheel:
 
 build_docs:
   stage: build
+  image: texlive/texlive
   script:
-  - apt-get update -qy
-  - apt-get install -y python3-dev python3-pip make texlive-full
-  - pip3 install setuptools sphinx
+  - apk add python3 python3-dev make
+  - pip3 install setuptools sphinx numpy scipy pyyaml
   - cd docs && make latexpdf
   allow_failure: true
   artifacts:

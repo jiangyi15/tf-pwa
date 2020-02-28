@@ -13,6 +13,7 @@ The full data structure is
     "A":{"p":...,"m":...}
     ...
   },
+  
   "decay":[
     {
       "A->R1+B": {
@@ -27,6 +28,7 @@ The full data structure is
         },
         "B" : {...}
       },
+      
       "R->C+D": {
         "C": {
           ...,
@@ -36,6 +38,7 @@ The full data structure is
             "gamme":[...]
           }
         },
+        
         "D": {...}
       },
     },
@@ -45,6 +48,7 @@ The full data structure is
     },
     ...
   ],
+  
   "weight": [...]
 }
 ```

@@ -4,27 +4,27 @@ tf\_pwa package
 Submodules
 ----------
 
-tf\_pwa.amplitude module
+tf\_pwa.data module
 ------------------------
 
-.. automodule:: tf_pwa.amplitude
+.. automodule:: tf_pwa.data
    :members:
    :undoc-members:
    :show-inheritance:
 
 
-tf\_pwa.angle module
+tf\_pwa.angle_tf module
 --------------------
 
-.. automodule:: tf_pwa.angle
+.. automodule:: tf_pwa.angle_tf
    :members:
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.bounds module
+tf\_pwa.amp module
 ---------------------
 
-.. automodule:: tf_pwa.bounds
+.. automodule:: tf_pwa.amp
    :members:
    :undoc-members:
    :show-inheritance:
@@ -45,10 +45,10 @@ tf\_pwa.cg module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.dfun\_tf module
+tf\_pwa.dfun module
 -----------------------
 
-.. automodule:: tf_pwa.dfun_tf
+.. automodule:: tf_pwa.dfun
    :members:
    :undoc-members:
    :show-inheritance:
@@ -69,10 +69,10 @@ tf\_pwa.gpu\_info module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.model module
+tf\_pwa.model_new module
 --------------------
 
-.. automodule:: tf_pwa.model
+.. automodule:: tf_pwa.model_new
    :members:
    :undoc-members:
    :show-inheritance:
