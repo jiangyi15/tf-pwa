@@ -23,7 +23,7 @@ build_wheel:
 
 build_docs:
   stage: build
-  image: mirisbowring/texlive_ctan_full
+  image: mirisbowring/texlive_ctan_full:2019
   script:
   - apt-get update -qy
   - apt-get install -y python3 python3-dev make
