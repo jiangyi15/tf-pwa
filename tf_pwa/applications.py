@@ -3,7 +3,9 @@ import tensorflow as tf
 import time
 
 from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
-def fit_fractions(model,mcdata,config_list,inv_he,hesse):
+
+
+def fit_fractions(model, mcdata, config_list, inv_he, hesse):
     '''
     calculate fit fractions of all resonances
     :param model:
@@ -36,9 +38,9 @@ def corr_coef_matrix(npy_name):
     '''
     err_mtx = np.load(npy_name)
     err = np.sqrt(err_mtx.diagonal())
-    diag_mtx = np.diag(1/err)
-    tmp_mtx = np.matmul(diag_mtx,err_mtx)
-    cc_mtx = np.matmul(tmp_mtx,diag_mtx)
+    diag_mtx = np.diag(1 / err)
+    tmp_mtx = np.matmul(diag_mtx, err_mtx)
+    cc_mtx = np.matmul(tmp_mtx, diag_mtx)
     return cc_mtx
 
 
@@ -163,43 +165,80 @@ def cal_hesse_error(model):
     :return:
     '''
     t = time.time()
-    nll,g,h = model.cal_nll_hessian()#data_w,mcdata,weight=weights,batch=50000)
-    print("Time for calculating errors:",time.time()-t)
+    nll, g, h = model.cal_nll_hessian()  # data_w,mcdata,weight=weights,batch=50000)
+    print("Time for calculating errors:", time.time() - t)
     inv_he = np.linalg.pinv(h.numpy())
-    np.save("error_matrix.npy",inv_he)
+    np.save("error_matrix.npy", inv_he)
     return inv_he
 
 
-from .generate_toy import generate_data
-def gen_data(Ndata, Nbg, wbg, scale=1.2, Poisson_fluc=False, save_pkl=True, file_name='toy'):
-    '''
-    generate data including the effect of detector performance
-    :param Ndata:
-    :param Nbg:
-    :param wbg:
-    :param scale:
-    :param Poisson_fluc:
-    :param save_pkl:
-    :param file_name:
-    :return:
-    '''
-    #Ndata = 8065; Nbg = 3445; wbg = 0.768331
-    data = generate_data(Ndata,Nbg,wbg,scale,Poisson_fluc)
-    #print(data)
-    if save_pkl:
-        import pickle
-        output = open(file_name+'.pkl', 'wb')
-        pickle.dump(data, output, -1)
-        output.close()
-    return data
+from .data import load_dat_file, data_to_tensor
+from tf_pwa.cal_angle import prepare_data_from_decay
+def gen_data(amp,particles, Ndata,mcfile,Nbg=0,wbg=0,Poisson_fluc=False,
+                    bgfile=None,genfile="data/gen_data.dat"):
+  Nbg = round(wbg*Nbg)
+  Nmc = Ndata-Nbg  # 8065-3445*0.768331
+  if Poisson_fluc:  # Poisson
+    Nmc = np.random.poisson(Nmc)
+    Nbg = np.random.poisson(Nbg)
+  print("data:",Nmc+Nbg,", sig:",Nmc,", bkg:",Nbg)
+  dtype = "float64"
+
+  phsp = prepare_data_from_decay(mcfile,amp.decay_group, particles=particles, dtype=dtype)
+  phsp = data_to_tensor(phsp)
+  ampsq = amp(phsp)
+  ampsq_max = tf.reduce_max(ampsq).numpy()
+  Nsample = ampsq.__len__()
+  n = 0
+  idx_list = []
+
+  while n<Nmc:
+    uni_rdm = tf.random.uniform([Nsample],minval=0,maxval=ampsq_max,dtype=dtype)
+    list_rdm = tf.random.uniform([Nsample],dtype=tf.int64,maxval=Nsample)
+    j = 0
+    for i in list_rdm:
+      if ampsq[i]>uni_rdm[j]:
+        idx_list.append(i)
+        n+=1
+      j+=1
+      if n==Nmc:
+        break
+  idx_list = tf.stack(idx_list).numpy()
+
+  data_tmp = load_dat_file(mcfile, particles, dtype)
+  for i in particles:
+    data_tmp[i] = np.array(data_tmp[i])[idx_list]
+  data_gen = []
+
+  if Nbg:
+    bg_tmp = load_dat_file(bgfile, particles, dtype)
+    bg_idx = tf.random.uniform([Nbg],dtype=tf.int64,maxval=len(bg_tmp[particles[0]]))#np.random.randint(len(bg),size=Nbg)
+    bg_idx = tf.stack(bg_idx).numpy()
+    for i in particles:
+      tmp = bg_tmp[i][bg_idx]
+      data_tmp[i] = np.append(data_tmp[i], tmp, axis=0)
+      data_gen.append(data_tmp[i])
+  else:
+    for i in particles:
+      data_gen.append(data_tmp[i])
+    
+  data_gen = np.transpose(data_gen,[1,0,2])
+  np.random.shuffle(data_gen)
+  data_gen = data_gen.reshape(-1,4)
+  np.savetxt(genfile,data_gen)
+
+  data = prepare_data_from_decay(genfile, amp.decay_group, particles=particles, dtype=dtype)
+  return data_to_tensor(data)
 
 
-from tf_pwa.phasespace import PhaseSpaceGenerator
-def gen_mc(mother,daughters,number,outfile="data/flat_mc.dat"):
+
+from .phasespace import PhaseSpaceGenerator
+
+def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     '''
     generate phase space MC data not considering the effect of detector performance
-    :param mother: 4.59925
-    :param daughters: [2.01026,0.13957061,2.00685]
+    :param mother: 4.59925172
+    :param daughters: [2.00698,2.01028,0.13957] DBC: D*0 D*- pi+
     :param number:
     :param outfile:
     :return:
@@ -217,18 +256,20 @@ def gen_mc(mother,daughters,number,outfile="data/flat_mc.dat"):
 
 
 from .fit import fit_scipy, fit_minuit, fit_multinest
-def fit(Use="scipy",**kwargs):
+
+
+def fit(Use="scipy", **kwargs):
     '''
     fit using scipy, iminuit or pymultinest
     :param Use:
     :param kwargs:
     :return:
     '''
-    if Use=="scipy":
+    if Use == "scipy":
         ret = fit_scipy(**kwargs)
-    elif Use=="minuit":
+    elif Use == "minuit":
         ret = fit_minuit(**kwargs)
-    elif Use=="multinest":
+    elif Use == "multinest":
         ret = fit_multinest(**kwargs)
     else:
         raise Exception("Unknown fit tool {}".format(Use))
@@ -236,6 +277,8 @@ def fit(Use="scipy",**kwargs):
 
 
 from .significance import significance
+
+
 def cal_significance():
     pass
 
@@ -244,75 +287,80 @@ def cal_significance():
 import matplotlib.pyplot as plt
 from scipy.stats import norm as Norm
 
-def plot_pull(data,name,nbins=20,norm=False,value=None,error=None):
+
+def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     data = np.array(data)
-    n, bins, patches = plt.hist(data, nbins, density=1, alpha=0.6)
     if norm:
-        if value==None or error==None:
+        if value == None or error == None:
             raise Exception("Need value or error for normed pull!")
-        data = (data-value)/error
+        data = (data - value) / error
+
+    n, bins, patches = plt.hist(data, nbins, density=1, alpha=0.6)
     mean, sigma = Norm.fit(data)
     y = Norm.pdf(bins, mean, sigma)
     plt.plot(bins, y, "r*-")
     plt.xlabel(name)
     plt.title(name + ": mean=%.3f, sigma=%.3f" % (mean, sigma))
-    plt.savefig("Pull_"+name)
+    plt.savefig("fig/" + name + "_pull.png")
     plt.clf()
+    return mean, sigma
 
 
-def likelihood_profile(var_name,start=None,end=None,step=None,values=None,errors=None,mode="bothsides"):
-    if start==None or end==None:
+def likelihood_profile(var_name, start=None, end=None, step=None, values=None, errors=None, mode="bothsides"):
+    if start == None or end == None:
         x_mean = values[var_name]
         x_sigma = errors[var_name]
-        start = x_mean-10*x_sigma
-        end = x_mean+10*x_sigma
+        start = x_mean - 10 * x_sigma
+        end = x_mean + 10 * x_sigma
     else:
-        x_mean = (end+start)/2
-    if step==None:
-        step = (end-start)/100
-    if mode=="bothsides":
-        x1 = np.arange(x_mean,start,-step)
-        x2 = np.arange(x_mean,end,step)
+        x_mean = (end + start) / 2
+    if step == None:
+        step = (end - start) / 100
+    if mode == "bothsides":
+        x1 = np.arange(x_mean, start, -step)
+        x2 = np.arange(x_mean, end, step)
         #
-    elif mode=="back&forth":
-        x1 = np.arange(start,end,step)
+    elif mode == "back&forth":
+        x1 = np.arange(start, end, step)
         x2 = x1[::-1]
         #
 
-
-def compare_result(rslt_file1,rslt_file2,figname=None,yrange=None):
-  '''
-  compare two final_params
-  :param rslt_file1:
-  :param rslt_file2:
-  :param figname:
-  :param yrange:
-  :return:
-  '''
-  with open(rslt_file1) as f:
-    rslt1 = json.load(f)
-  value1 = rslt1["value"]
-  error1 = rslt1["error"]
-  with open(rslt_file2) as f:
-    rslt2 = json.load(f)
-  value2 = rslt2["value"]
-  error2 = rslt2["error"]
-  diff_dict = {}
-  for v in error1:
-    diff = value1[v]-value2[v]
-    sigma = math.sqrt(error1[v]**2+error2[v]**2)
-    diff_dict[v] = diff/sigma
-  if figname:
-    arr = []
-    for v in diff_dict:
-      arr.append(diff_dict[v])
-    arr_x = np.arange(len(arr))
-    plt.scatter(arr_x,arr)
-    if yrange:
-      plt.ylim(-yrange,yrange)
-    plt.xlabel("parameter index")
-    plt.ylabel("sigma")
-    plt.title("difference between "+rslt_file1+" and "+rslt_file2)
-    plt.savefig(figname)
-    plt.clf()
-  return diff_dict
+from .utils import std_periodic_var
+def compare_result(value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=[]):
+    diff_dict = {}
+    if error2:
+        for v in error1:
+            if v in periodic_vars:
+                diff = value1[v] - std_periodic_var(value2[v],value1[v])
+            else:
+                diff = value1[v] - value2[v]
+            sigma = np.sqrt(error1[v] ** 2 + error2[v] ** 2)
+            diff_dict[v] = diff / sigma
+    else:
+        for v in error1:
+            if v in periodic_vars:
+                diff = value1[v] - std_periodic_var(value2[v],value1[v])
+            else:
+                diff = value1[v] - value2[v]
+            diff_dict[v] = diff / np.sqrt(2) / error1[v]
+    if figname:
+        arr = []
+        if yrange:
+            for v in diff_dict:
+                if np.abs(diff_dict[v])>yrange:
+                    print("{0} out of yrange, which is {1}.".format(v,diff_dict[v]))
+                    arr.append(np.sign(diff_dict[v])*yrange)
+                else:
+                    arr.append(diff_dict[v])
+            plt.ylim(-yrange, yrange)
+        else:
+            for v in diff_dict:
+                arr.append(diff_dict[v])
+        arr_x = np.arange(len(arr))
+        plt.scatter(arr_x, arr)
+        plt.xlabel("parameter index")
+        plt.ylabel("sigma")
+        plt.title(figname)
+        plt.savefig(figname + ".png")
+        plt.clf()
+    return diff_dict

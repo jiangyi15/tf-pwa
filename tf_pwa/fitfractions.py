@@ -51,7 +51,7 @@ def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
     for j in range(i, -1, -1):
       amp_tmp = amp
       if i == j:
-        name = res[i]
+        name = "{}".format(res[i])
         amp_tmp.set_used_res([res[i]])
       else:
         name = "{}x{}".format(res[i], res[j])
@@ -62,7 +62,7 @@ def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
         gij = g_int_tmp/int_mc - (int_tmp/int_mc) * g_int_mc/int_mc
         g_fitFrac[i] = gij
       else:
-        fitFrac[name] = (int_tmp/int_mc) - fitFrac[res[i]] - fitFrac[res[j]]
+        fitFrac[name] = (int_tmp/int_mc) - fitFrac["{}".format(res[i])] - fitFrac["{}".format(res[j])]
         gij = g_int_tmp/int_mc - (int_tmp/int_mc) * g_int_mc/int_mc - g_fitFrac[i] - g_fitFrac[j]
       #print(name,gij.tolist())
       err_fitFrac[name] = gij
@@ -87,7 +87,7 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, args=(), kwargs=None):
     for j in range(i, -1, -1):
       amp_tmp = amp
       if i == j:
-        name = res[i]
+        name = "{}".format(res[i])
         amp_tmp.set_used_res([res[i]])
       else:
         name = "{}x{}".format(res[i], res[j])
@@ -96,7 +96,7 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, args=(), kwargs=None):
       if i == j:
         fitFrac[name] = (int_tmp/int_mc)
       else:
-        fitFrac[name] = (int_tmp/int_mc) - fitFrac[res[i]] - fitFrac[res[j]]
+        fitFrac[name] = (int_tmp/int_mc) - fitFrac["{}".format(res[i])] - fitFrac["{}".format(res[j])]
   amp.set_used_res(cahced_res)
   return fitFrac
 

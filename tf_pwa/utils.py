@@ -150,3 +150,11 @@ def time_print(f):
     print(f.__name__ ," cost time:",time.time()-now)
     return ret
   return g
+
+def std_periodic_var(p,mid=0.,pi=math.pi):
+  twopi = 2*pi
+  while p<=mid-pi:
+    p+=twopi
+  while p>=mid+pi:
+    p-=twopi
+  return p

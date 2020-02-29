@@ -3,7 +3,7 @@ from tf_pwa.model_new import Model, FCN
 from tf_pwa.tensorflow_wrapper import tf
 import time
 import numpy as np
-from pprint import pprint
+#from pprint import pprint
 import json
 import os
 import datetime
@@ -113,8 +113,8 @@ def get_decay_chains(config_list):
     return decs, [d, b, c], decay
 
 
-def get_amplitude(decs, config_list, decay):
-    amp = AmplitudeModel(decs)
+def get_amplitude(decs, config_list, decay, polar=True):
+    amp = AmplitudeModel(decs,polar)
     for i in config_list:
         if "coef_head" in config_list[i]:
             coef_head = config_list[i]["coef_head"]
@@ -170,12 +170,11 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
 
     decs, final_particles, decay = get_decay_chains(config_list)
     data, bg, mcdata = prepare_data(decs, particles=final_particles, dtype=dtype)
-    amp = get_amplitude(decs, config_list, decay)
+    amp = get_amplitude(decs, config_list, decay, polar=POLAR)
     load_params(amp, init_params)
     amp.vm.trans_params(POLAR)
 
     model = Model(amp, w_bkg=w_bkg)
-    print(model.Amp.vm.trainable_vars)
     pprint(model.get_params())
     # print(model.Amp(data))
     # tf.summary.trace_on(graph=True, profiler = True)
@@ -240,7 +239,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     points = []
     nlls = []
     now = time.time()
-    maxiter = 1  ##000
+    maxiter = 1000
 
     # s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
     if method in ["BFGS", "CG", "Nelder-Mead"]:
@@ -250,16 +249,16 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
                 raise Exception("x too large: {}".format(x_p))
             points.append(model.Amp.vm.get_all_val())
             nlls.append(float(fcn.cached_nll))
-            if len(nlls) > maxiter:
-                with open("fit_curve.json", "w") as f:
-                    json.dump({"points": points, "nlls": nlls}, f, indent=2)
-                pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
+            #if len(nlls) > maxiter:
+            #    with open("fit_curve.json", "w") as f:
+            #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
+            #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
 
         #bd = Bounds(bnds)
         fcn.model.Amp.vm.set_bound(bounds_dict)
         f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
-        s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method=method, jac=True, callback=callback, options={"disp": 1})
+        s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method=method, jac=True, callback=callback, options={"disp": 1,"gtol":1e-4,"maxiter":maxiter})
         xn = fcn.model.Amp.vm.get_all_val() #bd.get_y(s.x)
     elif method in ["L-BFGS-B"]:
         def callback(x):
@@ -275,7 +274,8 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     else:
         pass  # raise Exception("unknown method")
     print("########## fit state:")
-    # print(s)
+    print(s)
+    #print(s.success,s.message)
     print("\nTime for fitting:", time.time() - now)
     model.Amp.vm.trans_params(POLAR)
     val = {k: v.numpy() for k, v in model.Amp.variables.items()}
@@ -312,8 +312,10 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         for i in frac:
             print(i, ":", error_print(frac[i], err_frac.get(i, None)))
     print("\nEND\n")
-
-
+    '''outdic = {"value": val, "error": err, "frac": frac, "err_frac": err_frac}
+    with open("glbmin_params.json", "w") as f:
+        json.dump(outdic, f, indent=2)
+    '''
 
 
 def main():

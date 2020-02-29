@@ -453,9 +453,13 @@ class DecayGroup(object):
     for i in chains:
       assert i.top == first_chain.top, ""
       assert i.outs == first_chain.outs, ""
-    resonances = set()
+    #resonances = set()
+    resonances = []
     for i in chains:
-      resonances |= i.inner
+      #resonances |= i.inner
+      for j in i.inner:
+        if j not in resonances:
+          resonances.append(j)
     self.resonances = list(resonances)
 
   def __repr__(self):

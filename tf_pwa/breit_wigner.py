@@ -100,5 +100,3 @@ def Bprime_polynomial(l, z):
     z = tf.convert_to_tensor(z)
     cof = tf.convert_to_tensor(coeff[int(l+0.01)], dtype=z.dtype)
     return tf.math.polyval(cof, z)
-
-
