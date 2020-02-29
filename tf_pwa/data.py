@@ -1,8 +1,8 @@
 """
 module for describing data process.
 
-All data structure is decaribing as nested combination of `dict` or `list` for `ndarray`.
-Aata process is a transation from data structure to another data structure or typical `ndarray`.
+All data structure is describing as nested combination of `dict` or `list` for `ndarray`.
+Data process is a translation from data structure to another data structure or typical `ndarray`.
 Data cache can be implemented based on the dynamic features of `list` and `dict`.
 
 The full data structure is
@@ -13,6 +13,7 @@ The full data structure is
     "A":{"p":...,"m":...}
     ...
   },
+  
   "decay":[
     {
       "A->R1+B": {
@@ -27,6 +28,7 @@ The full data structure is
         },
         "B" : {...}
       },
+      
       "R->C+D": {
         "C": {
           ...,
@@ -36,6 +38,7 @@ The full data structure is
             "gamme":[...]
           }
         },
+        
         "D": {...}
       },
     },
@@ -45,6 +48,7 @@ The full data structure is
     },
     ...
   ],
+  
   "weight": [...]
 }
 ```
@@ -111,10 +115,13 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     return ret
 
 
-save_data = np.save
+def save_data(*args, **kwargs):
+    """save structured data to files."""
+    return np.save(*args, **kwargs)
 
 
 def load_data(*args, **kwargs):
+    """load data file from save_data."""
     if "allow_pickle" not in kwargs:
         kwargs["allow_pickle"] = True
     data = np.load(*args, **kwargs)
@@ -124,7 +131,7 @@ def load_data(*args, **kwargs):
         return data
 
 
-def data_split(dat, batch_size, axis=0):
+def _data_split(dat, batch_size, axis=0):
     data_size = dat.shape[axis]
     if axis == 0:
         for i in range(0, data_size, batch_size):
@@ -133,13 +140,11 @@ def data_split(dat, batch_size, axis=0):
         for i in range(0, data_size, batch_size):
             yield dat[..., i:min(i + batch_size, data_size)]
     else:
-        raise Exception("unsupport axis: {}".format(axis))
+        raise Exception("unsupported axis: {}".format(axis))
 
 
-def data_generator(data, fun=data_split, args=(), kwargs=None):
-    """
-    split data generator.
-    """
+def data_generator(data, fun=_data_split, args=(), kwargs=None):
+    """data generator: call fun for each data as a generator"""
     kwargs = kwargs if kwargs is not None else {}
 
     def _gen(dat):
@@ -169,32 +174,51 @@ def data_generator(data, fun=data_split, args=(), kwargs=None):
     return _gen(data)
 
 
-def split_generator(data, batch_size, axis=0):
-    return data_generator(data, fun=data_split, args=(batch_size,), kwargs={"axis": axis})
+def data_split(data, batch_size, axis=0):
+    """split data for batch_size each in axis"""
+    return data_generator(data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis})
+
+
+split_generator = data_split
 
 
 def data_map(data, fun, args=(), kwargs=None):
+    """map data: call fun(data, *args, **kwargs) for each data. return the same structure."""
     kwargs = kwargs if kwargs is not None else {}
+    if isinstance(data, dict):
+        return {k: data_map(v, fun, args, kwargs) for k, v in data.items()}
+    if isinstance(data, list):
+        return [data_map(data_i, fun, args, kwargs) for data_i in data]
+    if isinstance(data, tuple):
+        return tuple([data_map(data_i, fun, args, kwargs) for data_i in data])
+    return fun(data, *args, **kwargs)
 
-    def g_fun(*args1, **kwargs1):
-        yield fun(*args1, **kwargs1)
 
-    g = data_generator(data, fun=g_fun, args=args, kwargs=kwargs)
-    return next(g)
+def data_mask(data, select):
+    """merge data with the same structure."""
+    ret = data_map(data, tf.boolean_mask, args=(select,))
+    return ret
 
 
-def data_merge(data1, data2, axis=0):
-    if isinstance(data1, dict):
-        return {i: data_merge(data1[i], data2[i]) for i in set(list(data1)) & set(list(data2))}
-    if isinstance(data2, list):
-        return [data_merge(data, data2[i]) for i, data in enumerate(data1)]
-    if isinstance(data1, tuple):
-        return tuple([data_merge(data, data2[i]) for i, data in enumerate(data1)])
-    m_data = tf.concat([data1, data2], axis=axis)
+def data_merge(*data, axis=0):
+    """merge data with the same structure."""
+    if isinstance(data[0], dict):
+        assert all([isinstance(i, dict) for i in data]), "not all type same"
+        all_idx = [set(list(i)) for i in data]
+        idx = set.intersection(*all_idx)
+        return {i: data_merge(*[data_i[i] for data_i in data]) for i in idx}
+    if isinstance(data[0], list):
+        assert all([isinstance(i, list) for i in data]), "not all type same"
+        return [data_merge(*data_i) for data_i in zip(*data)]
+    if isinstance(data[0], tuple):
+        assert all([isinstance(i, tuple) for i in data]), "not all type same"
+        return tuple([data_merge(*data_i) for data_i in zip(*data)])
+    m_data = tf.concat(data, axis=axis)
     return m_data
 
 
 def data_shape(data, axis=0, all_list=False):
+    """get data size."""
     def flatten(dat):
         ret = []
 
@@ -211,6 +235,7 @@ def data_shape(data, axis=0, all_list=False):
 
 
 def data_to_numpy(dat):
+    """convert Tensor data to numpy ndarray"""
     def to_numpy(data):
         if hasattr(data, "numpy"):
             return data.numpy()
@@ -221,6 +246,7 @@ def data_to_numpy(dat):
 
 
 def data_to_tensor(dat):
+    """convert data to tensorflow Tensor"""
     def to_tensor(data):
         return tf.convert_to_tensor(data)
 
@@ -229,6 +255,7 @@ def data_to_tensor(dat):
 
 
 def flatten_dict_data(data, fun="{}/{}".format):
+    """flatten data as dict with structure named as fun"""
     def dict_gen(dat):
         return dat.items()
 

@@ -139,12 +139,3 @@ class PhaseSpaceGenerator(object):
       wtmax *= p
     self.m_wtMax = wtmax
     return True
-      
-
-if __name__ == "__main__":
-  A = PhaseSpaceGenerator(1.0,[0.2,0.3,0.1])
-  data = A.generate(100)
-  print(len(data))
-  print(data[1].M())
-  print(data[2].M())
-  print(data[0].M())

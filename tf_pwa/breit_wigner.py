@@ -64,19 +64,7 @@ def Gamma(m, gamma0, q, q0, L, m0,d):
 
 def Bprime_num(L,q,d):
   z = (q * d)**2
-  if L == 0:
-    return tf.constant(1.0)
-  if L == 1:
-    return tf.sqrt(1.0 + z)
-  if L == 2:
-    return tf.sqrt((9. + (3. + z) * z))
-  if L == 3:
-    return tf.sqrt( (z * (z * (z + 6.) + 45.) + 225.))
-  if L == 4:
-    return tf.sqrt((z * (z * (z * (z + 10.) + 135.) + 1575.) + 11025.));
-  if L == 5:
-    return tf.sqrt((z * (z * (z * (z * (z + 15.) + 315.) + 6300.) + 99225.) + 893025.));
-  return tf.constant(1.0)
+  return tf.sqrt(Bprime_polynomial(L, z))
 
 def Bprime(L, q, q0, d):
   num = Bprime_num(L,q0,d)
@@ -96,4 +84,22 @@ def barrier_factor2(l,q,q0,d=3.0, axis=-1): # cache q^l * B_l 只用于H里
     tmp = q**i * tf.cast(Bprime(i,q,q0,d),q.dtype)
     ret.append(tf.reshape(tmp, (-1, 1)))
   return tf.concat(ret, axis=axis)
+
+
+def Bprime_polynomial(l, z):
+    coeff = {
+        0: [1.0],
+        1: [1.0, 1.0],
+        2: [1.0, 3.0, 9.0],
+        3: [1.0, 6.0, 45.0, 225.0],
+        4: [1.0, 10.0, 135.0, 1575.0, 11035.0],
+        5: [1.0, 15.0, 315.0, 6300.0, 99225.0, 893025.0]
+    }
+    if l not in coeff:
+        raise NotImplementedError
+    z = tf.convert_to_tensor(z)
+    cof = tf.convert_to_tensor(coeff[int(l+0.01)], dtype=z.dtype)
+    return tf.math.polyval(cof, z)
+
+
 
