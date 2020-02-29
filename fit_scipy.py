@@ -111,28 +111,24 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
 
   dtype = "float64"
   w_bkg = 0.768331
-  #set_gpu_mem_growth()
-  #tf.keras.backend.set_floatx(dtype)
-  # open Resonances list as dict 
   config_list = load_config_file("Resonances")
   
   data, bg, mcdata = prepare_data(dtype=dtype,model=mode)
   if GEN_TOY:
     print("########## begin generate_data")
-    #data = gen_data(8065,3445,w_bkg,1.1,Poisson_fluc=True)
-    import pickle
-    toy_file = open("toy.pkl","rb") # load pkl data
-    data = pickle.load(toy_file)
-    toy_file.close()
+    data = gen_data(8065,3445,w_bkg,1.1,Poisson_fluc=True,save_pkl=True)
+    #import pickle
+    #with open("toy.pkl","rb") as toy_file: # load pkl data
+    #  data = pickle.load(toy_file)
     print("########## finish generate_data")
 
   amp = AllAmplitude(config_list)
   a = Cache_Model(amp,w_bkg,data,mcdata,bg=bg,batch=65000)#,constrain={"Zc_4160_g0:0":(0.1,0.1)})
+  
   if POLAR:
     print("Fitting parameters are defined in POLAR coordinates")
   else:
     print("Fitting parameters are defined in XY coordinates")
-  #print(type(a.Amp))
   try :
     with open(init_params) as f:  
       param = json.load(f)
@@ -145,33 +141,24 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
       else :
         a.set_params(param)
   except Exception as e:
-    #print(e)
     print("using RANDOM parameters")
-  amp.trans_params(polar=POLAR)
-  #print(a.Amp(data))
-  #exit()
-  #a.Amp.polar=POLAR
+  a.Amp.trans_params(polar=POLAR) # 前面amp默认polar=True了
 
   bounds_dict = {
       "Zc_4160_m":(4.1,4.22),
       "Zc_4160_g":(0,None),
       #"D1_2420r": (3.12,10.0)
   }
+  a.Amp.set_bound(bounds_dict)
 
-  #args = a.Amp.get_all_dic(trainable_only=True)
   args_name = a.Amp.trainable_vars
-  
   pprint(a.get_params())
-  #print(data,bg,mcdata)
-  #t = time.time()
-  #nll,g = a.cal_nll_gradient()#data_w,mcdata,weight=weights,batch=50000)
-  #print("nll:",nll,"Time:",time.time()-t)
-  #exit()
+  
   print("########## chain decay:")
   for i in a.Amp.A.chain_decay():
     print(i)
   now = time.time()
-  s, nlls, points = fit_scipy(model=a,bounds_dict=bounds_dict)
+  s, nlls, points = fit_scipy(model=a,method=method)
 
   print("########## fit state:")
   print(s)
@@ -195,41 +182,10 @@ def fit(method="BFGS",init_params="init_params.json",hesse=True,frac=True):
     else:
       print("  ",i,":",val[i])
 
-  '''    
-  print("\n########## fitting params in polar expression")
-  i = 0
-  for v in params:
-    if len(v)>15:
-      if i%2==0:
-        tmp_name = v
-        tmp = params[v]
-      else:
-        if POLAR:
-          rho = tmp
-          phi = params[v]
-          rho,phi = std_polar(rho,phi)
-        else:  
-          rho = np.sqrt(params[v]**2+tmp**2)
-          phi = np.arctan2(params[v],tmp)
-        params[tmp_name] = rho
-        params[v] = phi
-        print(v[:-3],"\t%.5f * exp(%.5fi)"%(rho,phi))
-      i+=1
-  #for v in config_list:
-    #rho = params[v.rstrip('pm')+'r:0']
-    #phi = params[v+'i:0']
-    #rho,phi = std_polar(rho,phi)
-    #params[v.rstrip('pm')+'r:0'] = rho
-    #params[v+'i:0'] = phi
-    #print(v,"\t\t%.5f * exp(%.5fi)"%(rho,phi))
-  #a.set_params(params)
-  
-  #with a.Amp.params_form(polar=True) as params:
-    #pprint(params)'''
-
   outdic={"value":params,"error":err,"config":config_list}
   with open("final_params.json","w") as f:                                      
     json.dump(outdic,f,indent=2)
+  
   #print("\n########## ratios of partial wave amplitude square")
   #calPWratio(params,POLAR)
   

@@ -488,6 +488,3 @@ class DecayGroup(object):
                 tmp[j] = chain_map
         chain_maps.append(tmp)
     return chain_maps
-
-
-

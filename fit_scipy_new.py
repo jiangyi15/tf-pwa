@@ -129,6 +129,11 @@ def get_amplitude(decs, config_list, decay):
             for j in decs.chains:
                 if decay[i][0] in j:
                     j.total.fixed(config_list[i]["total"])
+        '''if ("float" in config_list[i]) and config_list[i]["float"]:
+            if 'm' in config_list[i]["float"]:
+                decay[i][1].core.mass.freed()
+            if 'g' in config_list[i]["float"]:
+                decay[i][1].core.width.freed()'''
     return amp
 
 
@@ -170,7 +175,8 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     amp.vm.trans_params(POLAR)
 
     model = Model(amp, w_bkg=w_bkg)
-    #pprint(model.get_params())
+    print(model.Amp.vm.trainable_vars)
+    pprint(model.get_params())
     # print(model.Amp(data))
     # tf.summary.trace_on(graph=True, profiler = True)
     now = time.time()

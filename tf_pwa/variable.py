@@ -439,10 +439,10 @@ class Variable(object):
   def freed(self):
     if not self.shape:
       if self.cplx:
-        self.vm.set_fix(self.name + 'r', unfix=False)
-        self.vm.set_fix(self.name + 'i', unfix=False)
+        self.vm.set_fix(self.name + 'r', unfix=True)
+        self.vm.set_fix(self.name + 'i', unfix=True)
       else:
-        self.vm.set_fix(self.name, unfix=False)
+        self.vm.set_fix(self.name, unfix=True)
     else:
       raise Exception("Only shape==() var supports 'freed' method.")
 

@@ -17,3 +17,6 @@ dist
 *.egg-info
 site
 chains
+
+coverage.xml
+.coverage

@@ -6,14 +6,13 @@ Data process is a translation from data structure to another data structure or t
 Data cache can be implemented based on the dynamic features of `list` and `dict`.
 
 The full data structure is
-```
 
+```
 {
   "particle":{
     "A":{"p":...,"m":...}
     ...
   },
-  
   "decay":[
     {
       "A->R1+B": {
@@ -28,7 +27,6 @@ The full data structure is
         },
         "B" : {...}
       },
-      
       "R->C+D": {
         "C": {
           ...,
@@ -38,7 +36,6 @@ The full data structure is
             "gamme":[...]
           }
         },
-        
         "D": {...}
       },
     },
@@ -48,7 +45,6 @@ The full data structure is
     },
     ...
   ],
-  
   "weight": [...]
 }
 ```

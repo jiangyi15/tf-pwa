@@ -102,4 +102,3 @@ def Bprime_polynomial(l, z):
     return tf.math.polyval(cof, z)
 
 
-
