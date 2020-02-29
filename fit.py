@@ -37,7 +37,7 @@ def prepare_data(dtype="float64"):
   mcdata = load_data("PHSP")
   return data, bg, mcdata
 
-def fit(init_params="init_params.json",hesse=True,minos=False,frac=True):
+def fit(init_params="init_params_rp.json",hesse=True,minos=False,frac=True):
   POLAR = True # fit in polar coordinates. should be consistent with init_params.json if any
   
   dtype = "float64"
