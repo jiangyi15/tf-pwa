@@ -6,8 +6,8 @@ Data process is a translation from data structure to another data structure or t
 Data cache can be implemented based on the dynamic features of `list` and `dict`.
 
 The full data structure is
-```
 
+```
 {
   "particle":{
     "A":{"p":...,"m":...}

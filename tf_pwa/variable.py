@@ -18,6 +18,7 @@ vm.trans_fcn(fcn,grad)#bound转换
 class VarsManager(object):
   def __init__(self, dtype=tf.float64):
     self.dtype = dtype
+    self.polar = True
     self.variables = {} # {name:tf.Variable,...}
     self.trainable_vars = [] # [name,...]
     self.complex_vars = {} # {name:polar(bool),...}
@@ -45,7 +46,9 @@ class VarsManager(object):
     if trainable:
       self.trainable_vars.append(name)
 
-  def add_complex_var(self,name, polar=True,trainable=True,fix_vals=(1.0,0.0)):
+  def add_complex_var(self,name, polar=None,trainable=True,fix_vals=(1.0,0.0)):
+    if polar is None:
+        polar = self.polar
     var_r = name+'r'
     var_i = name+'i'
     if trainable:
