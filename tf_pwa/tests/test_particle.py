@@ -23,3 +23,15 @@ def test_particle():
     print(decaygroup)
     print(a.get_resonances())
 
+    
+def test_topology():
+    a = Particle("a")
+    b = Particle("B")
+    c = Particle("C")
+    d = Particle("D")
+    r = Particle("R")
+    d1 = Decay(a, [r, c])
+    d2 = Decay(r, [b, d])
+    dec = DecayChain([d1, d2])
+    print(dec.standard_topology())
+

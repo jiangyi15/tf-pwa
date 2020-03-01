@@ -220,7 +220,7 @@ def prepare_data_from_dat_file(fnames):
 
 def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
     data_p = struct_momentum(p)
-    for dec in decs:
+    for dec in decs.topology_structure():
         data_p = infer_momentum(data_p, dec)
         data_p = add_mass(data_p, dec)
     data_d = cal_angle_from_particle(data_p, decs)

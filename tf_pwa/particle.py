@@ -371,6 +371,19 @@ class DecayChain(object):
       set_a = [list(a[i]) for i in a]
     return sorted(set_a)
 
+  def standard_topology(self):
+      a = self.sorted_table()
+      name_map = {k: str(tuple(sorted(v))) for k, v in a.items()}
+      name_map[self.top] = str(self.top)
+      for i in self.outs:
+          name_map[i] = str(i)
+      particle_map = {k: BaseParticle(v) for k, v in name_map.items()}
+      ret = []
+      for i in self:
+          core = particle_map[i.core]
+          ret.append(BaseDecay(core, [particle_map[j] for j in i.outs]))
+      return DecayChain(ret)
+
   def topology_map(self, other):
     """
     [A->R+B,R->C+D],[A->Z+B,Z->C+D] => {A:A,B:B,C:C,D:D,R:Z,A->R+B:A->Z+B,R->C+D:Z->C+D}
@@ -468,7 +481,7 @@ class DecayGroup(object):
   def __iter__(self):
     return iter(self.chains)
 
-  def topology_structure(self, identical=False):
+  def topology_structure(self, identical=False, standard=True):
     ret = []
     for i in self:
       for j in ret:
@@ -476,6 +489,8 @@ class DecayGroup(object):
           break
       else:
         ret.append(i)
+    if standard:
+        return [i.standard_topology() for i in ret]
     return ret
   
   @functools.lru_cache()
