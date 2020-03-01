@@ -232,7 +232,7 @@ def gen_data(amp,particles, Ndata,mcfile,Nbg=0,wbg=0,Poisson_fluc=False,
 
 
 
-from .phasespace import PhaseSpaceGenerator
+from .phasespace_tf import PhaseSpaceGenerator
 
 def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     '''
