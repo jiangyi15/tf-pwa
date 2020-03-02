@@ -11,7 +11,6 @@ DecayGroup: addition
 import functools
 import numpy as np
 import contextlib
-from opt_einsum import contract_path, contract
 from pprint import pprint
 import warnings
 import copy
@@ -24,7 +23,7 @@ from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
 from .variable import VarsManager, Variable
-from .data import data_shape, split_generator, data_to_tensor, data_map
+from .data import data_shape, split_generator, data_map
 
 from .config import regist_config, get_config, temp_config
 from .einsum import einsum
@@ -87,13 +86,16 @@ def _add_var(self, names, is_complex=False, shape=(), **kwargs):
     return Variable(name, shape, is_complex, **kwargs)
 
 
-class Vars(object):
+class AmpBase(object):
     def add_var(self, names, is_complex=False, shape=(), **kwargs):
         """
         default add_var method
         """
         name = get_name(self, names)
         return Variable(name, shape, is_complex, **kwargs)
+
+    def amp_shape(self):
+        raise NotImplementedError
 
 
 @contextlib.contextmanager
@@ -130,13 +132,14 @@ def get_relative_p(m_0, m_1, m_2):
     M12S = m_1 + m_2
     M12D = m_1 - m_2
     p = (m_0 - M12S) * (m_0 + M12S) * (m_0 - M12D) * (m_0 + M12D)
-    q = (p + tf.abs(p)) / 2  # if p is negative, which results from bad data, the return value is 0.0
+    # if p is negative, which results from bad data, the return value is 0.0
+    q = (p + tf.abs(p)) / 2
     return tf.sqrt(q) / (2 * m_0)
 
 
 @regist_particle("default")
 @regist_particle("BWR")
-class Particle(BaseParticle, Vars):
+class Particle(BaseParticle, AmpBase):
     def __init__(self, *args, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
 
@@ -158,8 +161,10 @@ class Particle(BaseParticle, Vars):
         # return BW(data["m"], self.mass, self.width)
         q = data_c["|q|"]
         q0 = data_c["|q0|"]
-        ret = BWR(data["m"], mass, width, q, q0, min(decay.get_l_list()), self.d)
-        return ret  # tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
+        ret = BWR(data["m"], mass, width, q, q0,
+                  min(decay.get_l_list()), self.d)
+        # tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
+        return ret
 
     def amp_shape(self):
         return ()
@@ -197,14 +202,14 @@ class ParticleLass(Particle):
           R(m) = \frac{m}{q cot \delta_B - i q}
             + e^{2i \delta_B}\frac{m_0 \Gamma_0 \frac{m_0}{q_0}}
                                   {(m_0^2 - m^2) - i m_0\Gamma_0 \frac{q}{m}\frac{m_0}{q_0}}
-        
+
         .. math::
           cot \delta_B = \frac{1}{a q} + \frac{1}{2} r q
-        
+
         .. math::
           e^{2i\delta_B} = \cos 2 \delta_B + i \sin 2\delta_B 
                          = \frac{2 cot \delta_B }{cot^2 \delta_B +1 } + i \frac{cot^2\delta_B -1 }{cot^2 \delta_B +1}
-        
+
         """
         m = data["m"]
         q = data_c["|q|"]
@@ -217,7 +222,9 @@ class ParticleLass(Particle):
         expi_2delta_B /= tf.cast(cot2_delta_B + 1, expi_2delta_B.dtype)
         ret = 1.0 / tf.complex(q * cot_delta_B, q)
         ret = tf.cast(m, ret.dtype) * ret
-        ret += expi_2delta_B * BWR(m, mass, width, q, q0, 0, 1.0) * tf.cast(mass * width * mass / q0, ret.dtype)
+        ret += expi_2delta_B * \
+            BWR(m, mass, width, q, q0, 0, 1.0) * \
+            tf.cast(mass * width * mass / q0, ret.dtype)
         return ret
 
 
@@ -232,7 +239,7 @@ class ParticleOne(Particle):
 
 @regist_decay("default")
 @regist_decay("gls-bf")
-class HelicityDecay(Decay, Vars):
+class HelicityDecay(Decay, AmpBase):
     def __init__(self, *args, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
 
@@ -275,8 +282,8 @@ class HelicityDecay(Decay, Vars):
             for i1, lambda_b in enumerate(range(-jb, jb + 1)):
                 for i2, lambda_c in enumerate(range(-jc, jc + 1)):
                     ret[i][i1][i2] = np.sqrt((2 * l + 1) / (2 * ja + 1)) \
-                                     * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
-                                     * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
+                        * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
+                        * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
         return tf.convert_to_tensor(ret)
 
     def get_helicity_amp(self, data, data_p):
@@ -296,9 +303,11 @@ class HelicityDecay(Decay, Vars):
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
         n_ls = len(self.get_ls_list())
         m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
-        cg_trans = tf.reshape(cg_trans, (n_ls, len(self.outs[0].spins), len(self.outs[1].spins)))
+        cg_trans = tf.reshape(cg_trans, (n_ls, len(
+            self.outs[0].spins), len(self.outs[1].spins)))
         H = tf.reduce_sum(m_dep * cg_trans, axis=1)
-        ret = tf.reshape(H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
+        ret = tf.reshape(
+            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         return ret
 
     def get_amp(self, data, data_p):
@@ -308,7 +317,8 @@ class HelicityDecay(Decay, Vars):
         ang = data[b]["ang"]
         D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
         H = self.get_helicity_amp(data, data_p)
-        H = tf.reshape(H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
+        H = tf.reshape(
+            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         H = tf.cast(H, dtype=D_conj.dtype)
         ret = H * D_conj
         # print(self, H, D_conj)
@@ -320,7 +330,8 @@ class HelicityDecay(Decay, Vars):
                     ang = data[particle].get("aligned_angle", None)
                     if ang is None:
                         continue
-                    dt = get_D_matrix_lambda(ang, particle.J, particle.spins, particle.spins)
+                    dt = get_D_matrix_lambda(
+                        ang, particle.J, particle.spins, particle.spins)
                     dt_shape = [-1, 1, 1, 1, 1]
                     dt_shape[j + 2] = len(particle.spins)
                     dt_shape[j + 3] = len(particle.spins)
@@ -373,10 +384,12 @@ class HelicityDecayP(HelicityDecay):
         n_c = len(c.spins)
         self.parity_term = get_parity_term(a.J, a.P, b.J, b.P, c.J, c.P)
         if n_b > n_c:
-            self.H = self.add_var("H", is_complex=True, shape=((n_b + 1) // 2, n_c))
+            self.H = self.add_var("H", is_complex=True,
+                                  shape=((n_b + 1) // 2, n_c))
             self.part_H = 0
         else:
-            self.H = self.add_var("H", is_complex=True, shape=(n_b, (n_c + 1) // 2))
+            self.H = self.add_var("H", is_complex=True,
+                                  shape=(n_b, (n_c + 1) // 2))
             self.part_H = 1
 
     def get_helicity_amp(self, data, data_p):
@@ -384,21 +397,24 @@ class HelicityDecayP(HelicityDecay):
         n_c = len(self.outs[1].spins)
         H_part = tf.stack(self.H())
         if self.part_H == 0:
-            H = tf.concat([H_part, self.parity_term * H_part[(n_b - 2) // 2::-1]], axis=0)
+            H = tf.concat([H_part, self.parity_term *
+                           H_part[(n_b - 2) // 2::-1]], axis=0)
         else:
-            H = tf.concat([H_part, self.parity_term * H_part[:, (n_c - 2) // 2::-1]], axis=1)
+            H = tf.concat([H_part, self.parity_term *
+                           H_part[:, (n_c - 2) // 2::-1]], axis=1)
         return H
 
 
-class DecayChain(BaseDecayChain, Vars):
+class DecayChain(BaseDecayChain, AmpBase):
     """A list of Decay as a chain decay"""
 
     def __init__(self, *args, **kwargs):
         super(DecayChain, self).__init__(*args, **kwargs)
+        self.aligned = True
+        self.need_amp_particle = True
 
     def init_params(self):
         self.total = self.add_var("total", is_complex=True)
-        self.aligned = True
 
     def get_amp_total(self):
         return self.total()
@@ -406,26 +422,18 @@ class DecayChain(BaseDecayChain, Vars):
     def get_amp(self, data_c, data_p, base_map=None):
         base_map = self.get_base_map(base_map)
         iter_idx = ["..."]
-        amp_d = [None]
-        indices = [[]]
+        amp_d = []
+        indices = []
         final_indices = "".join(iter_idx + self.amp_index(base_map))
         for i in self:
             indices.append(i.amp_index(base_map))
             amp_d.append(i.get_amp(data_c[i], data_p))
 
-        amp_p = []
-        for i in self.inner:
-            if len(i.decay) == 1 and i.decay[0] in self:
-                data_c_i = data_c[i.decay[0]]
-                if "|q|" not in data_c_i:
-                    data_c_i["|q|"] = i.decay[0].get_relative_momentum(data_p, True)
-                if "|q0|" not in data_c_i:
-                    data_c_i["|q0|"] = i.decay[0].get_relative_momentum(data_p, False)
-                amp_p.append(i.get_amp(data_p[i], data_c_i))
-            else:
-                amp_p.append(i.get_amp(data_p[i]))
-        rs = self.get_amp_total() * tf.reduce_sum(amp_p, axis=0)
-        amp_d[0] = rs
+        if self.need_amp_particle:
+            rs = self.get_amp_particle(data_p, data_c)
+            rs = self.get_amp_total() * rs
+            amp_d.append(rs)
+            indices.append([])
 
         if self.aligned:
             for i in self:
@@ -449,6 +457,23 @@ class DecayChain(BaseDecayChain, Vars):
         # exit()
         # ret = einsum(idx_s, *amp_d)
         return ret
+
+    def get_amp_particle(self, data_p, data_c):
+        amp_p = []
+        for i in self.inner:
+            if len(i.decay) == 1 and i.decay[0] in self:
+                data_c_i = data_c[i.decay[0]]
+                if "|q|" not in data_c_i:
+                    data_c_i["|q|"] = i.decay[0].get_relative_momentum(
+                        data_p, True)
+                if "|q0|" not in data_c_i:
+                    data_c_i["|q0|"] = i.decay[0].get_relative_momentum(
+                        data_p, False)
+                amp_p.append(i.get_amp(data_p[i], data_c_i))
+            else:
+                amp_p.append(i.get_amp(data_p[i]))
+        rs = tf.reduce_sum(amp_p, axis=0)
+        return rs
 
     def amp_shape(self):
         ret = [len(self.top.spins)]
@@ -490,7 +515,7 @@ class DecayGroup(BaseDecayGroup):
         if not isinstance(first_chain, DecayChain):
             chains = [DecayChain(i) for i in chains]
         super(DecayGroup, self).__init__(chains)
-        self.init_params()
+        # self.init_params()
 
     def init_params(self):
         for i in self.resonances:
@@ -566,7 +591,8 @@ class DecayGroup(BaseDecayGroup):
             elif isinstance(i, BaseParticle):
                 res_set.add(i)
             else:
-                raise TypeError("type({}) = {} not a Particle".format(i, type(i)))
+                raise TypeError(
+                    "type({}) = {} not a Particle".format(i, type(i)))
         if not only:
             used_res = set()
             for i in res_set:
@@ -646,10 +672,10 @@ def value_and_grad(f, var):
 
 
 class AmplitudeModel(object):
-    def __init__(self, decay_group,polar=True):
+    def __init__(self, decay_group, polar=True):
         self.decay_group = decay_group
         with variable_scope() as vm:
-            vm.polar= polar
+            vm.polar = polar
             decay_group.init_params()
         self.vm = vm
         res = decay_group.resonances
