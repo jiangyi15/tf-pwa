@@ -22,6 +22,8 @@ def cross_combine(x):
         ret.append(i + j)
   return ret
 
+
+@functools.total_ordering
 class BaseParticle(object):
   """
   Base Particle object
@@ -34,7 +36,10 @@ class BaseParticle(object):
       names = name.split(":")
       if len(names) > 1:
         self.name = ":".join(names[:-1])
-        self._id = int(names[-1])
+        try :
+            self._id = int(names[-1])
+        except ValueError:
+            self.name, self._id = name, 0
       else:
         self.name, self._id = name, 0
     else:
@@ -53,6 +58,8 @@ class BaseParticle(object):
     self.creators.append(d)
 
   def __repr__(self):
+    return "{}:{}".format(self.name, self._id)
+  def __str__(self):
     if self._id == 0:
       return self.name
     return "{}:{}".format(self.name, self._id)
@@ -65,11 +72,7 @@ class BaseParticle(object):
   def __lt__(self, other):
     if isinstance(other, BaseParticle):
       return (self.name, self._id) < (other.name, other._id)
-    return self.name < other
-  def __gt__(self, other):
-    if isinstance(other, BaseParticle):
-      return (self.name, self._id) > (other.name, other._id)
-    return self.name > other
+    return self.__repr__() < other
 
   def chain_decay(self):
     ret = []
@@ -124,6 +127,7 @@ def simple_cache_fun(f):
   return g
 
 
+@functools.total_ordering
 class BaseDecay(object):
   """
   Base Decay object
@@ -324,6 +328,8 @@ class DecayChain(object):
           if sorted(check) == sorted(idx[1]):
             return i
         base_step += 1
+      else:
+          raise Exception("not found in searching")
 
     s_dict = split_len(decay_dict)
     base_dict = dict(s_dict[1])

@@ -1,3 +1,5 @@
+import pytest
+
 from tf_pwa.particle import *
 
 
@@ -23,7 +25,7 @@ def test_particle():
     print(decaygroup)
     print(a.get_resonances())
 
-    
+
 def test_topology():
     a = Particle("a")
     b = Particle("B")
@@ -35,3 +37,50 @@ def test_topology():
     dec = DecayChain([d1, d2])
     print(dec.standard_topology())
 
+
+def test_baseparticle():
+    a = BaseParticle("a")
+    assert str(a) == "a"
+    b = BaseParticle("a:1")
+    assert str(b) == "a:1"
+    assert a.name == "a"
+    c = BaseParticle("a", id_=1)
+    assert str(c) == "a:1"
+    assert a.name == "a"
+    assert b == c
+    assert a < c
+    assert a < "a:1"
+    assert c > a
+    assert c > "a"
+
+
+def test_basedecay():
+    a = BaseParticle("a")
+    b = BaseParticle("a:1")
+    c = BaseParticle("c")
+    d = BaseParticle("d")
+    de = BaseDecay(c, [a, b])
+    assert len(c.decay) == 1
+    de2 = BaseDecay(d, [a, b], disable=True)
+    assert len(c.decay) == 1
+    c.remove_decay(de)
+    assert len(c.decay) == 0
+    de2 < de
+    de2 > de
+    assert de2 != de
+    de2 > "s"
+    de < "s"
+    assert de != "s"
+
+
+def test_sorted_table():
+    a = {"a": ["b", "c", "d"], "r": ["c", "d"],
+         "b": ["b"], "c": ["c"], "d": ["d"]}
+    de = DecayChain.from_sorted_table(a)
+    print(de.sorted_table_layers())
+    b = {"a": ["b", "c", "d"], "b": ["b"], "c": ["c"], "d": ["d"]}
+    de2 = DecayChain.from_sorted_table(b)
+    print(de2.sorted_table_layers())
+    c = {"a": ["b", "c", "d"], "c": ["c"], "d": ["d"]}
+    with pytest.raises(Exception):
+        de3 = DecayChain.from_sorted_table(c)
