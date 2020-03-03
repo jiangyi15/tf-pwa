@@ -2,7 +2,13 @@
 [run]
 branch = True
 omit =
+    # Deprecated module
     tf_pwa/amplitude*.py
+    tf_pwa/angle.py
+    tf_pwa/phasespace.py
+    tf_pwa/model.py
+    tf_pwa/dfun_tf.py
+    # test file
 	*/test_*.py
 
 
