@@ -89,6 +89,7 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     sizes = []
     for fname in fnames:
         data = np.loadtxt(fname, dtype=dtype)
+        data =np.reshape(data, (-1, 4))
         sizes.append(data.shape[0])
         datas.append(data)
 
@@ -275,3 +276,24 @@ def flatten_dict_data(data, fun="{}/{}".format):
                 ret[i] = tmp
         return ret
     return data
+
+
+def data_index(data, key):
+    """indexing data for key or a list of keys"""
+    def idx(data, i):
+        if isinstance(i, int):
+            return data[i]
+        assert isinstance(data, dict)
+        if i in data:
+            return data[i]
+        for k, v in data.items():
+            if str(k) == str(i):
+                return v
+        raise ValueError("{} is not found".format(i))
+    
+    if isinstance(key, (list, tuple)):
+        keys = list(key)
+        if len(keys) > 1:
+            return data_index(idx(data, keys[0]), keys[1:])
+        return idx(data, keys[0])
+    return idx(data, key)

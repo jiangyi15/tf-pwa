@@ -58,8 +58,6 @@ class BaseParticle(object):
     self.creators.append(d)
 
   def __repr__(self):
-    return "{}:{}".format(self.name, self._id)
-  def __str__(self):
     if self._id == 0:
       return self.name
     return "{}:{}".format(self.name, self._id)
@@ -379,7 +377,10 @@ class DecayChain(object):
 
   def standard_topology(self):
       a = self.sorted_table()
-      name_map = {k: str(tuple(sorted(v))) for k, v in a.items()}
+      name_map = {}
+      for k, v in a.items():
+          parts = sorted([str(i) for i in v])
+          name_map[k] = "({})".format(", ".join(parts))
       name_map[self.top] = str(self.top)
       for i in self.outs:
           name_map[i] = str(i)
