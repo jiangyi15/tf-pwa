@@ -1,20 +1,9 @@
-import tempfile
-import os
-import contextlib
 import pytest
 
 from tf_pwa.amp import *
 from tf_pwa.cal_angle import cal_angle_from_momentum
 from tf_pwa.model_new import Model, FCN
-
-
-@contextlib.contextmanager
-def write_temp_file(s):
-    a = tempfile.mktemp()
-    with open(a, "w") as f:
-        f.write(s)
-    yield a
-    os.remove(a)
+from .common import write_temp_file
 
 
 @regist_particle("Gounaris–Sakurai")
