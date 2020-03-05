@@ -1,3 +1,6 @@
+"""
+This module provides functions which are useful when calculating the angular variables.
+"""
 import numpy as np
 
 from .angle_tf import EularAngle, LorentzVector
@@ -172,6 +175,15 @@ def cal_angle(data, decay_group: DecayGroup) -> dict:
 
 
 def Getp(M_0, M_1, M_2):
+    """
+    Consider a two-body decay :math:`M_0\\rightarrow M_1M_2`. In the rest frame of :math:`M_0`, the momentum of
+    :math:`M_1` and :math:`M_2` are definite.
+
+    :param M_0: The invariant mass of :math:`M_0`
+    :param M_1: The invariant mass of :math:`M_1`
+    :param M_2: The invariant mass of :math:`M_2`
+    :return: the momentum of :math:`M_1` (or :math:`M_2`)
+    """
     M12S = M_1 + M_2
     M12D = M_1 - M_2
     p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)

@@ -1,14 +1,15 @@
 """
 module for describing data process.
 
-All data structure is describing as nested combination of `dict` or `list` for `ndarray`.
-Data process is a translation from data structure to another data structure or typical `ndarray`.
-Data cache can be implemented based on the dynamic features of `list` and `dict`.
+All data structure is describing as nested combination of ``dict`` or ``list`` for ``ndarray``.
+Data process is a translation from data structure to another data structure or typical ``ndarray``.
+Data cache can be implemented based on the dynamic features of ``list`` and ``dict``.
 
 The full data structure is
 
-```
-{
+``
+
+\\{
   "particle":{
     "A":{"p":...,"m":...}
     ...
@@ -32,10 +33,10 @@ The full data structure is
       "R->C+D": {
         "C": {
           ...,
-          "aligned_angle":{
-            "alpha":[...],
-            "beta":[...],
-            "gamme":[...]
+          "aligned_angle": {
+            "alpha": [...],
+            "beta": [...],
+            "gamma": [...]
           }
         },
         
@@ -50,8 +51,9 @@ The full data structure is
   ],
   
   "weight": [...]
-}
-```
+\}
+``
+
 """
 
 from pprint import pprint

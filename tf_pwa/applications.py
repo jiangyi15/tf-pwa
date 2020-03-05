@@ -174,65 +174,68 @@ def cal_hesse_error(model):
 
 from .data import load_dat_file, data_to_tensor
 from tf_pwa.cal_angle import prepare_data_from_decay
-def gen_data(amp,particles, Ndata,mcfile,Nbg=0,wbg=0,Poisson_fluc=False,
-                    bgfile=None,genfile="data/gen_data.dat"):
-  Nbg = round(wbg*Nbg)
-  Nmc = Ndata-Nbg  # 8065-3445*0.768331
-  if Poisson_fluc:  # Poisson
-    Nmc = np.random.poisson(Nmc)
-    Nbg = np.random.poisson(Nbg)
-  print("data:",Nmc+Nbg,", sig:",Nmc,", bkg:",Nbg)
-  dtype = "float64"
 
-  phsp = prepare_data_from_decay(mcfile,amp.decay_group, particles=particles, dtype=dtype)
-  phsp = data_to_tensor(phsp)
-  ampsq = amp(phsp)
-  ampsq_max = tf.reduce_max(ampsq).numpy()
-  Nsample = ampsq.__len__()
-  n = 0
-  idx_list = []
 
-  while n<Nmc:
-    uni_rdm = tf.random.uniform([Nsample],minval=0,maxval=ampsq_max,dtype=dtype)
-    list_rdm = tf.random.uniform([Nsample],dtype=tf.int64,maxval=Nsample)
-    j = 0
-    for i in list_rdm:
-      if ampsq[i]>uni_rdm[j]:
-        idx_list.append(i)
-        n+=1
-      j+=1
-      if n==Nmc:
-        break
-  idx_list = tf.stack(idx_list).numpy()
+def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
+             bgfile=None, genfile="data/gen_data.dat"):
+    Nbg = round(wbg * Nbg)
+    Nmc = Ndata - Nbg  # 8065-3445*0.768331
+    if Poisson_fluc:  # Poisson
+        Nmc = np.random.poisson(Nmc)
+        Nbg = np.random.poisson(Nbg)
+    print("data:", Nmc + Nbg, ", sig:", Nmc, ", bkg:", Nbg)
+    dtype = "float64"
 
-  data_tmp = load_dat_file(mcfile, particles, dtype)
-  for i in particles:
-    data_tmp[i] = np.array(data_tmp[i])[idx_list]
-  data_gen = []
+    phsp = prepare_data_from_decay(mcfile, amp.decay_group, particles=particles, dtype=dtype)
+    phsp = data_to_tensor(phsp)
+    ampsq = amp(phsp)
+    ampsq_max = tf.reduce_max(ampsq).numpy()
+    Nsample = ampsq.__len__()
+    n = 0
+    idx_list = []
 
-  if Nbg:
-    bg_tmp = load_dat_file(bgfile, particles, dtype)
-    bg_idx = tf.random.uniform([Nbg],dtype=tf.int64,maxval=len(bg_tmp[particles[0]]))#np.random.randint(len(bg),size=Nbg)
-    bg_idx = tf.stack(bg_idx).numpy()
+    while n < Nmc:
+        uni_rdm = tf.random.uniform([Nsample], minval=0, maxval=ampsq_max, dtype=dtype)
+        list_rdm = tf.random.uniform([Nsample], dtype=tf.int64, maxval=Nsample)
+        j = 0
+        for i in list_rdm:
+            if ampsq[i] > uni_rdm[j]:
+                idx_list.append(i)
+                n += 1
+            j += 1
+            if n == Nmc:
+                break
+    idx_list = tf.stack(idx_list).numpy()
+
+    data_tmp = load_dat_file(mcfile, particles, dtype)
     for i in particles:
-      tmp = bg_tmp[i][bg_idx]
-      data_tmp[i] = np.append(data_tmp[i], tmp, axis=0)
-      data_gen.append(data_tmp[i])
-  else:
-    for i in particles:
-      data_gen.append(data_tmp[i])
-    
-  data_gen = np.transpose(data_gen,[1,0,2])
-  np.random.shuffle(data_gen)
-  data_gen = data_gen.reshape(-1,4)
-  np.savetxt(genfile,data_gen)
+        data_tmp[i] = np.array(data_tmp[i])[idx_list]
+    data_gen = []
 
-  data = prepare_data_from_decay(genfile, amp.decay_group, particles=particles, dtype=dtype)
-  return data_to_tensor(data)
+    if Nbg:
+        bg_tmp = load_dat_file(bgfile, particles, dtype)
+        bg_idx = tf.random.uniform([Nbg], dtype=tf.int64,
+                                   maxval=len(bg_tmp[particles[0]]))  # np.random.randint(len(bg),size=Nbg)
+        bg_idx = tf.stack(bg_idx).numpy()
+        for i in particles:
+            tmp = bg_tmp[i][bg_idx]
+            data_tmp[i] = np.append(data_tmp[i], tmp, axis=0)
+            data_gen.append(data_tmp[i])
+    else:
+        for i in particles:
+            data_gen.append(data_tmp[i])
 
+    data_gen = np.transpose(data_gen, [1, 0, 2])
+    np.random.shuffle(data_gen)
+    data_gen = data_gen.reshape(-1, 4)
+    np.savetxt(genfile, data_gen)
+
+    data = prepare_data_from_decay(genfile, amp.decay_group, particles=particles, dtype=dtype)
+    return data_to_tensor(data)
 
 
 from .phasespace_tf import PhaseSpaceGenerator
+
 
 def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     '''
@@ -325,13 +328,16 @@ def likelihood_profile(var_name, start=None, end=None, step=None, values=None, e
         x2 = x1[::-1]
         #
 
+
 from .utils import std_periodic_var
+
+
 def compare_result(value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=[]):
     diff_dict = {}
     if error2:
         for v in error1:
             if v in periodic_vars:
-                diff = value1[v] - std_periodic_var(value2[v],value1[v])
+                diff = value1[v] - std_periodic_var(value2[v], value1[v])
             else:
                 diff = value1[v] - value2[v]
             sigma = np.sqrt(error1[v] ** 2 + error2[v] ** 2)
@@ -339,17 +345,17 @@ def compare_result(value1, value2, error1, error2=None, figname=None, yrange=Non
     else:
         for v in error1:
             if v in periodic_vars:
-                diff = value1[v] - std_periodic_var(value2[v],value1[v])
+                diff = value1[v] - std_periodic_var(value2[v], value1[v])
             else:
                 diff = value1[v] - value2[v]
-            diff_dict[v] = diff / np.sqrt(2) / error1[v]
+            diff_dict[v] = diff / error1[v]
     if figname:
         arr = []
         if yrange:
             for v in diff_dict:
-                if np.abs(diff_dict[v])>yrange:
-                    print("{0} out of yrange, which is {1}.".format(v,diff_dict[v]))
-                    arr.append(np.sign(diff_dict[v])*yrange)
+                if np.abs(diff_dict[v]) > yrange:
+                    print("{0} out of yrange, which is {1}.".format(v, diff_dict[v]))
+                    arr.append(np.sign(diff_dict[v]) * yrange)
                 else:
                     arr.append(diff_dict[v])
             plt.ylim(-yrange, yrange)

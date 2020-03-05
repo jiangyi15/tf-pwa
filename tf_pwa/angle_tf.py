@@ -1,13 +1,18 @@
+"""
+This module implements three classes **Vector3**, **LorentzVector**, **EularAngle** .
+"""
 from .tensorflow_wrapper import tf
-np = tf
-#import functools
-#from pysnooper import snoop
+
+
+# import functools
+# from pysnooper import snoop
 
 
 class Vector3(tf.Tensor):
     """
-    3-dim Vector functions
+    This class provides methods for 3-d vectors (X,Y,Z)
     """
+
     def get_X(self):
         return self[..., 0]
 
@@ -18,38 +23,65 @@ class Vector3(tf.Tensor):
         return self[..., 2]
 
     def norm2(self):
+        """
+        The norm square
+        """
         return tf.reduce_sum(self * self, axis=-1)
 
     def norm(self):
         return tf.norm(self, axis=-1)
 
     def dot(self, other):
+        """
+        Dot product with another Vector3 object
+        """
         ret = tf.reduce_sum(self * other, axis=-1)
         return ret
 
     def cross(self, other):
+        """
+        Cross product with another Vector3 instance
+        """
         p = tf.cross(self, other)
         return p
 
     def unit(self):
+        """
+        The unit vector of itself. It has interface to *tf.linalg.normalize()*.
+        """
         p, _n = tf.linalg.normalize(self, axis=-1)
         return p
 
     def cross_unit(self, other):
+        """
+        The unit vector of the cross product with another Vector3 object. It has interface to *tf.linalg.normalize()*.
+        """
         p, _n = tf.linalg.normalize(tf.cross(self, other), axis=-1)
         return p
 
     def angle_from(self, x, y):
+        """
+        The angle from x-axis providing the x,y axis to define a 3-d coordinate.
+
+        :param x: A Vector3 instance as x-axis
+        :param y: A Vector3 instance as y-axis. It should be perpendicular to the x-axis.
+        """
         return tf.math.atan2(Vector3.dot(self, y), Vector3.dot(self, x))
+
 
 _epsilon = 1.0e-14
 
+
 class LorentzVector(tf.Tensor):
     """
-    LorentzVector functions
+    This class provides methods for Lorentz vectors (T,X,Y,Z). or -T???
     """
+
     @staticmethod
     def from_p4(p_0, p_1, p_2, p_3):
+        """
+        Given **p_0** is a real number, it will make it transform into the same shape with **p_1**.
+        """
         zeros = tf.zeros_like(p_1)
         return tf.stack([p_0 + zeros, p_1, p_2, p_3], axis=-1)
 
@@ -66,47 +98,70 @@ class LorentzVector(tf.Tensor):
         return self[..., 0]
 
     def get_e(self):
+        """rm???"""
         return self[..., 0]
 
     def boost_vector(self):
-        return self[..., 1:4]/self[..., 0:1]
+        """
+        :math:`\\beta=(X,Y,Z)/T`
+        :return: 3-d vector :math:`\\beta`
+        """
+        return self[..., 1:4] / self[..., 0:1]
 
     def vect(self):
+        """
+        It returns the 3-d vector (X,Y,Z).
+        """
         return self[..., 1:4]
 
     def rest_vector(self, other):
+        """
+        Boost another Lorentz vector into the rest frame of :math:`\\beta`.
+        """
         p = -LorentzVector.boost_vector(self)
         ret = LorentzVector.boost(other, p)
         return ret
 
     def boost(self, p):
-        #pb = Vector3(p)
+        """
+        Boost this Lorentz vector into the frame indicated by the 3-d vector p.
+        """
+        # pb = Vector3(p)
         pb = p
         beta2 = Vector3.norm2(pb)
-        gamma = 1.0/tf.sqrt(1-beta2)
+        gamma = 1.0 / tf.sqrt(1 - beta2)
         bp = Vector3.dot(pb, LorentzVector.vect(self))
-        gamma2 = tf.where(beta2 > _epsilon, (gamma-1.0)/beta2, 0.0)
+        gamma2 = tf.where(beta2 > _epsilon, (gamma - 1.0) / beta2, 0.0)
         p_r = LorentzVector.vect(self)
-        p_r += tf.reshape(gamma2*bp, (-1, 1))*pb
-        p_r += tf.reshape(gamma*LorentzVector.get_T(self), (-1, 1))*pb
-        T_r = tf.reshape(gamma*(LorentzVector.get_T(self) + bp), (-1, 1))
+        p_r += tf.reshape(gamma2 * bp, (-1, 1)) * pb
+        p_r += tf.reshape(gamma * LorentzVector.get_T(self), (-1, 1)) * pb
+        T_r = tf.reshape(gamma * (LorentzVector.get_T(self) + bp), (-1, 1))
         ret = tf.concat([T_r, p_r], -1)
         return ret
 
     def get_metric(self):
+        """
+        The metric is (1,-1,-1,-1) by default
+        """
         return tf.cast(tf.constant([1.0, -1.0, -1.0, -1.0]), self.dtype)
 
     def M2(self):
-        s = self*self * LorentzVector.get_metric(self)
+        """
+        The invariant mass squared
+        """
+        s = self * self * LorentzVector.get_metric(self)
         return tf.reduce_sum(s, axis=-1)
 
     def M(self):
+        """
+        The invariant mass
+        """
         return tf.sqrt(LorentzVector.M2(self))
 
 
 class EularAngle(dict):
     """
-    EularAngle functions
+    This class provides methods for Eular angle :math:`(\\alpha,\\beta,\\gamma)`
     """
     def __init__(self, alpha=0.0, beta=0.0, gamma=0.0):
         super(EularAngle, self).__init__()
@@ -116,6 +171,15 @@ class EularAngle(dict):
 
     @staticmethod
     def angle_zx_zx(z1, x1, z2, x2):
+        """
+        The Eular angle from coordinate 1 to coordinate 2 (right-hand coordinates).
+
+        :param z1: Vector3 z-axis of the initial coordinate
+        :param x1: Vector3 x-axis of the initial coordinate
+        :param z2: Vector3 z-axis of the final coordinate
+        :param x2: Vector3 x-axis of the final coordinate
+        :return: EularAngle object
+        """
         u_z1 = Vector3.unit(z1)
         u_z2 = Vector3.unit(z2)
         u_y1 = Vector3.cross_unit(z1, x1)
@@ -135,6 +199,16 @@ class EularAngle(dict):
     @staticmethod
     # @pysnooper.snoop()
     def angle_zx_z_getx(z1, x1, z2):
+        """
+        The Eular angle from coordinate 1 to coordinate 2. Only the z-axis is provided for coordinate 2, so
+        :math:`\\gamma` is set to be 0.
+
+        :param z1: Vector3 z-axis of the initial coordinate
+        :param x1: Vector3 x-axis of the initial coordinate
+        :param z2: Vector3 z-axis of the final coordinate
+        :return eular_angle: EularAngle object with :math:`\\gamma=0`.
+        :return x2: Vector3 object, which is the x-axis of the final coordinate when :math:`\\gamma=0`.
+        """
         u_z1 = Vector3.unit(z1)
         u_z2 = Vector3.unit(z2)
         u_y1 = Vector3.cross_unit(z1, x1)
