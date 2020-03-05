@@ -10,7 +10,7 @@ from tf_pwa.cal_angle import prepare_data_from_decay
 # for fit
 from tf_pwa.model_new import Model, FCN
 from scipy.optimize import minimize
-from tf_pwa.fitfractions import cal_fitfractions,cal_fitfractions_no_grad
+from tf_pwa.applications import fit_fractions
 import matplotlib.pyplot as plt
 import time
 import pickle
@@ -38,19 +38,19 @@ def fit():
   decs, final_particles, decay = get_decay_chains(config_list)
   amp = get_amplitude(decs, config_list, decay)
   #data/pure1w.dat  data/flat_mc30w.dat
-  data = prepare_data("data/data4600_new.dat",decs,particles=final_particles,dtype=dtype)
-  mcdata = prepare_data("data/PHSP4600_new.dat",decs,particles=final_particles,dtype=dtype)
-  bg = prepare_data("data/bg4600_new.dat",decs,particles=final_particles,dtype=dtype)
-  w_bkg = 0.768331
+  data = prepare_data("data/pure1w.dat",decs,particles=final_particles,dtype=dtype)
+  mcdata = prepare_data("data/flat_mc30w.dat",decs,particles=final_particles,dtype=dtype)
+  bg = None#prepare_data("data/bg4600_new.dat",decs,particles=final_particles,dtype=dtype)
+  w_bkg = 0#.768331
 
   model = Model(amp,w_bkg=w_bkg)
-  load_params(model.Amp, "glb_params_rp.json")
+  load_params(model.Amp, "gen_params_rp.json")
   model.Amp.vm.trans_params(False)
   args_name = model.Amp.vm.trainable_vars
 
   fcn = FCN(model, data, mcdata, bg, batch=65000)
-  SCIPY = True
-  hesse=True
+  SCIPY = False
+  hesse = True
   if SCIPY:
     def callback(x):
       print(fcn.cached_nll)
@@ -73,10 +73,10 @@ def fit():
 
   else:
     from tf_pwa.fit import fit_minuit
-    m = fit_minuit(fcn,hesse=False)
+    m = fit_minuit(fcn,hesse=hesse,minos=True)
     model.Amp.vm.trans_params(True)
-    err_mtrx=m.np_covariance()
-    np.save("error_matrix.npy",err_mtrx)
+    inv_he=m.np_covariance()
+    np.save("error_matrix.npy",inv_he)
     val = dict(m.values)
     err = dict(m.errors)
 
@@ -88,14 +88,7 @@ def fit():
   frac=True
   err_frac = {}
   if frac:
-    err_frac = {}
-    if hesse:
-      frac, grad = cal_fitfractions(model.Amp, list(split_generator(mcdata, 25000)))
-    else:
-      frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
-    for i in frac:
-      if hesse:
-        err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
+    frac, err_frac = fit_fractions(model,mcdata,inv_he,hesse=hesse)
     print("########## fit fractions")
     for i in frac:
       print(i, ":", error_print(frac[i], err_frac.get(i, None)))
@@ -108,33 +101,42 @@ def fit():
 
 
 def gen_toy_sample():
-  Ndata = 8065
-  Nbg = 3445
-  w_bkg = 0.768331
+  Ndata = 10000#8065
+  Nbg = 0#3445
+  w_bkg = 0#.768331
+  mcfile = "data/flat_mc30w.dat"
+  bgfile = "data/bg4600_new.dat"
+  params_file = "gen_params_rp.json"
+  
   dtype = "float64"
-
   config_list = load_config_file("Resonances")
   decs, final_particles, decay = get_decay_chains(config_list)
   amp = get_amplitude(decs, config_list, decay)
 
-  bg = prepare_data("data/bg4600_new.dat" ,decs, particles=final_particles, dtype=dtype)
-  mcdata = prepare_data("data/PHSP4600_new.dat" ,decs, particles=final_particles, dtype=dtype)
+  if w_bkg==0:
+    bg = None
+    bgfile = None
+  else:
+    bg = prepare_data(bgfile,decs, particles=final_particles, dtype=dtype)
+  mcdata = prepare_data(mcfile ,decs, particles=final_particles, dtype=dtype)
   model = Model(amp, w_bkg=w_bkg)
   args_name = model.Amp.vm.trainable_vars
 
   var_arr = []
+  err_arr = []
   frac_arr = []
-  for number in range(100):
+  err_frac_arr = []
+  for number in range(300):
     model.Amp.vm.trans_params(True) # switch to rp
     
-    load_params(model.Amp, "glb_params_rp.json")
+    load_params(model.Amp, params_file)
     model.Amp.vm.trans_params(True)
     #gen_mc(4.59925172,[2.00698,2.01028,0.13957],60000,"data/flat_mc.dat")
-    data = gen_data(model.Amp,final_particles, Ndata,mcfile="data/PHSP4600_new.dat",
-                    Poisson_fluc=True, Nbg=Nbg,wbg=w_bkg,bgfile="data/bg4600_new.dat")
+    data = gen_data(model.Amp,final_particles, Ndata,mcfile=mcfile,
+                    Poisson_fluc=True, Nbg=Nbg,wbg=w_bkg,bgfile=bgfile)
   
     fcn = FCN(model, data, mcdata, bg=bg, batch=65000)
-  
+ 
     def callback(x):
       print(fcn.cached_nll)
     #fcn.model.Amp.vm.set_bound(bounds_dict)
@@ -142,24 +144,37 @@ def gen_toy_sample():
     now = time.time()
     s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method="BFGS", jac=True, callback=callback,options={"disp":1,"gtol":1e-4,"maxiter":1000})
     model.Amp.vm.trans_params(False)#switch to xy
-    xn = fcn.model.Amp.vm.get_all_val()
-    print("########## fit state:")
-    print(xn)
+    fcn.model.Amp.vm.set_all(s.x)
+    var = fcn.model.Amp.vm.get_all_dic(trainable_only=True)
+    var_all = {k: v.numpy() for k, v in model.Amp.variables.items()}
+    print("fitting parameters:\n",var)
+    print(var_all)
     print("\nTime for fitting:", time.time() - now)
-    frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
-    print("fitfractions:\n",frac)
-    var_arr.append(xn)
-    frac_arr.append(frac)
-    if not s.success:
-      print("NOT SUCCESSFUL FITTING")
-    print("\n{}END\n".format(number))
+
+  err = {}
+  inv_he = cal_hesse_error(model.Amp,var_all,w_bkg,data,mcdata,bg,args_name, batch=20000)
+  diag_he = inv_he.diagonal()
+  hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+  err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
+
+  frac, err_frac = fit_fractions(model,mcdata,inv_he,hesse=True)
+  print("fitfractions:\n",frac)
+
+  var_arr.append(var)
+  err_arr.append(err)
+  frac_arr.append(frac)
+  err_frac_arr.append(err_frac)
+  if not s.success:
+    print("NOT SUCCESSFUL FITTING")
+  print("\n{}END\n".format(number))
   
-  print(args_name)
-  print(var_arr)
-  print(frac_arr)
+  print("var\n",var_arr)
+  print("err\n",err_arr)
+  print("frac\n",frac_arr)
+  print("err_frac\n",err_frac_arr)
   
-  output = open('toy_4600ex.pkl','wb')
-  pickle.dump({"var":var_arr,"frac":frac_arr},output,-1)
+  output = open('toyMar5.pkl','wb')
+  pickle.dump({"var":var_arr,"err":err_arr,"frac":frac_arr,"err_frac":err_frac_arr},output,-1)
   output.close()
 
 
@@ -264,5 +279,5 @@ def compare_toy_and_pull():
 
 
 if __name__ == "__main__":
-    compare_toy_and_pull()
+    gen_toy_sample()
 
