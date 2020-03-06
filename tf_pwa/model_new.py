@@ -315,7 +315,7 @@ class FCN(object):
 
 
 class CombineFCN(object):
-        """
+    """
     This class implements methods to calculate the NLL as well as its derivatives for a general function.
 
     :param model: List of model object.

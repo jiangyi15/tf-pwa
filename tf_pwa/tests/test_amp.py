@@ -44,7 +44,7 @@ def get_test_decay():
     HelicityDecay(bc, [b, c])
     HelicityDecay(a, [cd, b])
     HelicityDecay(cd, [c, d])
-    HelicityDecay(a, [bd, c])
+    get_decay(a, [bd, c], model="helicity_full-bf")
     get_decay(bd, [b, d])
     HelicityDecayNP(a, [R, c])
     HelicityDecayP(R, [b, d])

@@ -369,6 +369,28 @@ class HelicityDecayNP(HelicityDecay):
         return tf.stack(self.H())
 
 
+@regist_decay("helicity_full-bf")
+class HelicityDecayNPbf(HelicityDecay):
+    def init_params(self):
+        self.d = 3.0
+        a = self.outs[0].spins
+        b = self.outs[1].spins
+        self.H = self.add_var("H", is_complex=True, shape=(len(a), len(b)))
+
+    def get_helicity_amp(self, data, data_p):
+        q0 = self.get_relative_momentum(data_p, False)
+        data["|q0|"] = q0
+        if "|q|" in data:
+            q = data["|q|"]
+        else:
+            q = self.get_relative_momentum(data_p, True)
+            data["|q|"] = q
+        bf = barrier_factor([min(self.get_l_list())], q, q0, self.d)
+        H = tf.stack(self.H())
+        bf = tf.cast(tf.reshape(bf, (-1, 1, 1)), H.dtype)
+        return H * bf
+
+
 def get_parity_term(j1, p1, j2, p2, j3, p3):
     p = p1 * p2 * p3 * (-1) ** (j1 - j2 - j3)
     return p
