@@ -312,3 +312,75 @@ class FCN(object):
         nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
                                                 weight=self.weight, batch=batch)
         return nll, g, h
+
+
+class CombineFCN(object):
+        """
+    This class implements methods to calculate the NLL as well as its derivatives for a general function.
+
+    :param model: List of model object.
+    :param data: List of data array.
+    :param mcdata: list of MCdata array.
+    :param bg: list of Background array.
+    :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
+    """
+    def __init__(self, model, data, mcdata, bg=None, batch=65000):
+        self.fcns = []
+        if bg is None:
+            bg = loop_generator(None)
+        for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
+            self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
+
+    # @time_print
+    def __call__(self, x):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        """
+        nlls = []
+        for i in self.fcns:
+            nlls.append(i(x))
+        return sum(nll)
+
+    def grad(self, x):
+        """
+        :param x: List. Values of variables.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        gs = []
+        for i in self.fcns:
+            g = i.grad(x)
+            gs.append(g)
+        return sum(gs)
+
+    @time_print
+    def nll_grad(self, x):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        nlls = []
+        gs = []
+        for i in self.fcns:
+            nll, g = i.nll_grad(x)
+            nlls.append(nll)
+            gs.append(g)
+        return sum(nlls), sum(gs)
+
+    def nll_grad_hessian(self, x, batch=None):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        :return hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
+        """
+        nlls = []
+        gs = []
+        hs = []
+        for i in self.fcns:
+            nll, g, h = i.grad(x)
+            nlls.append(nll)
+            gs.append(g)
+            hs.append(h)
+        return sum(nlls), sum(gs), sum(hs)
