@@ -41,7 +41,7 @@ def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=No
         with tf.GradientTape() as tape:
             part_y = trans(f(data_i, *args, **kwargs))
             y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
-        g_i = tape.gradient(y_i, var)
+        g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
         ys.append(y_i)
         gs.append(g_i)
     nll = sum(ys)
@@ -67,7 +67,7 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
             with tf.GradientTape() as tape:
                 part_y = trans(f(data_i, *args, **kwargs))
                 y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
-            g_i = tape.gradient(y_i, var)
+            g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
         h_s_i = []
         for gi in g_i:
             h_s_i.append(tape0.gradient(gi, var, unconnected_gradients="zero"))  # 2nd order derivative
