@@ -237,12 +237,25 @@ class ParticleOne(Particle):
         return tf.ones((1,), dtype=get_config("dtype"))
 
 
+class AmpDecay(Decay, AmpBase):
+    def amp_shape(self):
+        ret = [len(self.core.spins)]
+        for i in self.outs:
+            ret.append(len(i.spins))
+        return tuple(ret)
+
+    @simple_cache_fun
+    def amp_index(self, base_map):
+        ret = [base_map[self.core]]
+        for i in self.outs:
+            ret.append(base_map[i])
+        return ret
+
+
+
 @regist_decay("default")
 @regist_decay("gls-bf")
-class HelicityDecay(Decay, AmpBase):
-    def __init__(self, *args, **kwargs):
-        super(HelicityDecay, self).__init__(*args, **kwargs)
-
+class HelicityDecay(AmpDecay, AmpBase):
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
@@ -344,18 +357,19 @@ class HelicityDecay(Decay, AmpBase):
                     ret = tf.reduce_sum(ret, axis=j + 2)
         return ret
 
-    def amp_shape(self):
-        ret = [len(self.core.spins)]
-        for i in self.outs:
-            ret.append(len(i.spins))
-        return tuple(ret)
 
-    @simple_cache_fun
-    def amp_index(self, base_map):
-        ret = [base_map[self.core]]
-        for i in self.outs:
-            ret.append(base_map[i])
-        return ret
+class AngSamDecay(AmpDecay, AmpBase):
+    def init_params(self):
+        a = self.core.J
+        self.gi = self.add_var("G_mu", is_complex=True, shape=(2*a+1,))
+    def get_amp(data, data_extra=None):
+        a = self.core
+        gi = tf.stack(self.gi())
+        ang = data["angle"]
+        D_conj = get_D_matrix_lambda(ang, a.J, a.spins, range(-a.J, a.J+1))
+        ret = tf.cast(gi, D_conj.dtype)* D_conj
+        ret = tf.reduce_sum(ret, axis=-1)
+        return tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
 
 
 @regist_decay("helicity_full")
