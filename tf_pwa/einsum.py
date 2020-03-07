@@ -94,34 +94,42 @@ def ordered_indices(expr, shapes):
     return base_order
 
 
-def remove_size1(expr, *args, extra=None):
+def remove_size1(expr, *args,extra=None):
     if extra is None:
         extra = []
-    sub = expr.replace("->", "").replace(",", "")
-    shapes = []
-    for i in args:
-        shapes += list(i.shape)
+    sub = expr.split("->")[0].split(",")
 
-    size_map = dict(zip(sub, shapes))
+    size_map = {}
+    for idx, shape in zip(sub, args):
+        for i, j in zip(idx, shape.shape):
+            l = size_map.get(i, 1)
+            if j >= l:
+                size_map[i] = j
+
     remove_idx = []
     for i in size_map:
         if size_map[i] == 1 and i not in extra:
             remove_idx.append(i)
 
-    for i in remove_idx:
-        expr = expr.replace(i, "")
-
     idxs = expr.split("->")[0].split(",")
-
+    idxs2 = []
     ret = []
     for idx, arg in zip(idxs, args):
         shape = []
-        for i in idx:
+        idx2 = []
+        for i, j  in zip(idx, arg.shape):
             if i not in remove_idx:
-                shape.append(size_map[i])
+                shape.append(j)
+                idx2.append(i)
         ret.append(tf.reshape(arg, shape))
-
-    return expr, ret, size_map
+        idxs2.append("".join(idx2))
+    
+    final_idx = expr.split("->")[1]
+    for i in remove_idx:
+        final_idx = final_idx.replace(i, "")
+    expr2 = ",".join(idxs2)+"->"+final_idx
+    
+    return expr2, ret, size_map
 
 
 def einsum(expr, *args, **kwargs):

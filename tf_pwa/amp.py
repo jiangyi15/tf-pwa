@@ -358,18 +358,22 @@ class HelicityDecay(AmpDecay, AmpBase):
         return ret
 
 
-class AngSamDecay(AmpDecay, AmpBase):
+class AngSam3Decay(AmpDecay, AmpBase):
     def init_params(self):
         a = self.core.J
         self.gi = self.add_var("G_mu", is_complex=True, shape=(2*a+1,))
-    def get_amp(data, data_extra=None):
+    def get_amp(self, data, data_extra=None):
         a = self.core
+        b = self.outs[0]
+        c = self.outs[1]
+        d = self.outs[2]
         gi = tf.stack(self.gi())
-        ang = data["angle"]
+        ang = data["ang"]
         D_conj = get_D_matrix_lambda(ang, a.J, a.spins, range(-a.J, a.J+1))
         ret = tf.cast(gi, D_conj.dtype)* D_conj
         ret = tf.reduce_sum(ret, axis=-1)
-        return tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
+        ret = tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
+        return tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])
 
 
 @regist_decay("helicity_full")
@@ -467,8 +471,10 @@ class DecayChain(BaseDecayChain, AmpBase):
 
         if self.need_amp_particle:
             rs = self.get_amp_particle(data_p, data_c)
-            rs = self.get_amp_total() * rs
-            amp_d.append(rs)
+            total = self.get_amp_total()
+            if rs is not None:
+                total = total * tf.cast(rs, total.dtype)
+            amp_d.append(total)
             indices.append([])
 
         if self.aligned:
@@ -496,6 +502,8 @@ class DecayChain(BaseDecayChain, AmpBase):
 
     def get_amp_particle(self, data_p, data_c):
         amp_p = []
+        if not self.inner:
+            return None
         for i in self.inner:
             if len(i.decay) == 1 and i.decay[0] in self:
                 data_c_i = data_c[i.decay[0]]
@@ -508,6 +516,7 @@ class DecayChain(BaseDecayChain, AmpBase):
                 amp_p.append(i.get_amp(data_p[i], data_c_i))
             else:
                 amp_p.append(i.get_amp(data_p[i]))
+        
         rs = tf.reduce_sum(amp_p, axis=0)
         return rs
 

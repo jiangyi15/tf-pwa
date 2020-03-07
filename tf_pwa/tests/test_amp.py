@@ -48,6 +48,7 @@ def get_test_decay():
     get_decay(bd, [b, d])
     HelicityDecayNP(a, [R, c])
     HelicityDecayP(R, [b, d])
+    d3 = AngSam3Decay(a, [b, c, d])
     de = DecayGroup(a.chain_decay())
     print(de)
     return de, [b, c, d]

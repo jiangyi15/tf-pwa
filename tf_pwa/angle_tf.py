@@ -222,3 +222,23 @@ class EularAngle(dict):
         gamma = tf.zeros_like(beta)
         u_x2 = Vector3.cross_unit(u_yr, u_z2)
         return (EularAngle(alpha, beta, gamma), u_x2)
+    
+    @staticmethod
+    def angle_zx_zzz_getx(z, x, zi):
+        """
+        The Eular angle from coordinate 1 to coordinate 2. 
+        Z-axis of coordinate 2 is the normal vector of a plane.
+
+        :param z1: Vector3 z-axis of the initial coordinate
+        :param x1: Vector3 x-axis of the initial coordinate
+        :param z: list of Vector3 of the plane point.
+        :return eular_angle: EularAngle object.
+        :return x2: list of Vector3 object, which is the x-axis of the final coordinate in zi.
+        """
+        z1, z2, z3 = zi
+        zz = Vector3.cross_unit(z1, z2)
+        zz += Vector3.cross_unit(z1, z3)
+        zz += Vector3.cross_unit(z3, z3)
+        xi = [Vector3.cross_unit(i, zz) for i in zi]
+        ang = EularAngle.angle_zx_zx(z, x, zz, xi[2])
+        return ang, xi
