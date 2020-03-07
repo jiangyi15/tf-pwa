@@ -7,14 +7,34 @@ import warnings
 from .config import regist_config, get_config
 
 '''
-vm = VarsManager(dtype=tf.float64)
+def combineVM(vm1,vm2,name="",same_list=[]):
+    """
+    This function combines two VarsManager objects into one. (WIP)
+    """
+    if vm1.name==vm2.name:
+        raise Exception("The two VarsManager to be combined have the same name.")
+    vm = VarsManager(name,vm1.dtype)
 
-vm.set_fix(var_name,value)#var_name是实变量的name（复变量name的两个实分量分别叫namer，namei）
-vm.set_bound({var_name:(a,b)},func="(b-a)*(sin(x)+1)/2+a")
-vm.set_share_r([var_name1,var_name2])#var_name是复变量的name
-vm.set_all(init_params)
-vm.std_polar_all()
-vm.trans_fcn(fcn,grad)#bound转换
+    for i in vm1.variables:
+        if i in same_list:
+            ii = i
+        else:
+            ii = vm1.name+i
+        vm.variables[ii] = vm1.variables[i]
+        if vm.variables[ii].trainable:
+            vm.trainable_vars.append(ii)
+        if i in vm1.bnd_dic:
+            vm.bnd_dic[ii] = vm1.bnd_dic[i]
+    for i in vm2.variables:
+        if i in same_list:
+            ii = i
+        else:
+            ii = vm2.name+i
+        vm.variables[ii] = vm2.variables[i]
+        if vm.variables[ii].trainable and ii not in vm.trainable_vars:
+            vm.trainable_vars.append(ii)
+        if i in vm2.bnd_dic:
+            vm.bnd_dic[ii] = vm2.bnd_dic[i]
 '''
 
 
@@ -30,7 +50,8 @@ class VarsManager(object):
     Besides, all trainable variables' names will be stored in a list **self.trainable_vars**.
     """
 
-    def __init__(self, dtype=tf.float64):
+    def __init__(self, name="", dtype=tf.float64):
+        self.name = name
         self.dtype = dtype
         self.polar = True
         self.variables = {}  # {name:tf.Variable,...}
@@ -576,7 +597,7 @@ class Variable(object):
     :param vm: VarsManager. It is by default the one automatically defined in the global scope by the program.
     :param kwargs: Other arguments that may be used when calling **self.real_var()** or **self.cplx_var()**
     """
-    def __init__(self, name, shape=[], cplx=False, overwrite=False, vm=None, **kwargs):
+    def __init__(self, name, shape=[], cplx=False, overwrite=True, vm=None, **kwargs):
         if vm is None:
             vm = get_config("vm")
         self.vm = vm
@@ -628,6 +649,7 @@ class Variable(object):
                 trainable = not (name[-2:] == '_' + str(fix_which))
             else:
                 trainable = not fix
+            # trainable = not fix
             self.vm.add_complex_var(name, polar, trainable, fix_vals)
             self.vm.var_head[self.name].append(name)
 
@@ -677,6 +699,42 @@ class Variable(object):
                 self.vm.set_fix(self.name, unfix=True)
         else:
             raise Exception("Only shape==() var supports 'freed' method.")
+
+    def set_fix_idx(self, fix_idx=[], fix_vals=1.0, free_idx=[]):
+        """
+        :param fix_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is fixed. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[1,2]``, then Variable()[i][j][1] and Variable()[i][j][2] will be the fixed value.
+        :param fix_vals: Float or length-2 float list for complex variable. The fixed value.
+        :param free_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is set free. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[0]``, then Variable()[i][j][0] will be set free.
+        """
+        if not self.shape:
+            raise Exception("Only shape!=() var supports 'set_fix_idx' method to fix or free variables.")
+
+        if not hasattr(fix_idx, "__len__"):
+            fix_idx = [fix_idx]
+        fix_idx_str = ['_'+str(i) for i in fix_idx]
+        if not hasattr(free_idx, "__len__"):
+            free_idx = [free_idx]
+        free_idx_str = ['_'+str(i) for i in free_idx]
+
+        if self.cplx:
+            if not hasattr(fix_vals, "__len__"):
+                fix_vals = [fix_vals, 0.]
+            def func(name):
+                if name[-2:] in fix_idx_str:
+                    self.vm.set_fix(name+'r',value=fix_vals[0])
+                    self.vm.set_fix(name+'i',value=fix_vals[1])
+                if name[-2:] in free_idx_str:
+                    self.vm.set_fix(name+'r',unfix=True)
+                    self.vm.set_fix(name+'i',unfix=True)
+            _shape_func(func, self.shape, self.name)
+        else:
+            def func(name):
+                if name[-2:] in fix_idx_str:
+                    self.vm.set_fix(name, value=fix_vals)
+                if name[-2:] in free_idx_str:
+                    self.vm.set_fix(name,unfix=True)
+            _shape_func(func, self.shape, self.name)
+
 
     def set_bound(self, bound, func=None, overwrite=False):
         """
