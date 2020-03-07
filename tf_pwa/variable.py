@@ -6,36 +6,65 @@ import numpy as np
 import warnings
 from .config import regist_config, get_config
 
-'''
-def combineVM(vm1,vm2,name="",same_list=[]):
+
+def combineVM(vm1, vm2, name="", same_list=None):
     """
     This function combines two VarsManager objects into one. (WIP)
+
+    :param name: The name of this combined VarsManager
+    :param same_list: To make some variables in the two VarsManager to be the same. E.g. if ``same_list = ["var",["var1","var2"]], then "var" in vm1 and vm2 will be the same, and "var1" in vm1 and "var2" in vm2 will be the same.
     """
-    if vm1.name==vm2.name:
+    if same_list is None:
+        same_list = []
+    if vm1.name == vm2.name:
         raise Exception("The two VarsManager to be combined have the same name.")
-    vm = VarsManager(name,vm1.dtype)
+    vm = VarsManager(name, vm1.dtype)
 
     for i in vm1.variables:
-        if i in same_list:
-            ii = i
-        else:
-            ii = vm1.name+i
-        vm.variables[ii] = vm1.variables[i]
+        ii = vm1.name + i
+        vm.variables[ii] = vm1.variables[i]  # vm.variables
         if vm.variables[ii].trainable:
-            vm.trainable_vars.append(ii)
+            vm.trainable_vars.append(ii)  # vm.trainable_vars
         if i in vm1.bnd_dic:
-            vm.bnd_dic[ii] = vm1.bnd_dic[i]
+            vm.bnd_dic[ii] = vm1.bnd_dic[i]  # vm.bnd_dic
     for i in vm2.variables:
-        if i in same_list:
-            ii = i
-        else:
-            ii = vm2.name+i
+        ii = vm2.name + i
         vm.variables[ii] = vm2.variables[i]
-        if vm.variables[ii].trainable and ii not in vm.trainable_vars:
+        if vm.variables[ii].trainable:
             vm.trainable_vars.append(ii)
         if i in vm2.bnd_dic:
             vm.bnd_dic[ii] = vm2.bnd_dic[i]
-'''
+
+    for i in vm1.complex_vars:
+        ii = vm1.name + i
+        vm.complex_vars[ii] = vm1.complex_vars[i]  # vm.complex_vars
+    for i in vm2.complex_vars:
+        ii = vm2.name + i
+        vm.complex_vars[ii] = vm2.complex_vars[i]
+
+    for i in vm1.same_list:
+        vm.same_list.append([vm1.name + j for j in i])  # vm.same_list
+    for i in vm2.same_list:
+        vm.same_list.append([vm2.name + j for j in i])
+
+    for V in vm1.var_head:
+        vm.var_head[V] = [vm1.name + i for i in vm1.var_head[V]]  # vm.var_head
+        V.name = vm1.name + V.name
+        V.vm = vm
+    for V in vm2.var_head:
+        vm.var_head[V] = [vm2.name + i for i in vm2.var_head[V]]
+        V.name = vm2.name + V.name
+        V.vm = vm
+
+    for i in same_list:
+        if type(i) == str:
+            vm.set_same([vm1.name + i, vm2.name + i])
+        else:
+            vm.set_same([vm1.name + i[0], vm2.name + i[1]])
+
+    del vm1, vm2
+    return vm
+
 
 
 class VarsManager(object):
@@ -593,21 +622,23 @@ class Variable(object):
     :param name: The name of the variable group
     :param shape: The shape of the group. E.g. for a 4*3*2 matrix, **shape** is **[4,3,2]**. By default, **shape** is [] for a real variable.
     :param cplx: Boolean. Whether the variable (or the variables) are complex or not.
-    :param overwrite: Boolean. If it's ``True``, the program will not throw a warning when overwrite a variable with the same name.
     :param vm: VarsManager. It is by default the one automatically defined in the global scope by the program.
+    :param overwrite: Boolean. If it's ``True``, the program will not throw a warning when overwrite a variable with the same name.
     :param kwargs: Other arguments that may be used when calling **self.real_var()** or **self.cplx_var()**
     """
-    def __init__(self, name, shape=[], cplx=False, overwrite=True, vm=None, **kwargs):
+
+    def __init__(self, name, shape=[], cplx=False, vm=None, overwrite=True, **kwargs):
         if vm is None:
             vm = get_config("vm")
         self.vm = vm
         self.name = name
-        if name in self.vm.var_head:
-            if not overwrite:
-                warnings.warn("Overwrite Variable {}!".format(name))
-            for i in self.vm.var_head[name]:
-                self.vm.remove_var(i, cplx)
-        self.vm.var_head[self.name] = []
+        for i in self.vm.var_head:
+            if i.name == self.name:
+                if not overwrite:
+                    warnings.warn("Overwrite Variable {}!".format(i.name))
+                for j in self.vm.var_head[i]:
+                    self.vm.remove_var(j, cplx)
+        self.vm.var_head[self] = []
         if type(shape) == int:
             shape = [shape]
         self.shape = shape
@@ -630,7 +661,7 @@ class Variable(object):
 
         def func(name, **kwargs):
             self.vm.add_real_var(name, value, range_, trainable)
-            self.vm.var_head[self.name].append(name)
+            self.vm.var_head[self].append(name)
 
         _shape_func(func, self.shape, self.name, value=value, range_=range_, trainable=trainable)
 
@@ -643,6 +674,7 @@ class Variable(object):
         :param fix_which: Integer. Which complex component in the innermost layer of the variable is fixed. E.g. If ``self.shape==[2,3,4]`` and ``fix_which==1``, then Variable()[i][j][1] will be the fixed value. It's enabled only if ``self.shape is not None``.
         :param fix_vals: Length-2 tuple. The value of the fixed complex variable is ``fix_vals[0]+fix_vals[1]j``.
         """
+
         # fix_which = fix_which % self.shape[-1]
         def func(name, **kwargs):
             if self.shape:
@@ -651,9 +683,12 @@ class Variable(object):
                 trainable = not fix
             # trainable = not fix
             self.vm.add_complex_var(name, polar, trainable, fix_vals)
-            self.vm.var_head[self.name].append(name)
+            self.vm.var_head[self].append(name)
 
         _shape_func(func, self.shape, self.name, polar=polar, fix_which=fix_which, fix_vals=fix_vals)
+
+    def __repr__(self):
+        return self.name
 
     @property
     def value(self):
@@ -669,7 +704,7 @@ class Variable(object):
 
         :return: List of string.
         """
-        return self.vm.var_head[self.name]
+        return self.vm.var_head[self]
 
     def fixed(self, value):
         """
@@ -711,30 +746,32 @@ class Variable(object):
 
         if not hasattr(fix_idx, "__len__"):
             fix_idx = [fix_idx]
-        fix_idx_str = ['_'+str(i) for i in fix_idx]
+        fix_idx_str = ['_' + str(i) for i in fix_idx]
         if not hasattr(free_idx, "__len__"):
             free_idx = [free_idx]
-        free_idx_str = ['_'+str(i) for i in free_idx]
+        free_idx_str = ['_' + str(i) for i in free_idx]
 
         if self.cplx:
             if not hasattr(fix_vals, "__len__"):
                 fix_vals = [fix_vals, 0.]
+
             def func(name):
                 if name[-2:] in fix_idx_str:
-                    self.vm.set_fix(name+'r',value=fix_vals[0])
-                    self.vm.set_fix(name+'i',value=fix_vals[1])
+                    self.vm.set_fix(name + 'r', value=fix_vals[0])
+                    self.vm.set_fix(name + 'i', value=fix_vals[1])
                 if name[-2:] in free_idx_str:
-                    self.vm.set_fix(name+'r',unfix=True)
-                    self.vm.set_fix(name+'i',unfix=True)
+                    self.vm.set_fix(name + 'r', unfix=True)
+                    self.vm.set_fix(name + 'i', unfix=True)
+
             _shape_func(func, self.shape, self.name)
         else:
             def func(name):
                 if name[-2:] in fix_idx_str:
                     self.vm.set_fix(name, value=fix_vals)
                 if name[-2:] in free_idx_str:
-                    self.vm.set_fix(name,unfix=True)
-            _shape_func(func, self.shape, self.name)
+                    self.vm.set_fix(name, unfix=True)
 
+            _shape_func(func, self.shape, self.name)
 
     def set_bound(self, bound, func=None, overwrite=False):
         """
