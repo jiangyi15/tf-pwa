@@ -326,6 +326,7 @@ class CombineFCN(object):
     """
     def __init__(self, model, data, mcdata, bg=None, batch=65000):
         self.fcns = []
+        self.cached_nll = 0.0
         if bg is None:
             bg = loop_generator(None)
         for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
@@ -340,7 +341,8 @@ class CombineFCN(object):
         nlls = []
         for i in self.fcns:
             nlls.append(i(x))
-        return sum(nll)
+        self.cached_nll = sum(nlls)
+        return self.cached_nll
 
     def grad(self, x):
         """
@@ -366,7 +368,8 @@ class CombineFCN(object):
             nll, g = i.nll_grad(x)
             nlls.append(nll)
             gs.append(g)
-        return sum(nlls), sum(gs)
+        self.cached_nll = sum(nlls)
+        return self.cached_nll, sum(gs)
 
     def nll_grad_hessian(self, x, batch=None):
         """
