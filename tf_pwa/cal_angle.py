@@ -65,9 +65,13 @@ def add_weight(data: dict, weight: float = 1.0) -> dict:
     return data
 
 
-def cal_helicity_angle(data: dict, decay_chain: DecayChain) -> dict:
+def cal_helicity_angle(data: dict, decay_chain: DecayChain, 
+                       base_x=np.array([[1.0, 0.0, 0.0]]), 
+                       base_z=np.array([[0.0, 0.0, 1.0]])) -> dict:
     """
-    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...} ???
+    Calucate helicity angle for A -> B + C: :math:`\theta_{B}^{A}, \\phi_{B}^{A}` from momentum
+    {A:{p:momentum},B:{p:...},C:{p:...}} => 
+        {A->B+C:{B:{"ang":{"alpha":...,"beta":...,"gamma":...},"x":...,"z"},...}}
     """
     part_data = {}
     ret = {}
@@ -79,8 +83,8 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain) -> dict:
             pj = data[j]["p"]
             p = LorentzVector.rest_vector(p_rest, pj)
             part_data[i]["rest_p"][j] = p
-    set_x = {decay_chain.top: np.array([[1.0, 0.0, 0.0]])}
-    set_z = {decay_chain.top: np.array([[0.0, 0.0, 1.0]])}
+    set_x = {decay_chain.top: base_x}
+    set_z = {decay_chain.top: base_z}
     set_decay = list(decay_chain)
     while set_decay:
         extra_decay = []
@@ -96,6 +100,14 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain) -> dict:
                     ret[i][j]["ang"] = ang
                     ret[i][j]["x"] = x
                     ret[i][j]["z"] = z2
+                if len(i.outs) == 3:
+                    # Eular Angle for
+                    zi = [LorentzVector.vect(part_data[i]["rest_p"][j]) for j in i.outs]
+                    ret[i]["ang"], xi = EularAngle.angle_zx_zzz_getx(set_z[i.core], set_x[i.core], zi)
+                    for j, x, z in zip(i.outs, xi, zi):
+                        ret[i][j] = {}
+                        ret[i][j]["x"] = x
+                        ret[i][j]["z"] = z
             else:
                 extra_decay.append(i)
         set_decay = extra_decay
@@ -113,6 +125,8 @@ def cal_angle_from_particle(data, decay_group: DecayGroup):
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i)
         decay_data.append(data_i)
+    
+    # calculate aligned angle of final particles in each decay chain
     set_x = {}  # reference particles
     # for particle from a the top rest frame
     for idx, decay_chain in enumerate(decay_chain_struct):
