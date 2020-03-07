@@ -1,28 +1,45 @@
+"""
+This module provides functions that implements user-friendly interface to the functions and methods in other modules.
+It acts like a synthesis of all the other modules of their own physical purposes.
+In general, users only need to import functions in this module to implement their physical analysis instead of
+going into every modules. There are some example files where you can figure out how it is used.
+"""
 import numpy as np
 import tensorflow as tf
 import time
 
 from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
+from .data import split_generator
 
 
-def fit_fractions(model, mcdata, config_list, inv_he, hesse):
-    '''
-    calculate fit fractions of all resonances
-    :param model:
-    :param mcdata:
-    :param config_list:
-    :param inv_he:
-    :param hesse:
-    :return:
-    '''
+def fit_fractions(model, mcdata, inv_he, hesse=False):
+    """
+    This function calculate fit fractions of the resonances as well as their coherent pairs. It imports
+    ``cal_fitfractions`` and ``cal_fitfractions_no_grad`` from module **tf_pwa.fitfractions**.
+
+    .. math:: FF_{i} = \\frac{\\int |A_i|^2 d\\Omega }{ \\int |\\sum_{i}A_i|^2 d\\Omega }\\approx \\frac{\\sum |A_i|^2 }{\\sum|\\sum_{i} A_{i}|^2}
+
+    gradients???:
+
+    .. math:: FF_{i,j} = \\frac{\\int 2Re(A_i A_j*) d\\Omega }{ \\int |\\sum_{i}A_i|^2 d\\Omega } = \\frac{\\int |A_i +A_j|^2  d\\Omega }{ \\int |\\sum_{i}A_i|^2 d\\Omega } - FF_{i} - FF_{j}
+
+    hessians:
+
+    .. math:: \\frac{\\partial }{\\partial \\theta_i }\\frac{f(\\theta_i)}{g(\\theta_i)} = \\frac{\\partial f(\\theta_i)}{\\partial \\theta_i} \\frac{1}{g(\\theta_i)} - \\frac{\\partial g(\\theta_i)}{\\partial \\theta_i} \\frac{f(\\theta_i)}{g^2(\\theta_i)}
+
+    :param model: Model object.
+    :param mcdata: MCdata array.
+    :param inv_he: The inverse of Hessian matrix.
+    :param hesse: Boolean. Whether to calculate the error as well.
+    :return frac: Dictionary of fit fractions for each resonance.
+    :return err_frac: Dictionary of their errors. If ``hesse`` is ``False``, it will be a dictionary of ``None``.
+    """
     if hesse:
-        mcdata_cached = model.Amp.cache_data(*mcdata, batch=10000)
-        frac, grad = cal_fitfractions(model.Amp, mcdata_cached, kwargs={"cached": True})
+        frac, grad = cal_fitfractions(model.Amp, list(split_generator(mcdata, 25000)))
     else:
-        mcdata_cached = model.Amp.cache_data(*mcdata, batch=65000)
-        frac = cal_fitfractions_no_grad(model.Amp, mcdata_cached, kwargs={"cached": True})
+        frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
     err_frac = {}
-    for i in config_list:
+    for i in frac:
         if hesse:
             err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
         else:
@@ -32,9 +49,10 @@ def fit_fractions(model, mcdata, config_list, inv_he, hesse):
 
 def corr_coef_matrix(npy_name):
     '''
-    obtain correlation coefficients matrix of all trainable variables
-    :param npy_name:
-    :return:
+    This function obtains correlation coefficients matrix of all trainable variables from *.npy file.
+
+    :param npy_name: String. Name of the npy file
+    :return: Numpy 2-d array. The correlation coefficient matrix.
     '''
     err_mtx = np.load(npy_name)
     err = np.sqrt(err_mtx.diagonal())
@@ -46,10 +64,14 @@ def corr_coef_matrix(npy_name):
 
 def calPWratio(params, POLAR=True):
     '''
-    calculate the ratio of different partial waves
-    :param params:
-    :param POLAR:
-    :return:
+    This function calculates the ratio of different partial waves in a certain resonance using the input values
+    of fitting parameters. It is useful when user check if one partial wave is too small compared to the other partial
+    waves, in which case, the fitting result may be not reliable since it has potential to give nuisance
+    degree of freedom. (WIP)
+
+    :param params: Dictionary of values indexed by the name of the fitting parameters
+    :param POLAR: Boolean. Whether the parameters are defined in the polar coordinate or the Cartesian coordinate.
+    :return: None. But the function will print the ratios.
     '''
     dtype = "float64"
     w_bkg = 0.768331
@@ -160,16 +182,21 @@ def calPWratio(params, POLAR=True):
 
 def cal_hesse_error(model):
     '''
-    calculate the hesse error of all trainable variables
-    :param model:
-    :return:
+    This function calculates the errors of all trainable variables.
+    The errors are given by the square root of the diagonal of the inverse Hessian matrix.
+
+    :param model: Model.
+    :return hesse_error: List of errors.
+    :return inv_he: The inverse Hessian matrix.
     '''
     t = time.time()
     nll, g, h = model.cal_nll_hessian()  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     inv_he = np.linalg.pinv(h.numpy())
     np.save("error_matrix.npy", inv_he)
-    return inv_he
+    diag_he = inv_he.diagonal()
+    hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+    return hesse_error, inv_he
 
 
 from .data import load_dat_file, data_to_tensor
@@ -178,6 +205,20 @@ from tf_pwa.cal_angle import prepare_data_from_decay
 
 def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
              bgfile=None, genfile="data/gen_data.dat"):
+    """
+    This function is used to generate toy data according to an amplitude model.
+
+    :param amp: AmplitudeModel???
+    :param particles: List of final particles
+    :param Ndata: Integer. Number of data
+    :param mcfile: String. The MC sample file used to generate signal data.
+    :param Nbg: Integer. Number of background. By default it's 0.
+    :param wbg: Float. Weight of background. By default it's 0.
+    :param Poisson_fluc: Boolean. If it's ``True``, The number of data will be decided by a Poisson distribution around the given value.
+    :param bgfile: String. The background sample file used to generate a certain number of background data.
+    :param genfile: String. The file to store the generated toy.
+    :return: tensorflow.Tensor. The generated toy data.
+    """
     Nbg = round(wbg * Nbg)
     Nmc = Ndata - Nbg  # 8065-3445*0.768331
     if Poisson_fluc:  # Poisson
@@ -239,13 +280,16 @@ from .phasespace_tf import PhaseSpaceGenerator
 
 def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     '''
-    generate phase space MC data not considering the effect of detector performance
-    :param mother: 4.59925172
-    :param daughters: [2.00698,2.01028,0.13957] DBC: D*0 D*- pi+
-    :param number:
-    :param outfile:
-    :return:
+    This function generates phase-space MC data (without considering the effect of detector performance). It imports
+    ``PhaseSpaceGenerator`` from module **tf_pwa.phasespace**.
+
+    :param mother: Float. The invariant mass of the mother particle.
+    :param daughters: List of float. The invariant masses of the daughter particles.
+    :param number: Integer. The number of MC data generated.
+    :param outfile: String. The file to store the generated MC.
+    :return: Numpy array. The generated MC data.
     '''
+    # 4.59925172, [2.00698,2.01028,0.13957] DBC: D*0 D*- pi+
     phsp = PhaseSpaceGenerator(mother, daughters)
     flat_mc_data = phsp.generate(number)
     pf = []
@@ -263,10 +307,31 @@ from .fit import fit_scipy, fit_minuit, fit_multinest
 
 def fit(Use="scipy", **kwargs):
     '''
-    fit using scipy, iminuit or pymultinest
-    :param Use:
-    :param kwargs:
-    :return:
+    Fit the amplitude model using ``scipy``, ``iminuit`` or ``pymultinest``. It imports
+    ``fit_scipy``, ``fit_minuit``, ``fit_multinest`` from module **tf_pwa.fit**.
+
+    :param Use: String. If it's ``"scipy"``, it will call ``fit_scipy``; if it's ``"minuit"``, it will call ``fit_minuit``; if it's ``"multinest"``, it will call ``fit_multinest``.
+    :param kwargs: The arguments will be passed to the three functions above.
+
+    For ``fit_scipy``
+
+    :param fcn: FCN object to be minimized.
+    :param method: String. Options in ``scipy.optimize``. For now, it implements interface to such as "BFGS", "L-BFGS-B", "basinhopping".
+    :param bounds_dict: Dictionary of boundary constrain to variables.
+    :param kwargs: Other arguments passed on to ``scipy.optimize`` functions.
+    :return: FitResult object, List of NLLs, List of point arrays.
+
+    For ``fit_minuit``
+
+    :param fcn: FCN object to be minimized.
+    :param bounds_dict: Dictionary of boundary constrain to variables.
+    :param hesse: Boolean. Whether to call ``hesse()`` after ``migrad()``. It's ``True`` by default.
+    :param minos: Boolean. Whether to call ``minos()`` after ``hesse()``. It's ``False`` by default.
+    :return: Minuit object
+
+    For ``fit_multinest`` (WIP)
+
+    :param fcn: FCN object to be minimized.
     '''
     if Use == "scipy":
         ret = fit_scipy(**kwargs)
@@ -282,8 +347,17 @@ def fit(Use="scipy", **kwargs):
 from .significance import significance
 
 
-def cal_significance():
-    pass
+def cal_significance(nll1, nll2, ndf):
+    """
+    This function calculates the statistical significance.
+
+    :param nll1: Float. NLL of the first PDF.
+    :param nll2:  Float. NLL of the second PDF.
+    :param ndf: The difference of the degrees of freedom of the two PDF.
+    :return: Float. The statistical significance
+    """
+    sigma = significance(nll1, nll2, ndf)
+    return sigma
 
 
 ### plot-related ###
@@ -292,6 +366,17 @@ from scipy.stats import norm as Norm
 
 
 def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
+    """
+    This function is used to plot the pull for a data sample.
+
+    :param data: List
+    :param name: String. Name of the sample
+    :param nbins: Integer. Number of bins in the histogram
+    :param norm: Boolean. Whether to normalize the histogram
+    :param value: Float. Mean value in normalization
+    :param error: Float. Sigma value in normalization
+    :return: The fitted mean and sigma
+    """
     data = np.array(data)
     if norm:
         if value == None or error == None:
@@ -310,6 +395,18 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 
 
 def likelihood_profile(var_name, start=None, end=None, step=None, values=None, errors=None, mode="bothsides"):
+    """
+    WIP
+
+    :param var_name:
+    :param start:
+    :param end:
+    :param step:
+    :param values:
+    :param errors:
+    :param mode:
+    :return:
+    """
     if start == None or end == None:
         x_mean = values[var_name]
         x_sigma = errors[var_name]
@@ -333,6 +430,20 @@ from .utils import std_periodic_var
 
 
 def compare_result(value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=[]):
+    """
+    Compare two groups of fitting results. If only one error is provided,
+    the figure is :math:`\\frac{\\mu_1-\\mu_2}{\\sigma_1}`;
+    if both errors are provided, the figure is :math:`\\frac{\\mu_1-\\mu_2}{\\sqrt{\\sigma_1^2+\\sigma_2^2}}`.
+
+    :param value1: Dictionary
+    :param value2: Dictionary
+    :param error1: Dictionary
+    :param error2: Dictionary. By default it's ``None``.
+    :param figname: String. The output file
+    :param yrange: Float. If it's not given, there is no y-axis limit in the figure.
+    :param periodic_vars: List of strings. The periodic variables.
+    :return: Dictionary of quality figure of each variable.
+    """
     diff_dict = {}
     if error2:
         for v in error1:

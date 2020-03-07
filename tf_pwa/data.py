@@ -9,44 +9,44 @@ The full data structure is
 
 ``
 
-\\{
-  "particle":{
-    "A":{"p":...,"m":...}
+\{
+  "particle":\{
+    "A":\{"p":...,"m":...\}
     ...
-  },
+  \},
   
   "decay":[
-    {
-      "A->R1+B": {
-        "R1": {
-          "ang":  {
+    \{
+      "A->R1+B": \{
+        "R1": \{
+          "ang":  \{
             "alpha":[...],
             "beta": [...],
             "gamma": [...]
-          },
+          \},
           "z": [[x1,y1,z1],...],
           "x": [[x2,y2,z2],...]
-        },
-        "B" : {...}
-      },
+        \},
+        "B" : \{...\}
+      \},
       
-      "R->C+D": {
-        "C": {
+      "R->C+D": \{
+        "C": \{
           ...,
-          "aligned_angle": {
+          "aligned_angle": \{
             "alpha": [...],
             "beta": [...],
             "gamma": [...]
-          }
-        },
+          \}
+        \},
         
-        "D": {...}
-      },
-    },
-    {
-      "A->R2+C": {...},
-      "R2->B+D": {...}
-    },
+        "D": \{...\}
+      \},
+    \},
+    \{
+      "A->R2+C": \{...\},
+      "R2->B+D": \{...\}
+    \},
     ...
   ],
   
@@ -74,7 +74,15 @@ except ImportError:  # python version < 3.7
 
 def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_list=False):
     """
-    load *.dat file(s) for particles momentum.
+    Load *.dat file(s) of 4-momenta of the final particles.
+
+    :param fnames: String or list of strings. File names.
+    :param particles: List of Particle. Final particles.
+    :param dtype: Data type.
+    :param split: ???
+    :param order: ???
+    :param _force_list: ???
+    :return: Dictionary of data indexed by Particle.
     """
     n = len(particles)
     if dtype is None:
@@ -91,7 +99,7 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     sizes = []
     for fname in fnames:
         data = np.loadtxt(fname, dtype=dtype)
-        data =np.reshape(data, (-1, 4))
+        data = np.reshape(data, (-1, 4))
         sizes.append(data.shape[0])
         datas.append(data)
 
@@ -119,12 +127,12 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
 
 
 def save_data(*args, **kwargs):
-    """save structured data to files."""
+    """Save structured data to files. The arguments will be passed to ``numpy.save()``."""
     return np.save(*args, **kwargs)
 
 
 def load_data(*args, **kwargs):
-    """load data file from save_data."""
+    """Load data file from save_data. The arguments will be passed to ``numpy.load()``."""
     if "allow_pickle" not in kwargs:
         kwargs["allow_pickle"] = True
     data = np.load(*args, **kwargs)
@@ -147,7 +155,7 @@ def _data_split(dat, batch_size, axis=0):
 
 
 def data_generator(data, fun=_data_split, args=(), kwargs=None):
-    """data generator: call fun for each data as a generator"""
+    """Data generator: call ``fun`` to each ``data`` as a generator. The extra arguments will be passed to ``fun``."""
     kwargs = kwargs if kwargs is not None else {}
 
     def _gen(dat):
@@ -178,7 +186,14 @@ def data_generator(data, fun=_data_split, args=(), kwargs=None):
 
 
 def data_split(data, batch_size, axis=0):
-    """split data for batch_size each in axis"""
+    """
+    Split ``data`` for ``batch_size`` each in ``axis``.???
+
+    :param data: Data array
+    :param batch_size: Integer
+    :param axis: Integer
+    :return: ???
+    """
     return data_generator(data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis})
 
 
@@ -186,7 +201,7 @@ split_generator = data_split
 
 
 def data_map(data, fun, args=(), kwargs=None):
-    """map data: call fun(data, *args, **kwargs) for each data. return the same structure."""
+    """Map data: call fun(data, *args, **kwargs) for each data. It returns the same structure."""
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(data, dict):
         return {k: data_map(v, fun, args, kwargs) for k, v in data.items()}
@@ -198,13 +213,18 @@ def data_map(data, fun, args=(), kwargs=None):
 
 
 def data_mask(data, select):
-    """merge data with the same structure."""
+    """
+    This function merges data with the same structure.???
+
+    :param select: ???
+    :return: ???
+    """
     ret = data_map(data, tf.boolean_mask, args=(select,))
     return ret
 
 
 def data_merge(*data, axis=0):
-    """merge data with the same structure."""
+    """This function merges data with the same structure."""
     if isinstance(data[0], dict):
         assert all([isinstance(i, dict) for i in data]), "not all type same"
         all_idx = [set(list(i)) for i in data]
@@ -221,7 +241,15 @@ def data_merge(*data, axis=0):
 
 
 def data_shape(data, axis=0, all_list=False):
-    """get data size."""
+    """
+    Get data size.
+
+    :param data: Data array
+    :param axis: Integer. ???
+    :param all_list: Boolean. ???
+    :return:
+    """
+
     def flatten(dat):
         ret = []
 
@@ -238,7 +266,8 @@ def data_shape(data, axis=0, all_list=False):
 
 
 def data_to_numpy(dat):
-    """convert Tensor data to numpy ndarray"""
+    """Convert Tensor data to ``numpy.ndarray``."""
+
     def to_numpy(data):
         if hasattr(data, "numpy"):
             return data.numpy()
@@ -249,7 +278,8 @@ def data_to_numpy(dat):
 
 
 def data_to_tensor(dat):
-    """convert data to tensorflow Tensor"""
+    """convert data to ``tensorflow.Tensor``."""
+
     def to_tensor(data):
         return tf.convert_to_tensor(data)
 
@@ -258,7 +288,8 @@ def data_to_tensor(dat):
 
 
 def flatten_dict_data(data, fun="{}/{}".format):
-    """flatten data as dict with structure named as fun"""
+    """Flatten data as dict with structure named as ``fun``."""
+
     def dict_gen(dat):
         return dat.items()
 
@@ -281,7 +312,8 @@ def flatten_dict_data(data, fun="{}/{}".format):
 
 
 def data_index(data, key):
-    """indexing data for key or a list of keys"""
+    """Indexing data for key or a list of keys."""
+
     def idx(data, i):
         if isinstance(i, int):
             return data[i]
@@ -292,7 +324,7 @@ def data_index(data, key):
             if str(k) == str(i):
                 return v
         raise ValueError("{} is not found".format(i))
-    
+
     if isinstance(key, (list, tuple)):
         keys = list(key)
         if len(keys) > 1:

@@ -57,7 +57,7 @@ def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
 
 def add_weight(data: dict, weight: float = 1.0) -> dict:
     """
-    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...} ???
     """
     data_size = data_shape(data)
     weight = [1.0] * data_size
@@ -67,7 +67,7 @@ def add_weight(data: dict, weight: float = 1.0) -> dict:
 
 def cal_helicity_angle(data: dict, decay_chain: DecayChain) -> dict:
     """
-    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...} ???
     """
     part_data = {}
     ret = {}
@@ -103,6 +103,11 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain) -> dict:
 
 
 def cal_angle_from_particle(data, decay_group: DecayGroup):
+    """
+    Transform data via ``DecayGroup``???
+
+    :return: Dictionary of data
+    """
     decay_chain_struct = decay_group.topology_structure()
     decay_data = []
     for i in decay_chain_struct:
@@ -141,6 +146,11 @@ def cal_angle_from_particle(data, decay_group: DecayGroup):
 
 
 def cal_angle(data, decay_group: DecayGroup) -> dict:
+    """
+    Transform data via ``DecayGroup``???
+
+    :return: Dictionary of data
+    """
     for i in decay_group:
         data = cal_helicity_angle(data, i)
     decay_chain_struct = decay_group.topology_structure()
@@ -192,6 +202,9 @@ def Getp(M_0, M_1, M_2):
 
 
 def get_relative_momentum(data: dict, decay_chain: DecayChain):
+    """
+    {}->{}???
+    """
     ret = {}
     for decay in decay_chain:
         m0 = data[decay.core]["m"]
@@ -204,6 +217,15 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
 
 
 def prepare_data_from_decay(fnames, decs, particles=None, dtype=None):
+    """
+    Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
+
+    :param fnames: File name(s).
+    :param decs: DecayGroup
+    :param particles: List of Particle. The final particles.
+    :param dtype: Data type.
+    :return: Dictionary
+    """
     if dtype is None:
         dtype = get_config("dtype")
     if particles is None:
@@ -214,6 +236,9 @@ def prepare_data_from_decay(fnames, decs, particles=None, dtype=None):
 
 
 def prepare_data_from_dat_file(fnames):
+    """
+    3-body???
+    """
     a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
     bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
     p = load_dat_file(fnames, [d, b, c])
@@ -231,6 +256,13 @@ def prepare_data_from_dat_file(fnames):
 
 
 def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
+    """
+    Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
+
+    :param p: 4-momentum data
+    :param decs: DecayGroup
+    :return: Dictionary of data
+    """
     data_p = struct_momentum(p)
     for dec in decs.topology_structure():
         data_p = infer_momentum(data_p, dec)
@@ -241,6 +273,9 @@ def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
 
 
 def prepare_data_from_dat_file4(fnames):
+    """
+    4-body???
+    """
     a, b, c, d, e, f = [BaseParticle(i) for i in "ABCDEF"]
     bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
     p = load_dat_file(fnames, [d, b, c, e, f])

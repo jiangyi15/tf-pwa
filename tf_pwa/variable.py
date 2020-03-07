@@ -56,7 +56,7 @@ class VarsManager(object):
         if name in self.variables:  # not a new var
             if name in self.trainable_vars:
                 self.trainable_vars.remove(name)
-            warnings.warn("Overwrite variable {}!".format(name))
+            # warnings.warn("Overwrite variable {}!".format(name))
 
         if value is None:
             if range_ is None:  # random [0,1]
@@ -179,16 +179,18 @@ class VarsManager(object):
             else:
                 warnings.warn("{} has been fixed already!".format(name))
 
-    def set_bound(self, bound_dic, func=None):
+    def set_bound(self, bound_dic, func=None, overwrite=False):
         """
         Set boundary for the trainable variables. The variables will be constrained in their ranges while fitting.
 
         :param bound_dic: Dictionary. E.g. **{"name1":(-1.0,1.0), "name2":(None,1.0)}**. In this example, **None** means it has no lower limit.
         :param func: String. Users can provide a string to describe the transforming function. For details, refer to class **tf_pwa.variable.Bound**.
+        :param overwrite: Boolean. If it's ``True``, the program will not throw a warning when overwrite a variable with the same name.
         """
         for name in bound_dic:
             if name in self.bnd_dic:
-                warnings.warn("Overwrite bound of {}!".format(name))
+                if not overwrite:
+                    warnings.warn("Overwrite bound of {}!".format(name))
             self.bnd_dic[name] = Bound(*bound_dic[name], func=func)
 
     def set_share_r(self, name_list):  # name_list==[name1,name2,...]
@@ -568,16 +570,18 @@ class Variable(object):
     :param name: The name of the variable group
     :param shape: The shape of the group. E.g. for a 4*3*2 matrix, **shape** is **[4,3,2]**. By default, **shape** is [] for a real variable.
     :param cplx: Boolean. Whether the variable (or the variables) are complex or not.
+    :param overwrite: Boolean. If it's ``True``, the program will not throw a warning when overwrite a variable with the same name.
     :param vm: VarsManager. It is by default the one automatically defined in the global scope by the program.
     :param kwargs: Other arguments that may be used when calling **self.real_var()** or **self.cplx_var()**
     """
-    def __init__(self, name, shape=[], cplx=False, vm=None, **kwargs):
+    def __init__(self, name, shape=[], cplx=False, overwrite=False, vm=None, **kwargs):
         if vm is None:
             vm = get_config("vm")
         self.vm = vm
         self.name = name
         if name in self.vm.var_head:
-            warnings.warn("Overwrite Variable {}!".format(name))
+            if not overwrite:
+                warnings.warn("Overwrite Variable {}!".format(name))
             for i in self.vm.var_head[name]:
                 self.vm.remove_var(i, cplx)
         self.vm.var_head[self.name] = []
@@ -672,15 +676,16 @@ class Variable(object):
         else:
             raise Exception("Only shape==() var supports 'freed' method.")
 
-    def set_bound(self, bound, func=None):
+    def set_bound(self, bound, func=None, overwrite=False):
         """
         Set boundary for this Variable. Note only non-shape real Variable supports this method.
 
         :param bound: Length-2 tuple.
         :param func: String. Refer to class **tf_pwa.variable.Bound**.
+        :param overwrite: Boolean. If it's ``True``, the program will not throw a warning when overwrite a variable with the same name.
         """
         if not self.shape:
-            self.vm.set_bound({self.name: bound}, func)
+            self.vm.set_bound({self.name: bound}, func, overwrite=overwrite)
             self.bound = self.vm.bnd_dic[self.name]
         else:
             raise Exception("Only shape==() real var supports 'set_bound' method.")

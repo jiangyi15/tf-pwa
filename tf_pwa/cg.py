@@ -39,8 +39,8 @@ def get_cg_coef(j1, j2, m1, m2, j, m):
 
     In fact, **tf_pwa/cg_table.json** only stores some of the coefficients, the others will be
     obtained by this function using some symmetry properties of the CG table.
-    .. note:: **tf_pwa/cg_table.json** only
-    contains the cases where :math:`j_1,j_2\\leqslant4`, but this should be enough for most cases in PWA.
+
+    .. note:: **tf_pwa/cg_table.json** only contains the cases where :math:`j_1,j_2\\leqslant4`, but this should be enough for most cases in PWA.
     """
     assert (m1 + m2 == m)
     assert (j1 >= 0)
