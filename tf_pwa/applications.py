@@ -275,7 +275,7 @@ def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
     return data_to_tensor(data)
 
 
-from .phasespace_tf import PhaseSpaceGenerator
+from .phasespace import PhaseSpaceGenerator
 
 
 def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
@@ -363,6 +363,8 @@ def cal_significance(nll1, nll2, ndf):
 ### plot-related ###
 import matplotlib.pyplot as plt
 from scipy.stats import norm as Norm
+from iminuit import Minuit
+from .utils import error_print
 
 
 def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
@@ -374,8 +376,8 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     :param nbins: Integer. Number of bins in the histogram
     :param norm: Boolean. Whether to normalize the histogram
     :param value: Float. Mean value in normalization
-    :param error: Float. Sigma value in normalization
-    :return: The fitted mean and sigma
+    :param error: Float or list. Sigma value(s) in normalization
+    :return: The fitted mu, sigma, as well as their errors
     """
     data = np.array(data)
     if norm:
@@ -383,15 +385,31 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
             raise Exception("Need value or error for normed pull!")
         data = (data - value) / error
 
-    n, bins, patches = plt.hist(data, nbins, density=1, alpha=0.6)
-    mean, sigma = Norm.fit(data)
-    y = Norm.pdf(bins, mean, sigma)
+    n, bins, patches = plt.hist(data, nbins, density=True, alpha=0.6)
+    bins = np.linspace(bins[0], bins[-1], 30)
+
+    def fitNormHist(data):
+        def nll(mu, sigma):
+            def normpdf(x, mu, sigma):
+                return np.exp(-(x - mu) * (x - mu) / 2 / sigma / sigma) / np.sqrt(2 * np.pi) / sigma
+
+            return -np.sum(np.log(normpdf(data, mu, sigma)))
+
+        m = Minuit(nll, mu=0, sigma=1, error_mu=0.1, error_sigma=0.1, errordef=0.5)
+        m.migrad()
+        m.hesse()
+        return m
+
+    m = fitNormHist(data)
+    mu, sigma = m.values["mu"], m.values["sigma"]
+    err_mu, err_sigma = m.errors["mu"], m.errors["sigma"]
+    y = Norm.pdf(bins, mu, sigma)
     plt.plot(bins, y, "r*-")
     plt.xlabel(name)
-    plt.title(name + ": mean=%.3f, sigma=%.3f" % (mean, sigma))
+    plt.title("mu = " + error_print(mu, err_mu) + '; sigma = ' + error_print(sigma, err_sigma))
     plt.savefig("fig/" + name + "_pull.png")
     plt.clf()
-    return mean, sigma
+    return mu, sigma, err_mu, err_sigma
 
 
 def likelihood_profile(var_name, start=None, end=None, step=None, values=None, errors=None, mode="bothsides"):

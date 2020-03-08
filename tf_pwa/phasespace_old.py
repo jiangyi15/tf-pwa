@@ -1,10 +1,10 @@
 import tensorflow as tf
 from math import pi
 #from pysnooper import snoop
-from .angle_tf import LorentzVector
+from .angle import LorentzVector
 import numpy as np
 
-def get_p(M, ma, mb):
+def get_p(M, ma, mb):  # 同amplitude.Getp，放到particle.decay里比较好吧
   m2 = M * M
   m_p = (ma + mb)**2
   m_m = (ma - mb)**2
@@ -17,11 +17,11 @@ class PhaseSpaceGenerator(object):
   def __init__(self, m0, mass):
     self.m_mass = []
     self.setDecay(m0, mass)
-    self.sum_mass = sum(self.m_mass)
+    self.sum_mass = sum(self.m_mass)  # m0->mass[0],mass[1],...
 
   def generate_mass(self,n_iter):
     sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
-    m_n  = self.m_mass[-1]
+    m_n = self.m_mass[-1]
     ret = []
     for i in range(self.m_nt - 2):
       b = (self.m0 - sm)
@@ -31,13 +31,13 @@ class PhaseSpaceGenerator(object):
       m_n = ms
       sm = sm - self.m_mass[-i-3]
       ret.append(ms)
-    return ret
+    return ret #(n-2)个质量???
   
   def generate(self,n_iter,force=True,flatten=True):
     n_gen = 1
     n_total = n_iter
     mass = self.generate_mass(n_iter)
-    if not flatten:
+    if not flatten: #什么模式？
       pi = self.generate_momentum(mass)
       weight = self.get_weight(mass)
       return weight,pi
@@ -51,9 +51,9 @@ class PhaseSpaceGenerator(object):
       n_gen += mass_f2[0].shape[0]
       n_total += n_iter2
       mass_f = [tf.concat([i,j],0) for i,j in zip(mass_f,mass_f2)]
-    if force:
+    if force:  # 强制减成n_iter个
       mass_f = [i[:n_iter] for i in mass_f]
-    return self.generate_momentum(mass_f)
+    return self.generate_momentum(mass_f)  # mass_f是什么意义？
   
   def generate_momentum(self,mass):
     n_iter = mass[0].shape[0]
@@ -62,9 +62,8 @@ class PhaseSpaceGenerator(object):
       mass_t.append(i)
     mass_t.append(self.m0)
     zeros = np.zeros([n_iter])
-    p_list_0 = [ tf.stack([zeros + self.m_mass[-1], zeros, zeros, zeros], axis=-1)]
-    # [ LorentzVector(zeros,zeros,zeros,self.m_mass[-1])]
-    p_list = self.generate_momentum_i(mass_t[1],mass_t[0],-2,n_iter,p_list_0)
+    p_list_0 = [LorentzVector(zeros,zeros,zeros,self.m_mass[-1])]  # 最后一个子粒子的静止系
+    p_list = self.generate_momentum_i(mass_t[1],mass_t[0],-2,n_iter,p_list_0)  # 不可以跟下面for合并，下面p_list会变长。但p_list里是啥？？
     #print("p_p2",p_list,p_list[0]+p_list[1])
     for i in range(1,self.m_nt-1):
       p_list = self.generate_momentum_i(mass_t[i+1],mass_t[i],-i-2,n_iter,p_list)
@@ -89,21 +88,19 @@ class PhaseSpaceGenerator(object):
     p_x = q*sin_theta*tf.cos(phi)
     p_y = q*sin_theta*tf.sin(phi)
     p_z = q*cos_theta
-    p = tf.stack([p_0, p_x, p_y, p_z], axis=-1)
-    # LorentzVector(p_x,p_y,p_z,p_0)
+    p = LorentzVector(p_x,p_y,p_z,p_0)
     ret = [p]
-    p_boost = tf.stack([tf.sqrt(q*q + m1*m1), -p_x, -p_y, -p_z], axis=-1)
-    # LorentzVector(-p.X,-p.Y,-p.Z,tf.sqrt(q*q + m1*m1))
+    p_boost = LorentzVector(-p.X,-p.Y,-p.Z,tf.sqrt(q*q + m1*m1))  # p和p_boost都是谁？
     #print(p_boost.M())
     for i in p_list:
-      ret.append(LorentzVector.rest_vector(-p_boost, i))
+      ret.append((-p_boost).Rest_Vector(i))
     return ret
   
   def flatten_mass(self,ms):
     weight = self.get_weight(ms)
     rnd = tf.random.uniform(weight.shape,dtype="float64")
     select = weight > rnd
-    return [ tf.boolean_mask(i,select) for i in ms]
+    return [tf.boolean_mask(i, select) for i in ms]
   
   def get_weight(self,ms):
     mass_t = [self.m_mass[-1]]
@@ -121,21 +118,30 @@ class PhaseSpaceGenerator(object):
   
   def setDecay(self, m0, mass):
     self.m0 = m0
-    self.m_nt = len(mass)
+    self.m_nt = len(mass)  # n体衰败
     self.m_teCmTm = m0
     for i in range(self.m_nt):
-      self.m_mass.append(mass[i])
+      self.m_mass.append(mass[i])  # 为什么不直接self.m_mass = mass???
       self.m_teCmTm -= mass[i]
     
-    if self.m_teCmTm <= 0: return False 
+    if self.m_teCmTm <= 0: return False  # m0-(m1+m2+...)
     emmax = self.m_teCmTm + self.m_mass[-1]
     emmin = 0
     wtmax = 1
     for n in range(1,self.m_nt):
       emmin += self.m_mass[-n]
       emmax += self.m_mass[-n-1]
-      p = get_p( emmax, emmin, self.m_mass[-n-1] )
+      p = get_p(emmax, emmin, self.m_mass[-n-1])
       #print(p)
       wtmax *= p
     self.m_wtMax = wtmax
     return True
+      
+
+if __name__ == "__main__":
+  A = PhaseSpaceGenerator(1.0,[0.2,0.3,0.1])
+  data = A.generate(100)  # 返回n个粒子的四动量
+  print(len(data))
+  print(data[1].M())
+  print(data[2].M())
+  print(data[0].M())
