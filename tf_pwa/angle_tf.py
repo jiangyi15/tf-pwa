@@ -3,7 +3,7 @@ This module implements three classes **Vector3**, **LorentzVector**, **EularAngl
 """
 from .tensorflow_wrapper import tf
 
-
+_epsilon = 1.0e-14
 # import functools
 # from pysnooper import snoop
 
@@ -56,7 +56,12 @@ class Vector3(tf.Tensor):
         """
         The unit vector of the cross product with another Vector3 object. It has interface to *tf.linalg.normalize()*.
         """
-        p, _n = tf.linalg.normalize(tf.cross(self, other), axis=-1)
+        cro = tf.cross(self, other)
+        norm_cro = tf.expand_dims(tf.norm(cro, axis=-1), -1)
+        mask = norm_cro < _epsilon
+        bias_other = tf.ones_like(norm_cro) + other
+        cro = tf.where(mask, tf.cross(self, bias_other), cro)
+        p, _n = tf.linalg.normalize(cro, axis=-1)
         return p
 
     def angle_from(self, x, y):
@@ -68,8 +73,6 @@ class Vector3(tf.Tensor):
         """
         return tf.math.atan2(Vector3.dot(self, y), Vector3.dot(self, x))
 
-
-_epsilon = 1.0e-14
 
 
 class LorentzVector(tf.Tensor):
@@ -236,9 +239,7 @@ class EularAngle(dict):
         :return x2: list of Vector3 object, which is the x-axis of the final coordinate in zi.
         """
         z1, z2, z3 = zi
-        zz = Vector3.cross_unit(z1, z2)
-        zz += Vector3.cross_unit(z1, z3)
-        zz += Vector3.cross_unit(z3, z3)
+        zz = Vector3.cross_unit(z1-z2, z2-z3)
         xi = [Vector3.cross_unit(i, zz) for i in zi]
         ang = EularAngle.angle_zx_zx(z, x, zz, xi[2])
         return ang, xi
