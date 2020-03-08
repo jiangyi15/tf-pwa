@@ -127,11 +127,11 @@ def gen_toy_sample():
   err_arr = []
   frac_arr = []
   err_frac_arr = []
-  for number in range(300):
+  for number in range(2):
     model.Amp.vm.trans_params(True) # switch to rp
     
     load_params(model.Amp, params_file)
-    model.Amp.vm.trans_params(True)
+    #model.Amp.vm.trans_params(True)
     #gen_mc(4.59925172,[2.00698,2.01028,0.13957],60000,"data/flat_mc.dat")
     data = gen_data(model.Amp,final_particles, Ndata,mcfile=mcfile,
                     Poisson_fluc=True, Nbg=Nbg,wbg=w_bkg,bgfile=bgfile)
@@ -144,21 +144,23 @@ def gen_toy_sample():
     f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
     now = time.time()
     s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method="BFGS", jac=True, callback=callback,options={"disp":1,"gtol":1e-4,"maxiter":1000})
-    model.Amp.vm.trans_params(False)#switch to xy
     fcn.model.Amp.vm.set_all(s.x)
+    model.Amp.vm.trans_params(False)#switch to xy
     var = fcn.model.Amp.vm.get_all_dic(trainable_only=True)
     var_all = {k: v.numpy() for k, v in model.Amp.variables.items()}
-    print("fitting parameters:\n",var)
     print("\nTime for fitting:", time.time() - now)
+    print("fitting parameters:\n",var)
 
     err = {}
     inv_he = cal_hesse_error(model.Amp,var_all,w_bkg,data,mcdata,bg,args_name, batch=20000)
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
     err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
+    print("errors:\n",err)
 
     frac, err_frac = fit_fractions(model,mcdata,inv_he,hesse=True)
     print("fitfractions:\n",frac)
+    print("errors:\n",err_frac)
 
     var_arr.append(var)
     err_arr.append(err)
@@ -166,14 +168,14 @@ def gen_toy_sample():
     err_frac_arr.append(err_frac)
     if not s.success:
       print("NOT SUCCESSFUL FITTING")
-    print("\n{}END\n".format(number))
+    print("\n{0}END in {1}s\n".format(number,time.time() - now))
   
-  print("var\n",var_arr)
-  print("err\n",err_arr)
-  print("frac\n",frac_arr)
-  print("err_frac\n",err_frac_arr)
+  print("$$$$$ var\n",var_arr)
+  print("$$$$$ err\n",err_arr)
+  print("$$$$$ frac\n",frac_arr)
+  print("$$$$$ err_frac\n",err_frac_arr)
   
-  output = open('toyMar5.pkl','wb')
+  output = open('toyMar8.pkl','wb')
   pickle.dump({"var":var_arr,"err":err_arr,"frac":frac_arr,"err_frac":err_frac_arr},output,-1)
   output.close()
 
@@ -278,5 +280,5 @@ def compare_toy_and_pull():
 
 
 if __name__ == "__main__":
-    fit()
+    gen_toy_sample()
 
