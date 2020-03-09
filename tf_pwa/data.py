@@ -223,6 +223,17 @@ def data_mask(data, select):
     return ret
 
 
+def data_cut(data, expr):
+    """data cut as boolen expr"""
+    import sympy as sym
+    expr_s = sym.sympify(expr)
+    params = tuple(expr_s.free_symbols)
+    args = [data[i.name] for i in params]
+    expr_f = sym.lambdify(params, expr , "tensorflow")
+    mask = expr_f(*args)
+    return data_mask(data, mask)
+
+
 def data_merge(*data, axis=0):
     """This function merges data with the same structure."""
     if isinstance(data[0], dict):
