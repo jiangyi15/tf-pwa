@@ -6,3 +6,4 @@ matplotlib==2.1.1
 sympy==1.5
 PyYAML==5.3
 tensorflow==2.1.0
+uproot==3.11.3
