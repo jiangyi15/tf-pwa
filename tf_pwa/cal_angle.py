@@ -3,7 +3,7 @@ This module provides functions which are useful when calculating the angular var
 """
 import numpy as np
 
-from .angle_tf import EularAngle, LorentzVector
+from .angle import EularAngle, LorentzVector
 from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy
 from .tensorflow_wrapper import tf
 from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup

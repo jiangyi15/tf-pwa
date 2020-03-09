@@ -62,7 +62,7 @@ import numpy as np
 # from pysnooper import  snoop
 
 from .particle import BaseParticle, BaseDecay, DecayChain, DecayGroup
-from .angle_tf import LorentzVector, EularAngle
+from .angle import LorentzVector, EularAngle
 from .tensorflow_wrapper import tf
 from .config import get_config
 

@@ -1,7 +1,7 @@
 import tensorflow as tf
 from math import pi
 #from pysnooper import snoop
-from .angle_tf import LorentzVector
+from .angle import LorentzVector
 import numpy as np
 
 def get_p(M, ma, mb):

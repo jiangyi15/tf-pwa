@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from tf_pwa.model_new import Model, FCN
+from tf_pwa.model import Model, FCN
 from tf_pwa.tensorflow_wrapper import tf
 import time
 import numpy as np

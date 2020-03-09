@@ -7,7 +7,7 @@ from tf_pwa.data import load_dat_file, data_to_tensor, split_generator
 from tf_pwa.cal_angle import prepare_data_from_decay
 
 # for fit
-from tf_pwa.model_new import Model, FCN
+from tf_pwa.model import Model, FCN
 from scipy.optimize import minimize
 from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 import matplotlib.pyplot as plt

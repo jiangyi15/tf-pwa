@@ -60,7 +60,7 @@ tf\_pwa.data module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.angle_tf module
+tf\_pwa.angle module
 --------------------
 
 .. automodule:: tf_pwa.angle_tf
@@ -100,7 +100,7 @@ tf\_pwa.amp module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.model_new module
+tf\_pwa.model module
 --------------------
 
 .. automodule:: tf_pwa.model_new

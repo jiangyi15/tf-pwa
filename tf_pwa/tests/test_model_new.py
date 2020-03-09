@@ -1,4 +1,4 @@
-from tf_pwa.model_new import sum_gradient, sum_hessian
+from tf_pwa.model import sum_gradient, sum_hessian
 from tf_pwa.tensorflow_wrapper import tf
 
 import numpy as np

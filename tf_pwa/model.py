@@ -1,428 +1,389 @@
 """
-basic negative log-likelihood model
+This module provides methods to calculate NLL(Negative Log-Likelihood) as well as its derivatives.
 """
 
-from .tensorflow_wrapper import tf, tf_version
 import numpy as np
-
-from .amplitude import AllAmplitude, param_list
+from .data import data_shape, split_generator, data_merge, data_split
+from .tensorflow_wrapper import tf
+from .utils import time_print
 from .config import get_config
 
-import time 
-import functools
-from multiprocessing.dummy import Process
+
+def loop_generator(var):
+    """
+    Put to utils.py???
+
+    :param var:
+    :return:
+    """
+    while True:
+        yield var
 
 
-def array_split(data,batch=None): #这俩可以放到util里
-  if batch is None:
-    return [data]
-  ret = []
-  n_data = data[0].shape[0]
-  n_split = (n_data + batch-1)//batch
-  for i in range(n_split):
-    tmp = []
-    for data_i in data:
-      tmp.append(data_i[i*batch:min(i*batch+batch,n_data)])
-    ret.append(tmp)
-  return ret
+def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
+    """
+    NLL is the sum of trans(f(data)):math:`*`weight; gradient is the derivatives for each variable in ``var``.
 
-def time_print(f):
-  @functools.wraps(f)
-  def g(*args,**kwargs):
-    now = time.time()
-    ret = f(*args,**kwargs)
-    print(f.__name__ ," cost time:",time.time()-now)
-    return ret
-  return g
+    :param f: Function. The amplitude PDF.
+    :param data: Data array
+    :param var: List of strings. Names of the trainable variables in the PDF.
+    :param weight: Weight factor for each data point. It's either a real number or an array of the same shape with ``data``.
+    :param trans: Function. Transformation of ``data`` before multiplied by ``weight``.
+    :param kwargs: Further arguments for ``f``.
+    :return: Real number NLL, list gradient
+    """
+    kwargs = kwargs if kwargs is not None else {}
+    if isinstance(weight, float):
+        weight = loop_generator(weight)
+    ys = []
+    gs = []
+    for data_i, weight_i in zip(data, weight):
+        with tf.GradientTape() as tape:
+            part_y = trans(f(data_i, *args, **kwargs))
+            y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
+        g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
+        ys.append(y_i)
+        gs.append(g_i)
+    nll = sum(ys)
+    g = list(map(sum, zip(*gs)))
+    return nll, g
+
+
+def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
+    """
+    The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
+    which is the matrix of the second-order derivative.
+
+    :return: Real number NLL, list gradient, 2-D list hessian
+    """
+    kwargs = kwargs if kwargs is not None else {}
+    if isinstance(weight, float):
+        weight = loop_generator(weight)
+    y_s = []
+    g_s = []
+    h_s = []
+    for data_i, weight_i in zip(data, weight):
+        with tf.GradientTape(persistent=True) as tape0:
+            with tf.GradientTape() as tape:
+                part_y = trans(f(data_i, *args, **kwargs))
+                y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
+            g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
+        h_s_i = []
+        for gi in g_i:
+            h_s_i.append(tape0.gradient(gi, var, unconnected_gradients="zero"))  # 2nd order derivative
+        del tape0
+        y_s.append(y_i)
+        g_s.append(g_i)
+        h_s.append(h_s_i)
+    nll = tf.reduce_sum(y_s)
+    g = tf.reduce_sum(g_s, axis=0)
+    h = tf.reduce_sum(h_s, axis=0)
+    # h = [[sum(j) for j in zip(*i)] for i in h_s]
+    return nll, g, h
 
 
 class Model(object):
-  """
-  simple negative log likelihood model
-  
-  """
-  def __init__(self,configs,w_bkg = 0,constrain={},args=(),kwargs={}):
-    self.w_bkg = w_bkg
-    if callable(configs):#为什么要区分这个？
-      self.Amp = configs
-    else :
-      self.Amp = get_config("amp")(configs,*args,**kwargs)
-    self.constrain = constrain # priori gauss constrain for the fitting parameters
-  
-
-  def get_constrain_term(self): # the priori constrain term added to NLL
-    r"""
-    constrain: Gauss(mean,sigma) 
-      by add a term :math:`\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2}`
-    
     """
-    t_var = self.Amp.trainable_variables
-    t_var_name = [i.name for i in t_var]
-    var_dict = dict(zip(t_var_name,t_var))
-    nll = 0.0
-    for i in self.constrain:
-      if not i in var_dict:
-        break
-      pi = self.constrain[i]
-      if isinstance(pi,tuple) and len(pi)==2:
-        mean, sigma = pi
-        var = var_dict[i]
-        nll += (var - mean)**2/(sigma**2)/2
-    return nll
-  
-  def get_constrain_grad(self): # the constrained parameter's 1st differentiation
-    r"""
-    constrain: Gauss(mean,sigma) 
-      by add a term :math:`\frac{d}{d\theta_i}\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2} = \frac{\theta_i-\bar{\theta_i}}{\sigma^2}`
-    
+    This class implements methods to calculate NLL as well as its derivatives for an amplitude model. It may include
+    data for both signal and background.
+
+    :param amp: ``AllAmplitude`` object. The amplitude model.
+    :param w_bkg: Real number. The weight of background.
     """
-    t_var = self.Amp.trainable_variables
-    t_var_name = [i.name for i in t_var]
-    var_dict = dict(zip(t_var_name,t_var))
-    g_dict = {}
-    for i in self.constrain:
-      if not i in var_dict:
-        break
-      pi = self.constrain[i]
-      if isinstance(pi,tuple) and len(pi)==2:
-        mean, sigma = pi
-        var = var_dict[i]
-        g_dict[i] = (var - mean)/(sigma**2) # 1st differentiation
-    nll_g = []
-    for i in t_var_name:
-      if i in g_dict:
-        nll_g.append(g_dict[i])
-      else:
-        nll_g.append(0.0)
-    return nll_g
-  
-  def get_constrain_hessian(self): # the constrained parameter's 2nd differentiation
-    t_var = self.Amp.trainable_variables
-    t_var_name = [i.name for i in t_var]
-    var_dict = dict(zip(t_var_name,t_var))
-    g_dict = {}
-    for i in self.constrain:
-      if not i in var_dict:
-        break
-      pi = self.constrain[i]
-      if isinstance(pi,tuple) and len(pi)==2:
-        mean, sigma = pi
-        var = var_dict[i]
-        g_dict[i] = 1/(sigma**2) # 2nd differentiation
-    nll_g = []
-    for i in t_var_name:
-      if i in g_dict:
-        nll_g.append(g_dict[i])
-      else:
-        nll_g.append(0.0)
-    return np.diag(nll_g)
-  
+    def __init__(self, amp, w_bkg=1.0):
+        self.Amp = amp
+        self.w_bkg = w_bkg
 
-  def get_weight_data(self,data,bg): # pretreat data and bg into one
-    if tf_version < 2:
-      n_data = data[0].shape[0].value
-      n_bg = bg[0].shape[0].value
-    else :
-      n_data = data[0].shape[0]
-      n_bg = bg[0].shape[0]
-    alpha = (n_data - self.w_bkg * n_bg)/(n_data + self.w_bkg**2 * n_bg)
-    weight = [alpha]*n_data + [-self.w_bkg * alpha] * n_bg
-    n_param  = len(data) # number of fitting parameters
-    data_warp = [tf.concat([data[i],bg[i]],0) for i in range(n_param)]
-    return data_warp,weight
+    def get_weight_data(self, data, weight=1.0, bg=None, alpha=True):
+        """
+        Blend data and background data together multiplied by their weights.
 
+        :param data: Data array
+        :param weight: Weight for data
+        :param bg: Data array for background
+        :param alpha: Boolean. If it's true, ``weight`` will be multiplied by a factor :math:`\\alpha=`???
+        :return: Data, weight. Their length both equals ``len(data)+len(bg)``.
+        """
+        has_bg = False #???
+        if isinstance(weight, float):
+            n_data = data_shape(data)
+            weight = tf.convert_to_tensor([weight]*n_data, dtype=get_config("dtype"))
+        if bg is not None:
+            n_bg = data_shape(bg)
+            data = data_merge(data, bg)
+            bg_weight = tf.convert_to_tensor([-self.w_bkg] * n_bg, dtype=get_config("dtype"))
+            weight = tf.concat([weight, bg_weight], axis=0)
+        if alpha:
+            alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
+            return data, alpha * weight
+        return data, weight
 
-  def nll(self,data,mcdata,weight=1.0,batch=None,args=(),kwargs={}):
-    r"""
-    calculate negative log-likelihood 
+    def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None):
+        """
+        Calculate NLL.
 
-    .. math::
-      -\ln L = -\sum_{x_i \in data } w_i \ln f(x_i;\theta_i) +  (\sum w_i ) \ln \sum_{x_i \in mc } f(x_i;\theta_i) + cons
+        .. math::
+          -\\ln L = -\\sum_{x_i \\in data } w_i \\ln f(x_i;\\theta_k) +  (\\sum w_j ) \\ln \\sum_{x_i \\in mc } f(x_i;\\theta_k)
 
-    """
-    n_data = len(data)
-    ln_data = tf.math.log(self.Amp(data))
-    int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
-    if isinstance(weight,float):
-      weights = [weight]*len(data)
-      sw = n_data * weight
-    else :
-      sw = tf.reduce_sum(weight)
-      weights = [
-        weight[i*batch:min(i*batch+batch,n_data)]
-        for i in range(len(data))
-      ]
-    weights = tf.cast(weights,ln_data.dtype)
-    nll_0 = - tf.reduce_sum(weights * ln_data)
-    cons = self.get_constrain_term()
-    return nll_0 + sw * int_mc + cons
-  
-  def nll_gradient(self,data,mcdata,weight=1.0,batch=None,args=(),kwargs={}):
-    r"""
-    calculate negative log-likelihood with gradient
-
-    .. math::
-      \frac{\partial }{\partial \theta_i }(-\ln L) = -\sum_{x_i \in data } w_i \frac{\partial }{\partial \theta_i } \ln f(x_i;\theta_i) +  
-      \frac{\sum w_i }{\sum_{x_i \in mc }f(x_i;\theta_i)} \sum_{x_i \in mc } \frac{\partial }{\partial \theta_i } f(x_i;\theta_i) + cons
-    
-    """
-    t_var = self.Amp.trainable_variables
-    if batch is None:
-      with tf.GradientTape() as tape: # auto differentiation
-        tape.watch(t_var)
-        nll = self.nll(data,mcdata,weight)
-      g = tape.gradient(nll,t_var) # the derivative of nll at t_var
-      return nll,g
-    else : # if batch
-      n_data = data[0].shape[0]
-      n_mc = mcdata[0].shape[0]
-      data = array_split(data,batch)
-      if isinstance(weight,float):
-        weights = [weight]*len(data)
-        sw = n_data * weight
-      else :
+        :param data: Data array
+        :param mcdata: MCdata array
+        :param weight: Weight of data???
+        :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
+        :param bg: Background data array. It can be set to ``None`` if there is no such thing.
+        :return: Real number. The value of NLL.
+        """
+        data, weight = self.get_weight_data(data, weight, bg=bg)
         sw = tf.reduce_sum(weight)
-        weights = [
-          weight[i*batch:min(i*batch+batch,n_data)]
-          for i in range(len(data))
-        ]
-      mcdata = array_split(mcdata,batch)
-      nll_0,g0 = self.sum_gradient(data,weights,lambda x:tf.math.log(x))
-      int_mc,g1 = self.sum_gradient(mcdata)
-      sw = tf.cast(sw,nll_0.dtype)
-      cons_grad = self.get_constrain_grad() # the constrain term
-      cons = self.get_constrain_term()
-      nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(n_mc,int_mc.dtype)) + cons
-      g = [ cons_grad[i] - g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
-      return nll,g
+        ln_data = tf.math.log(self.Amp(data))
+        int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
+        nll_0 = - tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
+        return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
 
- 
-  def sum_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}): #求和好了
-    if get_config("multi_gpus"):
-      ret = self.sum_gradient_gpus(data,weight=weight,func = func,args=args,kwargs=kwargs)
-      return ret
-    
-    n_variables = len(self.Amp.trainable_variables)
-    g_s = []
-    nll_s = []
-    if isinstance(weight,float):
-      weight = [weight] * len(data)
-    for i in range(len(data)):
-      with tf.GradientTape() as tape:
-        tape.watch(self.Amp.trainable_variables)
-        amp2s = self.Amp(data[i],*args,**kwargs)
-        l_a = func(amp2s)
-        p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-      a = tape.gradient(p_nll,self.Amp.trainable_variables)
-      nll_s.append(p_nll)
-      g_s.append(a)
-    nll = sum(nll_s)
-    g = np.array(g_s).sum(0)
-    return nll,g
-  
-  def sum_gradient_gpus(self,data,weight=1.0,func = lambda x:x,multi_gpus=True,args=(),kwargs={}): # multi-gpu verison #还没更新？
-    n_variables = len(self.Amp.trainable_variables)
-    g = None
-    nll = 0.0
-    n_data = len(data)
-    if isinstance(weight,float):
-      weight = [weight] * n_data
+    def nll_grad(self, data, mcdata, weight=1.0, batch=65000, bg=None):
+        """
+        Calculate NLL and its gradients.
 
-    n_split = 1
-    if multi_gpus:
-      gpus = tf.config.experimental.get_visible_devices('GPU')
-      if gpus:
-        n_split = len(gpus)
-    p = [None]*n_split
-    p_ret = [None]*n_split
-    n_data_split = (n_data+n_split-1)//n_split
-    def split_nll_grad(i,p_ret):
-      nll = 0.0
-      with tf.device("/device:GPU:%d"%i):
-        grads = []
-        for j in range(i*n_data_split,min((i+1)*n_data_split,n_data)):
-          #print(i,min(i*batch+batch,n_data))
-          with tf.GradientTape() as tape:
-            tape.watch(self.Amp.trainable_variables)
-            amp2s = self.Amp(data[j],*args,**kwargs)
-            l_a = func(amp2s)
-            p_nll = tf.reduce_sum(tf.cast(weight[j],l_a.dtype) * l_a)
-          a = tape.gradient(p_nll,self.Amp.trainable_variables)
-          nll += p_nll
-          grads.append(a)
-      p_ret[i] = nll,grads
+        .. math::
+          - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
+            -\\sum_{x_i \\in data } w_i \\frac{\\partial}{\\partial \\theta_k} \\ln f(x_i;\\theta_k)
+            + (\\sum w_j ) \\left( \\frac{ \\partial }{\\partial \\theta_k} \\sum_{x_i \\in mc} f(x_i;\\theta_k) \\right)
+              \\frac{1}{ \\sum_{x_i \\in mc} f(x_i;\\theta_k) }
 
-    for i in range(n_split):
-      p[i] =  Process(target=split_nll_grad,args=(i,p_ret))
-      p[i].start()
-    for i in range(n_split):
-      p[i].join()
-    g = [0.0]*n_variables
-    for p_nll,gs in p_ret:
-      nll += p_nll
-      for k in gs:
-        for i,j in enumerate(k):
-          g[i] += j
-    return nll,g
+        The parameters are the same with ``self.nll()``, but it will return gradients as well.
 
+        :return NLL: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        data, weight = self.get_weight_data(data, weight, bg=bg)
+        n_mc = data_shape(mcdata)
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data = sum_gradient(self.Amp, split_generator(data, batch),
+                                          self.Amp.trainable_variables, weight=split_generator(weight, batch),
+                                          trans=tf.math.log)
+        int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
+                                        self.Amp.trainable_variables, weight=1/n_mc)
 
-  def sum_hessian(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}): # add hessian compared to sum_gradient
-    n_variables = len(self.Amp.trainable_variables)
-    g_s = []
-    h_s = []
-    nll_s = []
-    if isinstance(weight,float):
-      weight = [weight] * len(data)
-    for i in range(len(data)):
-      with tf.GradientTape(persistent=True) as tape0:
-        with tf.GradientTape() as tape:
-          amp2s = self.Amp(data[i],*args,**kwargs)
-          l_a = func(amp2s)
-          p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-        nll_s.append(p_nll)
-        a = tape.gradient(p_nll,self.Amp.trainable_variables)
-        g_s.append(a)
-      he = []
-      for gi in a:
-        he.append(tape0.gradient(gi,self.Amp.trainable_variables,unconnected_gradients="zero")) # 2nd order derivative
-      del tape0
-      h_s.append(he)
-    nll = tf.reduce_sum(nll_s)
-    g = tf.reduce_sum(g_s, axis=0)
-    h = tf.reduce_sum(h_s, axis=0)
-    return nll, g, h
- 
+        sw = tf.cast(sw, ln_data.dtype)
 
-  def get_params(self):
-    return self.Amp.get_all_dic()
-  
-  def set_params(self,param): #改到amplitude里？
-    self.Amp.set_all(param)
+        g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        nll = - ln_data + sw * tf.math.log(int_mc)
+        return nll, g
 
+    # @tf.function
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
+        """
+        ``self.nll_grad()`` is replaced by this one???
 
-class Cache_Model(Model):
-  def __init__(self,configs,w_bkg,data,mc,bg=None,batch=50000,constrain={},args=(),kwargs={}):
-    super(Cache_Model,self).__init__(configs,w_bkg,constrain=constrain,*args,**kwargs) # call parent class Model.__init__()
-    n_data = data[0].shape[0]
-    self.n_mc = mc[0].shape[0]
-    self.batch = batch
-    if bg is None:
-      weight = [1.0]*n_data
-    else :
-      data,weight = self.get_weight_data(data,bg)
-      n_data = data[0].shape[0]
-    self.data = self.Amp.cache_data(*data,batch=self.batch) # pretreat data and cache them
-    self.mc = self.Amp.cache_data(*mc,batch=self.batch)
-    self.sw = tf.reduce_sum(weight)
-    self.weight = [
-        weight[i*batch:min(i*batch+batch,n_data)]
-        for i in range(len(self.data))
-    ]
-    self.init_params = self.get_params()
-    self.t_var = self.Amp.trainable_variables
-    self.t_var_name = [i.name for i in self.t_var]
+        .. math::
+          - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
+            -\\sum_{x_i \\in data } w_i \\frac{\\partial}{\\partial \\theta_k} \\ln f(x_i;\\theta_k)
+            + (\\sum w_j ) \\left( \\frac{ \\partial }{\\partial \\theta_k} \\sum_{x_i \\in mc} f(x_i;\\theta_k) \\right)
+              \\frac{1}{ \\sum_{x_i \\in mc} f(x_i;\\theta_k) }
 
+        :param data:
+        :param mcdata:
+        :param weight:
+        :param mc_weight:
+        :return:
+        """
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data = sum_gradient(self.Amp, data,
+                                          self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
+        int_mc, g_int_mc = sum_gradient(self.Amp, mcdata,
+                                        self.Amp.trainable_variables, weight=mc_weight)
 
-  def cal_nll(self,params={}):
-    if isinstance(params,dict):
-      self.set_params(params)
-    else:
-      for i,j in zip(self.t_var,params):
-        i.assign(j)
-    nll_0 = self.sum_no_gradient(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
-    int_mc = self.sum_no_gradient(self.mc,kwargs={"cached":True})
-    sw = tf.cast(self.sw,nll_0.dtype)
-    nll = - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
-    cons = self.get_constrain_term()
-    return nll + cons
-  
-  def sum_no_gradient(self,data,weight=1.0,func = lambda x:x,args=(),kwargs={}):
-    n_variables = len(self.Amp.trainable_variables)
-    g = None
-    nll = 0.0
-    if isinstance(weight,float):
-      weight = [weight] * len(data)
-    for i in range(len(data)):
-      amp2s = self.Amp(data[i],*args,**kwargs)
-      l_a = func(amp2s)
-      p_nll = tf.reduce_sum(tf.cast(weight[i],l_a.dtype) * l_a)
-      nll += p_nll
-    return nll # summed NLL???
-  
-  def cal_nll_gradient(self,params={}):
-    if isinstance(params,dict):
-      self.set_params(params)
-    else:
-      for i,j in zip(self.Amp.trainable_variables,params):
-        i.assign(j)
-    nll_0,g0 = self.sum_gradient(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
-    int_mc,g1 = self.sum_gradient(self.mc,kwargs={"cached":True})
-    sw = tf.cast(self.sw,nll_0.dtype)
-    cons = self.get_constrain_term()
-    nll = cons - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
-    cons_grad = self.get_constrain_grad()
-    g = [ cons_grad[i] -g0[i] + sw * g1[i]/int_mc for i in range(len(g0))]
-    return nll, g
-  
-  def cal_nll_hessian(self,params={}):
-    if isinstance(params,dict):
-      self.set_params(params)
-    else:
-      for i,j in zip(self.t_var,params):
-        i.assign(j)
-    nll_0,g0,h0 = self.sum_hessian(self.data,self.weight,lambda x:tf.math.log(x),kwargs={"cached":True})
-    int_mc,g1,h1 = self.sum_hessian(self.mc,kwargs={"cached":True})
-    cons = self.get_constrain_term()
-    cons_grad = self.get_constrain_grad()
-    cons_hessian = self.get_constrain_hessian()
-    sw = tf.cast(self.sw,nll_0.dtype)
-    nll = cons - nll_0 + sw * tf.math.log(int_mc/tf.cast(self.n_mc,int_mc.dtype))
-    g = np.array(cons_grad) - g0.numpy() + sw * g1.numpy()/int_mc
-    n = len(g0)
-    g1 = g1.numpy()/int_mc
-    h = - h0 - sw *np.outer(g1,g1) + sw / int_mc * h1 + cons_hessian
-    return nll, g, h
+        sw = tf.cast(sw, ln_data.dtype)
+
+        g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        nll = - ln_data + sw * tf.math.log(int_mc)
+        return nll, g
+
+    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000, bg=None):
+        """
+        The parameters are the same with ``self.nll()``, but it will return Hessian as well.
+
+        :return NLL: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        :return Hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
+        """
+        data, weight = self.get_weight_data(data, weight, bg=bg)
+        n_mc = data_shape(mcdata)
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
+                                                    self.Amp.trainable_variables, weight=split_generator(weight, batch),
+                                                    trans=tf.math.log)
+        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
+                                                 self.Amp.trainable_variables)
+
+        n_var = len(g_ln_data)
+        nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
+        g = - g_ln_data + sw * g_int_mc / int_mc
+        
+        g_int_mc = g_int_mc / int_mc
+        g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
+        
+        h = - h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
+        return nll, g, h
+
+    def set_params(self, var):
+        """
+        It has interface to ``Amplitude.set_params()``.
+        """
+        self.Amp.set_params(var)
+
+    def get_params(self,trainable_only=False):
+        """
+        It has interface to ``Amplitude.get_params()``.
+        """
+        return self.Amp.get_params(trainable_only)
 
 
 class FCN(object):
-  def __init__(self,cache_model):
-    self.model = cache_model
-    self.ncall = 0
-    self.n_grad = 0
-    self.cached_nll = None
-    
-  #@time_print
-  def __call__(self,x):
-    nll = self.model.cal_nll(x)
-    self.cached_nll = nll
-    self.ncall += 1
-    return nll
-  
-  @time_print
-  def grad(self,x):
-    nll,g = self.model.cal_nll_gradient(x)
-    self.cached_nll = nll
-    self.n_grad += 1
-    return np.array([i.numpy() for i in g])
+    """
+    This class implements methods to calculate the NLL as well as its derivatives for a general function.
 
-  #@time_print
-  def hessian(self,x):
-    nll,g,h = self.model.cal_nll_hessian(x)
-    self.cached_nll = nll
-    return h
+    :param model: Model object.
+    :param data: Data array.
+    :param mcdata: MCdata array.
+    :param bg: Background array.
+    :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
+    """
+    def __init__(self, model, data, mcdata, bg=None, batch=65000):
+        self.model = model
+        self.n_call = 0
+        self.n_grad = 0
+        self.cached_nll = None
+        data, weight = self.model.get_weight_data(data, bg=bg)
+        n_mcdata = data_shape(mcdata)
+        self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
+        self.weight = weight
+        self.data = data
+        self.batch_data = list(split_generator(data, batch))
+        self.mcdata = mcdata
+        self.batch_mcdata = list(split_generator(mcdata, batch))
+        self.batch = batch
+        self.mc_weight = tf.convert_to_tensor([1/n_mcdata] * n_mcdata, dtype="float64")
 
-  
-  #@time_print
-  def nll_grad(self,x):
-    nll,g = self.model.cal_nll_gradient(x)
-    self.cached_nll = nll
-    self.ncall += 1
-    self.n_grad += 1
-    #print("#####",nll)
-    #print("&&&&&",[i.numpy() for i in g])
-    return nll.numpy().astype("float64"), np.array([i.numpy() for i in g]).astype("float64")
-  
-  def nll_grad_hessian(self,x):
-    nll,g,h = self.model.cal_nll_hessian(x)
-    self.cached_nll = nll
-    return nll,g,h
+    # @time_print
+    def __call__(self, x):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        """
+        self.model.set_params(x)
+        nll = self.model.nll(self.data, self.mcdata, weight=self.weight)
+        self.cached_nll = nll
+        self.n_call += 1
+        return nll
+
+    def grad(self, x):
+        """
+        :param x: List. Values of variables.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        nll, g = self.nll_grad(x)
+        return g
+
+    @time_print
+    def nll_grad(self, x):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        self.model.set_params(x)
+        nll, g = self.model.nll_grad_batch(self.batch_data, self.batch_mcdata,
+                                           weight=list(data_split(self.weight, self.batch)),
+                                           mc_weight=data_split(self.mc_weight, self.batch))
+        self.cached_nll = nll
+        self.n_call += 1
+        return nll, np.array(g)
+
+    def nll_grad_hessian(self, x, batch=None):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        :return hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
+        """
+        if batch is None:
+            batch = self.batch
+        self.model.set_params(x)
+        nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
+                                                weight=self.weight, batch=batch)
+        return nll, g, h
+
+
+class CombineFCN(object):
+    """
+    This class implements methods to calculate the NLL as well as its derivatives for a general function.
+
+    :param model: List of model object.
+    :param data: List of data array.
+    :param mcdata: list of MCdata array.
+    :param bg: list of Background array.
+    :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
+    """
+    def __init__(self, model, data, mcdata, bg=None, batch=65000):
+        self.fcns = []
+        self.cached_nll = 0.0
+        if bg is None:
+            bg = loop_generator(None)
+        for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
+            self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
+
+    # @time_print
+    def __call__(self, x):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        """
+        nlls = []
+        for i in self.fcns:
+            nlls.append(i(x))
+        self.cached_nll = sum(nlls)
+        return self.cached_nll
+
+    def grad(self, x):
+        """
+        :param x: List. Values of variables.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        gs = []
+        for i in self.fcns:
+            g = i.grad(x)
+            gs.append(g)
+        return sum(gs)
+
+    @time_print
+    def nll_grad(self, x):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        nlls = []
+        gs = []
+        for i in self.fcns:
+            nll, g = i.nll_grad(x)
+            nlls.append(nll)
+            gs.append(g)
+        self.cached_nll = sum(nlls)
+        return self.cached_nll, sum(gs)
+
+    def nll_grad_hessian(self, x, batch=None):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        :return hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
+        """
+        nlls = []
+        gs = []
+        hs = []
+        for i in self.fcns:
+            nll, g, h = i.grad(x)
+            nlls.append(nll)
+            gs.append(g)
+            hs.append(h)
+        return sum(nlls), sum(gs), sum(hs)
