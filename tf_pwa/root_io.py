@@ -1,8 +1,9 @@
 import uproot
+import numpy as np
 from .data import data_merge
 
 
-def load_data(fnames):
+def load_root_data(fnames):
     """load root file as dict"""
     if isinstance(fnames, str):
         fnames = [fnames]
@@ -28,5 +29,7 @@ def load_Ttree(tree):
     """load TTree as dict"""
     ret = {}
     for i in tree.keys():
-        ret[i.decode()] = tree.get(i).array()
+        arr = tree.get(i).array()
+        if isinstance(arr, np.ndarray):
+            ret[i.decode()] = arr
     return ret

@@ -126,20 +126,39 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     return ret
 
 
-def save_data(*args, **kwargs):
+def save_data(file_name, obj, **kwargs):
     """Save structured data to files. The arguments will be passed to ``numpy.save()``."""
-    return np.save(*args, **kwargs)
+    return np.save(file_name, obj, **kwargs)
 
 
-def load_data(*args, **kwargs):
+def save_dataz(file_name, obj, **kwargs):
+    """Save compressed structured data to files. The arguments will be passed to ``numpy.save()``."""
+    return np.savez(file_name, obj, **kwargs)
+
+
+def load_data(file_name, **kwargs):
     """Load data file from save_data. The arguments will be passed to ``numpy.load()``."""
     if "allow_pickle" not in kwargs:
         kwargs["allow_pickle"] = True
-    data = np.load(*args, **kwargs)
+    data = np.load(file_name, **kwargs)
     try:
-        return data.item()
+        return data["arr_0"].item()
     except ValueError:
-        return data
+        try:
+            return data.item()
+        except ValueError:
+            return data
+
+
+def load_dataz(file_name, **kwargs):
+    """Load compressed data file from save_data. The arguments will be passed to ``numpy.load()``."""
+    if "allow_pickle" not in kwargs:
+        kwargs["allow_pickle"] = True
+    data = np.load(file_name, **kwargs)
+    try:
+        return data["arr_0"].item()
+    except ValueError:
+        return data["arr_0"]
 
 
 def _data_split(dat, batch_size, axis=0):
