@@ -4,9 +4,9 @@ stages:
 
 pytest:
   stage: build_test
-  image: tensorflow/tensorflow:2.0.1-py3
+  image: tensorflow/tensorflow:2.1.0-py3
   script:
-  - pip install numpy scipy sympy matplotlib iminuit uproot
+  - pip install -r requirements.txt
   - pip install pysnooper pytest pytest-cov pytest-benchmark
   - py.test --benchmark-disable --cov=tf_pwa --doctest-modules tf_pwa
 
