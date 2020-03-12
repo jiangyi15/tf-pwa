@@ -16,7 +16,7 @@ pylint:
   script:
   - pip install -r requirements.txt
   - pip install pylint
-  - pylint
+  - pylint tf_pwa
 
 build_wheel:
   stage: build_test
