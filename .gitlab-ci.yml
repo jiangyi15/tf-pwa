@@ -6,7 +6,7 @@ pytest:
   stage: build_test
   image: tensorflow/tensorflow:2.1.0-py3
   script:
-  - pip install -r requirements.txt
+  - pip install -I -r requirements.txt
   - pip install pysnooper pytest pytest-cov pytest-benchmark
   - py.test --benchmark-disable --cov=tf_pwa --doctest-modules tf_pwa
 
