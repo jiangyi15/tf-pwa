@@ -32,7 +32,7 @@ decay:
     - [R1, B, model=default]
     -   - R2
         - C
-        - model = "default"
+        - model= "default"
     -
         - R3
         - D
