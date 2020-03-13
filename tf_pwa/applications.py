@@ -200,7 +200,7 @@ def cal_hesse_error(model):
 
 
 from .data import load_dat_file, data_to_tensor
-from tf_pwa.cal_angle import prepare_data_from_decay
+from tf_pwa.cal_angle import prepare_data_from_decay, cal_angle_from_momentum
 
 
 def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
@@ -269,9 +269,15 @@ def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
     data_gen = np.transpose(data_gen, [1, 0, 2])
     np.random.shuffle(data_gen)
     data_gen = data_gen.reshape(-1, 4)
-    np.savetxt(genfile, data_gen)
 
-    data = prepare_data_from_decay(genfile, amp.decay_group, particles=particles, dtype=dtype)
+    # np.savetxt(genfile, data_gen)
+    # data = prepare_data_from_decay(genfile, amp.decay_group, particles=particles, dtype=dtype)
+
+    momenta = {}
+    Npar = len(particles)
+    for p in range(Npar):
+        momenta[particles[p]] = data_gen[p::Npar]
+    data = cal_angle_from_momentum(momenta, amp.decay_group)
     return data_to_tensor(data)
 
 
@@ -404,7 +410,7 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     mu, sigma = m.values["mu"], m.values["sigma"]
     err_mu, err_sigma = m.errors["mu"], m.errors["sigma"]
     y = Norm.pdf(bins, mu, sigma)
-    plt.plot(bins, y, "r*-")
+    plt.plot(bins, y, "r-")
     plt.xlabel(name)
     plt.title("mu = " + error_print(mu, err_mu) + '; sigma = ' + error_print(sigma, err_sigma))
     plt.savefig("fig/" + name + "_pull.png")
@@ -412,36 +418,44 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     return mu, sigma, err_mu, err_sigma
 
 
-def likelihood_profile(var_name, start=None, end=None, step=None, values=None, errors=None, mode="bothsides"):
-    """
-    WIP
+# def likelihood_profile(var_name, start=None, end=None, step=None, values=None, errors=None, mode="bothsides"):
+# if start == None or end == None:
+#    x_mean = values[var_name]
+#    x_sigma = errors[var_name]
+#    start = x_mean - 10 * x_sigma
+#    end = x_mean + 10 * x_sigma
+# else:
+#    x_mean = (end + start) / 2
+# if step == None:
+#    step = (end - start) / 100
+# if mode == "bothsides":
+#    x1 = np.arange(x_mean, start, -step)
+#    x2 = np.arange(x_mean, end, step)
+# elif mode == "back&forth":
+#    x1 = np.arange(start, end, step)
+#    x2 = x1[::-1]
 
-    :param var_name:
-    :param start:
-    :param end:
-    :param step:
-    :param values:
-    :param errors:
-    :param mode:
-    :return:
+def likelihood_profile(m, var_names, bins=20, minos=True):
     """
-    if start == None or end == None:
-        x_mean = values[var_name]
-        x_sigma = errors[var_name]
-        start = x_mean - 10 * x_sigma
-        end = x_mean + 10 * x_sigma
-    else:
-        x_mean = (end + start) / 2
-    if step == None:
-        step = (end - start) / 100
-    if mode == "bothsides":
-        x1 = np.arange(x_mean, start, -step)
-        x2 = np.arange(x_mean, end, step)
-        #
-    elif mode == "back&forth":
-        x1 = np.arange(start, end, step)
-        x2 = x1[::-1]
-        #
+    Calculate the likelihood profile for a variable.
+
+    :param m: Minuit object
+    :param var_names: Either a string or a list of strings
+    :param bins: Integer
+    :param minos: Boolean. If it's ``False``, the function will call ``Minuit.profile()`` to derive the 1-d scan of **var_names**; if it's ``True``, the function will call ``Minuit.mnprofile()`` to derive the likelihood profile, which is much more time-consuming.
+    :return: Dictionary indexed by **var_names**. It contains the return of either ``Minuit.mnprofile()`` or ``Minuit.profile()``.
+    """
+    if isinstance(var_names, str):
+        var_names = [var_names]
+    lklpf = {}
+    for var in var_names:
+        if minos:
+            x, y, t = m.mnprofile(var, bins=bins)
+            lklpf[var] = [x, y, t]
+        else:
+            x, y = m.profile(var, bins=bins)
+            lklpf[var] = [x, y]
+    return lklpf
 
 
 from .utils import std_periodic_var
