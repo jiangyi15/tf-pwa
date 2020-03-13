@@ -195,12 +195,20 @@ def data_generator(data, fun=_data_split, args=(), kwargs=None):
 
 def data_split(data, batch_size, axis=0):
     """
-    Split ``data`` for ``batch_size`` each in ``axis``.???
+    Split ``data`` for ``batch_size`` each in ``axis``.
 
-    :param data: Data array
-    :param batch_size: Integer
-    :param axis: Integer
-    :return: ???
+    :param data: structured data
+    :param batch_size: Integer, data size for each split data
+    :param axis: Integer, axis for split, [option]
+    :return: a generator for split data
+
+    >>> data = {"a": [np.array([1.0, 2.0]), np.array([3.0, 4.0])], "b": {"c": np.array([5.0, 6.0])}}
+    >>> for i, data_i in enumerate(data_split(data, 1)):
+    ...     print(i, data_to_numpy(data_i))
+    ...
+    0 {'a': [array([1.]), array([3.])], 'b': {'c': array([5.])}}
+    1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}}
+
     """
     return data_generator(data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis})
 
@@ -222,22 +230,31 @@ def data_map(data, fun, args=(), kwargs=None):
 
 def data_mask(data, select):
     """
-    This function merges data with the same structure.???
+    This function using boolean mask to select data.
 
-    :param select: ???
-    :return: ???
+    :param data: data to select
+    :param select: 1-d boolean array for selection
+    :return: data after selection
     """
     ret = data_map(data, tf.boolean_mask, args=(select,))
     return ret
 
 
-def data_cut(data, expr):
-    """data cut as boolen expr"""
+def data_cut(data, expr, var_map=None):
+    """data cut as boolean expr
+
+    :param data: data need to cut
+    :param expr: cut expression
+    :param var_map: variable map between parameters in expr and data, [option]
+
+    :return: data after being cut,
+    """
+    var_map = var_map if isinstance(var_map, dict) else {}
     import sympy as sym
     expr_s = sym.sympify(expr)
     params = tuple(expr_s.free_symbols)
-    args = [data[i.name] for i in params]
-    expr_f = sym.lambdify(params, expr , "tensorflow")
+    args = [data_index(data, var_map.get(i.name, i.name)) for i in params]
+    expr_f = sym.lambdify(params, expr, "tensorflow")
     mask = expr_f(*args)
     return data_mask(data, mask)
 

@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 from .particle import Particle,Decay
-from .variable import Vars
 from .dfun_tf import dfunctionJ,D_Cache
 import os
 # from pysnooper import snoop

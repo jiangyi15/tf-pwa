@@ -1,6 +1,6 @@
 # configuration files
 # using YAML format,see more: https://yaml.org/
-# required pyyaml module
+# required PyYAML module
 # this file use indentation to indicate hierarchy
 
 
@@ -20,17 +20,53 @@ data:
     bg_weight: 0.731
 
 
+# `decay` describe the decay structure, each node can be a list of particle name
+decay:
+    # each entry is a list of direct decay particle, or a list or the list.
+    # `dec_file` entry for loading `*.dec` files will be supported in the feature.
+    # `-` is often used for list in yaml
+    A:
+    # for example A -> R1 + B,
+    # the optional key=value mean option parameters of the decay
+    # note there, R1 is overrated by `particle` entry as R1 and R11
+    - [R1, B, model=default]
+    -   - R2
+        - C
+        - model= "default"
+    -
+        - R3
+        - D
+    R1:
+      - C
+      - D
+    R2: [B, D]
+    R3: [B, C]
+
+
 # `particle` describe the particle included
-# The detailed parameters are defined in `Resonances.yml`
+# top, finals, include are used as keywords
 particle:
-    # top decay particle [option], can be automatic determine by decay 
-    top: A
-    # final particles, can be automatic determine by decay
-    # This entry is optional, but it is important for avoiding ambiguity
-    finals: [B, C, D]
+    # top decay particle
+    $top:
+        A:
+            J: 1
+            P: -1
+            spins: [-1, 1]
+    # final particles
+    $finals:
+        B:
+            J: 1
+            P: -1
+        C:
+            J: 0
+            P: -1
+        D:
+            J: 1
+            P: -1
     # map for possible resonances in the same position
     # each entry is a list of resonances id [option]
-    # `-` is often used for list in yaml 
+    # include detailed parameters defined in `Resonances.yml`
+    $include: Resonances.yml
     R1: 
       - D2_2460p
       - D1_2430p
@@ -41,30 +77,6 @@ particle:
       - D2_2460
       - D1_2430
       - D1_2420
-
-
-# decay describe the decay structure, each node can be a list of 
-decay:
-    # ecah entry is a list of direct decay particle, or a list or the list.
-    # `dec_file` entry for loading `*.dec` files will be supported in the feature.
-    A: 
-    # for example A -> R1 + B, 
-    # the optional key=vaule mean option parameters of the decay
-    # note there, R1 is overrited by `particle` entry as R1 and R11
-    - [R1, B, model=default]
-    -   - R2
-        - C
-        - model = "default"
-    - 
-        - R3
-        - D
-    R1: 
-      - C
-      - D
-    R2: [B, D]
-    R3: [B, C]
-
-
 
 
 # plot describe the configuration of plotting 1-d data distribution
@@ -85,7 +97,7 @@ plot:
     angle:
         # each entry is `particle[/number]` means the decay of particle, number is the order.
         A/1:
-            # include "alpha, cosbeta, gamma", # add `cos` for cos(beta)
+            # include "alpha, cos(beta), gamma", # add `cos` for cos(beta)
             alpha:
                 display: "$\\phi_{1}$" # the default is "A/1:$\alpha$"
             cos(beta):
