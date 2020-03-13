@@ -143,22 +143,11 @@ def load_data(file_name, **kwargs):
     data = np.load(file_name, **kwargs)
     try:
         return data["arr_0"].item()
-    except ValueError:
+    except IndexError:
         try:
             return data.item()
         except ValueError:
             return data
-
-
-def load_dataz(file_name, **kwargs):
-    """Load compressed data file from save_data. The arguments will be passed to ``numpy.load()``."""
-    if "allow_pickle" not in kwargs:
-        kwargs["allow_pickle"] = True
-    data = np.load(file_name, **kwargs)
-    try:
-        return data["arr_0"].item()
-    except ValueError:
-        return data["arr_0"]
 
 
 def _data_split(dat, batch_size, axis=0):
