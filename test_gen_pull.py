@@ -109,6 +109,7 @@ def fit():
         json.dump(outdic, f, indent=2)
 
 
+from tf_pwa.applications import fit_fractions
 def gen_toy_sample():
     Ndata = 10000  # 8065
     Nbg = 0  # 3445
@@ -190,19 +191,51 @@ def gen_toy_sample():
     output.close()
 
 
-from tf_pwa.applications import plot_pull
+from tf_pwa.applications import compare_result
 
 
-def toy_pull():
-    with open("toyMar6.pkl", "rb") as f:
+def compare_toy():
+    with open("toyMar9.pkl", "rb") as f:
         dd = pickle.load(f)
     var = dd["var"]  # [{var_name:var_val}]
     err = dd["err"]
     frac = dd["frac"]  # [{frac_name:frac_val}]
     err_frac = dd["err_frac"]
-    with open("gen_params_rp.json") as f:
+    with open("gen_params_xy.json") as f:
         result = json.load(f)
-    del_list = [269, 258, 227, 215, 167, 129, 97, 91]
+
+    POLAR = False
+    if POLAR:
+        periodic_vars = []
+        for v in prm["error"]:
+            if v[-1] == "i":
+                periodic_vars.append(v)
+    else:
+        periodic_vars = ["A->D2_2460p.BD2_2460p->D.C_totali", "A->D1_2420.DD1_2420->B.C_totali",
+                         "A->D1_2420p.BD1_2420p->D.C_totali", "A->D1_2430.DD1_2430->B.C_totali",
+                         "A->D1_2430p.BD1_2430p->D.C_totali"]
+
+    for i in range(var.__len__()):
+        print("##### Pull", i)
+        compare_result(var[i], result["value"], err[i],  # result["error"],
+                       figname="fig/tmp/var_pull_{}".format(i), yrange=8, periodic_vars=periodic_vars)
+        """compare_result(result["frac"], frac[i], result["err_frac"], err_frac[i],
+                       figname="fig/tmp/frac_pull_{}".format(i), yrange=5)"""
+
+
+from tf_pwa.applications import plot_pull
+
+
+def toy_pull():
+    with open("toyMar10.pkl", "rb") as f:
+        dd = pickle.load(f)
+    var = dd["var"]  # [{var_name:var_val}]
+    err = dd["err"]
+    frac = dd["frac"]  # [{frac_name:frac_val}]
+    err_frac = dd["err_frac"]
+    with open("gen_params_xy.json") as f:
+        result = json.load(f)
+    del_list = []
     var = np.delete(var, del_list, axis=0)
     err = np.delete(err, del_list, axis=0)
     frac = np.delete(frac, del_list, axis=0)
@@ -236,55 +269,59 @@ def toy_pull():
 
     m = []
     s = []
+    e_m = []
+    e_s = []
     for i in var:
-        mean, sigma, _, _ = plot_pull(var[i], "var" + i, norm=True, value=result["value"][i], error=err[i])
+        mean, sigma, err_m, err_s = plot_pull(var[i], "var" + i, norm=True, value=result["value"][i], error=err[i])
         m.append(mean)
         s.append(sigma)
+        e_m.append(err_m)
+        e_s.append(err_s)
         print("Plot pull of {}".format(i))
     print("mean", m)
+    print("err_mean", e_m)
     print("sigma", s)
+    print("err_sigma", e_s)
 
-    """m = []
+    m = []
     s = []
+    e_m = []
+    e_s = []
     for i in frac:
-        mean, sigma = plot_pull(frac[i], "frac" + i, norm=True, value=result["frac"][i], error=result["err_frac"][i])
+        mean, sigma, err_m, err_s = plot_pull(frac[i], "frac" + i, norm=True, value=result["frac"][i], error=err_frac[i])
         m.append(mean)
         s.append(sigma)
+        e_m.append(err_m)
+        e_s.append(err_s)
         print("Plot pull of {}".format(i))
     print("mean", m)
-    print("sigma", s)"""
+    print("err_mean", e_m)
+    print("sigma", s)
+    print("err_sigma", e_s)
 
 
-from tf_pwa.applications import compare_result
+def draw_errorbar():
+    mu = []
+    err_mu = []
+    plt.errorbar(range(len(mu)),mu,yerr=err_mu,fmt="oy",ecolor='r',elinewidth=1,capsize=3)
+    plt.errorbar(range(len(mu)),0,fmt='g')
+    plt.xlabel("var index")
+    plt.ylabel("value")
+    plt.title("mu")
+    plt.show()
+    #plt.savefig("errbar_mu")
+    #plt.clf()
 
-
-def compare_toy():
-    with open("toyMar6.pkl", "rb") as f:
-        dd = pickle.load(f)
-    var = dd["var"]  # [{var_name:var_val}]
-    err = dd["err"]
-    frac = dd["frac"]  # [{frac_name:frac_val}]
-    err_frac = dd["err_frac"]
-    with open("gen_params_rp.json") as f:
-        result = json.load(f)
-
-    POLAR = False
-    if POLAR:
-        periodic_vars = []
-        for v in prm["error"]:
-            if v[-1] == "i":
-                periodic_vars.append(v)
-    else:
-        periodic_vars = ["A->D2_2460p.BD2_2460p->D.C_totali", "A->D1_2420.DD1_2420->B.C_totali",
-                         "A->D1_2420p.BD1_2420p->D.C_totali", "A->D1_2430.DD1_2430->B.C_totali",
-                         "A->D1_2430p.BD1_2430p->D.C_totali"]
-
-    for i in range(var.__len__()):
-        print("##### Pull", i)
-        compare_result(var[i], result["value"], err[i],  # result["error"],
-                       figname="fig/tmp/var_pull_{}".format(i), yrange=8, periodic_vars=periodic_vars)
-        """compare_result(result["frac"], frac[i], result["err_frac"], err_frac[i],
-                       figname="fig/tmp/frac_pull_{}".format(i), yrange=5)"""
+    sigma = []
+    err_sigma = []
+    plt.errorbar(range(len(sigma)),sigma,yerr=err_sigma,fmt="oy",ecolor='r',elinewidth=1,capsize=3)
+    plt.errorbar(range(len(sigma)),1,fmt='g')
+    plt.xlabel("var index")
+    plt.ylabel("value")
+    plt.title("sigma")
+    plt.show()
+    #plt.savefig("errbar_sigma")
+    #plt.clf()
 
 
 if __name__ == "__main__":
