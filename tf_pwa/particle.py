@@ -3,7 +3,7 @@ This module implements classes to describe particles and decays.
 """
 import functools
 import numpy as np
-# from pysnooper import snoop
+from pysnooper import snoop
 
 from .cg import cg_coef
 from .breit_wigner import barrier_factor as default_barrier_factor
@@ -142,12 +142,12 @@ class Particle(BaseParticle):  # add parameters to BaseParticle
         self.width = width
 
 
-def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
+def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
     """
     The :math:`L-S` coupling for the decay :math:`A\\rightarrow BC`, where :math:`L` is the orbital
     angular momentum of :math:`B` and :math:`B`, and :math:`S` is the superposition of their spins.
     It's required that :math:`|J_B-J_C|<S<J_B+J_C` and :math:`|L-S|<J_A<L+S`. It's also required by the conservation of
-    parity that :math:`L` is even if :math:`P_AP_BP_C=1`; otherwise :math:`L` is odd.
+    parity that :math:`L` is even if :math:`P_A P_B P_C=1`; otherwise :math:`L` is odd.
 
     :param ja: `J` of particle `A`
     :param jb: `J` of particle `B`
@@ -157,14 +157,20 @@ def GetA2BC_LS_list(ja, jb, jc, pa, pb, pc):
     :param pc: `P` of particle `C`
     :return: List of :math:`(l,s)` pairs.
     """
-    dl = 0 if pa * pb * pc == 1 else 1  # pa = pb * pc * (-1)^l
+    if pa is None or pb is None or pc is None:
+        p_break = True
+    if not p_break:
+        dl = 0 if pa * pb * pc == 1 else 1  # pa = pb * pc * (-1)^l
     s_min = abs(jb - jc)
     s_max = jb + jc
     # ns = s_max - s_min + 1
     ret = []
     for s in range(s_min, s_max + 1):
         for l in range(abs(ja - s), ja + s + 1):
-            if l % 2 == dl:
+            if not p_break:
+                if l % 2 == dl:
+                    ret.append((l, s))
+            else:
                 ret.append((l, s))
     return ret
 
@@ -197,10 +203,11 @@ class BaseDecay(object):
     :param disable: Boolean. If it's True???
     """
 
-    def __init__(self, core, outs, name=None, disable=False):
+    def __init__(self, core, outs, name=None, disable=False, p_break=False):
         self.name = name
         self.core = core
         self.outs = tuple(outs)
+        self.p_break = p_break
         if not disable:
             self.core.add_decay(self)
             for i in outs:
@@ -247,7 +254,7 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         pa = self.core.P
         pb = self.outs[0].P
         pc = self.outs[1].P
-        return tuple(GetA2BC_LS_list(ja, jb, jc, pa, pb, pc))
+        return tuple(GetA2BC_LS_list(ja, jb, jc, pa, pb, pc, p_break=self.p_break))
 
     @functools.lru_cache()
     def get_l_list(self):
