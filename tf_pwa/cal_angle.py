@@ -114,13 +114,16 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     return ret
 
 
-def cal_angle_from_particle(data, decay_group: DecayGroup):
+def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True):
     """
     Transform data via ``DecayGroup``???
 
     :return: Dictionary of data
     """
-    decay_chain_struct = decay_group.topology_structure()
+    if using_topology:
+        decay_chain_struct = decay_group.topology_structure()
+    else:
+        decay_chain_struct = decay_group
     decay_data = []
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i)
@@ -230,7 +233,7 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
     return ret
 
 
-def prepare_data_from_decay(fnames, decs, particles=None, dtype=None):
+def prepare_data_from_decay(fnames, decs, particles=None, dtype=None, using_topology=True):
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -245,7 +248,7 @@ def prepare_data_from_decay(fnames, decs, particles=None, dtype=None):
     if particles is None:
         particles = sorted(decs.outs)
     p = load_dat_file(fnames, particles, dtype=dtype)
-    data = cal_angle_from_momentum(p, decs)
+    data = cal_angle_from_momentum(p, decs, using_topology)
     return data
 
 
@@ -269,7 +272,7 @@ def prepare_data_from_dat_file(fnames):
     return data
 
 
-def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
+def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -278,10 +281,14 @@ def cal_angle_from_momentum(p, decs: DecayGroup) -> dict:
     :return: Dictionary of data
     """
     data_p = struct_momentum(p)
-    for dec in decs.topology_structure():
+    if using_topology:
+        decay_chain_struct = decs.topology_structure()
+    else:
+        decay_chain_struct = decs
+    for dec in decay_chain_struct:
         data_p = infer_momentum(data_p, dec)
         data_p = add_mass(data_p, dec)
-    data_d = cal_angle_from_particle(data_p, decs)
+    data_d = cal_angle_from_particle(data_p, decs, using_topology)
     data = {"particle": data_p, "decay": data_d}
     return data
 
