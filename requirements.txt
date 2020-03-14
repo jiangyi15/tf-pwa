@@ -1,6 +1,7 @@
 graphviz
 numpy
 scipy
+sympy
 iminuit
 opt_einsum
 matplotlib
