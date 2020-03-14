@@ -1,9 +1,9 @@
+graphviz
 numpy
 scipy
 iminuit
 opt_einsum
 matplotlib
-sympy
 PyYAML
 tensorflow
 uproot
