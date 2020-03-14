@@ -26,21 +26,21 @@ decay:
     # `dec_file` entry for loading `*.dec` files will be supported in the feature.
     # `-` is often used for list in yaml
     A:
-    # for example A -> R1 + B,
+    # for example A -> R_CD + B, R_CD -> C + D
     # the optional key=value mean option parameters of the decay
     # note there, R1 is overrated by `particle` entry as R1 and R11
-    - [R1, B, model=default]
-    -   - R2
+    - [R_CD, B, model=default]
+    -   - R_BD
         - C
         - model= "default"
     -
-        - R3
+        - R_BC
         - D
-    R1:
+    R_CD:
       - C
       - D
-    R2: [B, D]
-    R3: [B, C]
+    R_BD: [B, D]
+    R_BC: [B, C]
 
 
 # `particle` describe the particle included
@@ -58,25 +58,30 @@ particle:
             J: 1
             P: -1
         C:
-            J: 0
+            J: 1
             P: -1
         D:
-            J: 1
+            J: 0
             P: -1
     # map for possible resonances in the same position
     # each entry is a list of resonances id [option]
     # include detailed parameters defined in `Resonances.yml`
     $include: Resonances.yml
-    R1: 
+    R_BD:
       - D2_2460p
       - D1_2430p
       - D1_2420p
-    R2: [Zc_4025, Zc_4160]
+    R_BC: [Zc_4025, Zc_4160]
     # by default the node is `name: [name]`
-    R3: 
+    R_CD:
       - D2_2460
       - D1_2430
       - D1_2420
+
+# constrains for params [WIP]
+constrains:
+    particle: null
+    decay: null
 
 
 # plot describe the configuration of plotting 1-d data distribution
