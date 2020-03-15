@@ -37,8 +37,30 @@ def cross_combine(x):
 class BaseParticle(object):
     """
     Base Particle object. Name is "name[:id]".
+
+    :param name: String. Name of the particle
+    :param J: Integer or half-integer. The total spin
+    :param P: 1 or -1. The parity
+    :param spins: List. The spin quantum numbers. If it's not provided, ``spins`` will be ``tuple(range(-J, J + 1))``.
+    :param mass: Real variable
+    :param width: Real variable
     """
-    def __init__(self, name, id_=None):
+    def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None, id_=None, **kwargs):
+        self.set_name(name, id_)
+        self.decay = []  # list of Decay
+        self.creators = []  # list of Decay which creates the particle
+
+        self.J = J
+        self.P = P
+        if spins is None:
+            spins = tuple(range(-J, J + 1))
+        self.spins = tuple(spins)
+        self.mass = mass
+        self.width = width
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+    
+    def set_name(self, name, id_ =None):
         if id_ is None:
             names = name.split(":")
             if len(names) > 1:
@@ -51,8 +73,6 @@ class BaseParticle(object):
                 self.name, self._id = name, 0
         else:
             self.name, self._id = name, id_
-        self.decay = []  # list of Decay
-        self.creators = []  # list of Decay which creates the particle
 
     def add_decay(self, d):
         """
@@ -117,29 +137,6 @@ class BaseParticle(object):
         chains = [DecayChain(i) for i in decay_chain]
         decaygroup = DecayGroup(chains)
         return decaygroup.resonances
-
-
-class Particle(BaseParticle):  # add parameters to BaseParticle
-    """
-    General Particle object
-
-    :param name: String. Name of the particle
-    :param J: Integer or half-integer. The total spin
-    :param P: 1 or -1. The parity
-    :param spins: List. The spin quantum numbers. If it's not provided, ``spins`` will be ``tuple(range(-J, J + 1))``.
-    :param mass: Real variable
-    :param width: Real variable
-    """
-
-    def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None):
-        super(Particle, self).__init__(name)
-        self.J = J
-        self.P = P
-        if spins is None:
-            spins = tuple(range(-J, J + 1))
-        self.spins = tuple(spins)
-        self.mass = mass
-        self.width = width
 
 
 def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):

@@ -2,7 +2,7 @@ from .tensorflow_wrapper import tf
 import numpy as np
 
 from contextlib import contextmanager
-from .particle import Particle,Decay
+from .particle import BaseParticle as Particle,Decay
 from .variable import Variable,VarsManager
 from .dfun_tf import D_Cache as D_fun_Cache
 from .breit_wigner import barrier_factor,breit_wigner_dict as bw_dict

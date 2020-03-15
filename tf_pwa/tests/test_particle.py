@@ -4,12 +4,12 @@ from tf_pwa.particle import *
 
 
 def test_particle():
-    a = Particle("a", 1, -1)
-    b = Particle("b", 1, -1)
-    c = Particle("c", 0, -1)
-    d = Particle("d", 1, -1)
-    tmp = Particle("tmp", 1, -1)
-    tmp2 = Particle("tmp2", 1, -1)
+    a = BaseParticle("a", 1, -1)
+    b = BaseParticle("b", 1, -1)
+    c = BaseParticle("c", 0, -1)
+    d = BaseParticle("d", 1, -1)
+    tmp = BaseParticle("tmp", 1, -1)
+    tmp2 = BaseParticle("tmp2", 1, -1)
     decay = Decay(a, [tmp, c])
     decay2 = Decay(tmp, [b, d])
     decay3 = Decay(a, [tmp2, d])
@@ -27,9 +27,9 @@ def test_particle():
 
 
 def test_topology():
-    a = Particle("a")
-    b = Particle("B")
-    c = Particle("C")
+    a = BaseParticle("a")
+    b = BaseParticle("B")
+    c = BaseParticle("C")
     d = Particle("D")
     r = Particle("R")
     d1 = Decay(a, [r, c])

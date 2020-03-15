@@ -16,7 +16,7 @@ import warnings
 import copy
 # from pysnooper import snoop
 
-from .particle import split_particle_type, Decay, Particle as BaseParticle, DecayChain as BaseDecayChain, \
+from .particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
     DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
 from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW
@@ -140,8 +140,9 @@ def get_relative_p(m_0, m_1, m_2):
 @regist_particle("default")
 @regist_particle("BWR")
 class Particle(BaseParticle, AmpBase):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, running_width=True, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
+        self.running_width = running_width
 
     def init_params(self):
         self.d = 3.0
@@ -158,12 +159,13 @@ class Particle(BaseParticle, AmpBase):
         mass = self.get_mass()
         width = self.get_width()
         decay = self.decay[0]
-        # return BW(data["m"], self.mass, self.width)
-        q = data_c["|q|"]
-        q0 = data_c["|q0|"]
-        ret = BWR(data["m"], mass, width, q, q0,
-                  min(decay.get_l_list()), self.d)
-        # tf.convert_to_tensor(complex(1.0), dtype=get_config("complex_dtype"))
+        if not self.running_width:
+            ret = BW(data["m"], mass, width)
+        else:
+            q = data_c["|q|"]
+            q0 = data_c["|q0|"]
+            ret = BWR(data["m"], mass, width, q, q0,
+                    min(decay.get_l_list()), self.d)
         return ret
 
     def amp_shape(self):
