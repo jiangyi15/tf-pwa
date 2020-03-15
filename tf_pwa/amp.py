@@ -35,13 +35,13 @@ DECAY_MODEL = "decay_model"
 regist_config(DECAY_MODEL, {})
 
 
-def regist_model(name=None, f=None, types=PARTICLE_MODEL):
+def regist_particle(name=None, f=None):
     def regist(g):
         if name is None:
             my_name = g.__name__
         else:
             my_name = name
-        config = get_config(types)
+        config = get_config(PARTICLE_MODEL)
         if my_name in config:
             warnings.warn("Override model {}", my_name)
         config[my_name] = g
@@ -52,16 +52,34 @@ def regist_model(name=None, f=None, types=PARTICLE_MODEL):
     return regist(f)
 
 
-regist_particle = functools.partial(regist_model, types=PARTICLE_MODEL)
-regist_decay = functools.partial(regist_model, types=DECAY_MODEL)
+def regist_decay(name=None, num_outs=2, f=None):
+    def regist(g):
+        if name is None:
+            my_name = g.__name__
+        else:
+            my_name = name
+        config = get_config(DECAY_MODEL)
+        id_ = (num_outs, my_name)
+        if id_ in config:
+            warnings.warn("Override deccay model {}", my_name)
+        config[id_] = g
+        return g
+
+    if f is None:
+        return regist
+    return regist(f)
 
 
 def get_particle(*args, model="default", **kwargs):
+    """method for getting particle of model"""
     return get_config(PARTICLE_MODEL)[model](*args, **kwargs)
 
 
-def get_decay(*args, model="default", **kwargs):
-    return get_config(DECAY_MODEL)[model](*args, **kwargs)
+def get_decay(core, outs, model="default", **kwargs):
+    """method for getting decay of model"""
+    num_outs = len(outs)
+    id_ = (num_outs, model)
+    return get_config(DECAY_MODEL)[id_](core, outs, **kwargs)
 
 
 def data_device(data):
@@ -359,7 +377,8 @@ class HelicityDecay(AmpDecay, AmpBase):
         return ret
 
 
-@regist_decay("AngSam3")
+@regist_decay("default", 3)
+@regist_decay("AngSam3", 3)
 class AngSam3Decay(AmpDecay, AmpBase):
     def init_params(self):
         a = self.core.J

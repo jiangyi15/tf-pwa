@@ -387,6 +387,25 @@ class ConfigLoader(object):
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
 
+    def plot_partial_wave(self, params, data, phsp, bg=None):
+        raise NotImplementedError
+    
+    def get_chain(self, i):
+        decay_group = self.full_decay
+        return list(decay_group)[i]
+    
+    def get_chain_name(self, i):
+        chain = self.get_chain(i)
+        combine = []
+        for i in chain:
+            if i.core == chain.top:
+                combine = list(i.outs)
+        names = []
+        for i in combine:
+            pro = self.particle_property[str(i)]
+            names.append(pro.get("display", str(i)))
+        return " ".join(names)
+
 
 class FitResult(object):
     def __init__(self, params, model):

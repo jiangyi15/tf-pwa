@@ -36,6 +36,7 @@ decay:
     -
         - R_BC
         - D
+    - [B, C, D]
     R_CD:
       - C
       - D
