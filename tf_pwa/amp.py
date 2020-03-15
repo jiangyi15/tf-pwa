@@ -254,7 +254,6 @@ class AmpDecay(Decay, AmpBase):
         return ret
 
 
-
 @regist_decay("default")
 @regist_decay("gls-bf")
 class HelicityDecay(AmpDecay, AmpBase):
@@ -360,10 +359,12 @@ class HelicityDecay(AmpDecay, AmpBase):
         return ret
 
 
+@regist_decay("AngSam3")
 class AngSam3Decay(AmpDecay, AmpBase):
     def init_params(self):
         a = self.core.J
         self.gi = self.add_var("G_mu", is_complex=True, shape=(2*a+1,))
+
     def get_amp(self, data, data_extra=None):
         a = self.core
         b = self.outs[0]
@@ -372,7 +373,7 @@ class AngSam3Decay(AmpDecay, AmpBase):
         gi = tf.stack(self.gi())
         ang = data["ang"]
         D_conj = get_D_matrix_lambda(ang, a.J, a.spins, range(-a.J, a.J+1))
-        ret = tf.cast(gi, D_conj.dtype)* D_conj
+        ret = tf.cast(gi, D_conj.dtype) * D_conj
         ret = tf.reduce_sum(ret, axis=-1)
         ret = tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
         return tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])

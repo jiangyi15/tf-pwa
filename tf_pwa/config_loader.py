@@ -1,4 +1,5 @@
 import yaml
+import json
 from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
@@ -31,9 +32,9 @@ class ConfigLoader(object):
         self.dec = self.decay_item(self.config["decay"])
         self.particle_map, self.particle_property, self.top, self.finals = self.particle_item(
             self.config["particle"])
-        self.full_decay = self.get_decay_struct(
-            self.dec, self.particle_map, self.particle_property, self.top, self.finals)
-        self.decay_struct = self.get_decay_struct(self.dec)
+        self.full_decay = DecayGroup(self.get_decay_struct(
+            self.dec, self.particle_map, self.particle_property, self.top, self.finals))
+        self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
 
     @staticmethod
     def load_config(file_name):
@@ -47,14 +48,15 @@ class ConfigLoader(object):
     def get_dat_order(self):
         order = self.config["data"].get("dat_order", None)
         if order is None:
-            order = DecayChain(self.decay_struct[0]).outs
+            order = list(DecayChain(self.decay_struct[0]).outs)
         else:
             order = [get_particle(str(i)) for i in order]
+        return order
 
     def get_data(self, idx):
         files = self.get_data_file(idx)
-        data = prepare_data_from_decay(files, DecayGroup(
-            self.decay_struct), using_topology=False)
+        order = self.get_dat_order()
+        data = prepare_data_from_decay(files, self.decay_struct, order)
         return data
 
     def get_all_data(self):
@@ -149,17 +151,17 @@ class ConfigLoader(object):
                         particle_map[particle] = particle_map.get(
                             particle, []) + [i]
                     elif isinstance(i, dict):
-                        map_i, pro_i = ConfigLoader.particle_item(i)
+                        map_i, pro_i = ConfigLoader.particle_item_list(i)
                         for k, v in map_i.items():
                             particle_map[k] = particle_map.get(k, []) + v
                         particle_property.update(pro_i)
                     else:
                         raise ValueError(
-                            "vaule of particle map {} is {}".format(i, type(i)))
+                            "value of particle map {} is {}".format(i, type(i)))
             elif isinstance(candidate, dict):
                 particle_property[particle] = candidate
             else:
-                raise ValueError("vaule of particle {} is {}".format(
+                raise ValueError("value of particle {} is {}".format(
                     particle, type(candidate)))
         return particle_map, particle_property
 
@@ -217,12 +219,12 @@ class ConfigLoader(object):
             name_list = particle_map.get(name, [name])
             return [add_particle(i) for i in name_list]
 
-        def all_combine(outs):
-            if len(outs) < 1:
+        def all_combine(out):
+            if len(out) < 1:
                 yield []
             else:
-                for i in outs[0]:
-                    for j in all_combine(outs[1:]):
+                for i in out[0]:
+                    for j in all_combine(out[1:]):
                         yield [i] + j
 
         decs = []
@@ -234,6 +236,7 @@ class ConfigLoader(object):
                     dec_i = get_decay(i, j, **dec["params"])
                     decs.append(dec_i)
 
+        top_tmp, finals_tmp = set(), set()
         if top is None or finals is None:
             top_tmp, res, finals_tmp = split_particle_type(decs)
         if top is None:
@@ -260,10 +263,10 @@ class ConfigLoader(object):
         return dec_chain
 
     def get_data_index(self, sub, name):
-        dec = self.decay_struct
+        dec = self.decay_struct.topology_structure()
         if sub == "mass":
             p = get_particle(name)
-            return ("particle", p, "m")
+            return "particle", p, "m"
         if sub == "angle":
             de, de_i = None, None
             name_i = name.split("/")
@@ -280,11 +283,12 @@ class ConfigLoader(object):
                         de_i = idx
             if de is None or de_i is None:
                 raise ValueError("not found {}".format(name))
-            return ("decay", de_i, de, de.outs[0], "ang")
+            return "decay", de_i, de, de.outs[0], "ang"
         raise ValueError("unknown sub {}".format(sub))
 
+    @functools.lru_cache()
     def get_amplitude(self):
-        decay_group = DecayGroup(self.full_decay)
+        decay_group = self.full_decay
         return AmplitudeModel(decay_group)
 
     @functools.lru_cache()
@@ -295,7 +299,10 @@ class ConfigLoader(object):
 
     def fit(self, data, phsp, bg=None, batch=65000, method="BFGS"):
         model = self.get_model()
+        for i in self.full_decay:
+            print(i)
         fcn = FCN(model, data, phsp, bg=bg, batch=batch)
+        print("initial NLL: ", fcn({}))
         # fit configure
         args = {}
         args_name = model.Amp.vm.trainable_vars
@@ -320,7 +327,6 @@ class ConfigLoader(object):
         now = time.time()
         maxiter = 1000
 
-        # s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
         if method in ["BFGS", "CG", "Nelder-Mead"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -352,11 +358,13 @@ class ConfigLoader(object):
                          options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
             xn = s.x
         else:
-            pass  # raise Exception("unknown method")
+            raise Exception("unknown method")
         params = dict(zip(args_name, xn))
         return FitResult(params, fcn)
 
     def cal_error(self, params, data, phsp, bg=None, batch=10000):
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
         fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch)
         t = time.time()
         # data_w,mcdata,weight=weights,batch=50000)
@@ -370,12 +378,21 @@ class ConfigLoader(object):
         # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
         return inv_he
 
+    def get_params_error(self, params, data, phsp, bg=None, batch=10000):
+        inv_he = self.cal_error(params, data, phsp, bg, batch=20000)
+        diag_he = inv_he.diagonal()
+        hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+        print(hesse_error)
+        model = self.get_model()
+        err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
+        return err
+
 
 class FitResult(object):
     def __init__(self, params, model):
         self.params = params
         self.model = model
 
-    def saveas(self, file_name):
+    def save_as(self, file_name):
         with open(file_name, "w") as f:
-            json.dump(f, self.params)
+            json.dump(self.params, f, indent=2)

@@ -1,5 +1,6 @@
 from .particle import split_particle_type
 
+
 class DotGenerator():
     dot_head = """
 digraph {
@@ -28,6 +29,7 @@ digraph {
     def dot_chain(chains, has_label=True):
         ret = DotGenerator.dot_head
         top, _, outs = split_particle_type(chains)
+
         def format_particle(ps):
             s = ['"{}"'.format(i) for i in ps]
             return ",".join(s)
@@ -59,3 +61,13 @@ digraph {
                 ret += DotGenerator.dot_default_edge.format(i, j)
         ret += DotGenerator.dot_tail
         return ret
+
+
+def draw_decay_struct(decay_chain, show=True, **kwargs):
+    from graphviz import Source
+    a = DotGenerator.dot_chain(decay_chain)
+    g = Source(a, **kwargs)
+    if show:
+        g.view()
+    else:
+        g.save()
