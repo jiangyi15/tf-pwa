@@ -79,7 +79,9 @@ def Gamma(m, gamma0, q, q0, L, m0, d):
         \\Gamma(m) = \\Gamma_0 \\left(\\frac{q}{q_0}\\right)^{2L+1}\\frac{m_0}{m} B_{L}'(q,q_0,d)
   
     """
-    qq0 = (q / tf.cast(q0, q.dtype)) ** (2 * L + 1)
+    q0 = tf.cast(q0, q.dtype)
+    _epsilon = 1e-15
+    qq0 = tf.where(q0 > _epsilon, (q / q0) ** (2 * L + 1), 1.0)
     mm0 = (tf.cast(m0, m.dtype) / m)
     bp = Bprime(L, q, q0, d) ** 2
     gammaM = gamma0 * qq0 * mm0 * tf.cast(bp, qq0.dtype)
