@@ -605,9 +605,9 @@ class DecayGroup(BaseDecayGroup):
         ret = []
         amp_idx = self.amp_index(base_map)
         idx_ein = "".join(["..."] + amp_idx)
-        for chains, data_d in zip(chain_maps, data_decay):
+        for chains in chain_maps:
             for decay_chain in chains:
-                data_c = rename_data_dict(data_d, chains[decay_chain])
+                data_c = rename_data_dict(data_decay, chains[decay_chain])
                 data_p = rename_data_dict(data_particle, chains[decay_chain])
                 amp = decay_chain.get_amp(data_c, data_p, base_map=base_map)
                 ret.append(amp)
@@ -776,6 +776,13 @@ class AmplitudeModel(object):
 
     def set_params(self, var):
         self.vm.set_all(var)
+
+    @contextlib.contextmanager
+    def temp_params(self, var):
+        params = self.get_params()
+        self.set_params(var)
+        yield var
+        self.set_params(params)
 
     @property
     def variables(self):

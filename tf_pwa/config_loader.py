@@ -9,6 +9,8 @@ import functools
 import time
 from scipy.optimize import minimize, BFGS, basinhopping
 import numpy as np
+import matplotlib.pyplot as plt
+from tf_pwa.data import data_index, data_shape
 
 
 class ConfigLoader(object):
@@ -48,7 +50,7 @@ class ConfigLoader(object):
     def get_dat_order(self):
         order = self.config["data"].get("dat_order", None)
         if order is None:
-            order = list(DecayChain(self.decay_struct[0]).outs)
+            order = list(self.decay_struct.outs)
         else:
             order = [get_particle(str(i)) for i in order]
         return order
@@ -109,6 +111,8 @@ class ConfigLoader(object):
         particle_property = {}
         for particle, candidate in particle_list.items():
             if isinstance(candidate, list):  # particle map
+                if len(candidate) == 0:
+                    particle_map[particle] = []
                 for i in candidate:
                     if isinstance(i, str):
                         particle_map[particle] = particle_map.get(
@@ -350,13 +354,49 @@ class ConfigLoader(object):
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
 
-    def plot_partial_wave(self, params, data, phsp, bg=None):
-        raise NotImplementedError
-    
+    def plot_partial_wave(self, params, data, phsp, bg=None, prefix="figure/"):
+        amp = self.get_amplitude()
+        w_bkg = self.config["data"].get("bg_weight", 1.0)
+        print(w_bkg)
+        with amp.temp_params(params):
+            total_weight = amp(phsp)
+            if bg is None:
+                norm_frac = data_shape(data) / np.sum(total_weight)
+            else:
+                norm_frac = (data_shape(data) - w_bkg *
+                             data_shape(bg)) / np.sum(total_weight)
+            weights = amp.partial_weight(phsp)
+            for name, idx, trans in self.get_plot_params():
+                data_i = trans(data_index(data, idx))
+                phsp_i = trans(data_index(phsp, idx))
+                if bg is not None:
+                    bg_i = trans(data_index(bg, idx))
+                    bg_weight = np.ones_like(bg_i)*w_bkg
+                    plt.hist(bg_i, weights=bg_weight,
+                             label="back ground", bins=50)
+                    plt.hist(np.concatenate([bg_i, phsp_i]),
+                             weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50)
+                else:
+                    plt.hist(phsp, weights=total_weight,
+                             label="total fit", bins=50)
+                plt.hist(data_i, label="data", bins=50, histtype="step")
+                for i, j in enumerate(weights):
+                    plt.hist(phsp_i, weights=j * norm_frac,
+                             label=self.get_chain_name(i), bins=50, histtype="step")
+                plt.legend()
+                plt.savefig(prefix+name)
+                plt.clf()
+
+    def get_plot_params(self):
+        yield "m_BC", ("particle", get_particle("(B, C)"), "m"), lambda x: x
+        yield "m_CD", ("particle", get_particle("(C, D)"), "m"), lambda x: x
+        yield "m_BD", ("particle", get_particle("(B, D)"), "m"), lambda x: x
+        # raise NotImplementedError
+
     def get_chain(self, i):
         decay_group = self.full_decay
         return list(decay_group)[i]
-    
+
     def get_chain_name(self, i):
         chain = self.get_chain(i)
         combine = []

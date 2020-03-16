@@ -5,6 +5,7 @@ from tf_pwa.config_loader import ConfigLoader
 def fit():
     config = ConfigLoader("config.yml.sample")
     data, phsp, bg = config.get_all_data()
+    config.plot_partial_wave({}, data, phsp, bg=bg)
     fit_result = config.fit(data, phsp, bg=bg, batch=65000)
     print(fit_result)
     fit_result.save_as("final_params.json")

@@ -5,55 +5,6 @@ All data structure is describing as nested combination of ``dict`` or ``list`` f
 Data process is a translation from data structure to another data structure or typical ``ndarray``.
 Data cache can be implemented based on the dynamic features of ``list`` and ``dict``.
 
-The full data structure is
-
-``
-
-\{
-  "particle":\{
-    "A":\{"p":...,"m":...\}
-    ...
-  \},
-  
-  "decay":[
-    \{
-      "A->R1+B": \{
-        "R1": \{
-          "ang":  \{
-            "alpha":[...],
-            "beta": [...],
-            "gamma": [...]
-          \},
-          "z": [[x1,y1,z1],...],
-          "x": [[x2,y2,z2],...]
-        \},
-        "B" : \{...\}
-      \},
-      
-      "R->C+D": \{
-        "C": \{
-          ...,
-          "aligned_angle": \{
-            "alpha": [...],
-            "beta": [...],
-            "gamma": [...]
-          \}
-        \},
-        
-        "D": \{...\}
-      \},
-    \},
-    \{
-      "A->R2+C": \{...\},
-      "R2->B+D": \{...\}
-    \},
-    ...
-  ],
-  
-  "weight": [...]
-\}
-``
-
 """
 
 from pprint import pprint

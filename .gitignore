@@ -8,6 +8,7 @@ __pycache__
 *.npy
 *.json
 *.log
+config.yml
 
 cached_dir
 trash
@@ -20,3 +21,4 @@ chains
 
 coverage.xml
 .coverage
+htmlcov/

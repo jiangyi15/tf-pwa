@@ -74,10 +74,7 @@ particle:
       - D1_2420p
     R_BC: [Zc_4025, Zc_4160]
     # by default the node is `name: [name]`
-    R_CD:
-      - D2_2460
-      - D1_2430
-      - D1_2420
+    R_CD: []
 
 # constrains for params [WIP]
 constrains:
@@ -91,13 +88,13 @@ plot:
     config: null
     # invariant mass
     mass:
-        R1:
+        R_CD:
             # label of display
             # use `$$` for latex math
             display: "$\\M_{CD}$"
-        R2:
+        R_BD:
             display: "$\\M_{BD}$"
-        R3:
+        R_BC:
             display: "$\\M_{BC}$"
     # helicity angle
     angle:
@@ -119,18 +116,18 @@ plot:
                 display: "$\\phi_{3}$"
             cos(beta):
                 display: "$\\cos(\\theta_3)$"
-        R1/0:
+        R_BC/0:
             alpha:
                 display: "$\\phi_{11}$"
             cos(beta):
                 display: "$\\cos(\\theta_{11})$"
         # "/0" is optional
-        R2:
+        R_CD:
             alpha:
                 display: "$\\phi_{1}$"
             cos(beta):
                 display: "$\\cos(\\theta_{21})$"
-        R3:
+        R_BD:
             alpha:
                 display: "$\\phi_{1}$"
             cos(beta):

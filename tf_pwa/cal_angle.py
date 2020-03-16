@@ -1,6 +1,52 @@
 """
 This module provides functions which are useful when calculating the angular variables.
+
+
+The full data structure is
+
+\{
+  "particle":\{
+    "A":\{"p":...,"m":...\}
+    ...
+  \},
+  
+  "decay":
+    \{
+      A->(C, D)+B: \{
+        (C, D): \{
+          "ang":  \{
+            "alpha":[...],
+            "beta": [...],
+            "gamma": [...]
+          \},
+          "z": [[x1,y1,z1],...],
+          "x": [[x2,y2,z2],...]
+        \},
+        B : \{...\}
+      \},
+      
+      (C, D)->C+D: \{
+        C: \{
+          ...,
+          "aligned_angle": \{
+            "alpha": [...],
+            "beta": [...],
+            "gamma": [...]
+          \}
+        \},
+        
+        D: \{...\}
+      \},
+      A->(B, D)+C: \{...\},
+      (B, D)->B+D: \{...\}
+    \},
+    ...
+\}
+
+Inner nodes are named as tuple of particles.
+
 """
+
 import numpy as np
 
 from .angle import EularAngle, LorentzVector
@@ -124,10 +170,10 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True):
         decay_chain_struct = decay_group.topology_structure()
     else:
         decay_chain_struct = decay_group
-    decay_data = []
+    decay_data = {}
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i)
-        decay_data.append(data_i)
+        decay_data.update(data_i)
     
     # calculate aligned angle of final particles in each decay chain
     set_x = {}  # reference particles
@@ -148,11 +194,11 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True):
                         set_x[i] = (0, decay)
     for idx, decay_chain in enumerate(decay_chain_struct):
         for decay in decay_chain:
-            part_data = decay_data[idx][decay]
+            part_data = decay_data[decay]
             for i in decay.outs:
                 if i in decay_group.outs and decay != set_x[i][1]:
                     idx2, decay2 = set_x[i]
-                    part_data2 = decay_data[idx2][decay2]
+                    part_data2 = decay_data[decay2]
                     x1 = part_data[i]["x"]
                     x2 = part_data2[i]["x"]
                     z1 = part_data[i]["z"]
@@ -295,7 +341,7 @@ def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True) -> dict:
 
 def prepare_data_from_dat_file4(fnames):
     """
-    4-body???
+    angle for amplitude4
     """
     a, b, c, d, e, f = [BaseParticle(i) for i in "ABCDEF"]
     bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
