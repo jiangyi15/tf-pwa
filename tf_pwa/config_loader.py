@@ -367,7 +367,7 @@ class ConfigLoader(object):
                 norm_frac = (data_shape(data) - w_bkg *
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
-            for name, idx, trans in self.get_plot_params():
+            for name, display, idx, trans in self.get_plot_params():
                 fig = plt.figure()
                 ax = fig.add_subplot(1,1,1)
                 data_i = trans(data_index(data, idx))
@@ -390,14 +390,46 @@ class ConfigLoader(object):
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".", zorder = -2, label="data")
                 ax.set_ylim((0, None))
                 ax.legend()
-                ax.set_title(name)
+                ax.set_title(display)
                 fig.savefig(prefix+name, dpi=300)
                 fig.savefig(prefix+name+".pdf", dpi=300)
 
     def get_plot_params(self):
-        yield "m_BC", ("particle", get_particle("(B, C)"), "m"), lambda x: x
-        yield "m_CD", ("particle", get_particle("(C, D)"), "m"), lambda x: x
-        yield "m_BD", ("particle", get_particle("(B, D)"), "m"), lambda x: x
+        config = self.config["plot"]
+        
+        chain_map = self.decay_struct.get_chains_map()
+        re_map = {}
+        for i in chain_map:
+            for _, j in i.items():
+                for k, v in j.items():
+                    re_map[v] = k
+        mass = config.get("mass", {})
+        for k, v in mass.items():
+            display = v.get("display", "M({})".format(k))
+            yield k, display, ("particle", re_map.get(get_particle(k), get_particle(k)), "m"), lambda x: x
+        ang = config.get("angle", {})
+        for k, i in ang.items():
+            names= k.split("/")
+            name = names[0]
+            if len(names) > 1:
+                count = int(names[-1])
+            else:
+                count = 0
+            decay = None
+            part = re_map.get(get_particle(name), get_particle(name))
+            for decs in self.decay_struct:
+                for dec in decs:
+                    if dec.core == get_particle(name):
+                        decay = dec.core.decay[count]
+                        decay = re_map.get(decay, decay)
+            for j, v in i.items():
+                display = v.get("display", j)
+                theta = j
+                trans = lambda x: x
+                if "cos" in j:
+                    theta = j[4:-1]
+                    trans = lambda x: np.cos(x)
+                yield (k+"_"+j).replace("/","_"), display, ("decay", decay, decay.outs[0], "ang", theta), trans
         # raise NotImplementedError
 
     def get_chain(self, i):

@@ -91,27 +91,27 @@ plot:
         R_CD:
             # label of display
             # use `$$` for latex math
-            display: "$\\M_{CD}$"
+            display: "$M_{CD}$"
         R_BD:
-            display: "$\\M_{BD}$"
+            display: "$M_{BD}$"
         R_BC:
-            display: "$\\M_{BC}$"
+            display: "$M_{BC}$"
     # helicity angle
     angle:
         # each entry is `particle[/number]` means the decay of particle, number is the order.
-        A/1:
+        A/0:
             # include "alpha, cos(beta), gamma", # add `cos` for cos(beta)
             alpha:
                 display: "$\\phi_{1}$" # the default is "A/1:$\alpha$"
             cos(beta):
                 display: "$\\cos(\\theta_1)$" # the default is "A/1:$\beta$"
                 range: [-1, 1] # range for plot
-        A/2:
+        A/1:
             alpha:
                 display: "$\\phi_{2}$"
             cos(beta):
                 display: "$\\cos(\\theta_2)$"
-        A/3:
+        A/2:
             alpha:
                 display: "$\\phi_{3}$"
             cos(beta):
