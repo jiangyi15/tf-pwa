@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+
+import sys
+import os.path
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + '/..')
+
+
 from pymultinest.solve import solve
 from numpy import pi, cos
 from tf_pwa.model import Cache_Model,param_list,FCN

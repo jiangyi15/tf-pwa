@@ -388,6 +388,7 @@ class ConfigLoader(object):
                     ax.plot(x, y, label=self.get_chain_name(i), linestyle="solid", linewidth=1)
                 data_x, data_y, data_err = hist_error(data_i, bins=50)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".", zorder = -2, label="data")
+                ax.set_ylim((0, None))
                 ax.legend()
                 ax.set_title(name)
                 fig.savefig(prefix+name, dpi=300)
