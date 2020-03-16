@@ -7,6 +7,7 @@ from tf_pwa.model import Model, FCN
 import re
 import functools
 import time
+from scipy.interpolate import interp1d
 from scipy.optimize import minimize, BFGS, basinhopping
 import numpy as np
 import matplotlib.pyplot as plt
@@ -367,25 +368,30 @@ class ConfigLoader(object):
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             for name, idx, trans in self.get_plot_params():
+                fig = plt.figure()
+                ax = fig.add_subplot(1,1,1)
                 data_i = trans(data_index(data, idx))
                 phsp_i = trans(data_index(phsp, idx))
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_weight = np.ones_like(bg_i)*w_bkg
-                    plt.hist(bg_i, weights=bg_weight,
-                             label="back ground", bins=50)
-                    plt.hist(np.concatenate([bg_i, phsp_i]),
+                    ax.hist(bg_i, weights=bg_weight,
+                             label="back ground", bins=50, histtype="stepfilled",alpha=0.5,color="grey")
+                    ax.hist(np.concatenate([bg_i, phsp_i]),
                              weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50)
                 else:
-                    plt.hist(phsp, weights=total_weight,
+                    ax.hist(phsp, weights=total_weight,
                              label="total fit", bins=50)
-                plt.hist(data_i, label="data", bins=50, histtype="step")
+                # plt.hist(data_i, label="data", bins=50, histtype="step")
                 for i, j in enumerate(weights):
-                    plt.hist(phsp_i, weights=j * norm_frac,
-                             label=self.get_chain_name(i), bins=50, histtype="step")
-                plt.legend()
-                plt.savefig(prefix+name)
-                plt.clf()
+                    x, y = hist_line(phsp_i, weights=j * norm_frac, bins=50)
+                    ax.plot(x, y, label=self.get_chain_name(i), linestyle="solid", linewidth=1)
+                data_x, data_y, data_err = hist_error(data_i, bins=50)
+                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".", zorder = -2, label="data")
+                ax.legend()
+                ax.set_title(name)
+                fig.savefig(prefix+name, dpi=300)
+                fig.savefig(prefix+name+".pdf", dpi=300)
 
     def get_plot_params(self):
         yield "m_BC", ("particle", get_particle("(B, C)"), "m"), lambda x: x
@@ -408,6 +414,34 @@ class ConfigLoader(object):
             pro = self.particle_property[str(i)]
             names.append(pro.get("display", str(i)))
         return " ".join(names)
+
+
+def hist_error(data, bins, xrange=None, kind="binomial"):
+    data_hist = np.histogram(data, bins=50, range=xrange)
+    #ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
+    data_y, data_x = data_hist[0:2]
+    data_x = (data_x[:-1]+data_x[1:])/2
+    if kind == "possion":
+        data_err = np.sqrt(data_y)
+    elif kind == "binomial":
+        n = data.shape[0]
+        p = data_y / n
+        data_err = np.sqrt(p*(1-p)*n)
+    else:
+        raise ValueError("unknown error kind {}".format(kind))
+    return data_x, data_y, data_err
+
+
+def hist_line(data, weights, bins, xrange=None, inter=1, kind ="quadratic"):
+    y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
+    x = (x[:-1] + x[1:])/2
+    if xrange is None:
+        xrange = (np.min(data), np.max(data))
+    func = interp1d(x, y, kind=kind)
+    num = data.shape[0] * inter
+    x_new = np.linspace(np.min(x), np.max(x), num=num, endpoint=True)
+    y_new = func(x_new)
+    return x_new, y_new
 
 
 class FitResult(object):
