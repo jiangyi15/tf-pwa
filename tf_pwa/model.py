@@ -70,7 +70,8 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
             g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
         h_s_i = []
         for gi in g_i:
-            h_s_i.append(tape0.gradient(gi, var, unconnected_gradients="zero"))  # 2nd order derivative
+            # 2nd order derivative
+            h_s_i.append(tape0.gradient(gi, var, unconnected_gradients="zero"))
         del tape0
         y_s.append(y_i)
         g_s.append(g_i)
@@ -90,6 +91,7 @@ class Model(object):
     :param amp: ``AllAmplitude`` object. The amplitude model.
     :param w_bkg: Real number. The weight of background.
     """
+
     def __init__(self, amp, w_bkg=1.0):
         self.Amp = amp
         self.w_bkg = w_bkg
@@ -104,14 +106,16 @@ class Model(object):
         :param alpha: Boolean. If it's true, ``weight`` will be multiplied by a factor :math:`\\alpha=`???
         :return: Data, weight. Their length both equals ``len(data)+len(bg)``.
         """
-        has_bg = False #???
+        has_bg = False  # ???
         if isinstance(weight, float):
             n_data = data_shape(data)
-            weight = tf.convert_to_tensor([weight]*n_data, dtype=get_config("dtype"))
+            weight = tf.convert_to_tensor(
+                [weight]*n_data, dtype=get_config("dtype"))
         if bg is not None:
             n_bg = data_shape(bg)
             data = data_merge(data, bg)
-            bg_weight = tf.convert_to_tensor([-self.w_bkg] * n_bg, dtype=get_config("dtype"))
+            bg_weight = tf.convert_to_tensor(
+                [-self.w_bkg] * n_bg, dtype=get_config("dtype"))
             weight = tf.concat([weight, bg_weight], axis=0)
         if alpha:
             alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
@@ -158,14 +162,16 @@ class Model(object):
         n_mc = data_shape(mcdata)
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data = sum_gradient(self.Amp, split_generator(data, batch),
-                                          self.Amp.trainable_variables, weight=split_generator(weight, batch),
+                                          self.Amp.trainable_variables, weight=split_generator(
+                                              weight, batch),
                                           trans=tf.math.log)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
                                         self.Amp.trainable_variables, weight=1/n_mc)
 
         sw = tf.cast(sw, ln_data.dtype)
 
-        g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        g = list(map(lambda x: - x[0] + sw * x[1] /
+                     int_mc, zip(g_ln_data, g_int_mc)))
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
@@ -194,7 +200,8 @@ class Model(object):
 
         sw = tf.cast(sw, ln_data.dtype)
 
-        g = list(map(lambda x: - x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        g = list(map(lambda x: - x[0] + sw * x[1] /
+                     int_mc, zip(g_ln_data, g_int_mc)))
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
@@ -210,7 +217,8 @@ class Model(object):
         n_mc = data_shape(mcdata)
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
-                                                    self.Amp.trainable_variables, weight=split_generator(weight, batch),
+                                                    self.Amp.trainable_variables, weight=split_generator(
+                                                        weight, batch),
                                                     trans=tf.math.log)
         int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
                                                  self.Amp.trainable_variables)
@@ -218,10 +226,10 @@ class Model(object):
         n_var = len(g_ln_data)
         nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
         g = - g_ln_data + sw * g_int_mc / int_mc
-        
+
         g_int_mc = g_int_mc / int_mc
         g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
-        
+
         h = - h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
         return nll, g, h
 
@@ -231,11 +239,119 @@ class Model(object):
         """
         self.Amp.set_params(var)
 
-    def get_params(self,trainable_only=False):
+    def get_params(self, trainable_only=False):
         """
         It has interface to ``Amplitude.get_params()``.
         """
         return self.Amp.get_params(trainable_only)
+
+
+class ConstrainModel(Model):
+    """
+    negative log likelihood model with constrains
+
+    """
+
+    def __init__(self, amp, w_bkg=1.0, constrain={}):
+        super(self, ConstrainModel).__init__(amp, w_bkg)
+        self.constrain = constrain  # priori gauss constrain for the fitting parameters
+
+    def get_constrain_term(self):  # the priori constrain term added to NLL
+        r"""
+        constrain: Gauss(mean,sigma) 
+          by add a term :math:`\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2}`
+
+        """
+        t_var = self.Amp.trainable_variables
+        t_var_name = [i.name for i in t_var]
+        var_dict = dict(zip(t_var_name, t_var))
+        nll = 0.0
+        for i in self.constrain:
+            if not i in var_dict:
+                break
+            pi = self.constrain[i]
+            if isinstance(pi, tuple) and len(pi) == 2:
+                mean, sigma = pi
+                var = var_dict[i]
+                nll += (var - mean)**2/(sigma**2)/2
+        return nll
+
+    def get_constrain_grad(self):  # the constrained parameter's 1st differentiation
+        r"""
+        constrain: Gauss(mean,sigma) 
+          by add a term :math:`\frac{d}{d\theta_i}\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2} = \frac{\theta_i-\bar{\theta_i}}{\sigma^2}`
+
+        """
+        t_var = self.Amp.trainable_variables
+        t_var_name = [i.name for i in t_var]
+        var_dict = dict(zip(t_var_name, t_var))
+        g_dict = {}
+        for i in self.constrain:
+            if not i in var_dict:
+                break
+            pi = self.constrain[i]
+            if isinstance(pi, tuple) and len(pi) == 2:
+                mean, sigma = pi
+                var = var_dict[i]
+                g_dict[i] = (var - mean)/(sigma**2)  # 1st differentiation
+        nll_g = []
+        for i in t_var_name:
+            if i in g_dict:
+                nll_g.append(g_dict[i])
+            else:
+                nll_g.append(0.0)
+        return nll_g
+
+    def get_constrain_hessian(self):
+        """the constrained parameter's 2nd differentiation"""
+        t_var = self.Amp.trainable_variables
+        t_var_name = [i.name for i in t_var]
+        var_dict = dict(zip(t_var_name, t_var))
+        g_dict = {}
+        for i in self.constrain:
+            if not i in var_dict:
+                break
+            pi = self.constrain[i]
+            if isinstance(pi, tuple) and len(pi) == 2:
+                mean, sigma = pi
+                var = var_dict[i]
+                g_dict[i] = 1/(sigma**2)  # 2nd differentiation
+        nll_g = []
+        for i in t_var_name:
+            if i in g_dict:
+                nll_g.append(g_dict[i])
+            else:
+                nll_g.append(0.0)
+        return np.diag(nll_g)
+
+    def nll(self, data, mcdata, weight=1.0, bg=None, batch=None):
+        r"""
+        calculate negative log-likelihood 
+
+        .. math::
+          -\ln L = -\sum_{x_i \in data } w_i \ln f(x_i;\theta_i) +  (\sum w_i ) \ln \sum_{x_i \in mc } f(x_i;\theta_i) + cons
+
+        """
+        nll_0 = super(ConstrainModel, self).nll(
+            data, mcdata, weight=weight, batch=batch, bg=bg)
+        cons = self.get_constrain_term()
+        return nll_0 + cons
+
+    def nll_gradient(self, data, mcdata, weight=1.0, batch=None, bg=None):
+        r"""
+        calculate negative log-likelihood with gradient
+
+        .. math::
+          \frac{\partial }{\partial \theta_i }(-\ln L) = -\sum_{x_i \in data } w_i \frac{\partial }{\partial \theta_i } \ln f(x_i;\theta_i) +  
+          \frac{\sum w_i }{\sum_{x_i \in mc }f(x_i;\theta_i)} \sum_{x_i \in mc } \frac{\partial }{\partial \theta_i } f(x_i;\theta_i) + cons
+
+        """
+        cons_grad = self.get_constrain_grad()  # the constrain term
+        cons = self.get_constrain_term()
+        nll0, g0 = super(ConstrainModel, self).nll_grad(data, mcdata, weight=weight, batch=batch, bg=bg)
+        nll = nll0 + cons
+        g = [cons_grad[i] + g0[i] for i in range(len(g0))]
+        return nll, g
 
 
 class FCN(object):
@@ -248,6 +364,7 @@ class FCN(object):
     :param bg: Background array.
     :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
     """
+
     def __init__(self, model, data, mcdata, bg=None, batch=65000):
         self.model = model
         self.n_call = 0
@@ -262,7 +379,8 @@ class FCN(object):
         self.mcdata = mcdata
         self.batch_mcdata = list(split_generator(mcdata, batch))
         self.batch = batch
-        self.mc_weight = tf.convert_to_tensor([1/n_mcdata] * n_mcdata, dtype="float64")
+        self.mc_weight = tf.convert_to_tensor(
+            [1/n_mcdata] * n_mcdata, dtype="float64")
 
     # @time_print
     def __call__(self, x):
@@ -293,7 +411,8 @@ class FCN(object):
         """
         self.model.set_params(x)
         nll, g = self.model.nll_grad_batch(self.batch_data, self.batch_mcdata,
-                                           weight=list(data_split(self.weight, self.batch)),
+                                           weight=list(data_split(
+                                               self.weight, self.batch)),
                                            mc_weight=data_split(self.mc_weight, self.batch))
         self.cached_nll = nll
         self.n_call += 1
@@ -324,6 +443,7 @@ class CombineFCN(object):
     :param bg: list of Background array.
     :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
     """
+
     def __init__(self, model, data, mcdata, bg=None, batch=65000):
         self.fcns = []
         self.cached_nll = 0.0
