@@ -70,50 +70,13 @@ class ConfigLoader(object):
             return self.decay_struct
 
     @staticmethod
-    def _is_params(s):
-        return "=" in s
-
-    @staticmethod
-    def _get_params(s):
-        s = re.sub(r'^\s*', '', s)  # skip blanks
-        if s.startswith('"'):
-            s = s[1:]
-            km = re.match(r'^([^\"]+)\"\s*=', s)
-            k = km.group(1)
-            s = re.sub(r'^\s*', '', s[km.end():])
-        else:
-            km = re.match(r'^(.+)\s*=', s)
-            k = km.group(1)
-            k = re.sub(r'\s*$', '', k)
-            s = re.sub(r'^\s*', '', s[km.end():])
-        if s.startswith('"'):
-            is_str = True
-            s = s[1:]
-            km = re.match(r'^([^\"]+)\"\s*$', s)
-            v = km.group(1)
-        else:
-            is_str = False
-            km = re.match(r'^(.+)\s*$', s)
-            v = km.group(1)
-            v = re.sub(r'\s*$', '', v)
-        if not is_str:
-            try:
-                v = int(v)
-            except ValueError:
-                try:
-                    v = float(v)
-                except ValueError:
-                    pass
-        return k, v
-
-    @staticmethod
     def _list2decay(core, outs):
         parts = []
         params = {}
         for j in outs:
-            if ConfigLoader._is_params(j):
-                k, v = ConfigLoader._get_params(j)
-                params[k] = v
+            if isinstance(j, dict):
+                for k, v in j.items():
+                    params[k] = v
             else:
                 parts.append(j)
         dec = {"core": core, "outs": parts, "params": params}

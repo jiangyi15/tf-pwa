@@ -27,12 +27,12 @@ decay:
     # `-` is often used for list in yaml
     A:
     # for example A -> R_CD + B, R_CD -> C + D
-    # the optional key=value mean option parameters of the decay
+    # the optional `key=value` mean option parameters of the decay
     # note there, R1 is overrated by `particle` entry as R1 and R11
-    - [R_CD, B, model=default]
+    - [R_CD, B, model: default]
     -   - R_BD
         - C
-        - model= "default"
+        - model: "default"
     -
         - R_BC
         - D
