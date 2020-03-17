@@ -34,7 +34,7 @@ class PhaseSpaceGenerator(object):
     return ret
   
   def generate(self,n_iter,force=True,flatten=True):
-    n_gen = 1
+    n_gen = 0
     n_total = n_iter
     mass = self.generate_mass(n_iter)
     if not flatten:
@@ -44,7 +44,7 @@ class PhaseSpaceGenerator(object):
     mass_f = self.flatten_mass(mass)
     n_gen += mass_f[0].shape[0]
     while force and n_gen<n_iter:
-      n_iter2 = int(1.01 * (n_total-n_gen)/n_gen * n_iter)
+      n_iter2 = int(1.01 * (n_total-n_gen)/(n_gen+1) * n_iter)
       n_iter2 = min(n_iter2,4000000)
       mass2 = self.generate_mass(n_iter2)
       mass_f2 = self.flatten_mass(mass2)
