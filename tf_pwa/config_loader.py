@@ -255,9 +255,18 @@ class ConfigLoader(object):
         raise ValueError("unknown sub {}".format(sub))
 
     @functools.lru_cache()
-    def get_amplitude(self):
+    def get_amplitude(self, vm=None):
         decay_group = self.full_decay
-        return AmplitudeModel(decay_group)
+        amp = AmplitudeModel(decay_group, vm=vm)
+        self.add_constrans(amp)
+        return amp
+    
+    def add_constrans(self, amp):
+        const_first = False
+        for i in amp.decay_group:
+            if not const_first:
+                i.total.fixed(complex(1.0, 0.0))
+            const_first = True
 
     @functools.lru_cache()
     def get_model(self):
@@ -406,7 +415,7 @@ class ConfigLoader(object):
         mass = config.get("mass", {})
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
-            yield k, display, ("particle", re_map.get(get_particle(k), get_particle(k)), "m"), lambda x: x
+            yield "m_"+k, display, ("particle", re_map.get(get_particle(k), get_particle(k)), "m"), lambda x: x
         ang = config.get("angle", {})
         for k, i in ang.items():
             names= k.split("/")
@@ -429,8 +438,7 @@ class ConfigLoader(object):
                 if "cos" in j:
                     theta = j[4:-1]
                     trans = lambda x: np.cos(x)
-                yield (k+"_"+j).replace("/","_"), display, ("decay", decay, decay.outs[0], "ang", theta), trans
-        # raise NotImplementedError
+                yield validate_file_name(k+"_"+j), display, ("decay", decay, decay.outs[0], "ang", theta), trans
 
     def get_chain(self, i):
         decay_group = self.full_decay
@@ -447,6 +455,13 @@ class ConfigLoader(object):
             pro = self.particle_property[str(i)]
             names.append(pro.get("display", str(i)))
         return " ".join(names)
+
+
+
+def validate_file_name(s):
+    rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
+    name = re.sub(rstr, "_", s)
+    return name
 
 
 def hist_error(data, bins, xrange=None, kind="binomial"):

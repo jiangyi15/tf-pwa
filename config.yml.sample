@@ -36,7 +36,7 @@ decay:
     -
         - R_BC
         - D
-    - [B, C, D]
+    # - [B, C, D]
     R_CD:
       - C
       - D
@@ -76,6 +76,7 @@ particle:
     # by default the node is `name: [name]`
     R_CD: []
 
+    
 # constrains for params [WIP]
 constrains:
     particle: null
