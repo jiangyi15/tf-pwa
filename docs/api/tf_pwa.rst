@@ -124,6 +124,14 @@ tf\_pwa.applications module
    :undoc-members:
    :show-inheritance:
 
+tf\_pwa.phasespace module
+--------------------
+
+.. automodule:: tf_pwa.phasespace
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 Module contents
 ---------------
