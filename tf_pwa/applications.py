@@ -4,12 +4,21 @@ It acts like a synthesis of all the other modules of their own physical purposes
 In general, users only need to import functions in this module to implement their physical analysis instead of
 going into every modules. There are some example files where you can figure out how it is used.
 """
+import time
+import os
 import numpy as np
 import tensorflow as tf
-import time
+import matplotlib.pyplot as plt
+from scipy.stats import norm as Norm
+from iminuit import Minuit
 
 from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
-from .data import split_generator
+from .data import split_generator, load_dat_file, data_to_tensor
+from .cal_angle import prepare_data_from_decay, cal_angle_from_momentum
+from .phasespace import PhaseSpaceGenerator
+from .fit import fit_scipy, fit_minuit, fit_multinest
+from .significance import significance
+from .utils import error_print, std_periodic_var
 
 
 def fit_fractions(model, mcdata, inv_he, hesse=False):
@@ -34,26 +43,25 @@ def fit_fractions(model, mcdata, inv_he, hesse=False):
     :return frac: Dictionary of fit fractions for each resonance.
     :return err_frac: Dictionary of their errors. If ``hesse`` is ``False``, it will be a dictionary of ``None``.
     """
+    err_frac = {}
     if hesse:
         frac, grad = cal_fitfractions(model.Amp, list(split_generator(mcdata, 25000)))
+        for i in frac:
+            err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
     else:
         frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
-    err_frac = {}
-    for i in frac:
-        if hesse:
-            err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
-        else:
+        for i in frac:
             err_frac[i] = None
     return frac, err_frac
 
 
 def corr_coef_matrix(npy_name):
-    '''
+    """
     This function obtains correlation coefficients matrix of all trainable variables from *.npy file.
 
     :param npy_name: String. Name of the npy file
     :return: Numpy 2-d array. The correlation coefficient matrix.
-    '''
+    """
     err_mtx = np.load(npy_name)
     err = np.sqrt(err_mtx.diagonal())
     diag_mtx = np.diag(1 / err)
@@ -62,8 +70,9 @@ def corr_coef_matrix(npy_name):
     return cc_mtx
 
 
+'''
 def calPWratio(params, POLAR=True):
-    '''
+    """
     This function calculates the ratio of different partial waves in a certain resonance using the input values
     of fitting parameters. It is useful when user check if one partial wave is too small compared to the other partial
     waves, in which case, the fitting result may be not reliable since it has potential to give nuisance
@@ -72,7 +81,7 @@ def calPWratio(params, POLAR=True):
     :param params: Dictionary of values indexed by the name of the fitting parameters
     :param POLAR: Boolean. Whether the parameters are defined in the polar coordinate or the Cartesian coordinate.
     :return: None. But the function will print the ratios.
-    '''
+    """
     dtype = "float64"
     w_bkg = 0.768331
     # set_gpu_mem_growth()
@@ -178,17 +187,18 @@ def calPWratio(params, POLAR=True):
         # print(a_sig[i].get_params())
         # a_weight[i] = a_sig[i].Amp(mcdata_cache,cached=True).numpy()
         # PWamp[name] = a_weight[i].sum()/(n_data - w_bkg*n_bg)
+'''
 
 
 def cal_hesse_error(model):
-    '''
+    """
     This function calculates the errors of all trainable variables.
     The errors are given by the square root of the diagonal of the inverse Hessian matrix.
 
     :param model: Model.
     :return hesse_error: List of errors.
     :return inv_he: The inverse Hessian matrix.
-    '''
+    """
     t = time.time()
     nll, g, h = model.cal_nll_hessian()  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
@@ -199,12 +209,8 @@ def cal_hesse_error(model):
     return hesse_error, inv_he
 
 
-from .data import load_dat_file, data_to_tensor
-from tf_pwa.cal_angle import prepare_data_from_decay, cal_angle_from_momentum
-
-
 def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
-             bgfile=None, genfile="data/gen_data.dat"):
+             bgfile=None, genfile=None):
     """
     This function is used to generate toy data according to an amplitude model.
 
@@ -270,7 +276,8 @@ def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
     np.random.shuffle(data_gen)
     data_gen = data_gen.reshape(-1, 4)
 
-    # np.savetxt(genfile, data_gen)
+    if isinstance(genfile, str):
+        np.savetxt(genfile, data_gen)
     # data = prepare_data_from_decay(genfile, amp.decay_group, particles=particles, dtype=dtype)
 
     momenta = {}
@@ -281,11 +288,8 @@ def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
     return data_to_tensor(data)
 
 
-from .phasespace import PhaseSpaceGenerator
-
-
 def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
-    '''
+    """
     This function generates phase-space MC data (without considering the effect of detector performance). It imports
     ``PhaseSpaceGenerator`` from module **tf_pwa.phasespace**.
 
@@ -294,7 +298,7 @@ def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     :param number: Integer. The number of MC data generated.
     :param outfile: String. The file to store the generated MC.
     :return: Numpy array. The generated MC data.
-    '''
+    """
     # 4.59925172, [2.00698,2.01028,0.13957] DBC: D*0 D*- pi+
     phsp = PhaseSpaceGenerator(mother, daughters)
     flat_mc_data = phsp.generate(number)
@@ -308,11 +312,8 @@ def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     return pf
 
 
-from .fit import fit_scipy, fit_minuit, fit_multinest
-
-
 def fit(Use="scipy", **kwargs):
-    '''
+    """
     Fit the amplitude model using ``scipy``, ``iminuit`` or ``pymultinest``. It imports
     ``fit_scipy``, ``fit_minuit``, ``fit_multinest`` from module **tf_pwa.fit**.
 
@@ -338,19 +339,16 @@ def fit(Use="scipy", **kwargs):
     For ``fit_multinest`` (WIP)
 
     :param fcn: FCN object to be minimized.
-    '''
+    """
     if Use == "scipy":
         ret = fit_scipy(**kwargs)
     elif Use == "minuit":
         ret = fit_minuit(**kwargs)
-    elif Use == "multinest":
-        ret = fit_multinest(**kwargs)
+    # elif Use == "multinest":
+    #    ret = fit_multinest(**kwargs)
     else:
         raise Exception("Unknown fit tool {}".format(Use))
     return ret
-
-
-from .significance import significance
 
 
 def cal_significance(nll1, nll2, ndf):
@@ -364,13 +362,6 @@ def cal_significance(nll1, nll2, ndf):
     """
     sigma = significance(nll1, nll2, ndf)
     return sigma
-
-
-### plot-related ###
-import matplotlib.pyplot as plt
-from scipy.stats import norm as Norm
-from iminuit import Minuit
-from .utils import error_print
 
 
 def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
@@ -387,11 +378,11 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     """
     data = np.array(data)
     if norm:
-        if value == None or error == None:
+        if value is None or error is None:
             raise Exception("Need value or error for normed pull!")
         data = (data - value) / error
 
-    n, bins, patches = plt.hist(data, nbins, density=True, alpha=0.6)
+    _, bins, _ = plt.hist(data, nbins, density=True, alpha=0.6)
     bins = np.linspace(bins[0], bins[-1], 30)
 
     def fitNormHist(data):
@@ -458,10 +449,7 @@ def likelihood_profile(m, var_names, bins=20, minos=True):
     return lklpf
 
 
-from .utils import std_periodic_var
-
-
-def compare_result(value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=[]):
+def compare_result(value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=None):
     """
     Compare two groups of fitting results. If only one error is provided,
     the figure is :math:`\\frac{\\mu_1-\\mu_2}{\\sigma_1}`;
@@ -476,6 +464,8 @@ def compare_result(value1, value2, error1, error2=None, figname=None, yrange=Non
     :param periodic_vars: List of strings. The periodic variables.
     :return: Dictionary of quality figure of each variable.
     """
+    if periodic_vars is None:
+        periodic_vars = []
     diff_dict = {}
     if error2:
         for v in error1:
