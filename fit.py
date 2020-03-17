@@ -2,13 +2,14 @@
 from tf_pwa.config_loader import ConfigLoader
 from pprint import pprint
 from tf_pwa.utils import error_print
+import tensorflow as tf
 
-def fit(init_params=None,):
+def fit(config_file="config.yml", init_params="init_params.json"):
 
-    config = ConfigLoader("config.yml")
+    config = ConfigLoader(config_file)
     try:
-        config.set_params("init_params.json")
-        print("using init_params.json")
+        config.set_params(init_params)
+        print("using {}".format(init_params))
     except Exception as e:
         print("using RANDOM parameters")
 
@@ -37,13 +38,15 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="simple fit scripts")
     parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
+    parser.add_argument("--config", default="config.yml", dest="config")
+    parser.add_argument("--init_params", default="init_params.json", dest="init")
     results = parser.parse_args()
     if results.has_gpu:
-        with tf.device("/device:GPU:0"):
-            fit()
+        devices = "/device:GPU:0"
     else:
-        with tf.device("/device:CPU:0"):
-            fit()
+        devices = "/device:CPU:0"
+    with tf.device(devices):
+        fit(results.config, results.init)
 
 
 if __name__ == "__main__":
