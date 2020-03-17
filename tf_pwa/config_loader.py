@@ -11,7 +11,8 @@ from scipy.interpolate import interp1d
 from scipy.optimize import minimize, BFGS, basinhopping
 import numpy as np
 import matplotlib.pyplot as plt
-from tf_pwa.data import data_index, data_shape
+from tf_pwa.data import data_index, data_shape, data_split
+from tf_pwa.fitfractions import cal_fitfractions
 
 
 class ConfigLoader(object):
@@ -350,21 +351,25 @@ class ConfigLoader(object):
         # print(nll)
         # print([i.numpy() for i in g])
         # print(h.numpy())
-        inv_he = np.linalg.pinv(h.numpy())
-        np.save("error_matrix.npy", inv_he)
+        self.inv_he = np.linalg.pinv(h.numpy())
+        np.save("error_matrix.npy", self.inv_he)
         # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
-        return inv_he
+        return self.inv_he
 
     def get_params_error(self, params, data, phsp, bg=None, batch=10000):
-        inv_he = self.cal_error(params, data, phsp, bg, batch=20000)
-        diag_he = inv_he.diagonal()
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
+        self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000)
+        diag_he = self.inv_he.diagonal()
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         print(hesse_error)
         model = self.get_model()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
 
-    def plot_partial_wave(self, params, data, phsp, bg=None, prefix="figure/"):
+    def plot_partial_wave(self, params, data, phsp, bg=None, prefix="figure/", plot_delta=False):
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
         amp = self.get_amplitude()
         w_bkg = self.config["data"].get("bg_weight", 1.0)
         print(w_bkg)
@@ -378,7 +383,10 @@ class ConfigLoader(object):
             weights = amp.partial_weight(phsp)
             for name, display, idx, trans in self.get_plot_params():
                 fig = plt.figure()
-                ax = fig.add_subplot(1,1,1)
+                if plot_delta:
+                    ax = plt.subplot2grid((4, 1), (0, 0),  rowspan=3)
+                else:
+                    ax = fig.add_subplot(1,1,1)
                 data_i = trans(data_index(data, idx))
                 phsp_i = trans(data_index(phsp, idx))
                 if bg is not None:
@@ -386,10 +394,10 @@ class ConfigLoader(object):
                     bg_weight = np.ones_like(bg_i)*w_bkg
                     ax.hist(bg_i, weights=bg_weight,
                              label="back ground", bins=50, histtype="stepfilled",alpha=0.5,color="grey")
-                    ax.hist(np.concatenate([bg_i, phsp_i]),
+                    fit_y, fit_x, _ = ax.hist(np.concatenate([bg_i, phsp_i]),
                              weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50)
                 else:
-                    ax.hist(phsp, weights=total_weight,
+                    fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight,
                              label="total fit", bins=50)
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 for i, j in enumerate(weights):
@@ -400,6 +408,13 @@ class ConfigLoader(object):
                 ax.set_ylim((0, None))
                 ax.legend()
                 ax.set_title(display)
+                ax.set_ylabel("Events")
+                if plot_delta:
+                    ax2 = plt.subplot2grid((4, 1), (3, 0),  rowspan=1)
+                    ax2.plot(data_x, (fit_y - data_y), color="r")
+                    ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r")
+                    ax2.set_ylim((-max(abs((fit_y - data_y))), max(abs((fit_y - data_y)))))
+                    ax2.set_ylabel("$\Delta$Events")
                 fig.savefig(prefix+name, dpi=300)
                 fig.savefig(prefix+name+".pdf", dpi=300)
 
@@ -455,6 +470,37 @@ class ConfigLoader(object):
             pro = self.particle_property[str(i)]
             names.append(pro.get("display", str(i)))
         return " ".join(names)
+    
+    def cal_fitfractions(self, params, mcdata, batch=25000):
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
+        amp = self.get_amplitude()
+        with amp.temp_params(params):
+            frac, grad = cal_fitfractions(amp, list(data_split(mcdata, batch)))
+        err_frac = self.cal_fitfractions_err(grad, self.inv_he)
+        return frac, err_frac
+    
+    def cal_fitfractions_err(self, grad, inv_he=None):
+        if inv_he is None:
+            inv_he = self.inv_he
+        err_frac = {}
+        for i in grad:
+            err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
+        return err_frac
+    
+    def get_params(self):
+        return self.get_amplitude().get_params()
+    
+    def set_params(self, params):
+        if isinstance(params, str):
+            with open(params) as f:
+                params = yaml.safe_load(f)
+        if hasattr(params, "params"):
+            params = params.params
+        if isinstance(params, dict):
+            if "value" in params:
+                params = params["value"]
+        self.get_amplitude().set_params(params)
 
 
 
@@ -495,8 +541,13 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind ="quadratic"):
 class FitResult(object):
     def __init__(self, params, model):
         self.params = params
+        self.error = {}
         self.model = model
 
     def save_as(self, file_name):
+        s  = {"value": self.params, "error": self.error}
         with open(file_name, "w") as f:
             json.dump(self.params, f, indent=2)
+    
+    def set_error(self, error):
+        self.error = error.copy()
