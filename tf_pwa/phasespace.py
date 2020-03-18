@@ -11,7 +11,7 @@ def get_p(M, ma, mb):
     p2 = (m2 - m_p) * (m2 - m_m)
     p = (p2 + tf.abs(p2)) / 2
     ret = tf.sqrt(p) / (2.0 * M)
-    return ret
+    return tf.cast(ret, "float64")
 
 
 class PhaseSpaceGenerator(object):
@@ -49,8 +49,10 @@ class PhaseSpaceGenerator(object):
         n_total = n_iter
         
         mass = self.generate_mass(n_iter)
-        if not flatten:
-            pi = self.generate_momentum(mass)
+        if not flatten or self.m_nt == 2:
+            pi = self.generate_momentum(mass, n_iter)
+            if flatten:
+                return pi
             weight = self.get_weight(mass)
             return weight, pi
 
@@ -71,9 +73,10 @@ class PhaseSpaceGenerator(object):
             mass_f = [i[:n_iter] for i in mass_f]
         return self.generate_momentum(mass_f)
 
-    def generate_momentum(self, mass):
+    def generate_momentum(self, mass, n_iter=None):
         """generate random momentum from mass, boost them to a same rest frame"""
-        n_iter = mass[0].shape[0]
+        if n_iter is None:
+            n_iter = mass[0].shape[0]
         mass_t = [self.m_mass[-1]]
         for i in mass:
             mass_t.append(i)
@@ -90,7 +93,9 @@ class PhaseSpaceGenerator(object):
         |p| =  m0,m1,m2 in m0 rest frame
         :param p_list: extra list for momentum need to boost
         """
-        q = get_p(m0, m1, m2)
+        zeros = tf.zeros([n_iter], dtype="float64")
+        q = get_p(m0, m1, m2) + zeros
+
         # random angle
         cos_theta = 2*tf.random.uniform([n_iter], dtype="float64")-1
         sin_theta = tf.sqrt(1 - cos_theta*cos_theta)
@@ -132,7 +137,7 @@ class PhaseSpaceGenerator(object):
             p = get_p(mass_t[i+1], mass_t[i], self.m_mass[-i-2])
             R.append(p)
         wt = tf.math.reduce_prod(tf.stack(R), 0)
-        return wt/tf.cast(self.m_wtMax, wt.dtype)
+        return wt/self.m_wtMax
 
     def set_decay(self, m0, mass):
         r"""set decay mass, calculate max weight
@@ -164,4 +169,4 @@ class PhaseSpaceGenerator(object):
             emmax += self.m_mass[-n-1]
             p = get_p(emmax, emmin, self.m_mass[-n-1])
             wtmax *= p
-        self.m_wtMax = wtmax
+        self.m_wtMax = tf.cast(wtmax, dtype="float64")

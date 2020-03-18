@@ -161,6 +161,12 @@ class LorentzVector(tf.Tensor):
         """
         return tf.sqrt(LorentzVector.M2(self))
 
+    def neg(self):
+        """
+        The negative vector
+        """
+        return tf.concat([self[:,0], -self[:,1:4]], axis=-1)
+
 
 class EularAngle(dict):
     """
