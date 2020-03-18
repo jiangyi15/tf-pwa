@@ -299,15 +299,13 @@ def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     :param outfile: String. The file to store the generated MC.
     :return: Numpy array. The generated MC data.
     """
-    # 4.59925172, [2.00698,2.01028,0.13957] DBC: D*0 D*- pi+
+    # 4.59925172, [2.00698, 2.01028, 0.13957] DBC: D*0 D*- pi+
     phsp = PhaseSpaceGenerator(mother, daughters)
     flat_mc_data = phsp.generate(number)
     pf = []
-    for i in len(daughters):
-        p = flat_mc_data[i]
-        p_a = np.array([p.T, p.X, p.Y, p.Z]).reshape((4, -1))  # (T,X,Y,Z)
-        pf.append(p_a)  # daughters和pf的顺序须一致
-    pf = np.transpose(pf, (2, 0, 1)).reshape((-1, 4))
+    for i in range(len(daughters)):
+        pf.append(flat_mc_data[i])
+    pf = np.transpose(pf, (1, 0, 2)).reshape((-1, 4))
     np.savetxt(outfile, pf)  # 一个不包含探测器效率的MC样本
     return pf
 

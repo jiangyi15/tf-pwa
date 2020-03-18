@@ -33,3 +33,22 @@ def load_Ttree(tree):
         if isinstance(arr, np.ndarray):
             ret[i.decode()] = arr
     return ret
+
+
+def save_dict_to_root(dic, file_name, tree_name="tree"):
+    """
+    This function stores data arrays in the form of a dictionary into a root file.
+    It provides a convenient interface to ``uproot``.
+
+    :param dic: Dictionary of data
+    :param file_name: String
+    :param tree_name: String. By default it's "tree".
+    """
+    branch_dic = {}
+    for i in dic:
+        dic[i] = np.array(dic[i])
+        branch_dic[i] = dic[i].dtype.name
+    with uproot.recreate(file_name.rstrip(".root") + ".root") as f:
+        f[tree_name] = uproot.newtree(branch_dic)
+        for i in dic:
+            f[tree_name].extend({i: dic[i]})
