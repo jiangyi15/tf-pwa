@@ -93,14 +93,12 @@ class PhaseSpaceGenerator(object):
         |p| =  m0,m1,m2 in m0 rest frame
         :param p_list: extra list for momentum need to boost
         """
-        zeros = tf.zeros([n_iter], dtype="float64")
-        q = get_p(m0, m1, m2) + zeros
-
         # random angle
         cos_theta = 2*tf.random.uniform([n_iter], dtype="float64")-1
         sin_theta = tf.sqrt(1 - cos_theta*cos_theta)
         phi = 2*pi*tf.random.uniform([n_iter], dtype="float64")
         # 4-momentum
+        q = tf.broadcast_to(get_p(m0, m1, m2), phi.shape)
         p_0 = tf.sqrt(q*q + m2*m2)
         p_x = q*sin_theta*tf.cos(phi)
         p_y = q*sin_theta*tf.sin(phi)
@@ -157,7 +155,7 @@ class PhaseSpaceGenerator(object):
         self.m_teCmTm = m0
         for i in mass:
             self.m_mass.append(i)
-            self.m_teCmTm -= i
+            self.m_teCmTm = self.m_teCmTm - i
 
         if self.m_teCmTm <= 0:
             raise ValueError("mass is not validated.")

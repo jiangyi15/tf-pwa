@@ -72,6 +72,14 @@ class Vector3(tf.Tensor):
         :param y: A Vector3 instance as y-axis. It should be perpendicular to the x-axis.
         """
         return tf.math.atan2(Vector3.dot(self, y), Vector3.dot(self, x))
+    
+    def cos_theta(self, other):
+        """
+        cos theta of included angle
+        """
+        d = Vector3.dot(self, other)
+        return d/ Vector3.norm(self) / Vector3.norm(other)
+        
 
 
 
