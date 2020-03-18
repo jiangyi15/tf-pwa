@@ -49,7 +49,7 @@ Inner nodes are named as tuple of particles.
 
 import numpy as np
 
-from .angle import EularAngle, LorentzVector
+from .angle import EularAngle, LorentzVector, Vector3, _epsilon
 from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy
 from .tensorflow_wrapper import tf
 from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
@@ -112,8 +112,8 @@ def add_weight(data: dict, weight: float = 1.0) -> dict:
 
 
 def cal_helicity_angle(data: dict, decay_chain: DecayChain, 
-                       base_x=np.array([[1.0, 0.0, 0.0]]), 
-                       base_z=np.array([[0.0, 0.0, 1.0]])) -> dict:
+                       base_z=np.array([[0.0, 0.0, 1.0]]), 
+                       base_x=np.array([[1.0, 0.0, 0.0]])) -> dict:
     """
     Calucate helicity angle for A -> B + C: :math:`\theta_{B}^{A}, \\phi_{B}^{A}` from momentum
     {A:{p:momentum},B:{p:...},C:{p:...}} => 
@@ -121,6 +121,7 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     """
     part_data = {}
     ret = {}
+    # boost all in them mother rest frame
     for i in decay_chain:
         part_data[i] = {}
         p_rest = data[i.core]["p"]
@@ -129,6 +130,7 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
             pj = data[j]["p"]
             p = LorentzVector.rest_vector(p_rest, pj)
             part_data[i]["rest_p"][j] = p
+    # calculate angle and base x,z axis from mother particle rest frame momentum and base axis
     set_x = {decay_chain.top: base_x}
     set_z = {decay_chain.top: base_z}
     set_decay = list(decay_chain)
@@ -160,9 +162,11 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     return ret
 
 
-def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True):
+def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, random_z=False):
     """
-    Transform data via ``DecayGroup``???
+    Calucate helicity angle for particle momentum.
+    
+    :params data: dict as {particle: {"p":...}}
 
     :return: Dictionary of data
     """
@@ -172,7 +176,13 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True):
         decay_chain_struct = decay_group
     decay_data = {}
     for i in decay_chain_struct:
-        data_i = cal_helicity_angle(data, i)
+        p4 = data[decay_group.top]["p"]
+        p3 = LorentzVector.vect(p4)
+        p3_norm = Vector3.norm(p3)
+        base_z = np.array([[0.0, 0.0, 1.0]]) + np.zeros_like(p3)
+        if random_z:
+            base_z = np.where(np.expand_dims(p3_norm < _epsilon, -1), base_z, p3)
+        data_i = cal_helicity_angle(data, i, base_z=base_z)
         decay_data.update(data_i)
     
     # calculate aligned angle of final particles in each decay chain

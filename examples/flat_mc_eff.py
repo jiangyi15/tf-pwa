@@ -54,13 +54,14 @@ def generate_mc_eff(num, eff_file):
     p_D1, p_D2, p_K, p_D, p_pi = generate_mc(num)
     m2_13 = lv.M2(p_D1 + p_K)
     m2_23 = lv.M2(p_D2 + p_K)
-    cos_theta = v3.cos_theta(lv.vect(p_D1), lv.vect(p_D))
-    # plt.hist(cos_theta, bins=100)
-    # plt.savefig("cos_theta.png")
+    p_D1_r = lv.rest_vector(p_D1+p_D2, p_D1)
+    cos_theta = v3.cos_theta(lv.vect(p_D1_r), lv.vect(p_D))
     eff = EffWeight(eff_file)
     weight = eff.eff_weight(cos_theta, m2_13, m2_23)
     rnd = np.random.random(num)
     mask = weight > rnd
+    # plt.hist(cos_theta.numpy()[mask], bins=100)
+    # plt.savefig("cos_theta.png")
     p_D1, p_D2, p_K, p_D, p_pi = [i[mask] for i in [p_D1, p_D2, p_K, p_D, p_pi]]
     return p_D1, p_D2, p_K, p_D, p_pi
 
