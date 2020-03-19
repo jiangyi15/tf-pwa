@@ -56,7 +56,8 @@ class ConfigLoader(object):
         else:
             order = [get_particle(str(i)) for i in order]
         return order
-
+    
+    @functools.lru_cache()
     def get_data(self, idx):
         files = self.get_data_file(idx)
         order = self.get_dat_order()
@@ -273,6 +274,10 @@ class ConfigLoader(object):
     def get_model(self):
         amp = self.get_amplitude()
         w_bkg = self.config["data"].get("bg_weight", 0.0)
+        weight_scale = self.config["data"].get("weight_scale", False)
+        if weight_scale:
+            w_bkg = w_bkg * data_shape(self.get_data("data")) / data_shape(self.get_data("bg"))
+            print("background weight:", w_bkg)
         return Model(amp, w_bkg)
 
     def fit(self, data, phsp, bg=None, batch=65000, method="BFGS"):
@@ -381,7 +386,12 @@ class ConfigLoader(object):
                 norm_frac = (data_shape(data) - w_bkg *
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
-            for name, display, idx, trans in self.get_plot_params():
+            for conf in self.get_plot_params():
+                name  = conf.get("name")
+                display = conf.get("display", name)
+                idx = conf.get("idx")
+                trans = conf.get("trans", lambda x: x)
+                has_lengend = conf.get("legend", False)
                 fig = plt.figure()
                 if plot_delta:
                     ax = plt.subplot2grid((4, 1), (0, 0),  rowspan=3)
@@ -389,24 +399,26 @@ class ConfigLoader(object):
                     ax = fig.add_subplot(1,1,1)
                 data_i = trans(data_index(data, idx))
                 phsp_i = trans(data_index(phsp, idx))
+                data_x, data_y, data_err = hist_error(data_i, bins=50)
+                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".", zorder = -2, label="data",color="black")
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_weight = np.ones_like(bg_i)*w_bkg
                     ax.hist(bg_i, weights=bg_weight,
                              label="back ground", bins=50, histtype="stepfilled",alpha=0.5,color="grey")
                     fit_y, fit_x, _ = ax.hist(np.concatenate([bg_i, phsp_i]),
-                             weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50)
+                             weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50, color="black")
                 else:
                     fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight,
-                             label="total fit", bins=50)
+                             label="total fit", bins=50, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 for i, j in enumerate(weights):
                     x, y = hist_line(phsp_i, weights=j * norm_frac, bins=50)
                     ax.plot(x, y, label=self.get_chain_name(i), linestyle="solid", linewidth=1)
-                data_x, data_y, data_err = hist_error(data_i, bins=50)
-                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".", zorder = -2, label="data")
+                
                 ax.set_ylim((0, None))
-                ax.legend()
+                if has_lengend:
+                    ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
                 ax.set_title(display)
                 ax.set_ylabel("Events")
                 if plot_delta:
@@ -430,7 +442,9 @@ class ConfigLoader(object):
         mass = config.get("mass", {})
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
-            yield "m_"+k, display, ("particle", re_map.get(get_particle(k), get_particle(k)), "m"), lambda x: x
+            yield {"name": "m_"+k, "display": display, 
+                   "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
+                   "legend": True}
         ang = config.get("angle", {})
         for k, i in ang.items():
             names= k.split("/")
@@ -453,7 +467,9 @@ class ConfigLoader(object):
                 if "cos" in j:
                     theta = j[4:-1]
                     trans = lambda x: np.cos(x)
-                yield validate_file_name(k+"_"+j), display, ("decay", decay, decay.outs[0], "ang", theta), trans
+                yield {"name": validate_file_name(k+"_"+j), "display": display, 
+                       "idx": ("decay", decay, decay.outs[0], "ang", theta), 
+                       "trans": trans}
 
     def get_chain(self, i):
         decay_group = self.full_decay

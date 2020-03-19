@@ -30,9 +30,9 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     :param fnames: String or list of strings. File names.
     :param particles: List of Particle. Final particles.
     :param dtype: Data type.
-    :param split: ???
-    :param order: ???
-    :param _force_list: ???
+    :param split: sizes of each splited dat files
+    :param order: transpose order
+
     :return: Dictionary of data indexed by Particle.
     """
     n = len(particles)

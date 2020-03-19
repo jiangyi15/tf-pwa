@@ -162,7 +162,7 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     return ret
 
 
-def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, random_z=False):
+def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, random_z=True):
     """
     Calucate helicity angle for particle momentum.
     
@@ -175,13 +175,17 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
     else:
         decay_chain_struct = decay_group
     decay_data = {}
-    for i in decay_chain_struct:
-        p4 = data[decay_group.top]["p"]
-        p3 = LorentzVector.vect(p4)
+    
+    ## get base z axis
+    p4 = data[decay_group.top]["p"]
+    p3 = LorentzVector.vect(p4)
+    base_z = np.array([[0.0, 0.0, 1.0]]) + np.zeros_like(p3)
+    if random_z:
         p3_norm = Vector3.norm(p3)
-        base_z = np.array([[0.0, 0.0, 1.0]]) + np.zeros_like(p3)
-        if random_z:
-            base_z = np.where(np.expand_dims(p3_norm < _epsilon, -1), base_z, p3)
+        mask = np.expand_dims(p3_norm < 1e-5, -1)
+        base_z = np.where(mask, base_z, p3)
+    ## calculate chain angle
+    for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i, base_z=base_z)
         decay_data.update(data_i)
     
@@ -336,13 +340,15 @@ def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True) -> dict:
     :param decs: DecayGroup
     :return: Dictionary of data
     """
-    data_p = struct_momentum(p)
+    data_p = struct_momentum(p, center_mass=False)
     if using_topology:
         decay_chain_struct = decs.topology_structure()
     else:
         decay_chain_struct = decs
     for dec in decay_chain_struct:
         data_p = infer_momentum(data_p, dec)
+        # print(data_p)
+        # exit()
         data_p = add_mass(data_p, dec)
     data_d = cal_angle_from_particle(data_p, decs, using_topology)
     data = {"particle": data_p, "decay": data_d}
