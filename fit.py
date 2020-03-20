@@ -48,7 +48,7 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json"):
     pprint(fit_result.params)
     fit_result.save_as("final_params.json")
     for i, c in enumerate(config.configs):
-        c.plot_partial_wave(fit_result, data, phsp, bg=bg, prefix="figure/s{}_".foramt(i))
+        c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i))
 
     fit_error = config.get_params_error(fit_result, batch=13000)
     fit_result.set_error(fit_error)

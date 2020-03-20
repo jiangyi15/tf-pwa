@@ -508,7 +508,7 @@ class CombineFCN(object):
         gs = []
         hs = []
         for i in self.fcns:
-            nll, g, h = i.grad(x)
+            nll, g, h = i.nll_grad_hessian(x)
             nlls.append(nll)
             gs.append(g)
             hs.append(h)

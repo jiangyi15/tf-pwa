@@ -41,7 +41,8 @@ class ConfigLoader(object):
         self.full_decay = DecayGroup(self.get_decay_struct(
             self.dec, self.particle_map, self.particle_property, self.top, self.finals))
         self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
-        self.vm = None
+        self.vm = vm
+        self.amps = {}
 
     @staticmethod
     def load_config(file_name):
@@ -264,8 +265,11 @@ class ConfigLoader(object):
         decay_group = self.full_decay
         if vm is None:
             vm = self.vm
+        if vm in self.amps:
+            return self.amps[vm]
         amp = AmplitudeModel(decay_group, vm=vm)
         self.add_constrans(amp)
+        self.amps[vm] = amp
         return amp
     
     def add_constrans(self, amp):
@@ -284,7 +288,7 @@ class ConfigLoader(object):
             w_bkg = w_bkg * data_shape(self.get_data("data")) / data_shape(self.get_data("bg"))
             print("background weight:", w_bkg)
         return Model(amp, w_bkg)
-    
+
     def get_fcn(self, batch=65000, vm=None):
         model = self.get_model(vm)
         for i in self.full_decay:
@@ -364,7 +368,11 @@ class ConfigLoader(object):
         params = dict(zip(args_name, xn))
         return FitResult(params, fcn)
 
-    def cal_error(self, params, data, phsp, bg=None, batch=10000):
+    def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
+        if params is None:
+            params = {}
+        if data is None:
+            data, phsp, bg = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
         fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch)
@@ -380,18 +388,26 @@ class ConfigLoader(object):
         # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
         return self.inv_he
 
-    def get_params_error(self, params, data, phsp, bg=None, batch=10000):
+    def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
+        if params is None:
+            params = {}
+        if data is None:
+            data, phsp, bg = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
         self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000)
         diag_he = self.inv_he.diagonal()
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
-        print(hesse_error)
+        pprint("hesse_error:", hesse_error)
         model = self.get_model()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
 
-    def plot_partial_wave(self, params, data, phsp, bg=None, prefix="figure/", plot_delta=False):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False):
+        if params is None:
+            params = {}
+        if data is None:
+            data, phsp, bg = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
         amp = self.get_amplitude()
@@ -448,6 +464,7 @@ class ConfigLoader(object):
                     ax2.set_ylabel("$\Delta$Events")
                 fig.savefig(prefix+name, dpi=300)
                 fig.savefig(prefix+name+".pdf", dpi=300)
+                plt.close(fig)
 
     def get_plot_params(self):
         config = self.config["plot"]
@@ -547,28 +564,22 @@ def validate_file_name(s):
 
 class MultiConfig(object):
     def __init__(self, file_names, vm=None):
-        
         if vm is None:
             self.vm = VarsManager()
+            print(self.vm)
         else:
             self.vm = vm
         self.configs = [ConfigLoader(i, vm=self.vm) for i in file_names]
 
     def get_amplitudes(self, vm=None):
-        if vm is None:
-            vm = self.vm
         amps = [i.get_amplitude(vm) for i in self.configs]
         return amps
 
     def get_models(self, vm=None):
-        if vm is None:
-            vm = self.vm
         models = [i.get_model(vm) for i in self.configs]
         return models
     
     def get_fcns(self, vm=None, batch=65000):
-        if vm is None:
-            vm = self.vm
         fcns = [i.get_fcn(vm=vm, batch=batch) for i in self.configs]
         return fcns
 
@@ -644,7 +655,9 @@ class MultiConfig(object):
         params = dict(zip(args_name, xn))
         return FitResult(params, fcn)
 
-    def cal_error(self, params, batch=10000):
+    def cal_error(self, params=None, batch=10000):
+        if params is None:
+            params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
         fcn = self.get_fcn(batch=batch)
@@ -660,14 +673,15 @@ class MultiConfig(object):
         # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
         return self.inv_he
 
-    def get_params_error(self, params, batch=10000):
+    def get_params_error(self, params=None, batch=10000):
+        if params is None:
+            params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
         self.inv_he = self.cal_error(params, batch=20000)
         diag_he = self.inv_he.diagonal()
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         print(hesse_error)
-        model = self.get_model()
         err = dict(zip(self.vm.trainable_vars, hesse_error))
         return err
     
