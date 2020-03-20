@@ -3,7 +3,7 @@ import json
 from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
-from tf_pwa.model import Model, FCN
+from tf_pwa.model import Model, FCN, CombineFCN
 import re
 import functools
 import time
@@ -13,12 +13,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tf_pwa.data import data_index, data_shape, data_split
 from tf_pwa.fitfractions import cal_fitfractions
+from tf_pwa.variable import VarsManager
+
 
 
 class ConfigLoader(object):
     """class for loading config.yml"""
 
-    def __init__(self, file_name):
+    def __init__(self, file_name, vm=None):
         self.config = self.load_config(file_name)
         self.particle_key_map = {
             "Par": "P",
@@ -39,6 +41,7 @@ class ConfigLoader(object):
         self.full_decay = DecayGroup(self.get_decay_struct(
             self.dec, self.particle_map, self.particle_property, self.top, self.finals))
         self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
+        self.vm = None
 
     @staticmethod
     def load_config(file_name):
@@ -259,6 +262,8 @@ class ConfigLoader(object):
     @functools.lru_cache()
     def get_amplitude(self, vm=None):
         decay_group = self.full_decay
+        if vm is None:
+            vm = self.vm
         amp = AmplitudeModel(decay_group, vm=vm)
         self.add_constrans(amp)
         return amp
@@ -271,30 +276,29 @@ class ConfigLoader(object):
             const_first = True
 
     @functools.lru_cache()
-    def get_model(self):
-        amp = self.get_amplitude()
+    def get_model(self, vm=None):
+        amp = self.get_amplitude(vm=vm)
         w_bkg = self.config["data"].get("bg_weight", 0.0)
         weight_scale = self.config["data"].get("weight_scale", False)
         if weight_scale:
             w_bkg = w_bkg * data_shape(self.get_data("data")) / data_shape(self.get_data("bg"))
             print("background weight:", w_bkg)
         return Model(amp, w_bkg)
-
-    def fit(self, data, phsp, bg=None, batch=65000, method="BFGS"):
-        model = self.get_model()
+    
+    def get_fcn(self, batch=65000, vm=None):
+        model = self.get_model(vm)
         for i in self.full_decay:
             print(i)
+        data, phsp, bg = self.get_all_data()
         fcn = FCN(model, data, phsp, bg=bg, batch=batch)
-        print("initial NLL: ", fcn({}))
-        # fit configure
+        return fcn
+    
+    def get_args_value(self, bounds_dict):
+        model = self.get_model()
         args = {}
         args_name = model.Amp.vm.trainable_vars
         x0 = []
         bnds = []
-        bounds_dict = {
-            # "Zc(3900)p_mass":(4.1,4.22),
-            # "Zc_4160_g:0":(0,None)
-        }
 
         for i in model.Amp.trainable_variables:
             args[i.name] = i.numpy()
@@ -304,7 +308,22 @@ class ConfigLoader(object):
             else:
                 bnds.append((None, None))
             args["error_" + i.name] = 0.1
+        
+        return args_name, x0, args, bnds
 
+    def fit(self, data, phsp, bg=None, batch=65000, method="BFGS"):
+        model = self.get_model()
+        for i in self.full_decay:
+            print(i)
+        fcn = FCN(model, data, phsp, bg=bg, batch=batch)
+        print("initial NLL: ", fcn({}))
+        # fit configure
+        bounds_dict = {
+            # "Zc(3900)p_mass":(4.1,4.22),
+            # "Zc_4160_g:0":(0,None)
+        }
+        args_name, x0, args, bnds = self.get_args_value(bounds_dict)
+        
         points = []
         nlls = []
         now = time.time()
@@ -524,6 +543,134 @@ def validate_file_name(s):
     rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
     name = re.sub(rstr, "_", s)
     return name
+
+
+class MultiConfig(object):
+    def __init__(self, file_names, vm=None):
+        
+        if vm is None:
+            self.vm = VarsManager()
+        else:
+            self.vm = vm
+        self.configs = [ConfigLoader(i, vm=self.vm) for i in file_names]
+
+    def get_amplitudes(self, vm=None):
+        if vm is None:
+            vm = self.vm
+        amps = [i.get_amplitude(vm) for i in self.configs]
+        return amps
+
+    def get_models(self, vm=None):
+        if vm is None:
+            vm = self.vm
+        models = [i.get_model(vm) for i in self.configs]
+        return models
+    
+    def get_fcns(self, vm=None, batch=65000):
+        if vm is None:
+            vm = self.vm
+        fcns = [i.get_fcn(vm=vm, batch=batch) for i in self.configs]
+        return fcns
+
+    def get_fcn(self, vm=None, batch=65000):
+        fcns = self.get_fcns(vm=vm, batch=batch)
+        return CombineFCN(fcns=fcns)
+    
+    def get_args_value(self, bounds_dict):
+        args = {}
+        args_name = self.vm.trainable_vars
+        x0 = []
+        bnds = []
+        
+
+        for i in self.vm.trainable_variables:
+            args[i.name] = i.numpy()
+            x0.append(i.numpy())
+            if i.name in bounds_dict:
+                bnds.append(bounds_dict[i.name])
+            else:
+                bnds.append((None, None))
+            args["error_" + i.name] = 0.1
+        
+        return args_name, x0, args, bnds
+
+    def fit(self, batch=65000, method="BFGS"):
+        fcn = self.get_fcn()
+        print("initial NLL: ", fcn({}))
+        # fit configure
+        bounds_dict = {
+            # "Zc(3900)p_mass":(4.1,4.22),
+            # "Zc_4160_g:0":(0,None)
+        }
+        args_name, x0, args, bnds = self.get_args_value(bounds_dict)
+        
+        points = []
+        nlls = []
+        now = time.time()
+        maxiter = 1000
+
+        if method in ["BFGS", "CG", "Nelder-Mead"]:
+            def callback(x):
+                if np.fabs(x).sum() > 1e7:
+                    x_p = dict(zip(args_name, x))
+                    raise Exception("x too large: {}".format(x_p))
+                points.append(self.vm.get_all_val())
+                nlls.append(float(fcn.cached_nll))
+                # if len(nlls) > maxiter:
+                #    with open("fit_curve.json", "w") as f:
+                #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
+                #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
+                print(fcn.cached_nll)
+
+            #bd = Bounds(bnds)
+            self.vm.set_bound(bounds_dict)
+            f_g = self.vm.trans_fcn_grad(fcn.nll_grad)
+            s = minimize(f_g, np.array(self.vm.get_all_val(True)), method=method,
+                         jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+            xn = self.vm.get_all_val()  # bd.get_y(s.x)
+        elif method in ["L-BFGS-B"]:
+            def callback(x):
+                if np.fabs(x).sum() > 1e7:
+                    x_p = dict(zip(args_name, x))
+                    raise Exception("x too large: {}".format(x_p))
+                points.append([float(i) for i in x])
+                nlls.append(float(fcn.cached_nll))
+
+            s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
+                         options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
+            xn = s.x
+        else:
+            raise Exception("unknown method")
+        params = dict(zip(args_name, xn))
+        return FitResult(params, fcn)
+
+    def cal_error(self, params, batch=10000):
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
+        fcn = self.get_fcn(batch=batch)
+        t = time.time()
+        # data_w,mcdata,weight=weights,batch=50000)
+        nll, g, h = fcn.nll_grad_hessian(params)
+        print("Time for calculating errors:", time.time() - t)
+        # print(nll)
+        # print([i.numpy() for i in g])
+        # print(h.numpy())
+        self.inv_he = np.linalg.pinv(h.numpy())
+        np.save("error_matrix.npy", self.inv_he)
+        # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
+        return self.inv_he
+
+    def get_params_error(self, params, batch=10000):
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
+        self.inv_he = self.cal_error(params, batch=20000)
+        diag_he = self.inv_he.diagonal()
+        hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+        print(hesse_error)
+        model = self.get_model()
+        err = dict(zip(self.vm.trainable_vars, hesse_error))
+        return err
+    
 
 
 def hist_error(data, bins, xrange=None, kind="binomial"):
