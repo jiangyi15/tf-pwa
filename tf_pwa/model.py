@@ -444,13 +444,19 @@ class CombineFCN(object):
     :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
     """
 
-    def __init__(self, model, data, mcdata, bg=None, batch=65000):
-        self.fcns = []
-        self.cached_nll = 0.0
-        if bg is None:
-            bg = loop_generator(None)
-        for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
-            self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
+    def __init__(self, model=None, data=None, mcdata=None, bg=None, fcns=None, batch=65000):
+        if fcns is None:
+            assert model is not None, "model required"
+            assert data is not None, "data required"
+            assert mcdata is not None, "mcdata required"
+            self.fcns = []
+            self.cached_nll = 0.0
+            if bg is None:
+                bg = loop_generator(None)
+            for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
+                self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
+        else:
+            self.fcns = list(fcns)
 
     # @time_print
     def __call__(self, x):
@@ -502,7 +508,7 @@ class CombineFCN(object):
         gs = []
         hs = []
         for i in self.fcns:
-            nll, g, h = i.grad(x)
+            nll, g, h = i.nll_grad_hessian(x)
             nlls.append(nll)
             gs.append(g)
             hs.append(h)
