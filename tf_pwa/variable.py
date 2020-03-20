@@ -66,7 +66,6 @@ def combineVM(vm1, vm2, name="", same_list=None):
     return vm
 
 
-
 class VarsManager(object):
     """
     This class provides methods to operate the variables in fitting. Every variable is a 1-d **tf.Variable** of
@@ -627,7 +626,9 @@ class Variable(object):
     :param kwargs: Other arguments that may be used when calling **self.real_var()** or **self.cplx_var()**
     """
 
-    def __init__(self, name, shape=[], cplx=False, vm=None, overwrite=True, **kwargs):
+    def __init__(self, name, shape=None, cplx=False, vm=None, overwrite=True, **kwargs):
+        if shape is None:
+            shape = []
         if vm is None:
             vm = get_config("vm")
         self.vm = vm
@@ -638,6 +639,8 @@ class Variable(object):
                     warnings.warn("Overwrite Variable {}!".format(i.name))
                 for j in self.vm.var_head[i]:
                     self.vm.remove_var(j, cplx)
+                del self.vm.var_head[i]
+                break
         self.vm.var_head[self] = []
         if type(shape) == int:
             shape = [shape]
@@ -735,12 +738,16 @@ class Variable(object):
         else:
             raise Exception("Only shape==() var supports 'freed' method.")
 
-    def set_fix_idx(self, fix_idx=[], fix_vals=1.0, free_idx=[]):
+    def set_fix_idx(self, fix_idx=None, fix_vals=1.0, free_idx=None):
         """
         :param fix_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is fixed. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[1,2]``, then Variable()[i][j][1] and Variable()[i][j][2] will be the fixed value.
         :param fix_vals: Float or length-2 float list for complex variable. The fixed value.
         :param free_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is set free. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[0]``, then Variable()[i][j][0] will be set free.
         """
+        if free_idx is None:
+            free_idx = []
+        if fix_idx is None:
+            fix_idx = []
         if not self.shape:
             raise Exception("Only shape!=() var supports 'set_fix_idx' method to fix or free variables.")
 
