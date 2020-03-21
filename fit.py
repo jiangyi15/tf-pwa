@@ -12,6 +12,9 @@ def fit(config_file="config.yml", init_params="init_params.json"):
         print("using {}".format(init_params))
     except Exception as e:
         print("using RANDOM parameters")
+    
+    print("\n########### initial parameters")
+    pprint(config.get_params())
 
     data, phsp, bg = config.get_all_data()
     
@@ -42,6 +45,9 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json"):
         print("using {}".format(init_params))
     except Exception as e:
         print("using RANDOM parameters")
+    
+    print("\n########### initial parameters")
+    pprint(config.get_params())
     
     fit_result = config.fit(batch=65000)
     

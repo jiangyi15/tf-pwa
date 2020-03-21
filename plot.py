@@ -72,18 +72,18 @@ def hist_line(data, weights, bins, xrange=None, inter=1):
 param_list_test = [
   "particle/A/m", "particle/B/m", "particle/C/m", "particle/D/m",
   "particle/(B, C)/m", "particle/(B, D)/m", "particle/(C, D)/m",
-  "decay/0/A->(B, C)+D/(B, C)/ang/beta", "decay/0/(B, C)->B+C/B/ang/beta",
-  "decay/0/A->(B, C)+D/(B, C)/ang/alpha", "decay/0/(B, C)->B+C/B/ang/alpha",
-  "decay/2/A->(B, D)+C/(B, D)/ang/beta", "decay/2/(B, D)->B+D/B/ang/beta",
-  "decay/2/A->(B, D)+C/(B, D)/ang/alpha", "decay/2/(B, D)->B+D/B/ang/alpha",
-  "decay/1/A->(C, D)+B/(C, D)/ang/beta", "decay/1/(C, D)->D+C/D/ang/beta",
-  "decay/1/A->(C, D)+B/(C, D)/ang/alpha", "decay/1/(C, D)->D+C/D/ang/alpha",
-  "decay/2/(B, D)->B+D/B/aligned_angle/beta", "decay/0/(B, C)->B+C/B/aligned_angle/beta",
-  "decay/2/(B, D)->B+D/D/aligned_angle/beta", "decay/1/(C, D)->D+C/D/aligned_angle/beta",
-  "decay/2/(B, D)->B+D/B/aligned_angle/alpha", "decay/2/(B, D)->B+D/B/aligned_angle/gamma",
-  "decay/0/(B, C)->B+C/B/aligned_angle/alpha", "decay/0/(B, C)->B+C/B/aligned_angle/gamma",
-  "decay/2/(B, D)->B+D/D/aligned_angle/alpha", "decay/2/(B, D)->B+D/D/aligned_angle/gamma",
-  "decay/1/(C, D)->D+C/D/aligned_angle/alpha", "decay/1/(C, D)->D+C/D/aligned_angle/gamma"
+  "decay/A->(B, C)+D/(B, C)/ang/beta", "decay/(B, C)->B+C/B/ang/beta",
+  "decay/A->(B, C)+D/(B, C)/ang/alpha", "decay/(B, C)->B+C/B/ang/alpha",
+  "decay/A->(B, D)+C/(B, D)/ang/beta", "decay/(B, D)->B+D/B/ang/beta",
+  "decay/A->(B, D)+C/(B, D)/ang/alpha", "decay/(B, D)->B+D/B/ang/alpha",
+  "decay/A->(C, D)+B/(C, D)/ang/beta", "decay/(C, D)->D+C/D/ang/beta",
+  "decay/A->(C, D)+B/(C, D)/ang/alpha", "decay/(C, D)->D+C/D/ang/alpha",
+  "decay/(B, D)->B+D/B/aligned_angle/beta", "decay/(B, C)->B+C/B/aligned_angle/beta",
+  "decay/(B, D)->B+D/D/aligned_angle/beta", "decay/(C, D)->D+C/D/aligned_angle/beta",
+  "decay/(B, D)->B+D/B/aligned_angle/alpha", "decay/(B, D)->B+D/B/aligned_angle/gamma",
+  "decay/(B, C)->B+C/B/aligned_angle/alpha", "decay/(B, C)->B+C/B/aligned_angle/gamma",
+  "decay/(B, D)->B+D/D/aligned_angle/alpha", "decay/(B, D)->B+D/D/aligned_angle/gamma",
+  "decay/(C, D)->D+C/D/aligned_angle/alpha", "decay/(C, D)->D+C/D/aligned_angle/gamma"
 ]
 
 param_list = [

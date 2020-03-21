@@ -261,17 +261,17 @@ class ConfigLoader(object):
         raise ValueError("unknown sub {}".format(sub))
 
     @functools.lru_cache()
-    def get_amplitude(self, vm=None):
+    def get_amplitude(self, vm=None, name=""):
         decay_group = self.full_decay
         if vm is None:
             vm = self.vm
         if vm in self.amps:
             return self.amps[vm]
-        amp = AmplitudeModel(decay_group, vm=vm)
+        amp = AmplitudeModel(decay_group, vm=vm, name=name)
         self.add_constrans(amp)
         self.amps[vm] = amp
         return amp
-    
+
     def add_constrans(self, amp):
         const_first = False
         for i in amp.decay_group:
@@ -280,8 +280,8 @@ class ConfigLoader(object):
             const_first = True
 
     @functools.lru_cache()
-    def get_model(self, vm=None):
-        amp = self.get_amplitude(vm=vm)
+    def get_model(self, vm=None, name=""):
+        amp = self.get_amplitude(vm=vm,name=name)
         w_bkg = self.config["data"].get("bg_weight", 0.0)
         weight_scale = self.config["data"].get("weight_scale", False)
         if weight_scale:
@@ -289,8 +289,8 @@ class ConfigLoader(object):
             print("background weight:", w_bkg)
         return Model(amp, w_bkg)
 
-    def get_fcn(self, batch=65000, vm=None):
-        model = self.get_model(vm)
+    def get_fcn(self, batch=65000, vm=None, name=""):
+        model = self.get_model(vm, name="")
         for i in self.full_decay:
             print(i)
         data, phsp, bg = self.get_all_data()
@@ -398,7 +398,7 @@ class ConfigLoader(object):
         self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000)
         diag_he = self.inv_he.diagonal()
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
-        pprint("hesse_error:", hesse_error)
+        print("hesse_error:", hesse_error)
         model = self.get_model()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
@@ -563,24 +563,34 @@ def validate_file_name(s):
 
 
 class MultiConfig(object):
-    def __init__(self, file_names, vm=None):
+    def __init__(self, file_names, vm=None, total_same=False):
         if vm is None:
             self.vm = VarsManager()
             print(self.vm)
         else:
             self.vm = vm
+        self.total_same = total_same
         self.configs = [ConfigLoader(i, vm=self.vm) for i in file_names]
 
     def get_amplitudes(self, vm=None):
-        amps = [i.get_amplitude(vm) for i in self.configs]
+        if not self.total_same:
+            amps = [j.get_amplitude(name="s"+str(i), vm=vm) for i, j in enumerate(self.configs)]
+        else:
+            amps = [j.get_amplitude(vm=vm) for j in self.configs]
         return amps
 
     def get_models(self, vm=None):
-        models = [i.get_model(vm) for i in self.configs]
+        if not self.total_same:
+            models = [j.get_model(name="s"+str(i), vm=vm) for i, j in enumerate(self.configs)]
+        else:
+            models = [j.get_model(vm=vm) for j in self.configs]
         return models
     
     def get_fcns(self, vm=None, batch=65000):
-        fcns = [i.get_fcn(vm=vm, batch=batch) for i in self.configs]
+        if not self.total_same:
+            fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch) for i, j in enumerate(self.configs)]
+        else:
+            fcns = [j.get_fcn(vm=vm, batch=batch) for j in self.configs]
         return fcns
 
     def get_fcn(self, vm=None, batch=65000):
@@ -684,6 +694,22 @@ class MultiConfig(object):
         print(hesse_error)
         err = dict(zip(self.vm.trainable_vars, hesse_error))
         return err
+    
+    def get_params(self, trainable_only=True):
+        _amps = self.get_amplitudes()
+        return self.vm.get_all_dic(trainable_only)
+    
+    def set_params(self, params):
+        _amps = self.get_amplitudes()
+        if isinstance(params, str):
+            with open(params) as f:
+                params = yaml.safe_load(f)
+        if hasattr(params, "params"):
+            params = params.params
+        if isinstance(params, dict):
+            if "value" in params:
+                params = params["value"]
+        self.vm.set_all(params)
     
 
 

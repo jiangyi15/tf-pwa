@@ -254,7 +254,7 @@ class ParticleOne(Particle):
         pass
 
     def get_amp(self, data, _data_c=None):
-        return tf.ones((1,), dtype=get_config("dtype"))
+        return tf.ones((data_shape(data),), dtype=get_config("complex_dtype"))
 
 
 class AmpDecay(Decay, AmpBase):
@@ -475,8 +475,8 @@ class DecayChain(BaseDecayChain, AmpBase):
         self.aligned = True
         self.need_amp_particle = True
 
-    def init_params(self):
-        self.total = self.add_var("total", is_complex=True)
+    def init_params(self, name=""):
+        self.total = self.add_var(name+"total", is_complex=True)
 
     def get_amp_total(self):
         return self.total()
@@ -516,6 +516,7 @@ class DecayChain(BaseDecayChain, AmpBase):
         idx = ",".join(idxs)
         idx_s = "{}->{}".format(idx, final_indices)
         # ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
+        # print(idx_s)#, amp_d)
         ret = einsum(idx_s, *amp_d)
         # print(self, ret[0])
         # exit()
@@ -584,12 +585,12 @@ class DecayGroup(BaseDecayGroup):
         super(DecayGroup, self).__init__(chains)
         # self.init_params()
 
-    def init_params(self):
+    def init_params(self, name=""):
         for i in self.resonances:
             i.init_params()
         inited_set = set()
         for i in self:
-            i.init_params()
+            i.init_params(name)
             for j in i:
                 if j not in inited_set:
                     j.init_params()
@@ -739,11 +740,12 @@ def value_and_grad(f, var):
 
 
 class AmplitudeModel(object):
-    def __init__(self, decay_group, polar=True, vm=None):
+    def __init__(self, decay_group, name="", polar=True, vm=None):
         self.decay_group = decay_group
+        self.name = name
         with variable_scope(vm) as vm:
             vm.polar = polar
-            decay_group.init_params()
+            decay_group.init_params(name)
         self.vm = vm
         res = decay_group.resonances
         self.used_res = res
