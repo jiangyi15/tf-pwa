@@ -12,8 +12,6 @@ import numpy as np
 # import tensorflow as tf
 # from pysnooper import  snoop
 
-from .particle import BaseParticle, BaseDecay, DecayChain, DecayGroup
-from .angle import LorentzVector, EularAngle
 from .tensorflow_wrapper import tf
 from .config import get_config
 

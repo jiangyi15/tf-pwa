@@ -168,15 +168,15 @@ class Particle(BaseParticle, AmpBase):
             self.mass = self.add_var("mass", fix=True)
         else:
             self.mass = self.add_var("mass", value=self.mass, fix=True)
-        if self.width is None:
-            self.width = self.add_var("width", fix=True)
-        else:
+        if self.width is not None:
             self.width = self.add_var("width", value=self.width, fix=True)
 
     def get_amp(self, data, data_c):
         mass = self.get_mass()
         width = self.get_width()
         decay = self.decay[0]
+        if width is None:
+            return tf.ones_like(data["m"])
         if not self.running_width:
             ret = BW(data["m"], mass, width)
         else:

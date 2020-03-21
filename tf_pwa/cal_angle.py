@@ -2,46 +2,47 @@
 This module provides functions which are useful when calculating the angular variables.
 
 
-The full data structure is
+The full data structure provided is ::
 
-\{
-  "particle":\{
-    "A":\{"p":...,"m":...\}
-    ...
-  \},
-  
-  "decay":
-    \{
-      A->(C, D)+B: \{
-        (C, D): \{
-          "ang":  \{
-            "alpha":[...],
-            "beta": [...],
-            "gamma": [...]
-          \},
-          "z": [[x1,y1,z1],...],
-          "x": [[x2,y2,z2],...]
-        \},
-        B : \{...\}
-      \},
-      
-      (C, D)->C+D: \{
-        C: \{
-          ...,
-          "aligned_angle": \{
-            "alpha": [...],
-            "beta": [...],
-            "gamma": [...]
-          \}
-        \},
-        
-        D: \{...\}
-      \},
-      A->(B, D)+C: \{...\},
-      (B, D)->B+D: \{...\}
-    \},
-    ...
-\}
+    {
+        "particle": {
+            A: {"p": ..., "m": ...},
+            (C, D): {"p": ..., "m": ...},
+            ...
+        },
+
+        "decay":
+        {
+            A->(C, D)+B: {
+                (C, D): {
+                    "ang": {
+                        "alpha":[...],
+                        "beta": [...],
+                        "gamma": [...]
+                    },
+                    "z": [[x1,y1,z1],...],
+                    "x": [[x2,y2,z2],...]
+                },
+                B: {...}
+            },
+
+            (C, D)->C+D: {
+                C: {
+                    ...,
+                    "aligned_angle": {
+                    "alpha": [...],
+                    "beta": [...],
+                    "gamma": [...]
+                }
+            },
+                D: {...}
+            },
+            A->(B, D)+C: {...},
+            (B, D)->B+D: {...}
+        },
+        ...
+    }
+
 
 Inner nodes are named as tuple of particles.
 
@@ -49,7 +50,7 @@ Inner nodes are named as tuple of particles.
 
 import numpy as np
 
-from .angle import EularAngle, LorentzVector, Vector3, _epsilon
+from .angle import EulerAngle, LorentzVector, Vector3, _epsilon
 from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy
 from .tensorflow_wrapper import tf
 from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
@@ -58,7 +59,8 @@ from .config import get_config
 
 def struct_momentum(p, center_mass=True) -> dict:
     """
-    {outs:momentum} => {outs:{p:momentum}}
+    restructure momentum as dict
+        {outs:momentum} => {outs:{p:momentum}}
     """
     ret = {}
     if center_mass:
@@ -77,7 +79,8 @@ def struct_momentum(p, center_mass=True) -> dict:
 # data process
 def infer_momentum(data, decay_chain: DecayChain) -> dict:
     """
-    {outs:{p:momentum}} => {top:{p:momentum},inner:{p:..},outs:{p:..}}
+    infer momentum of all particles in the decay chain from outer particles momentum.
+        {outs:{p:momentum}} => {top:{p:momentum},inner:{p:..},outs:{p:..}}
     """
     st = decay_chain.sorted_table()
     for i in st:
@@ -92,7 +95,8 @@ def infer_momentum(data, decay_chain: DecayChain) -> dict:
 
 def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
     """
-    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
+    add particles mass array for data momentum.
+        {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...}
     """
     for i in data:
         if isinstance(i, BaseParticle):
@@ -103,7 +107,8 @@ def add_mass(data: dict, _decay_chain: DecayChain = None) -> dict:
 
 def add_weight(data: dict, weight: float = 1.0) -> dict:
     """
-    {top:{p:momentum},inner:{p:..},outs:{p:..}} => {top:{p:momentum,m:mass},...} ???
+    add inner data weights for data.
+        {...} => {..., "weight": weights}
     """
     data_size = data_shape(data)
     weight = [1.0] * data_size
@@ -111,12 +116,12 @@ def add_weight(data: dict, weight: float = 1.0) -> dict:
     return data
 
 
-def cal_helicity_angle(data: dict, decay_chain: DecayChain, 
-                       base_z=np.array([[0.0, 0.0, 1.0]]), 
+def cal_helicity_angle(data: dict, decay_chain: DecayChain,
+                       base_z=np.array([[0.0, 0.0, 1.0]]),
                        base_x=np.array([[1.0, 0.0, 0.0]])) -> dict:
     """
-    Calucate helicity angle for A -> B + C: :math:`\theta_{B}^{A}, \\phi_{B}^{A}` from momentum
-    {A:{p:momentum},B:{p:...},C:{p:...}} => 
+    Calculate helicity angle for A -> B + C: :math:`\\theta_{B}^{A}, \\phi_{B}^{A}` from momentum.
+    {A:{p:momentum},B:{p:...},C:{p:...}} =>
         {A->B+C:{B:{"ang":{"alpha":...,"beta":...,"gamma":...},"x":...,"z"},...}}
     """
     part_data = {}
@@ -142,16 +147,16 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                 for j in i.outs:
                     ret[i][j] = {}
                     z2 = LorentzVector.vect(part_data[i]["rest_p"][j])
-                    ang, x = EularAngle.angle_zx_z_getx(set_z[i.core], set_x[i.core], z2)
+                    ang, x = EulerAngle.angle_zx_z_getx(set_z[i.core], set_x[i.core], z2)
                     set_x[j] = x
                     set_z[j] = z2
                     ret[i][j]["ang"] = ang
                     ret[i][j]["x"] = x
                     ret[i][j]["z"] = z2
                 if len(i.outs) == 3:
-                    # Eular Angle for
+                    # Euler Angle for
                     zi = [LorentzVector.vect(part_data[i]["rest_p"][j]) for j in i.outs]
-                    ret[i]["ang"], xi = EularAngle.angle_zx_zzz_getx(set_z[i.core], set_x[i.core], zi)
+                    ret[i]["ang"], xi = EulerAngle.angle_zx_zzz_getx(set_z[i.core], set_x[i.core], zi)
                     for j, x, z in zip(i.outs, xi, zi):
                         ret[i][j] = {}
                         ret[i][j]["x"] = x
@@ -164,7 +169,7 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
 
 def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, random_z=True):
     """
-    Calucate helicity angle for particle momentum.
+    Calculate helicity angle for particle momentum, add aligned angle.
     
     :params data: dict as {particle: {"p":...}}
 
@@ -175,8 +180,8 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
     else:
         decay_chain_struct = decay_group
     decay_data = {}
-    
-    ## get base z axis
+
+    # get base z axis
     p4 = data[decay_group.top]["p"]
     p3 = LorentzVector.vect(p4)
     base_z = np.array([[0.0, 0.0, 1.0]]) + np.zeros_like(p3)
@@ -184,11 +189,11 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
         p3_norm = Vector3.norm(p3)
         mask = np.expand_dims(p3_norm < 1e-5, -1)
         base_z = np.where(mask, base_z, p3)
-    ## calculate chain angle
+    # calculate chain angle
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i, base_z=base_z)
         decay_data.update(data_i)
-    
+
     # calculate aligned angle of final particles in each decay chain
     set_x = {}  # reference particles
     # for particle from a the top rest frame
@@ -217,14 +222,14 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
                     x2 = part_data2[i]["x"]
                     z1 = part_data[i]["z"]
                     z2 = part_data2[i]["z"]
-                    ang = EularAngle.angle_zx_zx(z1, x1, z2, x2)
+                    ang = EulerAngle.angle_zx_zx(z1, x1, z2, x2)
                     part_data[i]["aligned_angle"] = ang
     return decay_data
 
 
 def cal_angle(data, decay_group: DecayGroup) -> dict:
     """
-    Transform data via ``DecayGroup``???
+    Calculate final particles aligned angle from particle momentum.
 
     :return: Dictionary of data
     """
@@ -256,7 +261,7 @@ def cal_angle(data, decay_group: DecayGroup) -> dict:
                         x2 = data[set_x[i]][i]["x"]
                         z1 = data[decay][i]["z"]
                         z2 = data[set_x[i]][i]["z"]
-                        ang = EularAngle.angle_zx_zx(z1, x1, z2, x2)
+                        ang = EulerAngle.angle_zx_zx(z1, x1, z2, x2)
                         data[decay][i]["aligned_angle"] = ang
     return data
 
@@ -280,7 +285,9 @@ def Getp(M_0, M_1, M_2):
 
 def get_relative_momentum(data: dict, decay_chain: DecayChain):
     """
-    {}->{}???
+    add add rest frame momentum scalar from data momentum.
+    {"particle": {A: {"m": ...}, ...}, "decay": {A->B+C: {...}, ...}
+        => {"particle": {A: {"m": ...}, ...},"decay": {A->B+C:{...,"|q|": ...},...}
     """
     ret = {}
     for decay in decay_chain:
@@ -288,8 +295,8 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
         m1 = data[decay.outs[0]]["m"]
         m2 = data[decay.outs[1]]["m"]
         p = Getp(m0, m1, m2)
-        ret[decay] = {}
-        ret[decay]["|q|"] = p
+        ret["decay"][decay] = {}
+        ret["decay"][decay]["|q|"] = p
     return ret
 
 
@@ -314,7 +321,7 @@ def prepare_data_from_decay(fnames, decs, particles=None, dtype=None, using_topo
 
 def prepare_data_from_dat_file(fnames):
     """
-    3-body???
+    [deprecated] angle for amplitude.py
     """
     a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
     bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
@@ -357,7 +364,7 @@ def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True) -> dict:
 
 def prepare_data_from_dat_file4(fnames):
     """
-    angle for amplitude4
+    [deprecated] angle for amplitude4.py
     """
     a, b, c, d, e, f = [BaseParticle(i) for i in "ABCDEF"]
     bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
@@ -378,24 +385,3 @@ def prepare_data_from_dat_file4(fnames):
     data = flatten_dict_data(data)
     return data
 
-
-def test_process(fnames=None):
-    a, b, c, d = [BaseParticle(i) for i in ["A", "B", "C", "D"]]
-    if fnames is None:
-        p = {
-            b: np.array([[1.0, 0.2, 0.3, 0.2]]),
-            c: np.array([[2.0, 0.1, 0.3, 0.4]]),
-            d: np.array([[3.0, 0.2, 0.5, 0.7]])
-        }
-    else:
-        p = load_dat_file(fnames, [b, c, d])
-    # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
-    decs = DecayGroup(DecayChain.from_particles(a, [b, c, d]))
-    data = cal_angle_from_momentum(p, decs)
-    data = add_weight(data)
-    print(data_shape(data, all_list=True))
-    print(len(list(split_generator(data, 5000))))
-    data = data_to_numpy(data)
-    from pprint import pprint
-    pprint(data)
-    return data

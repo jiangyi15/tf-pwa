@@ -1,9 +1,11 @@
 """
-This module implements three classes **Vector3**, **LorentzVector**, **EularAngle** .
+This module implements three classes **Vector3**, **LorentzVector**, **EulerAngle** .
 """
 from .tensorflow_wrapper import tf
 
 _epsilon = 1.0e-14
+
+
 # import functools
 # from pysnooper import snoop
 
@@ -72,15 +74,13 @@ class Vector3(tf.Tensor):
         :param y: A Vector3 instance as y-axis. It should be perpendicular to the x-axis.
         """
         return tf.math.atan2(Vector3.dot(self, y), Vector3.dot(self, x))
-    
+
     def cos_theta(self, other):
         """
         cos theta of included angle
         """
         d = Vector3.dot(self, other)
-        return d/ Vector3.norm(self) / Vector3.norm(other)
-        
-
+        return d / Vector3.norm(self) / Vector3.norm(other)
 
 
 class LorentzVector(tf.Tensor):
@@ -173,15 +173,16 @@ class LorentzVector(tf.Tensor):
         """
         The negative vector
         """
-        return tf.concat([self[:,0], -self[:,1:4]], axis=-1)
+        return tf.concat([self[..., 0:1], -self[..., 1:4]], axis=-1)
 
 
-class EularAngle(dict):
+class EulerAngle(dict):
     """
     This class provides methods for Eular angle :math:`(\\alpha,\\beta,\\gamma)`
     """
+
     def __init__(self, alpha=0.0, beta=0.0, gamma=0.0):
-        super(EularAngle, self).__init__()
+        super(EulerAngle, self).__init__()
         self["alpha"] = alpha
         self["beta"] = beta
         self["gamma"] = gamma
@@ -189,13 +190,13 @@ class EularAngle(dict):
     @staticmethod
     def angle_zx_zx(z1, x1, z2, x2):
         """
-        The Eular angle from coordinate 1 to coordinate 2 (right-hand coordinates).
+        The Euler angle from coordinate 1 to coordinate 2 (right-hand coordinates).
 
         :param z1: Vector3 z-axis of the initial coordinate
         :param x1: Vector3 x-axis of the initial coordinate
         :param z2: Vector3 z-axis of the final coordinate
         :param x2: Vector3 x-axis of the final coordinate
-        :return: EularAngle object
+        :return: Euler Angle object
         """
         u_z1 = Vector3.unit(z1)
         u_z2 = Vector3.unit(z2)
@@ -211,7 +212,7 @@ class EularAngle(dict):
         beta = Vector3.angle_from(u_z2, u_z1, u_xr)
         # np.arctan2(u_xr.Dot(u_y2),u_xr.Dot(u_x2))
         gamma = -Vector3.angle_from(u_yr, u_y2, -u_x2)
-        return EularAngle(alpha, beta, gamma)
+        return EulerAngle(alpha, beta, gamma)
 
     @staticmethod
     # @pysnooper.snoop()
@@ -238,8 +239,8 @@ class EularAngle(dict):
         beta = Vector3.angle_from(u_z2, u_z1, u_xr)
         gamma = tf.zeros_like(beta)
         u_x2 = Vector3.cross_unit(u_yr, u_z2)
-        return (EularAngle(alpha, beta, gamma), u_x2)
-    
+        return (EulerAngle(alpha, beta, gamma), u_x2)
+
     @staticmethod
     def angle_zx_zzz_getx(z, x, zi):
         """
@@ -253,7 +254,7 @@ class EularAngle(dict):
         :return x2: list of Vector3 object, which is the x-axis of the final coordinate in zi.
         """
         z1, z2, z3 = zi
-        zz = Vector3.cross_unit(z1-z2, z2-z3)
+        zz = Vector3.cross_unit(z1 - z2, z2 - z3)
         xi = [Vector3.cross_unit(i, zz) for i in zi]
-        ang = EularAngle.angle_zx_zx(z, x, zz, xi[2])
+        ang = EulerAngle.angle_zx_zx(z, x, zz, xi[2])
         return ang, xi
