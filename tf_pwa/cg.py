@@ -21,7 +21,7 @@ def cg_coef(jb, jc, mb, mc, ja, ma):
     and *c*. It will either call **sympy.physics.quantum.cg()** or **get_cg_coef()**.
     """
     if has_sympy:
-        return CG(jb, mb, jc, mc, ja, ma).doit().evalf()
+        return float(CG(jb, mb, jc, mc, ja, ma).doit().evalf())
     else:
         return get_cg_coef(jb, jc, mb, mc, ja, ma)
 
@@ -34,7 +34,7 @@ with open(_dirname + "/cg_table.json") as f:
 
 def get_cg_coef(j1, j2, m1, m2, j, m):
     """
-    If SymPy is not installed, **cg_coef()** will call this function and derive the CG coefficient by searching into
+    If SymPy is not installed, [deprecation] **cg_coef()** will call this function and derive the CG coefficient by searching into
     **tf_pwa/cg_table.json**.
 
     In fact, **tf_pwa/cg_table.json** only stores some of the coefficients, the others will be

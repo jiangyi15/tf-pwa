@@ -68,7 +68,7 @@ def generate_mc_eff(num, eff_file):
 
 def main(num, eff_file):
     p_D1, p_D2, p_K, p_D, p_pi = generate_mc_eff(num, eff_file)
-    p_D, p_pi = [lv.rest_vector(p_D1, i) for i in [p_D, p_pi]]
+    p_D, p_pi = [lv.rest_vector(lv.neg(p_D1), i) for i in [p_D, p_pi]]
     data = np.array([p_D1, p_D2, p_K])
     data = np.transpose(data, (1, 0, 2))
     data2 = np.array([p_D, p_pi])
