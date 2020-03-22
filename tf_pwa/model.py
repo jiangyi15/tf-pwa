@@ -253,7 +253,7 @@ class ConstrainModel(Model):
     """
 
     def __init__(self, amp, w_bkg=1.0, constrain={}):
-        super(self, ConstrainModel).__init__(amp, w_bkg)
+        super(ConstrainModel, self).__init__(amp, w_bkg)
         self.constrain = constrain  # priori gauss constrain for the fitting parameters
 
     def get_constrain_term(self):  # the priori constrain term added to NLL

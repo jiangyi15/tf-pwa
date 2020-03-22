@@ -16,7 +16,6 @@ from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.variable import VarsManager
 
 
-
 class ConfigLoader(object):
     """class for loading config.yml"""
 
@@ -60,7 +59,7 @@ class ConfigLoader(object):
         else:
             order = [get_particle(str(i)) for i in order]
         return order
-    
+
     @functools.lru_cache()
     def get_data(self, idx):
         files = self.get_data_file(idx)
@@ -281,11 +280,13 @@ class ConfigLoader(object):
 
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):
-        amp = self.get_amplitude(vm=vm,name=name)
+        amp = self.get_amplitude(vm=vm, name=name)
         w_bkg = self.config["data"].get("bg_weight", 0.0)
         weight_scale = self.config["data"].get("weight_scale", False)
         if weight_scale:
-            w_bkg = w_bkg * data_shape(self.get_data("data")) / data_shape(self.get_data("bg"))
+            w_bkg = w_bkg * \
+                data_shape(self.get_data("data")) / \
+                data_shape(self.get_data("bg"))
             print("background weight:", w_bkg)
         return Model(amp, w_bkg)
 
@@ -296,7 +297,7 @@ class ConfigLoader(object):
         data, phsp, bg = self.get_all_data()
         fcn = FCN(model, data, phsp, bg=bg, batch=batch)
         return fcn
-    
+
     def get_args_value(self, bounds_dict):
         model = self.get_model()
         args = {}
@@ -312,7 +313,7 @@ class ConfigLoader(object):
             else:
                 bnds.append((None, None))
             args["error_" + i.name] = 0.1
-        
+
         return args_name, x0, args, bnds
 
     def fit(self, data, phsp, bg=None, batch=65000, method="BFGS"):
@@ -327,7 +328,7 @@ class ConfigLoader(object):
             # "Zc_4160_g:0":(0,None)
         }
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
-        
+
         points = []
         nlls = []
         now = time.time()
@@ -422,7 +423,7 @@ class ConfigLoader(object):
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             for conf in self.get_plot_params():
-                name  = conf.get("name")
+                name = conf.get("name")
                 display = conf.get("display", name)
                 idx = conf.get("idx")
                 trans = conf.get("trans", lambda x: x)
@@ -431,26 +432,28 @@ class ConfigLoader(object):
                 if plot_delta:
                     ax = plt.subplot2grid((4, 1), (0, 0),  rowspan=3)
                 else:
-                    ax = fig.add_subplot(1,1,1)
+                    ax = fig.add_subplot(1, 1, 1)
                 data_i = trans(data_index(data, idx))
                 phsp_i = trans(data_index(phsp, idx))
                 data_x, data_y, data_err = hist_error(data_i, bins=50)
-                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".", zorder = -2, label="data",color="black")
+                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
+                            zorder=-2, label="data", color="black")
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_weight = np.ones_like(bg_i)*w_bkg
                     ax.hist(bg_i, weights=bg_weight,
-                             label="back ground", bins=50, histtype="stepfilled",alpha=0.5,color="grey")
+                            label="back ground", bins=50, histtype="stepfilled", alpha=0.5, color="grey")
                     fit_y, fit_x, _ = ax.hist(np.concatenate([bg_i, phsp_i]),
-                             weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50, color="black")
+                                              weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50, color="black")
                 else:
                     fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight,
-                             label="total fit", bins=50, color="black")
+                                              label="total fit", bins=50, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 for i, j in enumerate(weights):
                     x, y = hist_line(phsp_i, weights=j * norm_frac, bins=50)
-                    ax.plot(x, y, label=self.get_chain_name(i), linestyle="solid", linewidth=1)
-                
+                    ax.plot(x, y, label=self.get_chain_name(
+                        i), linestyle="solid", linewidth=1)
+
                 ax.set_ylim((0, None))
                 if has_lengend:
                     ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
@@ -460,7 +463,8 @@ class ConfigLoader(object):
                     ax2 = plt.subplot2grid((4, 1), (3, 0),  rowspan=1)
                     ax2.plot(data_x, (fit_y - data_y), color="r")
                     ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r")
-                    ax2.set_ylim((-max(abs((fit_y - data_y))), max(abs((fit_y - data_y)))))
+                    ax2.set_ylim((-max(abs((fit_y - data_y))),
+                                  max(abs((fit_y - data_y)))))
                     ax2.set_ylabel("$\Delta$Events")
                 fig.savefig(prefix+name, dpi=300)
                 fig.savefig(prefix+name+".pdf", dpi=300)
@@ -468,7 +472,7 @@ class ConfigLoader(object):
 
     def get_plot_params(self):
         config = self.config["plot"]
-        
+
         chain_map = self.decay_struct.get_chains_map()
         re_map = {}
         for i in chain_map:
@@ -478,12 +482,12 @@ class ConfigLoader(object):
         mass = config.get("mass", {})
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
-            yield {"name": "m_"+k, "display": display, 
+            yield {"name": "m_"+k, "display": display,
                    "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
                    "legend": True}
         ang = config.get("angle", {})
         for k, i in ang.items():
-            names= k.split("/")
+            names = k.split("/")
             name = names[0]
             if len(names) > 1:
                 count = int(names[-1])
@@ -499,12 +503,12 @@ class ConfigLoader(object):
             for j, v in i.items():
                 display = v.get("display", j)
                 theta = j
-                trans = lambda x: x
+                def trans(x): return x
                 if "cos" in j:
                     theta = j[4:-1]
-                    trans = lambda x: np.cos(x)
-                yield {"name": validate_file_name(k+"_"+j), "display": display, 
-                       "idx": ("decay", decay, decay.outs[0], "ang", theta), 
+                    def trans(x): return np.cos(x)
+                yield {"name": validate_file_name(k+"_"+j), "display": display,
+                       "idx": ("decay", decay, decay.outs[0], "ang", theta),
                        "trans": trans}
 
     def get_chain(self, i):
@@ -522,7 +526,7 @@ class ConfigLoader(object):
             pro = self.particle_property[str(i)]
             names.append(pro.get("display", str(i)))
         return " ".join(names)
-    
+
     def cal_fitfractions(self, params, mcdata, batch=25000):
         if hasattr(params, "params"):
             params = getattr(params, "params")
@@ -531,7 +535,7 @@ class ConfigLoader(object):
             frac, grad = cal_fitfractions(amp, list(data_split(mcdata, batch)))
         err_frac = self.cal_fitfractions_err(grad, self.inv_he)
         return frac, err_frac
-    
+
     def cal_fitfractions_err(self, grad, inv_he=None):
         if inv_he is None:
             inv_he = self.inv_he
@@ -539,10 +543,10 @@ class ConfigLoader(object):
         for i in grad:
             err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
         return err_frac
-    
+
     def get_params(self):
         return self.get_amplitude().get_params()
-    
+
     def set_params(self, params):
         if isinstance(params, str):
             with open(params) as f:
@@ -553,7 +557,6 @@ class ConfigLoader(object):
             if "value" in params:
                 params = params["value"]
         self.get_amplitude().set_params(params)
-
 
 
 def validate_file_name(s):
@@ -574,21 +577,24 @@ class MultiConfig(object):
 
     def get_amplitudes(self, vm=None):
         if not self.total_same:
-            amps = [j.get_amplitude(name="s"+str(i), vm=vm) for i, j in enumerate(self.configs)]
+            amps = [j.get_amplitude(name="s"+str(i), vm=vm)
+                    for i, j in enumerate(self.configs)]
         else:
             amps = [j.get_amplitude(vm=vm) for j in self.configs]
         return amps
 
     def get_models(self, vm=None):
         if not self.total_same:
-            models = [j.get_model(name="s"+str(i), vm=vm) for i, j in enumerate(self.configs)]
+            models = [j.get_model(name="s"+str(i), vm=vm)
+                      for i, j in enumerate(self.configs)]
         else:
             models = [j.get_model(vm=vm) for j in self.configs]
         return models
-    
+
     def get_fcns(self, vm=None, batch=65000):
         if not self.total_same:
-            fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch) for i, j in enumerate(self.configs)]
+            fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch)
+                    for i, j in enumerate(self.configs)]
         else:
             fcns = [j.get_fcn(vm=vm, batch=batch) for j in self.configs]
         return fcns
@@ -596,13 +602,12 @@ class MultiConfig(object):
     def get_fcn(self, vm=None, batch=65000):
         fcns = self.get_fcns(vm=vm, batch=batch)
         return CombineFCN(fcns=fcns)
-    
+
     def get_args_value(self, bounds_dict):
         args = {}
         args_name = self.vm.trainable_vars
         x0 = []
         bnds = []
-        
 
         for i in self.vm.trainable_variables:
             args[i.name] = i.numpy()
@@ -612,7 +617,7 @@ class MultiConfig(object):
             else:
                 bnds.append((None, None))
             args["error_" + i.name] = 0.1
-        
+
         return args_name, x0, args, bnds
 
     def fit(self, batch=65000, method="BFGS"):
@@ -624,7 +629,7 @@ class MultiConfig(object):
             # "Zc_4160_g:0":(0,None)
         }
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
-        
+
         points = []
         nlls = []
         now = time.time()
@@ -694,11 +699,11 @@ class MultiConfig(object):
         print(hesse_error)
         err = dict(zip(self.vm.trainable_vars, hesse_error))
         return err
-    
+
     def get_params(self, trainable_only=True):
         _amps = self.get_amplitudes()
         return self.vm.get_all_dic(trainable_only)
-    
+
     def set_params(self, params):
         _amps = self.get_amplitudes()
         if isinstance(params, str):
@@ -710,12 +715,11 @@ class MultiConfig(object):
             if "value" in params:
                 params = params["value"]
         self.vm.set_all(params)
-    
 
 
 def hist_error(data, bins, xrange=None, kind="binomial"):
     data_hist = np.histogram(data, bins=50, range=xrange)
-    #ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
+    # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
     data_y, data_x = data_hist[0:2]
     data_x = (data_x[:-1]+data_x[1:])/2
     if kind == "possion":
@@ -729,7 +733,7 @@ def hist_error(data, bins, xrange=None, kind="binomial"):
     return data_x, data_y, data_err
 
 
-def hist_line(data, weights, bins, xrange=None, inter=1, kind ="quadratic"):
+def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     x = (x[:-1] + x[1:])/2
     if xrange is None:
@@ -748,9 +752,9 @@ class FitResult(object):
         self.model = model
 
     def save_as(self, file_name):
-        s  = {"value": self.params, "error": self.error}
+        s = {"value": self.params, "error": self.error}
         with open(file_name, "w") as f:
             json.dump(self.params, f, indent=2)
-    
+
     def set_error(self, error):
         self.error = error.copy()

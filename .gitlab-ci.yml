@@ -15,7 +15,7 @@ pylint:
   image: tensorflow/tensorflow:2.0.1-py3
   script:
   - pip install -r requirements.txt
-  - pip install pylint
+  - pip install pylint pytest
   - pylint tf_pwa --errors-only --exit-zero
 
 build_wheel:

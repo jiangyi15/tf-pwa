@@ -2,12 +2,14 @@
 [run]
 branch = True
 omit =
+    # large io files
+    tf_pwa/config_loader.py
+    tf_pwa/applications.py
+    tf_pwa/fit.py
+    tf_pwa/root_io.py
+    # GPU required
+    tf_pwa/gpu_info.py
     # Deprecated module
-    tf_pwa/amplitude*.py
-    tf_pwa/angle.py
-    tf_pwa/phasespace.py
-    tf_pwa/model.py
-    tf_pwa/dfun_tf.py
     # test file
 	*/test_*.py
 
