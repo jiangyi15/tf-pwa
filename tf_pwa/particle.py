@@ -3,7 +3,7 @@ This module implements classes to describe particles and decays.
 """
 import functools
 import numpy as np
-from pysnooper import snoop
+# from pysnooper import snoop
 
 from .cg import cg_coef
 from .breit_wigner import barrier_factor as default_barrier_factor

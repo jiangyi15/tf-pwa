@@ -1,13 +1,18 @@
 import argparse
 import inspect
 import warnings
+import sys
+
 
 __all__ = ["regist_subcommand"]
 
+
 def _protect_dict(override_message=None):
     d = {}
+
     def get_dict():
         return d.copy()
+
     def set_var(name, var):
         if name in d:
             if override_message is not None:
@@ -15,23 +20,27 @@ def _protect_dict(override_message=None):
         d[name] = var
     return get_dict, set_var
 
+
 get_sub_cmd, set_sub_cmd = _protect_dict("sub commands")
+
 
 def regist_subcommand(name=None, arg_fun=None, args=None):
     _sub_commands = get_sub_cmd()
     if args is None:
         args = {}
+
     def wrap(f):
         name_t = name
         if name_t is None:
             name_t = f.__name__
         if arg_fun is None:
-          cmds = _build_arguments(f, args)
+            cmds = _build_arguments(f, args)
         else:
-          cmds = arg_fun
+            cmds = arg_fun
         set_sub_cmd(name_t, cmds)
         return f
     return wrap
+
 
 def _build_arguments(f, config_args):
     argspec = inspect.getfullargspec(f)
@@ -97,13 +106,15 @@ def _build_arguments(f, config_args):
 
     return ret
 
+
 @regist_subcommand(name="help")
 def help_function():
     print("""
     using ```python -m tf_pwa [subprocess]```
     """)
 
-def main():
+
+def main(argv=None):
     parser = argparse.ArgumentParser("tf_pwa")
     subparsers = parser.add_subparsers()
     _sub_commands = get_sub_cmd()
@@ -111,13 +122,14 @@ def main():
         cmds = _sub_commands[i]
         pi = subparsers.add_parser(i)
         if callable(cmds):
-          cmds(pi)
+            cmds(pi)
         else:
-          pi.set_defaults(func=cmds["fun"])
-          for args, kwargs in cmds["args"]:
-              pi.add_argument(*args, **kwargs)
-    args = parser.parse_args()
-    if hasattr(args, "func"):
-        args.func(args)
+            pi.set_defaults(func=cmds["fun"])
+            for args, kwargs in cmds["args"]:
+                pi.add_argument(*args, **kwargs)
+    rargs = parser.parse_args(argv)
+    if hasattr(rargs, "func"):
+
+        return rargs.func(rargs)
     else:
         help_function()
