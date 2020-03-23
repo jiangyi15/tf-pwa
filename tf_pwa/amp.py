@@ -275,6 +275,11 @@ class AmpDecay(Decay, AmpBase):
 @regist_decay("default")
 @regist_decay("gls-bf")
 class HelicityDecay(AmpDecay, AmpBase):
+    def __init__(self, *args, has_barrier_factor=True, l_list=None,**kwargs):
+        super(HelicityDecay, self).__init__(*args, **kwargs)
+        self.has_barrier_factor = has_barrier_factor
+        self.l_list = l_list
+        
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
@@ -328,10 +333,12 @@ class HelicityDecay(AmpDecay, AmpBase):
         else:
             q = self.get_relative_momentum(data_p, True)
             data["|q|"] = q
-        bf = barrier_factor(self.get_l_list(), q, q0, self.d)
-        mag = g_ls
-        # meg = tf.reshape(meg, (-1, 1))
-        m_dep = mag * tf.cast(bf, mag.dtype)
+        if self.has_barrier_factor:
+            bf = barrier_factor(self.get_l_list(), q, q0, self.d)
+            mag = g_ls
+            m_dep = mag * tf.cast(bf, mag.dtype)
+        else:
+            m_dep = g_ls
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
         n_ls = len(self.get_ls_list())
         m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
@@ -375,6 +382,17 @@ class HelicityDecay(AmpDecay, AmpBase):
                     ret = dt * ret
                     ret = tf.reduce_sum(ret, axis=j + 2)
         return ret
+        
+    def get_ls_list(self):
+        """get possible ls for decay, with l_list filter possible l"""
+        ls_list = super(HelicityDecay, self).get_ls_list()
+        if self.l_list is None:
+            return ls_list
+        ret = []
+        for l, s in ls_list:
+            if l in self.l_list:
+                ret.append((l, s))
+        return tuple(ret)
 
 
 @regist_decay("default", 3)

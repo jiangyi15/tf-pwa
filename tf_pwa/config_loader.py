@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from tf_pwa.data import data_index, data_shape, data_split
 from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.variable import VarsManager
+from tf_pwa.utils import time_print
 
 
 class ConfigLoader(object):
@@ -320,10 +321,15 @@ class ConfigLoader(object):
 
         return args_name, x0, args, bnds
 
-    def fit(self, data, phsp, bg=None, batch=65000, method="BFGS"):
+    @time_print
+    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS"):
         model = self.get_model()
+        if data is None and phsp is None:
+            data, phsp, bg = self.get_all_data()
+        print("decay chains included: ")
         for i in self.full_decay:
-            print(i)
+            ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
+            print("  ", i, " ls: ", *ls_list)
         fcn = FCN(model, data, phsp, bg=bg, batch=batch)
         print("initial NLL: ", fcn({}))
         # fit configure
@@ -417,7 +423,12 @@ class ConfigLoader(object):
             params = getattr(params, "params")
         amp = self.get_amplitude()
         w_bkg = self.get_bg_weight(data, bg)
-        print(w_bkg)
+        cmap = plt.get_cmap("jet")
+        N = 10
+        colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
+        colors = [
+                    "red", "green", "blue", "yellow", "magenta", "cyan", "purple", "teal", "springgreen"
+                ] + colors
         with amp.temp_params(params):
             total_weight = amp(phsp)
             if bg is None:
@@ -434,6 +445,7 @@ class ConfigLoader(object):
                 has_lengend = conf.get("legend", False)
                 xrange = conf.get("range", None)
                 bins = conf.get("bins", None)
+                units = conf.get("units", "")
                 fig = plt.figure()
                 if plot_delta:
                     ax = plt.subplot2grid((4, 1), (0, 0),  rowspan=3)
@@ -457,24 +469,34 @@ class ConfigLoader(object):
                     fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight, range=xrange,
                                               label="total fit", bins=bins, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
+                color = iter(colors)
                 for i, j in enumerate(weights):
                     x, y = hist_line(phsp_i, weights=j * norm_frac, xrange=xrange, bins=bins)
                     ax.plot(x, y, label=self.get_chain_name(
-                        i), linestyle="solid", linewidth=1)
+                        i), linestyle="solid", linewidth=1, color=next(color))
 
                 ax.set_ylim((0, None))
+                if xrange is not None:
+                    ax.set_xlim(xrange)
                 if has_lengend:
                     ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
                 ax.set_title(display)
-                ax.set_ylabel("Events")
+                ax.set_xlabel(display + units)
+                ax.set_ylabel("Events/{:.3f}{}".format((max(data_x) - min(data_x))/bins, units))
                 if plot_delta:
+                    plt.setp(ax.get_xticklabels(), visible=False)
                     ax2 = plt.subplot2grid((4, 1), (3, 0),  rowspan=1)
                     ax2.plot(data_x, (fit_y - data_y), color="r")
                     ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r")
                     ax2.set_ylim((-max(abs((fit_y - data_y))),
                                   max(abs((fit_y - data_y)))))
-                    ax2.set_ylabel("$\Delta$Events")
+                    ax2.set_ylabel("$\\Delta$Events")
+                    ax.set_xlabel("")
+                    ax2.set_xlabel(display + units)
+                    if xrange is not None:
+                        ax2.set_xlim(xrange)
                 fig.savefig(prefix+name, dpi=300)
+                
                 fig.savefig(prefix+name+".pdf", dpi=300)
                 plt.close(fig)
 
@@ -495,7 +517,8 @@ class ConfigLoader(object):
             xrange = v.get("range", None)
             yield {"name": "m_"+k, "display": display,
                    "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
-                   "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50)}
+                   "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50),
+                   "units": "GeV"}
         ang = config.get("angle", {})
         for k, i in ang.items():
             names = k.split("/")
@@ -769,3 +792,8 @@ class FitResult(object):
 
     def set_error(self, error):
         self.error = error.copy()
+
+
+class PlotParams(dict):
+    def get_params(self):
+        pass

@@ -36,12 +36,16 @@ decay:
     -
         - R_BC
         - D
+    # set l_list to allow only l=0
+    # -   [ NR(BC)SP, D, {has_barrier_factor: False, l_list: [0]}]
     # - [B, C, D]
     R_CD:
       - C
       - D
     R_BD: [B, D]
     R_BC: [B, C]
+    # set l_list to allow only l=1
+    # NR(BC)SP: [B, C, {has_barrier_factor: False, l_list: [1]}]
 
 
 # `particle` describe the particle included
@@ -75,6 +79,7 @@ particle:
     R_BC: [Zc_4025, Zc_4160]
     # by default the node is `name: [name]`
     R_CD: []
+    # NR(BC)SP: {J:1, P:-1, model: one}
 
     
 # constrains for params [WIP]
