@@ -281,14 +281,18 @@ class ConfigLoader(object):
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):
         amp = self.get_amplitude(vm=vm, name=name)
+        w_bkg = self.get_bg_weight()
+        return Model(amp, w_bkg)
+    
+    def get_bg_weight(self, data=None, bg=None):
         w_bkg = self.config["data"].get("bg_weight", 0.0)
         weight_scale = self.config["data"].get("weight_scale", False)
         if weight_scale:
-            w_bkg = w_bkg * \
-                data_shape(self.get_data("data")) / \
-                data_shape(self.get_data("bg"))
+            data = data if data is not None else self.get_data("data")
+            bg = bg if bg is not None else self.get_data("bg") 
+            w_bkg = w_bkg * data_shape(data) / data_shape(bg)
             print("background weight:", w_bkg)
-        return Model(amp, w_bkg)
+        return w_bkg
 
     def get_fcn(self, batch=65000, vm=None, name=""):
         model = self.get_model(vm, name="")
@@ -412,7 +416,7 @@ class ConfigLoader(object):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         amp = self.get_amplitude()
-        w_bkg = self.config["data"].get("bg_weight", 1.0)
+        w_bkg = self.get_bg_weight(data, bg)
         print(w_bkg)
         with amp.temp_params(params):
             total_weight = amp(phsp)
@@ -428,6 +432,8 @@ class ConfigLoader(object):
                 idx = conf.get("idx")
                 trans = conf.get("trans", lambda x: x)
                 has_lengend = conf.get("legend", False)
+                xrange = conf.get("range", None)
+                bins = conf.get("bins", None)
                 fig = plt.figure()
                 if plot_delta:
                     ax = plt.subplot2grid((4, 1), (0, 0),  rowspan=3)
@@ -435,22 +441,24 @@ class ConfigLoader(object):
                     ax = fig.add_subplot(1, 1, 1)
                 data_i = trans(data_index(data, idx))
                 phsp_i = trans(data_index(phsp, idx))
-                data_x, data_y, data_err = hist_error(data_i, bins=50)
+                data_x, data_y, data_err = hist_error(data_i, bins=bins, xrange=xrange)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
                             zorder=-2, label="data", color="black")
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_weight = np.ones_like(bg_i)*w_bkg
                     ax.hist(bg_i, weights=bg_weight,
-                            label="back ground", bins=50, histtype="stepfilled", alpha=0.5, color="grey")
+                            label="back ground", bins=bins, range=xrange, histtype="stepfilled", alpha=0.5, color="grey")
                     fit_y, fit_x, _ = ax.hist(np.concatenate([bg_i, phsp_i]),
-                                              weights=np.concatenate([bg_weight, total_weight*norm_frac]), histtype="step", label="total fit", bins=50, color="black")
+                                              weights=np.concatenate([bg_weight, total_weight*norm_frac]), 
+                                              range=xrange,
+                                              histtype="step", label="total fit", bins=bins, color="black")
                 else:
-                    fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight,
-                                              label="total fit", bins=50, color="black")
+                    fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight, range=xrange,
+                                              label="total fit", bins=bins, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 for i, j in enumerate(weights):
-                    x, y = hist_line(phsp_i, weights=j * norm_frac, bins=50)
+                    x, y = hist_line(phsp_i, weights=j * norm_frac, xrange=xrange, bins=bins)
                     ax.plot(x, y, label=self.get_chain_name(
                         i), linestyle="solid", linewidth=1)
 
@@ -472,6 +480,8 @@ class ConfigLoader(object):
 
     def get_plot_params(self):
         config = self.config["plot"]
+        defaults_config = {}
+        defaults_config.update(config.get("config", {}))
 
         chain_map = self.decay_struct.get_chains_map()
         re_map = {}
@@ -482,9 +492,10 @@ class ConfigLoader(object):
         mass = config.get("mass", {})
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
+            xrange = v.get("range", None)
             yield {"name": "m_"+k, "display": display,
                    "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
-                   "legend": True}
+                   "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50)}
         ang = config.get("angle", {})
         for k, i in ang.items():
             names = k.split("/")
@@ -509,7 +520,7 @@ class ConfigLoader(object):
                     def trans(x): return np.cos(x)
                 yield {"name": validate_file_name(k+"_"+j), "display": display,
                        "idx": ("decay", decay, decay.outs[0], "ang", theta),
-                       "trans": trans}
+                       "trans": trans, "bins": defaults_config.get("bins", 50)}
 
     def get_chain(self, i):
         decay_group = self.full_decay
@@ -717,8 +728,8 @@ class MultiConfig(object):
         self.vm.set_all(params)
 
 
-def hist_error(data, bins, xrange=None, kind="binomial"):
-    data_hist = np.histogram(data, bins=50, range=xrange)
+def hist_error(data, bins=50, xrange=None, kind="binomial"):
+    data_hist = np.histogram(data, bins=bins, range=xrange)
     # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
     data_y, data_x = data_hist[0:2]
     data_x = (data_x[:-1]+data_x[1:])/2
