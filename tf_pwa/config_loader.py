@@ -15,6 +15,7 @@ from tf_pwa.data import data_index, data_shape, data_split
 from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.variable import VarsManager
 from tf_pwa.utils import time_print
+import itertools
 
 
 class ConfigLoader(object):
@@ -428,7 +429,8 @@ class ConfigLoader(object):
         colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
         colors = [
                     "red", "green", "blue", "yellow", "magenta", "cyan", "purple", "teal", "springgreen"
-                ] + colors
+                ] 
+        linestyles = ['-', '--', '-.', ':']
         with amp.temp_params(params):
             total_weight = amp(phsp)
             if bg is None:
@@ -469,11 +471,12 @@ class ConfigLoader(object):
                     fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight, range=xrange,
                                               label="total fit", bins=bins, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
-                color = iter(colors)
+                style = itertools.product(colors, linestyles)
                 for i, j in enumerate(weights):
                     x, y = hist_line(phsp_i, weights=j * norm_frac, xrange=xrange, bins=bins)
+                    color, ls = next(style)
                     ax.plot(x, y, label=self.get_chain_name(
-                        i), linestyle="solid", linewidth=1, color=next(color))
+                        i), linestyle=ls, linewidth=1, color=color)
 
                 ax.set_ylim((0, None))
                 if xrange is not None:
