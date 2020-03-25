@@ -274,13 +274,13 @@ class ConfigLoader(object):
         return amp
 
     def add_constrans(self, amp):
-        reson_list = []
-        for i in self.config['particle']:
-            if i[:2] == 'R_':
-                reson_list.extend(self.config['particle'][i])
-        # free mass and width and set bounds
-        for i in reson_list:
-            if "float" in self.config['particle'][i]:
+        fix_total = False
+        for d in amp.decay_group:
+            for i in d:
+                pass
+            i = str(i.core)
+            # free mass and width and set bounds
+            if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
                 if 'm' in self.config['particle'][i]["float"]:
                     amp.vm.set_fix(i+'_mass',unfix=True)
                     upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
@@ -291,12 +291,18 @@ class ConfigLoader(object):
                     upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
                     lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
                     amp.vm.set_bound({i+'_width':(lower,upper)})
-        # const_first
-        const_first = False
-        for i in amp.decay_group:
-            if not const_first:
-                i.total.fixed(complex(1.0, 0.0))
-            const_first = True
+            # fix which total factor
+            if not fix_total and "total" in self.config['particle'][i]:
+                d.total.fixed(complex(self.config['particle'][i]["total"]))
+                fix_total = True
+            # share radium and helicity variables 
+            #if "coef_head" in self.config['particle'][i]:
+            #    coef_head = self.config['particle'][i]["coef_head"]
+            #    for j in d:
+            #        j.g_ls.sameas()
+        if not fix_total:
+            d.total.fixed(complex(1.0, 0.0))
+            fix_total = True
 
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):
