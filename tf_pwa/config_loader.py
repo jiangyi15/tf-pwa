@@ -274,6 +274,24 @@ class ConfigLoader(object):
         return amp
 
     def add_constrans(self, amp):
+        reson_list = []
+        for i in self.config['particle']:
+            if i[:2] == 'R_':
+                reson_list.extend(self.config['particle'][i])
+        # free mass and width and set bounds
+        for i in reson_list:
+            if "float" in self.config['particle'][i]:
+                if 'm' in self.config['particle'][i]["float"]:
+                    amp.vm.set_fix(i+'_mass',unfix=True)
+                    upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
+                    lower = self.config['particle'][i]["m_min"] if "m_min" in self.config['particle'][i] else None
+                    amp.vm.set_bound({i+'_mass':(lower,upper)})
+                if 'g' in self.config['particle'][i]["float"]:
+                    amp.vm.set_fix(i+'_width',unfix=True)
+                    upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
+                    lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
+                    amp.vm.set_bound({i+'_width':(lower,upper)})
+        # const_first
         const_first = False
         for i in amp.decay_group:
             if not const_first:
@@ -334,10 +352,7 @@ class ConfigLoader(object):
         fcn = FCN(model, data, phsp, bg=bg, batch=batch)
         print("initial NLL: ", fcn({}))
         # fit configure
-        bounds_dict = {
-            # "Zc(3900)p_mass":(4.1,4.22),
-            # "Zc_4160_g:0":(0,None)
-        }
+        bounds_dict = {}
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
 
         points = []
