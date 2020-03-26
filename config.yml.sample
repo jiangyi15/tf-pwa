@@ -27,7 +27,7 @@ decay:
     # `-` is often used for list in yaml
     A:
     # for example A -> R_CD + B, R_CD -> C + D
-    # the optional `key=value` mean option parameters of the decay
+    # the optional `key: value` mean option parameters of the decay
     # note there, R1 is overrated by `particle` entry as R1 and R11
     - [R_CD, B, model: default]
     -   - R_BD
@@ -38,7 +38,7 @@ decay:
         - D
     # set l_list to allow only l=0
     # -   [ NR(BC)SP, D, {has_barrier_factor: False, l_list: [0]}]
-    # - [B, C, D]
+    # -   [B, C, D]
     R_CD:
       - C
       - D
@@ -54,9 +54,9 @@ particle:
     # top decay particle
     $top:
         A:
-            J: 1
-            P: -1
-            spins: [-1, 1]
+            J: 1  # spin
+            P: -1  # parity, alias: `Par`
+            spins: [-1, 1]  # list of possible of spin-projected quantum numbers
     # final particles
     $finals:
         B:
@@ -78,8 +78,10 @@ particle:
       - D1_2420p
     R_BC: [Zc_4025, Zc_4160]
     # by default the node is `name: [name]`
+    # set `[]` for particle which is not in real decays, 
+    # just used for calculating angle data.
     R_CD: []
-    # NR(BC)SP: {J:1, P:-1, model: one}
+    # NR(BC)SP: {J: 1, P: -1, model: one}
 
     
 # constrains for params [WIP]
@@ -91,7 +93,8 @@ constrains:
 # plot describe the configuration of plotting 1-d data distribution
 plot:
     # plot configuration TODO
-    config: null
+    config: 
+        bins: 50
     # invariant mass
     mass:
         R_CD:
@@ -108,9 +111,9 @@ plot:
         A/0:
             # include "alpha, cos(beta), gamma", # add `cos` for cos(beta)
             alpha:
-                display: "$\\phi_{1}$" # the default is "A/1:$\alpha$"
+                display: "$\\phi_{1}$" # the default is "A/0:$\alpha$"
             cos(beta):
-                display: "$\\cos(\\theta_1)$" # the default is "A/1:$\beta$"
+                display: "$\\cos(\\theta_1)$" # the default is "A/0:$\beta$"
                 range: [-1, 1] # range for plot
         A/1:
             alpha:
