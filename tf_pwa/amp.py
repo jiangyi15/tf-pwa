@@ -413,7 +413,9 @@ class AngSam3Decay(AmpDecay, AmpBase):
         ret = tf.cast(gi, D_conj.dtype) * D_conj
         ret = tf.reduce_sum(ret, axis=-1)
         ret = tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
-        return tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])
+        ret = tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])
+        return ret
+        #return tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])
 
 
 @regist_decay("helicity_full")

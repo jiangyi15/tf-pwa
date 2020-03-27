@@ -276,21 +276,20 @@ class ConfigLoader(object):
     def add_constrans(self, amp):
         fix_total = False
         for d in amp.decay_group:
-            for i in d:
-                pass
-            i = str(i.core)
-            # free mass and width and set bounds
-            if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
-                if 'm' in self.config['particle'][i]["float"]:
-                    amp.vm.set_fix(i+'_mass',unfix=True)
-                    upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
-                    lower = self.config['particle'][i]["m_min"] if "m_min" in self.config['particle'][i] else None
-                    amp.vm.set_bound({i+'_mass':(lower,upper)})
-                if 'g' in self.config['particle'][i]["float"]:
-                    amp.vm.set_fix(i+'_width',unfix=True)
-                    upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
-                    lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
-                    amp.vm.set_bound({i+'_width':(lower,upper)})
+            for i in d.inner:
+                i = str(i)
+                # free mass and width and set bounds
+                if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
+                    if 'm' in self.config['particle'][i]["float"]:
+                        amp.vm.set_fix(i+'_mass',unfix=True)
+                        upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
+                        lower = self.config['particle'][i]["m_min"] if "m_min" in self.config['particle'][i] else None
+                        amp.vm.set_bound({i+'_mass':(lower,upper)})
+                    if 'g' in self.config['particle'][i]["float"]:
+                        amp.vm.set_fix(i+'_width',unfix=True)
+                        upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
+                        lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
+                        amp.vm.set_bound({i+'_width':(lower,upper)})
             # fix which total factor
             if not fix_total and "total" in self.config['particle'][i]:
                 d.total.fixed(complex(self.config['particle'][i]["total"]))
@@ -527,7 +526,9 @@ class ConfigLoader(object):
     def get_plot_params(self):
         config = self.config["plot"]
         defaults_config = {}
-        defaults_config.update(config.get("config", {}))
+        config_item = config.get("config", {})
+        if config_item is not None:
+            defaults_config.update(config_item)
 
         chain_map = self.decay_struct.get_chains_map()
         re_map = {}
