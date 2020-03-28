@@ -668,27 +668,22 @@ class Variable(object):
 
         _shape_func(func, self.shape, self.name, value=value, range_=range_, trainable=trainable)
 
-    def cplx_var(self, polar=True, fix=False, fix_which=0, fix_vals=(1.0, 0.0)):
+    def cplx_var(self, polar=True, fix=False, fix_vals=(1.0, 0.0)):
         """
         It implements interface to ``VarsManager.add_complex_var()``, but supports variables that are not of non-shape.
 
         :param polar: Boolean. Whether the variable is defined in polar coordinate or in Cartesian coordinate.
         :param fix: Boolean. Whether the variable is fixed. It's enabled only if ``self.shape is None``.
-        :param fix_which: Integer. Which complex component in the innermost layer of the variable is fixed. E.g. If ``self.shape==[2,3,4]`` and ``fix_which==1``, then Variable()[i][j][1] will be the fixed value. It's enabled only if ``self.shape is not None``.
         :param fix_vals: Length-2 tuple. The value of the fixed complex variable is ``fix_vals[0]+fix_vals[1]j``.
         """
-
-        # fix_which = fix_which % self.shape[-1]
+        if not hasattr(fix_vals, "__len__"):
+            fix_vals = [fix_vals, 0.]
         def func(name, **kwargs):
-            if self.shape:
-                trainable = not (name[-2:] == '_' + str(fix_which))
-            else:
-                trainable = not fix
-            # trainable = not fix
+            trainable = not fix
             self.vm.add_complex_var(name, polar, trainable, fix_vals)
             self.vm.var_head[self].append(name)
 
-        _shape_func(func, self.shape, self.name, polar=polar, fix_which=fix_which, fix_vals=fix_vals)
+        _shape_func(func, self.shape, self.name, polar=polar, fix_vals=fix_vals)
 
     def __repr__(self):
         return self.name
@@ -738,19 +733,23 @@ class Variable(object):
         else:
             raise Exception("Only shape==() var supports 'freed' method.")
 
-    def set_fix_idx(self, fix_idx=None, fix_vals=1.0, free_idx=None):
+    def set_fix_idx(self, fix_idx=None, fix_vals=None, free_idx=None):
         """
         :param fix_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is fixed. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[1,2]``, then Variable()[i][j][1] and Variable()[i][j][2] will be the fixed value.
         :param fix_vals: Float or length-2 float list for complex variable. The fixed value.
         :param free_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is set free. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[0]``, then Variable()[i][j][0] will be set free.
         """
-        if free_idx is None:
-            free_idx = []
-        if fix_idx is None:
-            fix_idx = []
         if not self.shape:
             raise Exception("Only shape!=() var supports 'set_fix_idx' method to fix or free variables.")
-
+        if free_idx is None:
+            free_idx = []
+        else:
+            free_idx = free_idx % self.shape[-1]
+        if fix_idx is None:
+            fix_idx = []
+        else:
+            fix_idx = fix_idx % self.shape[-1]
+        
         if not hasattr(fix_idx, "__len__"):
             fix_idx = [fix_idx]
         fix_idx_str = ['_' + str(i) for i in fix_idx]
@@ -759,7 +758,9 @@ class Variable(object):
         free_idx_str = ['_' + str(i) for i in free_idx]
 
         if self.cplx:
-            if not hasattr(fix_vals, "__len__"):
+            if fix_vals is None:
+                fix_vals = [None, None]
+            elif not hasattr(fix_vals, "__len__"):
                 fix_vals = [fix_vals, 0.]
 
             def func(name):
