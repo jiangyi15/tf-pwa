@@ -19,7 +19,7 @@ import copy
 from .particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
     DecayGroup as BaseDecayGroup
 from .tensorflow_wrapper import tf
-from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW
+from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
 from .variable import VarsManager, Variable
@@ -275,11 +275,14 @@ class AmpDecay(Decay, AmpBase):
 @regist_decay("default")
 @regist_decay("gls-bf")
 class HelicityDecay(AmpDecay, AmpBase):
-    def __init__(self, *args, has_barrier_factor=True, l_list=None,**kwargs):
+    def __init__(self, *args, has_barrier_factor=True, l_list=None,
+                 barrier_factor_mass=False, has_bprime=True, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
-        
+        self.barrier_factor_mass = barrier_factor_mass
+        self.has_bprime = has_bprime
+
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
@@ -334,7 +337,7 @@ class HelicityDecay(AmpDecay, AmpBase):
             q = self.get_relative_momentum(data_p, True)
             data["|q|"] = q
         if self.has_barrier_factor:
-            bf = barrier_factor(self.get_l_list(), q, q0, self.d)
+            bf = self.get_barrier_factor(data_p[self.core]["m"], q, q0, self.d)
             mag = g_ls
             m_dep = mag * tf.cast(bf, mag.dtype)
         else:
@@ -348,6 +351,26 @@ class HelicityDecay(AmpDecay, AmpBase):
         ret = tf.reshape(
             H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         return ret
+
+    def get_barrier_factor(self, mass, q, q0, d):
+        ls = self.get_l_list()
+        ret = []
+        for l in ls:
+            if self.has_bprime:
+                tmp = q**l * tf.cast(Bprime(l, q, q0, d), dtype=q.dtype)
+            else:
+                tmp = q**l
+            ret.append(tf.reshape(tmp, (-1, 1)))
+        ret = tf.concat(ret, axis=-1)
+        mass_dep = self.get_barrier_factor_mass(mass)
+        return ret * mass_dep
+
+    def get_barrier_factor_mass(self, mass):
+        if not self.barrier_factor_mass:
+            return 1.0
+        ls = tf.convert_to_tensor(self.get_l_list(), dtype=mass.dtype)
+        m_dep = 1.0/tf.pow(tf.expand_dims(mass, -1), ls)
+        return m_dep
 
     def get_amp(self, data, data_p):
         a = self.core
@@ -415,7 +438,6 @@ class AngSam3Decay(AmpDecay, AmpBase):
         ret = tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
         ret = tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])
         return ret
-        #return tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])
 
 
 @regist_decay("helicity_full")
