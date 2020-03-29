@@ -397,7 +397,8 @@ class ConfigLoader(object):
             xn = s.x
         else:
             raise Exception("unknown method")
-        params = dict(zip(args_name, xn))
+        fcn.model.Amp.vm.set_all(xn)
+        params = fcn.model.Amp.vm.get_all_dic()
         return FitResult(params, fcn)
 
     def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
@@ -448,7 +449,7 @@ class ConfigLoader(object):
         N = 10
         colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
         colors = [
-                    "red", "green", "blue", "yellow", "magenta", "cyan", "purple", "teal", "springgreen"
+                    "red", "blue", "yellow", "magenta", "cyan", "purple", "teal", "springgreen"
                 ] 
         linestyles = ['-', '--', '-.', ':']
         with amp.temp_params(params):
@@ -494,9 +495,12 @@ class ConfigLoader(object):
                 style = itertools.product(colors, linestyles)
                 for i, j in enumerate(weights):
                     x, y = hist_line(phsp_i, weights=j * norm_frac, xrange=xrange, bins=bins)
-                    color, ls = next(style)
-                    ax.plot(x, y, label=self.get_chain_name(
-                        i), linestyle=ls, linewidth=1, color=color)
+                    label, curve_style = self.get_chain_property(i)
+                    if curve_style is None:
+                        color, ls = next(style)
+                        ax.plot(x, y, label=label, color=color, linestyle=ls, linewidth=1)
+                    else:
+                        ax.plot(x, y, curve_style, label=label, linewidth=1)
 
                 ax.set_ylim((0, None))
                 if xrange is not None:
@@ -520,7 +524,7 @@ class ConfigLoader(object):
                         ax2.set_xlim(xrange)
                 fig.savefig(prefix+name, dpi=300)
                 
-                fig.savefig(prefix+name+".pdf", dpi=300)
+                #fig.savefig(prefix+name+".pdf", dpi=300)
                 plt.close(fig)
 
     def get_plot_params(self):
@@ -574,8 +578,12 @@ class ConfigLoader(object):
         decay_group = self.full_decay
         return list(decay_group)[i]
 
-    def get_chain_name(self, i):
+    def get_chain_property(self, i):
+        """Get chain name and curve style in plot"""
         chain = self.get_chain(i)
+        for i in chain:
+            curve_style = i.curve_style
+            break
         combine = []
         for i in chain:
             if i.core == chain.top:
@@ -584,7 +592,7 @@ class ConfigLoader(object):
         for i in combine:
             pro = self.particle_property[str(i)]
             names.append(pro.get("display", str(i)))
-        return " ".join(names)
+        return " ".join(names), curve_style
 
     def cal_fitfractions(self, params, mcdata, batch=25000):
         if hasattr(params, "params"):
@@ -726,7 +734,8 @@ class MultiConfig(object):
             xn = s.x
         else:
             raise Exception("unknown method")
-        params = dict(zip(args_name, xn))
+        fcn.model.Amp.vm.set_all(xn)
+        params = fcn.model.Amp.vm.get_all_dic()
         return FitResult(params, fcn)
 
     def cal_error(self, params=None, batch=10000):

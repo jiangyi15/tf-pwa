@@ -200,7 +200,7 @@ class BaseDecay(object):
     :param disable: Boolean. If it's True???
     """
 
-    def __init__(self, core, outs, name=None, disable=False, p_break=False):
+    def __init__(self, core, outs, name=None, disable=False, p_break=False, curve_style=None):
         self.name = name
         self.core = core
         self.outs = tuple(outs)
@@ -209,6 +209,7 @@ class BaseDecay(object):
             self.core.add_decay(self)
             for i in outs:
                 i.add_creator(self)
+        self.curve_style = curve_style
 
     def __repr__(self):
         ret = str(self.core)

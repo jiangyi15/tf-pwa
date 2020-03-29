@@ -37,8 +37,8 @@ decay:
         - R_BC
         - D
     # set l_list to allow only l=0
-    # -   [ NR(BC)SP, D, {has_barrier_factor: False, l_list: [0]}]
-    # -   [B, C, D]
+    # -   [ NR(BC)SP, D, curve_style: "g-", {has_barrier_factor: False, l_list: [0]}]
+    # -   [B, C, D, curve_style: "darkgreen"]
     R_CD:
       - C
       - D
