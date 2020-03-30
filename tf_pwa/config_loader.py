@@ -463,6 +463,7 @@ class ConfigLoader(object):
             for conf in self.get_plot_params():
                 name = conf.get("name")
                 display = conf.get("display", name)
+                upper_ylim = conf.get("upper_ylim", None)
                 idx = conf.get("idx")
                 trans = conf.get("trans", lambda x: x)
                 has_lengend = conf.get("legend", False)
@@ -502,7 +503,7 @@ class ConfigLoader(object):
                     else:
                         ax.plot(x, y, curve_style, label=label, linewidth=1)
 
-                ax.set_ylim((0, None))
+                ax.set_ylim((0, upper_ylim))
                 if xrange is not None:
                     ax.set_xlim(xrange)
                 if has_lengend:
@@ -543,8 +544,9 @@ class ConfigLoader(object):
         mass = config.get("mass", {})
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
+            upper_ylim = v.get("upper_ylim", None)
             xrange = v.get("range", None)
-            yield {"name": "m_"+k, "display": display,
+            yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
                    "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
                    "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50),
                    "units": "GeV"}
@@ -565,12 +567,13 @@ class ConfigLoader(object):
                         decay = re_map.get(decay, decay)
             for j, v in i.items():
                 display = v.get("display", j)
+                upper_ylim = v.get("upper_ylim", None)
                 theta = j
                 def trans(x): return x
                 if "cos" in j:
                     theta = j[4:-1]
                     def trans(x): return np.cos(x)
-                yield {"name": validate_file_name(k+"_"+j), "display": display,
+                yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
                        "idx": ("decay", decay, decay.outs[0], "ang", theta),
                        "trans": trans, "bins": defaults_config.get("bins", 50)}
 
@@ -736,6 +739,7 @@ class MultiConfig(object):
             raise Exception("unknown method")
         fcn.model.Amp.vm.set_all(xn)
         params = fcn.model.Amp.vm.get_all_dic()
+        #params = dict(zip(args_name,xn))
         return FitResult(params, fcn)
 
     def cal_error(self, params=None, batch=10000):
