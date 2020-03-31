@@ -518,6 +518,20 @@ class DecayChain(object):
         else:
             set_a = [list(a[i]) for i in a]
         return sorted(set_a)
+    
+    def __eq__(self, other):
+        if not isinstance(other, DecayChain):
+            return False
+        return self.get_id() == other.get_id()
+
+    @simple_cache_fun
+    def __hash__(self):
+        return hash(self.get_id())
+
+    @simple_cache_fun
+    def get_id(self):
+        decay = sorted(list(self.chain))
+        return tuple(decay)
 
     def standard_topology(self):
         """

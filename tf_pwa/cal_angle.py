@@ -11,36 +11,38 @@ The full data structure provided is ::
             ...
         },
 
-        "decay":
-        {
-            A->(C, D)+B: {
-                (C, D): {
-                    "ang": {
-                        "alpha":[...],
+        "decay":{
+            [A->(C, D)+B, (C, D)->C+D]:
+            {
+                A->(C, D)+B: {
+                    (C, D): {
+                        "ang": {
+                            "alpha":[...],
+                            "beta": [...],
+                            "gamma": [...]
+                        },
+                        "z": [[x1,y1,z1],...],
+                        "x": [[x2,y2,z2],...]
+                    },
+                    B: {...}
+                },
+
+                (C, D)->C+D: {
+                    C: {
+                        ...,
+                        "aligned_angle": {
+                        "alpha": [...],
                         "beta": [...],
                         "gamma": [...]
-                    },
-                    "z": [[x1,y1,z1],...],
-                    "x": [[x2,y2,z2],...]
+                    }
                 },
-                B: {...}
+                    D: {...}
+                },
+                A->(B, D)+C: {...},
+                (B, D)->B+D: {...}
             },
-
-            (C, D)->C+D: {
-                C: {
-                    ...,
-                    "aligned_angle": {
-                    "alpha": [...],
-                    "beta": [...],
-                    "gamma": [...]
-                }
-            },
-                D: {...}
-            },
-            A->(B, D)+C: {...},
-            (B, D)->B+D: {...}
-        },
         ...
+        }
     }
 
 
@@ -192,7 +194,7 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
     # calculate chain angle
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i, base_z=base_z)
-        decay_data.update(data_i)
+        decay_data[i] = data_i
 
     # calculate aligned angle of final particles in each decay chain
     set_x = {}  # reference particles
@@ -202,7 +204,7 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
             if decay.core == decay_group.top:
                 for i in decay.outs:
                     if (i not in set_x) and (i in decay_group.outs):
-                        set_x[i] = (idx, decay)
+                        set_x[i] = (decay_chain, decay)
     # or in the first chain
     for i in decay_group.outs:
         if i not in set_x:
@@ -210,14 +212,14 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
             for decay in decay_chain:
                 for j in decay.outs:
                     if i == j:
-                        set_x[i] = (0, decay)
+                        set_x[i] = (decay_chain, decay)
     for idx, decay_chain in enumerate(decay_chain_struct):
         for decay in decay_chain:
-            part_data = decay_data[decay]
+            part_data = decay_data[decay_chain][decay]
             for i in decay.outs:
                 if i in decay_group.outs and decay != set_x[i][1]:
                     idx2, decay2 = set_x[i]
-                    part_data2 = decay_data[decay2]
+                    part_data2 = decay_data[idx2][decay2]
                     x1 = part_data[i]["x"]
                     x2 = part_data2[i]["x"]
                     z1 = part_data[i]["z"]
