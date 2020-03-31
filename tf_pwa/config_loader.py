@@ -443,8 +443,20 @@ class ConfigLoader(object):
         model = self.get_model()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
+    
+    def _flatten_data(self, data):
+        if "decay" not in data:
+            return data
+        ret = {}
+        for k, v in data["decay"].items():
+            ret.update(v)
+        data["decay"].update(ret)
+        return data
 
     def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False):
+        data = self._flatten_data(data)
+        phsp = self._flatten_data(phsp)
+        bg = self._flatten_data(bg)
         if params is None:
             params = {}
         if data is None:
