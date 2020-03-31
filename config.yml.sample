@@ -101,6 +101,7 @@ plot:
             # label of display
             # use `$$` for latex math
             display: "$M_{CD}$"
+            # upper_ylim: 200
         R_BD:
             display: "$M_{BD}$"
         R_BC:

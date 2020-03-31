@@ -471,6 +471,7 @@ class ConfigLoader(object):
             for conf in self.get_plot_params():
                 name = conf.get("name")
                 display = conf.get("display", name)
+                upper_ylim = conf.get("upper_ylim", None)
                 idx = conf.get("idx")
                 trans = conf.get("trans", lambda x: x)
                 has_lengend = conf.get("legend", False)
@@ -510,7 +511,7 @@ class ConfigLoader(object):
                     else:
                         ax.plot(x, y, curve_style, label=label, linewidth=1)
 
-                ax.set_ylim((0, None))
+                ax.set_ylim((0, upper_ylim))
                 if xrange is not None:
                     ax.set_xlim(xrange)
                 if has_lengend:
@@ -551,8 +552,9 @@ class ConfigLoader(object):
         mass = config.get("mass", {})
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
+            upper_ylim = v.get("upper_ylim", None)
             xrange = v.get("range", None)
-            yield {"name": "m_"+k, "display": display,
+            yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
                    "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
                    "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50),
                    "units": "GeV"}
@@ -573,12 +575,13 @@ class ConfigLoader(object):
                         decay = re_map.get(decay, decay)
             for j, v in i.items():
                 display = v.get("display", j)
+                upper_ylim = v.get("upper_ylim", None)
                 theta = j
                 def trans(x): return x
                 if "cos" in j:
                     theta = j[4:-1]
                     def trans(x): return np.cos(x)
-                yield {"name": validate_file_name(k+"_"+j), "display": display,
+                yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
                        "idx": ("decay", decay, decay.outs[0], "ang", theta),
                        "trans": trans, "bins": defaults_config.get("bins", 50)}
 
@@ -710,6 +713,7 @@ class MultiConfig(object):
         now = time.time()
         maxiter = 1000
         min_nll = 0.0
+        ndf = 0
 
         if method in ["BFGS", "CG", "Nelder-Mead"]:
             def callback(x):
@@ -730,6 +734,7 @@ class MultiConfig(object):
             s = minimize(f_g, np.array(self.vm.get_all_val(True)), method=method,
                          jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
             xn = self.vm.get_all_val()  # bd.get_y(s.x)
+            ndf = s.x.shape[0]
             min_nll = s.fun
         elif method in ["L-BFGS-B"]:
             def callback(x):
@@ -742,12 +747,13 @@ class MultiConfig(object):
             s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
                          options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
             xn = s.x
+            ndf = s.x.shape[0]
             min_nll = s.fun
         else:
             raise Exception("unknown method")
         fcn.model.Amp.vm.set_all(xn)
         params = fcn.model.Amp.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll)
+        return FitResult(params, fcn, min_nll, ndf=ndf)
 
     def cal_error(self, params=None, batch=10000):
         if params is None:
