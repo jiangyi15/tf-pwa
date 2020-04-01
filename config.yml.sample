@@ -102,6 +102,7 @@ plot:
             # use `$$` for latex math
             display: "$M_{CD}$"
             # upper_ylim: 200
+            # trans: x*x
         R_BD:
             display: "$M_{BD}$"
         R_BC:
@@ -142,3 +143,7 @@ plot:
                 display: "$\\phi_{1}$"
             cos(beta):
                 display: "$\\cos(\\theta_{31})$"
+    # 2D plot
+    2Dplot:
+        m_R_CD & m_R_BC:
+            display: "$M_{CD}$ vs $M_{BC}$"

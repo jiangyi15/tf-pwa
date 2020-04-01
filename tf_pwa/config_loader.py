@@ -16,6 +16,8 @@ from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.variable import VarsManager
 from tf_pwa.utils import time_print
 import itertools
+import os
+import sympy as sy
 
 
 class ConfigLoader(object):
@@ -453,7 +455,9 @@ class ConfigLoader(object):
         data["decay"].update(ret)
         return data
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, save_pdf=False):
+        if not os.path.exists(prefix):
+            os.mkdir(prefix)
         data = self._flatten_data(data)
         phsp = self._flatten_data(phsp)
         bg = self._flatten_data(bg)
@@ -465,12 +469,10 @@ class ConfigLoader(object):
             params = getattr(params, "params")
         amp = self.get_amplitude()
         w_bkg = self.get_bg_weight(data, bg)
-        cmap = plt.get_cmap("jet")
-        N = 10
-        colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
-        colors = [
-                    "red", "blue", "yellow", "magenta", "cyan", "purple", "teal", "springgreen"
-                ] 
+        #cmap = plt.get_cmap("jet")
+        #N = 10
+        #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
+        colors = ["red", "orange", "purple", "springgreen", "y", "green", "blue", "c"]
         linestyles = ['-', '--', '-.', ':']
         with amp.temp_params(params):
             total_weight = amp(phsp)
@@ -480,6 +482,7 @@ class ConfigLoader(object):
                 norm_frac = (data_shape(data) - w_bkg *
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
+            plot_var_dic = {}
             for conf in self.get_plot_params():
                 name = conf.get("name")
                 display = conf.get("display", name)
@@ -544,9 +547,46 @@ class ConfigLoader(object):
                     if xrange is not None:
                         ax2.set_xlim(xrange)
                 fig.savefig(prefix+name, dpi=300)
-                
-                #fig.savefig(prefix+name+".pdf", dpi=300)
+                if save_pdf:
+                    fig.savefig(prefix+name+".pdf", dpi=300)
+                print("Finish plotting "+prefix+name)
                 plt.close(fig)
+                plot_var_dic[name] = {"idx": idx, "trans": trans}
+
+            twodplot = self.config["plot"].get("2Dplot", {})
+            for k, i in twodplot.items():
+                var1, var2 = k.split('&')
+                var1 = var1.rstrip()
+                var2 = var2.lstrip()
+                display = i["display"]
+                name1, name2 = display.split('vs')
+                name1 = name1.rstrip()
+                name2 = name2.lstrip()
+                idx1 = plot_var_dic[var1]["idx"]
+                trans1 = plot_var_dic[var1]["trans"]
+                data_1 = trans1(data_index(data, idx1))
+                phsp_1 = trans1(data_index(phsp, idx1))
+                idx2 = plot_var_dic[var2]["idx"]
+                trans2 = plot_var_dic[var2]["trans"]
+                data_2 = trans2(data_index(data, idx2))
+                phsp_2 = trans2(data_index(phsp, idx2))
+                if bg is not None:
+                    bg_1 = trans1(data_index(bg, idx1))
+                    bg_2 = trans2(data_index(bg, idx2))
+                # data
+                plt.scatter(data_1,data_2,marker='.',alpha=0.5,label='data')
+                plt.scatter(bg_1,bg_2,marker='.',c='yellow',alpha=0.5,label='sideband')
+                #plt.scatter(phsp_1,phsp_2,marker='.',alpha=0.2)
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                plt.savefig(prefix+k+'_data')
+                plt.clf()
+                print("Finish plotting 2D data "+prefix+k)
+                # fit pdf
+                plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
+                plt.savefig(prefix+k+'_fitted')
+                plt.clf()
+                print("Finish plotting 2D fitted "+prefix+k)
 
     def get_plot_params(self):
         config = self.config["plot"]
@@ -562,14 +602,18 @@ class ConfigLoader(object):
                 for k, v in j.items():
                     re_map[v] = k
         mass = config.get("mass", {})
+        x = sy.symbols('x')
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
             upper_ylim = v.get("upper_ylim", None)
             xrange = v.get("range", None)
+            trans = v.get("trans", 'x')
+            trans = sy.sympify(trans)
+            trans = sy.lambdify(x,trans)
             yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
                    "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
                    "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50),
-                   "units": "GeV"}
+                   "trans": trans, "units": "GeV"}
         ang = config.get("angle", {})
         for k, i in ang.items():
             names = k.split("/")
@@ -714,10 +758,7 @@ class MultiConfig(object):
         fcn = self.get_fcn()
         print("initial NLL: ", fcn({}))
         # fit configure
-        bounds_dict = {
-            # "Zc(3900)p_mass":(4.1,4.22),
-            # "Zc_4160_g:0":(0,None)
-        }
+        bounds_dict = {}
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
 
         points = []
