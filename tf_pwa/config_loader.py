@@ -527,8 +527,7 @@ class ConfigLoader(object):
                         ax.plot(x, y, curve_style, label=label, linewidth=1)
 
                 ax.set_ylim((0, upper_ylim))
-                if xrange is not None:
-                    ax.set_xlim(xrange)
+                xlimin, xlimax = ax.set_xlim(xrange)
                 if has_lengend:
                     ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
                 ax.set_title(display)
@@ -551,7 +550,7 @@ class ConfigLoader(object):
                     fig.savefig(prefix+name+".pdf", dpi=300)
                 print("Finish plotting "+prefix+name)
                 plt.close(fig)
-                plot_var_dic[name] = {"idx": idx, "trans": trans}
+                plot_var_dic[name] = {"idx": idx, "trans": trans, "range": [xlimin, xlimax]}
 
             twodplot = self.config["plot"].get("2Dplot", {})
             for k, i in twodplot.items():
@@ -564,26 +563,35 @@ class ConfigLoader(object):
                 name2 = name2.lstrip()
                 idx1 = plot_var_dic[var1]["idx"]
                 trans1 = plot_var_dic[var1]["trans"]
+                range1 = plot_var_dic[var1]["range"]
                 data_1 = trans1(data_index(data, idx1))
                 phsp_1 = trans1(data_index(phsp, idx1))
                 idx2 = plot_var_dic[var2]["idx"]
                 trans2 = plot_var_dic[var2]["trans"]
+                range2 = plot_var_dic[var2]["range"]
                 data_2 = trans2(data_index(data, idx2))
                 phsp_2 = trans2(data_index(phsp, idx2))
                 if bg is not None:
                     bg_1 = trans1(data_index(bg, idx1))
                     bg_2 = trans2(data_index(bg, idx2))
                 # data
-                plt.scatter(data_1,data_2,marker='.',alpha=0.5,label='data')
-                plt.scatter(bg_1,bg_2,marker='.',c='yellow',alpha=0.5,label='sideband')
-                #plt.scatter(phsp_1,phsp_2,marker='.',alpha=0.2)
+                plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')
                 plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                plt.xlim(range1); plt.ylim(range2)
                 plt.savefig(prefix+k+'_data')
                 plt.clf()
                 print("Finish plotting 2D data "+prefix+k)
+                # sideband
+                plt.scatter(bg_1,bg_2,s=1,c='g',alpha=0.8,label='sideband')
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                plt.xlim(range1); plt.ylim(range2)
+                plt.savefig(prefix+k+'_bkg')
+                plt.clf()
+                print("Finish plotting 2D sideband "+prefix+k)
                 # fit pdf
                 plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
                 plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
+                plt.xlim(range1); plt.ylim(range2)
                 plt.savefig(prefix+k+'_fitted')
                 plt.clf()
                 print("Finish plotting 2D fitted "+prefix+k)
