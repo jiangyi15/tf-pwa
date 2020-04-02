@@ -87,10 +87,9 @@ class VarsManager(object):
         self.complex_vars = {}  # {name:polar(bool),...}
         self.same_list = []  # [[name1,name2],...]
 
-        # self.range = {}
         self.bnd_dic = {}  # {name:(a,b),...}
 
-        self.var_head = {}  # {head:[name1,name2],...}
+        self.var_head = {}  # {head:[name1,name2],...} It's operated directly by Variable objects
 
     def add_real_var(self, name, value=None, range_=None, trainable=True):
         """
@@ -170,6 +169,10 @@ class VarsManager(object):
                     l.remove(name_r)
                 if name_i in l:
                     l.remove(name_i)
+            if name_r in self.bnd_dic:
+                del self.bnd_dic[name_r]
+            if name_i in self.bnd_dic:
+                del self.bnd_dic[name_i]
             del self.variables[name_r]
             del self.variables[name_i]
         else:
@@ -178,6 +181,62 @@ class VarsManager(object):
             for l in self.same_list:
                 if name in l:
                     l.remove(name)
+            if name in self.bnd_dic:
+                del self.bnd_dic[name]
+            del self.variables[name]
+
+    def rename_var(self, name, new_name, cplx=False):
+        """
+        Rename a variable.
+
+        :param name: Name of the variable
+        :param new_name: New name
+        :param cplx: Boolean. Users should indicate if this variable is complex or not.
+        """
+        if cplx:
+            self.complex_vars[new_name] = self.complex_vars[name]
+            del self.complex_vars[name]
+            name_r = name + 'r'
+            name_i = name + 'i'
+            new_name_r = new_name + 'r'
+            new_name_i = new_name + 'i'
+            if self.variables[name_r].trainable:
+                if name_r in self.trainable_vars:
+                    self.trainable_vars.remove(name_r)
+                    self.trainable_vars.append(new_name_r)
+            if self.variables[name_i].trainable:
+                if name_i in self.trainable_vars:
+                    self.trainable_vars.remove(name_i)
+                    self.trainable_vars.append(new_name_i)
+            for l in self.same_list:
+                if name_r in l:
+                    l.remove(name_r)
+                    l.append(new_name_r)
+                if name_i in l:
+                    l.remove(name_i)
+                    l.append(new_name_i)
+            if name_r in self.bnd_dic:
+                self.bnd_dic[new_name_r] = self.bnd_dic[name_r]
+                del self.bnd_dic[name_r]
+            if name_i in self.bnd_dic:
+                self.bnd_dic[new_name_i] = self.bnd_dic[name_i]
+                del self.bnd_dic[name_i]
+            self.variables[new_name_r] = self.variables[name_r]
+            del self.variables[name_r]
+            self.variables[new_name_i] = self.variables[name_i]
+            del self.variables[name_i]
+        else:
+            if self.variables[name].trainable:
+                self.trainable_vars.remove(name)
+                self.trainable_vars.append(new_name)
+            for l in self.same_list:
+                if name in l:
+                    l.remove(name)
+                    l.append(new_name)
+            if name in self.bnd_dic:
+                self.bnd_dic[new_name] = self.bnd_dic[name]
+                del self.bnd_dic[name]
+            self.variables[new_name] = self.variables[name]
             del self.variables[name]
 
     def refresh_vars(self, name):
@@ -678,6 +737,7 @@ class Variable(object):
         """
         if not hasattr(fix_vals, "__len__"):
             fix_vals = [fix_vals, 0.]
+
         def func(name, **kwargs):
             trainable = not fix
             self.vm.add_complex_var(name, polar, trainable, fix_vals)
@@ -703,6 +763,18 @@ class Variable(object):
         :return: List of string.
         """
         return self.vm.var_head[self]
+
+    def rename(self, new_name):
+        """Rename this Variable."""
+        def func(name):
+            vn = self.name + name
+            new_vn = new_name + name
+            self.vm.rename_var(vn, new_vn, cplx=self.cplx)
+            self.vm.var_head[self].remove(vn)
+            self.vm.var_head[self].append(new_vn)
+
+        _shape_func(func, self.shape, '')
+        self.name = new_name
 
     def fixed(self, value):
         """
@@ -749,7 +821,7 @@ class Variable(object):
             fix_idx = []
         else:
             fix_idx = fix_idx % self.shape[-1]
-        
+
         if not hasattr(fix_idx, "__len__"):
             fix_idx = [fix_idx]
         fix_idx_str = ['_' + str(i) for i in fix_idx]
