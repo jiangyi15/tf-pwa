@@ -18,6 +18,7 @@ from tf_pwa.utils import time_print
 import itertools
 import os
 import sympy as sy
+from tf_pwa.root_io import save_dict_to_root
 
 
 class ConfigLoader(object):
@@ -455,7 +456,7 @@ class ConfigLoader(object):
         data["decay"].update(ret)
         return data
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, save_pdf=False):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, save_pdf=False, root_name="data_var"):
         if not os.path.exists(prefix):
             os.mkdir(prefix)
         data = self._flatten_data(data)
@@ -474,6 +475,7 @@ class ConfigLoader(object):
         #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
         colors = ["red", "orange", "purple", "springgreen", "y", "green", "blue", "c"]
         linestyles = ['-', '--', '-.', ':']
+        root_dict = {}
         with amp.temp_params(params):
             total_weight = amp(phsp)
             if bg is None:
@@ -551,6 +553,7 @@ class ConfigLoader(object):
                 print("Finish plotting "+prefix+name)
                 plt.close(fig)
                 plot_var_dic[name] = {"idx": idx, "trans": trans, "range": [xlimin, xlimax]}
+                root_dict[name] = data_i
 
             twodplot = self.config["plot"].get("2Dplot", {})
             for k, i in twodplot.items():
@@ -595,6 +598,9 @@ class ConfigLoader(object):
                 plt.savefig(prefix+k+'_fitted')
                 plt.clf()
                 print("Finish plotting 2D fitted "+prefix+k)
+
+        save_dict_to_root(root_dict, file_name=prefix+root_name, tree_name="Tree")
+        print("Save root file "+prefix+root_name)
 
     def get_plot_params(self):
         config = self.config["plot"]
