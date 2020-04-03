@@ -87,7 +87,7 @@ particle:
 # constrains for params [WIP]
 constrains:
     particle: null
-    decay: null
+    decay: {fix_chain_idx: 1, fix_chain_val: 1}
 
 
 # plot describe the configuration of plotting 1-d data distribution

@@ -279,9 +279,11 @@ class ConfigLoader(object):
         return amp
 
     def add_constrans(self, amp):
-        fix_total = False
+        fix_total_idx = self.config['constrains']['decay']["fix_chain_idx"] if "fix_chain_idx" in self.config['constrains']['decay'] else 0
+        fix_total_val = self.config['constrains']['decay']["fix_chain_val"] if "fix_chain_val" in self.config['constrains']['decay'] else np.random.uniform(0,2)
+        di = 0
         for d in amp.decay_group:
-            for i in d.inner:
+            for i in d.inner: # random order!
                 i = str(i)
                 # free mass and width and set bounds
                 if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
@@ -296,17 +298,14 @@ class ConfigLoader(object):
                         lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
                         amp.vm.set_bound({i+'_width':(lower,upper)})
             # fix which total factor
-            if not fix_total and "total" in self.config['particle'][i]:
-                d.total.fixed(complex(self.config['particle'][i]["total"]))
-                fix_total = True
+            if di == fix_total_idx:
+                d.total.fixed(complex(fix_total_val))
+            di += 1
             # share radium and helicity variables 
             #if "coef_head" in self.config['particle'][i]:
             #    coef_head = self.config['particle'][i]["coef_head"]
             #    for j in d:
             #        j.g_ls.sameas()
-        if not fix_total:
-            d.total.fixed(complex(1.0, 0.0))
-            fix_total = True
 
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):
