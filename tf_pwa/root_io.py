@@ -44,11 +44,15 @@ def save_dict_to_root(dic, file_name, tree_name="tree"):
     :param file_name: String
     :param tree_name: String. By default it's "tree".
     """
-    branch_dic = {}
+    if file_name[-5:] == '.root':
+        file_name = file_name[:-5]
+    branch_type = {}
+    branch_data = {}
     for i in dic:
-        dic[i] = np.array(dic[i])
-        branch_dic[i] = dic[i].dtype.name
-    with uproot.recreate(file_name.rstrip(".root") + ".root") as f:
-        f[tree_name] = uproot.newtree(branch_dic)
-        for i in dic:
-            f[tree_name].extend({i: dic[i]})
+        j = i.replace('(','_').replace(')','_')
+        branch_data[j] = np.array(dic[i])
+        branch_type[j] = branch_data[j].dtype.name
+
+    with uproot.recreate(file_name + ".root") as f:
+        f[tree_name] = uproot.newtree(branch_type)
+        f[tree_name].extend(branch_data)

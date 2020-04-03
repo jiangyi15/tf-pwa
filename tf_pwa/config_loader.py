@@ -16,6 +16,9 @@ from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.variable import VarsManager
 from tf_pwa.utils import time_print
 import itertools
+import os
+import sympy as sy
+from tf_pwa.root_io import save_dict_to_root
 
 
 class ConfigLoader(object):
@@ -276,9 +279,11 @@ class ConfigLoader(object):
         return amp
 
     def add_constrans(self, amp):
-        fix_total = False
+        fix_total_idx = self.config['constrains']['decay']["fix_chain_idx"] if "fix_chain_idx" in self.config['constrains']['decay'] else 0
+        fix_total_val = self.config['constrains']['decay']["fix_chain_val"] if "fix_chain_val" in self.config['constrains']['decay'] else np.random.uniform(0,2)
+        di = 0
         for d in amp.decay_group:
-            for i in d.inner:
+            for i in d.inner: # random order!
                 i = str(i)
                 # free mass and width and set bounds
                 if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
@@ -293,17 +298,14 @@ class ConfigLoader(object):
                         lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
                         amp.vm.set_bound({i+'_width':(lower,upper)})
             # fix which total factor
-            if not fix_total and "total" in self.config['particle'][i]:
-                d.total.fixed(complex(self.config['particle'][i]["total"]))
-                fix_total = True
+            if di == fix_total_idx:
+                d.total.fixed(complex(fix_total_val))
+            di += 1
             # share radium and helicity variables 
             #if "coef_head" in self.config['particle'][i]:
             #    coef_head = self.config['particle'][i]["coef_head"]
             #    for j in d:
             #        j.g_ls.sameas()
-        if not fix_total:
-            d.total.fixed(complex(1.0, 0.0))
-            fix_total = True
 
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):
@@ -453,7 +455,9 @@ class ConfigLoader(object):
         data["decay"].update(ret)
         return data
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, save_pdf=False, root_name="data_var"):
+        if not os.path.exists(prefix):
+            os.mkdir(prefix)
         data = self._flatten_data(data)
         phsp = self._flatten_data(phsp)
         bg = self._flatten_data(bg)
@@ -465,13 +469,12 @@ class ConfigLoader(object):
             params = getattr(params, "params")
         amp = self.get_amplitude()
         w_bkg = self.get_bg_weight(data, bg)
-        cmap = plt.get_cmap("jet")
-        N = 10
-        colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
-        colors = [
-                    "red", "blue", "yellow", "magenta", "cyan", "purple", "teal", "springgreen"
-                ] 
+        #cmap = plt.get_cmap("jet")
+        #N = 10
+        #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
+        colors = ["red", "orange", "purple", "springgreen", "y", "green", "blue", "c"]
         linestyles = ['-', '--', '-.', ':']
+        root_dict = {}
         with amp.temp_params(params):
             total_weight = amp(phsp)
             if bg is None:
@@ -480,6 +483,7 @@ class ConfigLoader(object):
                 norm_frac = (data_shape(data) - w_bkg *
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
+            plot_var_dic = {}
             for conf in self.get_plot_params():
                 name = conf.get("name")
                 display = conf.get("display", name)
@@ -524,8 +528,7 @@ class ConfigLoader(object):
                         ax.plot(x, y, curve_style, label=label, linewidth=1)
 
                 ax.set_ylim((0, upper_ylim))
-                if xrange is not None:
-                    ax.set_xlim(xrange)
+                xlimin, xlimax = ax.set_xlim(xrange)
                 if has_lengend:
                     ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
                 ax.set_title(display)
@@ -544,9 +547,59 @@ class ConfigLoader(object):
                     if xrange is not None:
                         ax2.set_xlim(xrange)
                 fig.savefig(prefix+name, dpi=300)
-                
-                #fig.savefig(prefix+name+".pdf", dpi=300)
+                if save_pdf:
+                    fig.savefig(prefix+name+".pdf", dpi=300)
+                print("Finish plotting "+prefix+name)
                 plt.close(fig)
+                plot_var_dic[name] = {"idx": idx, "trans": trans, "range": [xlimin, xlimax]}
+                root_dict[name] = data_i
+
+            twodplot = self.config["plot"].get("2Dplot", {})
+            for k, i in twodplot.items():
+                var1, var2 = k.split('&')
+                var1 = var1.rstrip()
+                var2 = var2.lstrip()
+                display = i["display"]
+                name1, name2 = display.split('vs')
+                name1 = name1.rstrip()
+                name2 = name2.lstrip()
+                idx1 = plot_var_dic[var1]["idx"]
+                trans1 = plot_var_dic[var1]["trans"]
+                range1 = plot_var_dic[var1]["range"]
+                data_1 = trans1(data_index(data, idx1))
+                phsp_1 = trans1(data_index(phsp, idx1))
+                idx2 = plot_var_dic[var2]["idx"]
+                trans2 = plot_var_dic[var2]["trans"]
+                range2 = plot_var_dic[var2]["range"]
+                data_2 = trans2(data_index(data, idx2))
+                phsp_2 = trans2(data_index(phsp, idx2))
+                if bg is not None:
+                    bg_1 = trans1(data_index(bg, idx1))
+                    bg_2 = trans2(data_index(bg, idx2))
+                # data
+                plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                plt.xlim(range1); plt.ylim(range2)
+                plt.savefig(prefix+k+'_data')
+                plt.clf()
+                print("Finish plotting 2D data "+prefix+k)
+                # sideband
+                plt.scatter(bg_1,bg_2,s=1,c='g',alpha=0.8,label='sideband')
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                plt.xlim(range1); plt.ylim(range2)
+                plt.savefig(prefix+k+'_bkg')
+                plt.clf()
+                print("Finish plotting 2D sideband "+prefix+k)
+                # fit pdf
+                plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
+                plt.xlim(range1); plt.ylim(range2)
+                plt.savefig(prefix+k+'_fitted')
+                plt.clf()
+                print("Finish plotting 2D fitted "+prefix+k)
+
+        save_dict_to_root(root_dict, file_name=prefix+root_name, tree_name="Tree")
+        print("Save root file "+prefix+root_name)
 
     def get_plot_params(self):
         config = self.config["plot"]
@@ -562,14 +615,18 @@ class ConfigLoader(object):
                 for k, v in j.items():
                     re_map[v] = k
         mass = config.get("mass", {})
+        x = sy.symbols('x')
         for k, v in mass.items():
             display = v.get("display", "M({})".format(k))
             upper_ylim = v.get("upper_ylim", None)
             xrange = v.get("range", None)
+            trans = v.get("trans", 'x')
+            trans = sy.sympify(trans)
+            trans = sy.lambdify(x,trans)
             yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
                    "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
                    "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50),
-                   "units": "GeV"}
+                   "trans": trans, "units": "GeV"}
         ang = config.get("angle", {})
         for k, i in ang.items():
             names = k.split("/")
@@ -714,10 +771,7 @@ class MultiConfig(object):
         fcn = self.get_fcn()
         print("initial NLL: ", fcn({}))
         # fit configure
-        bounds_dict = {
-            # "Zc(3900)p_mass":(4.1,4.22),
-            # "Zc_4160_g:0":(0,None)
-        }
+        bounds_dict = {}
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
 
         points = []
