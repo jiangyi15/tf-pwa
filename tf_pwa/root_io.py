@@ -1,6 +1,12 @@
-import uproot
+
 import numpy as np
 from .data import data_merge
+has_uproot = True
+try:
+    import uproot
+except ImportError as e:
+    has_uproot = False
+    print(e, "you should install `uproot` correctly for using this module")
 
 
 def load_root_data(fnames):

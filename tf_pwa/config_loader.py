@@ -18,7 +18,7 @@ from tf_pwa.utils import time_print
 import itertools
 import os
 import sympy as sy
-from tf_pwa.root_io import save_dict_to_root
+from tf_pwa.root_io import save_dict_to_root, has_uproot
 
 
 class ConfigLoader(object):
@@ -279,8 +279,12 @@ class ConfigLoader(object):
         return amp
 
     def add_constrans(self, amp):
-        fix_total_idx = self.config['constrains']['decay']["fix_chain_idx"] if "fix_chain_idx" in self.config['constrains']['decay'] else 0
-        fix_total_val = self.config['constrains']['decay']["fix_chain_val"] if "fix_chain_val" in self.config['constrains']['decay'] else np.random.uniform(0,2)
+        constrains = self.config['constrains']
+        decay_constrains = self.config['constrains'].get('decay', {})
+        if decay_constrains is None:
+            decay_constrains = {}
+        fix_total_idx = decay_constrains["fix_chain_idx"] if "fix_chain_idx" in decay_constrains else 0
+        fix_total_val = decay_constrains["fix_chain_val"] if "fix_chain_val" in decay_constrains else np.random.uniform(0,2)
         di = 0
         for d in amp.decay_group:
             for i in d.inner: # random order!
@@ -597,9 +601,9 @@ class ConfigLoader(object):
                 plt.savefig(prefix+k+'_fitted')
                 plt.clf()
                 print("Finish plotting 2D fitted "+prefix+k)
-
-        save_dict_to_root(root_dict, file_name=prefix+root_name, tree_name="Tree")
-        print("Save root file "+prefix+root_name)
+        if has_uproot and root_name:
+            save_dict_to_root(root_dict, file_name=prefix+root_name, tree_name="Tree")
+            print("Save root file "+prefix+root_name)
 
     def get_plot_params(self):
         config = self.config["plot"]
