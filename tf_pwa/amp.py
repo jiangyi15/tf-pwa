@@ -276,12 +276,14 @@ class AmpDecay(Decay, AmpBase):
 @regist_decay("gls-bf")
 class HelicityDecay(AmpDecay, AmpBase):
     def __init__(self, *args, has_barrier_factor=True, l_list=None,
-                 barrier_factor_mass=False, has_bprime=True, **kwargs):
+                 barrier_factor_mass=False, has_bprime=True,
+                 aligned=False, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
         self.barrier_factor_mass = barrier_factor_mass
         self.has_bprime = has_bprime
+        self.aligned = aligned
 
     def init_params(self):
         self.d = 3.0
@@ -328,7 +330,18 @@ class HelicityDecay(AmpDecay, AmpBase):
         return tf.convert_to_tensor(ret)
 
     def get_helicity_amp(self, data, data_p):
+        m_dep = self.get_ls_amp(data, data_p)
+        cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
+        n_ls = len(self.get_ls_list())
+        m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
+        cg_trans = tf.reshape(cg_trans, (n_ls, len(
+            self.outs[0].spins), len(self.outs[1].spins)))
+        H = tf.reduce_sum(m_dep * cg_trans, axis=1)
+        ret = tf.reshape(
+            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
+        return ret
 
+    def get_ls_amp(self, data, data_p):
         g_ls = tf.stack(self.g_ls())
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
@@ -343,15 +356,7 @@ class HelicityDecay(AmpDecay, AmpBase):
             m_dep = mag * tf.cast(bf, mag.dtype)
         else:
             m_dep = g_ls
-        cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
-        n_ls = len(self.get_ls_list())
-        m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
-        cg_trans = tf.reshape(cg_trans, (n_ls, len(
-            self.outs[0].spins), len(self.outs[1].spins)))
-        H = tf.reduce_sum(m_dep * cg_trans, axis=1)
-        ret = tf.reshape(
-            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
-        return ret
+        return m_dep
 
     def get_barrier_factor(self, mass, q, q0, d):
         ls = self.get_l_list()
@@ -386,8 +391,7 @@ class HelicityDecay(AmpDecay, AmpBase):
         ret = H * D_conj
         # print(self, H, D_conj)
         # exit()
-        aligned = False
-        if aligned:
+        if self.aligned:
             for j, particle in enumerate(self.outs):
                 if particle.J != 0 and "aligned_angle" in data[particle]:
                     ang = data[particle].get("aligned_angle", None)
@@ -417,6 +421,31 @@ class HelicityDecay(AmpDecay, AmpBase):
             if l in self.l_list:
                 ret.append((l, s))
         return tuple(ret)
+
+
+@regist_decay("particle-decay")
+class ParticleDecay(HelicityDecay):
+    def get_ls_amp(self, data, data_p):
+        amp = super(ParticleDecay, self).get_ls_amp(data, data_p)
+        a = self.core
+        b = self.outs[0]
+        c = self.outs[1]
+        mass = a.get_mass()
+        width = a.get_width()
+        m = data_p[a]["m"]
+        if width is None:
+            ret = tf.zeros_like(m)
+        elif not a.running_width:
+            ret = tf.reshape(BW(m, mass, width),(-1,1))
+        else:
+            q = data["|q|"]
+            q0 = data["|q0|"]
+            ret = []
+            for i in self.get_l_list():
+                bw = BWR(m, mass, width, q, q0, i, self.d)
+                ret.append(tf.reshape(bw, (-1,1)))
+            ret = tf.concat(ret, axis=-1)
+        return ret * amp
 
 
 @regist_decay("default", 3)
@@ -582,8 +611,7 @@ class DecayChain(BaseDecayChain, AmpBase):
                 amp_p.append(i.get_amp(data_p[i], data_c_i))
             else:
                 amp_p.append(i.get_amp(data_p[i]))
-        
-        rs = tf.reduce_sum(amp_p, axis=0)
+        rs = tf.reduce_prod(amp_p, axis=0)
         return rs
 
     def amp_shape(self):
@@ -838,7 +866,8 @@ class AmplitudeModel(object):
         return self.vm.trainable_variables
 
     def __call__(self, data, cached=False):
-        return self.decay_group.sum_amp(data)
+        ret = self.decay_group.sum_amp(data)
+        return ret
 
 
 def load_decfile_particle(fname):
