@@ -12,22 +12,22 @@ from tf_pwa.significance import significance
 from tf_pwa.config_loader import ConfigLoader
 
 
-def single_fit(config_dict):
+def single_fit(config_dict, data, phsp, bg):
     config = ConfigLoader(config_dict)
     
     print("\n########### initial parameters")
     pprint(config.get_params())
     print(config.full_decay)
-    fit_result = config.fit()
+    fit_result = config.fit(data, phsp, bg=bg)
     pprint(fit_result.params)
     # fit_result.save_as("final_params.json")
     return fit_result.min_nll, fit_result.ndf
 
 
-def multi_fit(config, num=5):
-    nll, ndf = single_fit(config)
-    for i in range(num):
-        nll_i, ndf_i = single_fit(config)
+def multi_fit(config, data, phsp, bg, num=5):
+    nll, ndf = single_fit(config, data, phsp, bg)
+    for i in range(num-1):
+        nll_i, ndf_i = single_fit(config, data, phsp, bg)
         assert ndf_i == ndf
         if nll > nll_i:
             nll = nll_i
@@ -51,10 +51,18 @@ def veto_resonance(config, res):
                     j.remove(res)
     return config
 
+
+def cached_data(config_dict):
+    config = ConfigLoader(config_dict)
+    data, phsp, bg = config.get_all_data()
+    return data, phsp, bg
+
+
 def cal_significance(config_name, res):
     with open(config_name) as f:
         config = yaml.safe_load(f)
-    nll, ndf = single_fit(config)
+    data, phsp, bg = cached_data(config)
+    nll, ndf = multi_fit(config, data, phsp, bg)
     nlls = {"base": nll}
     ndfs = {"base": ndf}
     print("nll: {}, ndf: {}".format(nll, ndf))
@@ -62,7 +70,7 @@ def cal_significance(config_name, res):
     for i in res:
         print("#veto {}".format(i))
         config_i = veto_resonance(config, i)
-        nll_i, ndf_i = single_fit(config_i)
+        nll_i, ndf_i = multi_fit(config_i, data, phsp, bg)
         nlls[i] = nll_i
         ndfs[i] = ndf_i
         print("nll: {}, ndf: {}".format(nll_i, ndf_i))
@@ -71,9 +79,15 @@ def cal_significance(config_name, res):
 
 
 def main():
-    res = ["X(3940)(1+)", "Psi(4660)", "Psi(4230)", "Psi(4390)", "Psi(4260)", "Psi(4360)", "Zc(3900)","Psi(4160)", "Psi(4415)","Psi(4040)"]
-    signi, nlls, ndfs = cal_significance("config.yml", res)
+    res = ["X(3940)(1+)", "Zc(3900)","Psi(4160)", "Psi(4415)","Psi(4040)"]
+    
+    import argparse
+    parser = argparse.ArgumentParser(description="calculate significance")
+    parser.add_argument("--config", default="config.yml", dest="config")
+    results = parser.parse_args()
+    signi, nlls, ndfs = cal_significance(results.config, res)
     print("base", nlls["base"], ndfs["base"])
+    print("particle\tsignificance\tnll\tndf")
     for i in signi:
         print(i, signi[i], nlls[i], ndfs[i])
 

@@ -371,7 +371,7 @@ class ConfigLoader(object):
         points = []
         nlls = []
         now = time.time()
-        maxiter = 1000
+        maxiter = 2000
         min_nll = 0.0
         ndf = 0
 
@@ -393,7 +393,7 @@ class ConfigLoader(object):
             f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
             s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method=method,
                          jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
-            xn = fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
+            xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
         elif method in ["L-BFGS-B"]:
@@ -405,7 +405,7 @@ class ConfigLoader(object):
                 nlls.append(float(fcn.cached_nll))
 
             s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
-                         options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
+                         options={"disp": 1, "maxcor": 50, "ftol": 1e-15, "maxiter": maxiter})
             xn = s.x
             ndf = s.x.shape[0]
             min_nll = s.fun
@@ -507,7 +507,7 @@ class ConfigLoader(object):
                 phsp_i = trans(data_index(phsp, idx))
                 data_x, data_y, data_err = hist_error(data_i, bins=bins, xrange=xrange)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
-                            zorder=-2, label="data", color="black")
+                            zorder=-2, label="data", color="black")  #, capsize=2)
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_weight = np.ones_like(bg_i)*w_bkg
@@ -803,7 +803,7 @@ class MultiConfig(object):
             f_g = self.vm.trans_fcn_grad(fcn.nll_grad)
             s = minimize(f_g, np.array(self.vm.get_all_val(True)), method=method,
                          jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
-            xn = self.vm.get_all_val()  # bd.get_y(s.x)
+            xn = s.x  # self.vm.get_all_val()  # bd.get_y(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
         elif method in ["L-BFGS-B"]:

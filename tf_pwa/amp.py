@@ -264,7 +264,7 @@ class AmpDecay(Decay, AmpBase):
             ret.append(len(i.spins))
         return tuple(ret)
 
-    @simple_cache_fun
+    # @simple_cache_fun
     def amp_index(self, base_map):
         ret = [base_map[self.core]]
         for i in self.outs:
@@ -289,7 +289,7 @@ class HelicityDecay(AmpDecay, AmpBase):
         self.d = 3.0
         ls = self.get_ls_list()
         self.g_ls = self.add_var("g_ls", is_complex=True, shape=(len(ls),))
-        self.g_ls.set_fix_idx(fix_idx=0)
+        self.g_ls.set_fix_idx(fix_idx=0, fix_vals=(1.0,0.0))
 
     def get_relative_momentum(self, data, from_data=False):
 
@@ -620,7 +620,7 @@ class DecayChain(BaseDecayChain, AmpBase):
             ret.append(len(i.spins))
         return tuple(ret)
 
-    @simple_cache_fun
+    # @simple_cache_fun
     def amp_index(self, base_map=None):
         if base_map is None:
             base_map = self.get_base_map()
@@ -675,8 +675,6 @@ class DecayGroup(BaseDecayGroup):
         chain_maps = self.get_chains_map(used_chains)
         base_map = self.get_base_map()
         ret = []
-        amp_idx = self.amp_index(base_map)
-        idx_ein = "".join(["..."] + amp_idx)
         for chains in chain_maps:
             for decay_chain in chains:
                 data_c = rename_data_dict(data_decay[decay_chain.standard_topology()], chains[decay_chain])
@@ -695,7 +693,7 @@ class DecayGroup(BaseDecayGroup):
         sum_A = tf.reduce_sum(amp2s, idx)
         return sum_A
 
-    @simple_cache_fun
+    # @simple_cache_fun
     def amp_index(self, gen=None, base_map=None):
         if base_map is None:
             base_map = self.get_base_map()

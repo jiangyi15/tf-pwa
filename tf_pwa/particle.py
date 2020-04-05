@@ -152,6 +152,7 @@ def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
     :param pa: `P` of particle `A`
     :param pb: `P` of particle `B`
     :param pc: `P` of particle `C`
+    :param p_break: allow p voilate
     :return: List of :math:`(l,s)` pairs.
     """
     if pa is None or pb is None or pc is None:
@@ -386,9 +387,10 @@ class DecayChain(object):
     """
     def __init__(self, chain):
         self.chain = chain
-        top, self.inner, outs = split_particle_type(chain)
+        top, inner, outs = split_particle_type(chain)
         assert len(top) == 1, "top particles must be only one particle"
         self.top = top.pop()
+        self.inner = sorted(list(inner))
         self.outs = sorted(list(outs))
 
     def __iter__(self):
@@ -507,9 +509,9 @@ class DecayChain(object):
     @functools.lru_cache()
     def topology_id(self, identical=True):
         """
-        ???
+        topology identy
 
-        :param identical:
+        :param identical: allow identical particle in finals
         :return:
         """
         a = self.sorted_table()
@@ -579,9 +581,10 @@ class DecayChain(object):
 
     def topology_same(self, other, identical=True):
         """
-
-        :param other:
-        :param identical:
+        whether self and other is the same topology 
+        
+        :param other: other decay chains
+        :param identical: using identical particles
         :return:
         """
         if not isinstance(other, DecayChain):
@@ -654,7 +657,7 @@ class DecayGroup(object):
         self.outs = sorted(list(first_chain.outs))
         for i in chains:
             assert i.top == first_chain.top, ""
-            assert i.outs == first_chain.outs, ""
+            assert i.outs == first_chain.outs, "{} and {} praticles is differents".format(i, first_chain)
         # resonances = set()
         resonances = []
         for i in chains:
