@@ -220,3 +220,26 @@ def std_periodic_var(p, mid=0., pi=math.pi):
     while p >= mid + pi:
         p -= twopi
     return p
+
+def print_keys(dic, key_path=''):
+    """print_keys of nested dictionary
+    """
+    if isinstance(dic, dict):
+        for i in dic:
+            print_keys(dic[i], key_path + "/" + str(i))
+    else:
+        print(key_path)
+
+def get_key_content(dic, key_path):
+    """get key content
+    """
+    keys = key_path.strip('/').split('/')
+    def get_content(dic, keys):
+        if len(keys) == 0:
+            return dic
+        for k in dic:
+            if str(k) == keys[0]:
+                ret = get_content(dic[k], keys[1:])
+                break
+        return ret
+    return get_content(dic, keys)
