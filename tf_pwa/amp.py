@@ -548,10 +548,10 @@ class DecayChain(BaseDecayChain, AmpBase):
         self.need_amp_particle = True
 
     def init_params(self, name=""):
-        self.total = self.add_var(name+"total", is_complex=True)
+        self.total = self.add_var(name+"total", is_complex=True, shape=[1])
 
     def get_amp_total(self):
-        return self.total()
+        return tf.stack(self.total())
 
     def get_amp(self, data_c, data_p, base_map=None):
         base_map = self.get_base_map(base_map)
@@ -566,8 +566,10 @@ class DecayChain(BaseDecayChain, AmpBase):
         if self.need_amp_particle:
             rs = self.get_amp_particle(data_p, data_c)
             total = self.get_amp_total()
+            #print(total)
             if rs is not None:
                 total = total * tf.cast(rs, total.dtype)
+            #print(total)*self.get_amp_total()
             amp_d.append(total)
             indices.append([])
 
@@ -611,7 +613,10 @@ class DecayChain(BaseDecayChain, AmpBase):
                 amp_p.append(i.get_amp(data_p[i], data_c_i))
             else:
                 amp_p.append(i.get_amp(data_p[i]))
-        rs = tf.reduce_prod(amp_p, axis=0)
+        rs = 1.0
+        for i in amp_p:
+            rs = rs * i 
+        #tf.reduce_prod(amp_p, axis=0)
         return rs
 
     def amp_shape(self):

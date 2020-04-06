@@ -303,7 +303,7 @@ class ConfigLoader(object):
                         amp.vm.set_bound({i+'_width':(lower,upper)})
             # fix which total factor
             if di == fix_total_idx:
-                d.total.fixed(complex(fix_total_val))
+                d.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val,0.0)) #.fixed(complex(fix_total_val))
             di += 1
             # share radium and helicity variables 
             #if "coef_head" in self.config['particle'][i]:
@@ -354,7 +354,7 @@ class ConfigLoader(object):
         return args_name, x0, args, bnds
 
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS"):
+    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=True):
         model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg = self.get_all_data()
@@ -374,6 +374,20 @@ class ConfigLoader(object):
         maxiter = 2000
         min_nll = 0.0
         ndf = 0
+        
+        
+        if check_grad:
+            print("checking gradients ...")
+            _, gs0 = fcn.nll_grad(x0)
+            gs = []
+            for i, name in enumerate(args_name):
+                x0[i] += 1e-5
+                nll0, _ = fcn.nll_grad(x0)
+                x0[i] -= 2e-5
+                nll1, _ = fcn.nll_grad(x0)
+                x0[i] += 1e-5
+                gs.append((nll0-nll1)/2e-5)
+                print(args_name[i], gs[i], gs0[i])
 
         if method in ["BFGS", "CG", "Nelder-Mead"]:
             def callback(x):
@@ -391,8 +405,21 @@ class ConfigLoader(object):
             #bd = Bounds(bnds)
             fcn.model.Amp.vm.set_bound(bounds_dict)
             f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
-            s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method=method,
+            x0 = np.array(fcn.model.Amp.vm.get_all_val(True))
+            s = minimize(f_g, x0, method=method,
                          jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+            while not s.success:
+                min_nll = s.fun
+                maxiter -= s.nit
+                s = minimize(f_g, s.x, method=method,
+                         jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+                if hasattr(s, "hess_inv"):
+                    edm = np.dot(np.dot(s.hess_inv, s.jac), s.jac)
+                else:
+                    break
+                if edm < 1e-5 or abs(s.fun - min_nll) < 1e-3:
+                    break
+            print(s)
             xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
@@ -459,7 +486,7 @@ class ConfigLoader(object):
         data["decay"].update(ret)
         return data
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, save_pdf=False, root_name="data_var"):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, save_pdf=False, root_name="data_var", bin_scale=2):
         if not os.path.exists(prefix):
             os.mkdir(prefix)
         data = self._flatten_data(data)
@@ -518,12 +545,12 @@ class ConfigLoader(object):
                                               range=xrange,
                                               histtype="step", label="total fit", bins=bins, color="black")
                 else:
-                    fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight, range=xrange,
-                                              label="total fit", bins=bins, color="black")
+                    fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight*bin_scale, range=xrange,
+                                              label="total fit", bins=bins*bin_scale, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 style = itertools.product(colors, linestyles)
                 for i, j in enumerate(weights):
-                    x, y = hist_line(phsp_i, weights=j * norm_frac, xrange=xrange, bins=bins)
+                    x, y = hist_line(phsp_i, weights=j * norm_frac*bin_scale, xrange=xrange, bins=bins*bin_scale)
                     label, curve_style = self.get_chain_property(i)
                     if curve_style is None:
                         color, ls = next(style)

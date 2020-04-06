@@ -1,6 +1,6 @@
 from opt_einsum import get_symbol, contract_path, contract
 from .tensorflow_wrapper import tf
-
+import warnings
 # from pysnooper import snoop
 
 
@@ -170,6 +170,7 @@ def tensor_einsum_reduce_sum(expr, *args, order):
     idxs = ein_s[0].split(",")
     for i in idxs:
         if len(set(i)) != len(i):  # inner product
+            warnings.warn("inner product")
             return tf.einsum(expr, *args)
 
     require_order = sorted(set(ein_s[0]) - {","}, key=lambda x: order[x])

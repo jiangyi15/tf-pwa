@@ -58,34 +58,49 @@ def cached_data(config_dict):
     return data, phsp, bg
 
 
-def cal_significance(config_name, res):
+def cal_significance(config_name, res, model="-"):
     with open(config_name) as f:
         config = yaml.safe_load(f)
     data, phsp, bg = cached_data(config)
-    nll, ndf = multi_fit(config, data, phsp, bg)
+    
+    def get_config(extra=[]):
+        base_conf = copy.deepcopy(config)
+        if model == "+":
+            veto_res = res.copy()
+            for i in extra:
+                if i in veto_res:
+                    veto_res.remove(i)
+        else:
+            veto_res = extra
+        for i in veto_res:
+            base_conf = veto_resonance(base_conf, i)
+        return base_conf
+    
+    base_config = get_config([])
+    nll, ndf = multi_fit(base_config, data, phsp, bg)
     nlls = {"base": nll}
     ndfs = {"base": ndf}
     print("nll: {}, ndf: {}".format(nll, ndf))
     signi = {}
     for i in res:
-        print("#veto {}".format(i))
-        config_i = veto_resonance(config, i)
+        print("\ncalculate significance for {}\n".format(i))
+        config_i = get_config([i])
         nll_i, ndf_i = multi_fit(config_i, data, phsp, bg)
         nlls[i] = nll_i
         ndfs[i] = ndf_i
-        print("nll: {}, ndf: {}".format(nll_i, ndf_i))
         signi[i] = significance(nll, nll_i, abs(ndf - ndf_i))
+        print("nll: {}, ndf: {}, significane: {}".format(nll_i, ndf_i, signi[i]))
     return signi, nlls, ndfs
 
 
 def main():
-    res = ["X(3940)(1+)", "Zc(3900)","Psi(4160)", "Psi(4415)","Psi(4040)"]
-    
+    res = ["X(3940)(1+)", "X(3940)(1-)", "X(3940)(0-)", "X(3940)(2+)", 
+           "X(3940)(2-)", "Psi(4660)", "Psi(4230)", "Psi(4390)", "Psi(4260)", "Psi(4360)"]
     import argparse
     parser = argparse.ArgumentParser(description="calculate significance")
     parser.add_argument("--config", default="config.yml", dest="config")
     results = parser.parse_args()
-    signi, nlls, ndfs = cal_significance(results.config, res)
+    signi, nlls, ndfs = cal_significance(results.config, res, model="+")
     print("base", nlls["base"], ndfs["base"])
     print("particle\tsignificance\tnll\tndf")
     for i in signi:

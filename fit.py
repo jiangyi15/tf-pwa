@@ -4,7 +4,7 @@ from pprint import pprint
 from tf_pwa.utils import error_print
 import tensorflow as tf
 
-def fit(config_file="config.yml", init_params="init_params.json"):
+def fit(config_file="config.yml", init_params="init_params.json", method="BFGS"):
 
     config = ConfigLoader(config_file)
     try:
@@ -18,7 +18,7 @@ def fit(config_file="config.yml", init_params="init_params.json"):
 
     data, phsp, bg = config.get_all_data()
     
-    fit_result = config.fit(data, phsp, bg=bg, batch=65000)
+    fit_result = config.fit(data, phsp, bg=bg, batch=65000, method=method)
     
     pprint(fit_result.params)
     fit_result.save_as("final_params.json")
@@ -72,6 +72,7 @@ def main():
     parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
     parser.add_argument("--config", default="config.yml", dest="config")
     parser.add_argument("--init_params", default="init_params.json", dest="init")
+    parser.add_argument("--method", default="BFGS", dest="method")
     results = parser.parse_args()
     config = results.config.split(",")
     if results.has_gpu:
@@ -82,7 +83,7 @@ def main():
         if len(config) > 1:
             fit_combine(config, results.init)
         else:
-            fit(results.config, results.init)
+            fit(results.config, results.init, results.method)
 
 
 if __name__ == "__main__":
