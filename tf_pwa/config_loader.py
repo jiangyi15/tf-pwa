@@ -354,7 +354,7 @@ class ConfigLoader(object):
         return args_name, x0, args, bnds
 
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=True):
+    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False):
         model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg = self.get_all_data()

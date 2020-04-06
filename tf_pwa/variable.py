@@ -82,7 +82,7 @@ class VarsManager(object):
         self.name = name
         self.dtype = dtype
         self.polar = True
-        self.variables = {}  # {name:tf.Variable,...}
+        self._variables = {}  # {name:tf.Variable,...}
         self.trainable_vars = []  # [name,...]
         self.complex_vars = {}  # {name:polar(bool),...}
         self.same_list = []  # [[name1,name2],...]
@@ -90,6 +90,20 @@ class VarsManager(object):
         self.bnd_dic = {}  # {name:(a,b),...}
 
         self.var_head = {}  # {head:[name1,name2],...} It's operated directly by Variable objects
+
+    @property
+    def variables(self):
+        """
+        Names of the real variables contained in this VarsManager instance.
+
+        :return: Dictionary of tf.Variable.
+        """
+        var_dic = {}
+        for v in self._variables:
+            if v[:10] == 'constrain_':
+                continue
+            var_dic[v] = self._variables[v]() if callable(self._variables[v]) else self._variables[v]
+        return var_dic
 
     def add_real_var(self, name, value=None, range_=None, trainable=True):
         """
@@ -101,21 +115,21 @@ class VarsManager(object):
         :param range_: Length-2 array. It's useless if **value** is given. Otherwise the initial value is set to be a uniform random number between **range_[0]** and **range_[0]**.
         :param trainable: Boolean. If it's **True**, the variable is trainable while fitting.
         """
-        if name in self.variables:  # not a new var
+        if name in self._variables:  # not a new var
             if name in self.trainable_vars:
                 self.trainable_vars.remove(name)
             # warnings.warn("Overwrite variable {}!".format(name))
 
         if value is None:
             if range_ is None:  # random [0,1]
-                self.variables[name] = tf.Variable(tf.random.uniform(shape=[], minval=0., maxval=1., dtype=self.dtype),
-                                                   trainable=trainable)
+                self._variables[name] = tf.Variable(tf.random.uniform(shape=[], minval=0., maxval=1., dtype=self.dtype),
+                                                    trainable=trainable)
             else:  # random [a,b]
-                self.variables[name] = tf.Variable(
+                self._variables[name] = tf.Variable(
                     tf.random.uniform(shape=[], minval=range_[0], maxval=range_[1], dtype=self.dtype),
                     trainable=trainable)
         else:  # constant value
-            self.variables[name] = tf.Variable(value, dtype=self.dtype, trainable=trainable)
+            self._variables[name] = tf.Variable(value, dtype=self.dtype, trainable=trainable)
 
         if trainable:
             self.trainable_vars.append(name)
@@ -158,12 +172,10 @@ class VarsManager(object):
             del self.complex_vars[name]
             name_r = name + 'r'
             name_i = name + 'i'
-            if self.variables[name_r].trainable:
-                if name_r in self.trainable_vars:
-                    self.trainable_vars.remove(name_r)
-            if self.variables[name_i].trainable:
-                if name_i in self.trainable_vars:
-                    self.trainable_vars.remove(name_i)
+            if name_r in self.trainable_vars:
+                self.trainable_vars.remove(name_r)
+            if name_i in self.trainable_vars:
+                self.trainable_vars.remove(name_i)
             for l in self.same_list:
                 if name_r in l:
                     l.remove(name_r)
@@ -173,17 +185,17 @@ class VarsManager(object):
                 del self.bnd_dic[name_r]
             if name_i in self.bnd_dic:
                 del self.bnd_dic[name_i]
-            del self.variables[name_r]
-            del self.variables[name_i]
+            del self._variables[name_r]
+            del self._variables[name_i]
         else:
-            if self.variables[name].trainable:
+            if name in self.trainable_vars:
                 self.trainable_vars.remove(name)
             for l in self.same_list:
                 if name in l:
                     l.remove(name)
             if name in self.bnd_dic:
                 del self.bnd_dic[name]
-            del self.variables[name]
+            del self._variables[name]
 
     def rename_var(self, name, new_name, cplx=False):
         """
@@ -200,14 +212,12 @@ class VarsManager(object):
             name_i = name + 'i'
             new_name_r = new_name + 'r'
             new_name_i = new_name + 'i'
-            if self.variables[name_r].trainable:
-                if name_r in self.trainable_vars:
-                    self.trainable_vars.remove(name_r)
-                    self.trainable_vars.append(new_name_r)
-            if self.variables[name_i].trainable:
-                if name_i in self.trainable_vars:
-                    self.trainable_vars.remove(name_i)
-                    self.trainable_vars.append(new_name_i)
+            if name_r in self.trainable_vars:
+                self.trainable_vars.remove(name_r)
+                self.trainable_vars.append(new_name_r)
+            if name_i in self.trainable_vars:
+                self.trainable_vars.remove(name_i)
+                self.trainable_vars.append(new_name_i)
             for l in self.same_list:
                 if name_r in l:
                     l.remove(name_r)
@@ -221,12 +231,12 @@ class VarsManager(object):
             if name_i in self.bnd_dic:
                 self.bnd_dic[new_name_i] = self.bnd_dic[name_i]
                 del self.bnd_dic[name_i]
-            self.variables[new_name_r] = self.variables[name_r]
-            del self.variables[name_r]
-            self.variables[new_name_i] = self.variables[name_i]
-            del self.variables[name_i]
+            self._variables[new_name_r] = self._variables[name_r]
+            del self._variables[name_r]
+            self._variables[new_name_i] = self._variables[name_i]
+            del self._variables[name_i]
         else:
-            if self.variables[name].trainable:
+            if name in self.trainable_vars:
                 self.trainable_vars.remove(name)
                 self.trainable_vars.append(new_name)
             for l in self.same_list:
@@ -236,8 +246,22 @@ class VarsManager(object):
             if name in self.bnd_dic:
                 self.bnd_dic[new_name] = self.bnd_dic[name]
                 del self.bnd_dic[name]
-            self.variables[new_name] = self.variables[name]
-            del self.variables[name]
+            self._variables[new_name] = self._variables[name]
+            del self._variables[name]
+
+    def add_constraint(self, v1, v2, v3):
+        self._variables['constrain_' + v1] = self._variables[v1]
+        self._variables['constrain_' + v2] = self._variables[v2]
+        self._variables['constrain_' + v3] = self._variables[v3]
+        self._variables[v1] = lambda: self._variables['constrain_' + v1] ** 2 / (
+                self._variables['constrain_' + v1] ** 2 + self._variables['constrain_' + v2] ** 2 + self._variables[
+            'constrain_' + v3] ** 2)
+        self._variables[v2] = lambda: self._variables['constrain_' + v2] ** 2 / (
+                self._variables['constrain_' + v1] ** 2 + self._variables['constrain_' + v2] ** 2 + self._variables[
+            'constrain_' + v3] ** 2)
+        self._variables[v3] = lambda: self._variables['constrain_' + v3] ** 2 / (
+                self._variables['constrain_' + v1] ** 2 + self._variables['constrain_' + v2] ** 2 + self._variables[
+            'constrain_' + v3] ** 2)
 
     def refresh_vars(self, name):
         """
@@ -274,10 +298,11 @@ class VarsManager(object):
         :param value: The fixed value. It's useless if **unfix=True**.
         :param unfix: Boolean. If it's **True**, the variable will become trainable rather than be fixed.
         """
+        assert not callable(self._variables[name])
         if value == None:
-            value = self.variables[name].value
+            value = self._variables[name].value
         var = tf.Variable(value, dtype=self.dtype, trainable=unfix)
-        self.variables[name] = var
+        self._variables[name] = var
         if unfix:
             if name in self.trainable_vars:
                 warnings.warn("{} has been freed already!".format(name))
@@ -335,16 +360,18 @@ class VarsManager(object):
                 name_list.append(i)  # 去掉重复元素
 
         def same_real(name_list):
-            var = self.variables[name_list[0]]
+            for name in name_list:
+                assert not callable(self._variables[name])
+            var = self._variables[name_list[0]]
             for name in name_list[1:]:
                 if name in self.trainable_vars:
                     self.trainable_vars.remove(name)
                 else:
-                    var = self.variables[name]  # if one is untrainable, the others will all be untrainable
+                    var = self._variables[name]  # if one is untrainable, the others will all be untrainable
                     if name_list[0] in self.trainable_vars:
                         self.trainable_vars.remove(name_list[0])
             for name in name_list:
-                self.variables[name] = var
+                self._variables[name] = var
 
         if cplx:
             same_real([name + 'r' for name in name_list])
@@ -359,9 +386,10 @@ class VarsManager(object):
         :param name: String
         :return: tf.Variable
         """
-        if name not in self.variables:
+        if name not in self._variables:
             raise Exception("{} not found".format(name))
-        return self.variables[name]  # tf.Variable
+        ret = self._variables[name]() if callable(self._variables[name]) else self._variables[name]
+        return ret  # tf.Variable
 
     def set(self, name, value):
         """
@@ -370,9 +398,10 @@ class VarsManager(object):
         :param name: String
         :param value: Real number
         """
-        if name not in self.variables:
+        if name not in self._variables:
             raise Exception("{} not found".format(name))
-        self.variables[name].assign(value)
+        if not callable(self._variables[name]):
+            self._variables[name].assign(value)
 
     def rp2xy(self, name):
         """
@@ -381,12 +410,16 @@ class VarsManager(object):
         """
         if self.complex_vars[name] != True:  # if not polar (already xy)
             return
-        r = self.variables[name + 'r']
-        p = self.variables[name + 'i']
+        r = self._variables[name + 'r']
+        p = self._variables[name + 'i']
+        if callable(r) or callable(p):
+            warnings.warn("Overwrite constrained variable {} in rp2xy".format(name))
+            r = self.variables[name + 'r']
+            p = self.variables[name + 'i']
         x = r * tf.cos(p)
         y = r * tf.sin(p)
-        self.variables[name + 'r'].assign(x)
-        self.variables[name + 'i'].assign(y)
+        self._variables[name + 'r'] = tf.Variable(x)
+        self._variables[name + 'i'] = tf.Variable(y)
         self.complex_vars[name] = False
         for l in self.same_list:
             if name in l:
@@ -401,12 +434,16 @@ class VarsManager(object):
         """
         if self.complex_vars[name] != False:  # if already polar
             return
-        x = self.variables[name + 'r']
-        y = self.variables[name + 'i']
+        x = self._variables[name + 'r']
+        y = self._variables[name + 'i']
+        if callable(x) or callable(y):
+            warnings.warn("Overwrite constrained variable {} in xy2rp".format(name))
+            x = self.variables[name + 'r']
+            y = self.variables[name + 'i']
         r = tf.sqrt(x * x + y * y)
         p = tf.atan2(y, x)
-        self.variables[name + 'r'].assign(r)
-        self.variables[name + 'i'].assign(p)
+        self._variables[name + 'r'] = tf.Variable(r)
+        self._variables[name + 'i'] = tf.Variable(p)
         self.complex_vars[name] = True
         for l in self.same_list:
             if name in l:
@@ -420,8 +457,9 @@ class VarsManager(object):
         List of tf.Variable. It is similar to **tf.keras.Model.trainable_variables**.
         """
         vars_list = []
+        variables = self.variables
         for name in self.trainable_vars:
-            vars_list.append(self.variables[name])
+            vars_list.append(variables[name])
         return vars_list
 
     def get_all_val(self, after_trans=False):  # if bound transf var
@@ -454,13 +492,14 @@ class VarsManager(object):
         :return: Dictionary
         """
         # self.std_polar_all()
+        variables = self.variables
         dic = {}
         if trainable_only:
             for i in self.trainable_vars:
-                dic[i] = self.variables[i].numpy()
+                dic[i] = variables[i].numpy()
         else:
-            for i in self.variables:
-                dic[i] = self.variables[i].numpy()
+            for i in variables:
+                dic[i] = variables[i].numpy()
         return dic
 
     def set_all(self, vals):  # use either dict or list
@@ -515,13 +554,14 @@ class VarsManager(object):
         :param name: String
         """
         self.xy2rp(name)
-        r = self.variables[name + 'r']
-        p = self.variables[name + 'i']
+        r = self._variables[name + 'r']
+        p = self._variables[name + 'i']
+        assert not callable(r) and not callable(p)
         if r < 0:
             r.assign(tf.abs(r))
             if type(self.complex_vars[name]) == list:
                 for name_r in self.complex_vars[name]:
-                    self.variables[name_r[:-1] + 'i'].assign_add(np.pi)
+                    self._variables[name_r[:-1] + 'i'].assign_add(np.pi)
             else:
                 p.assign_add(np.pi)
         self._std_polar_angle(p)
@@ -766,6 +806,7 @@ class Variable(object):
 
     def rename(self, new_name):
         """Rename this Variable."""
+
         def func(name):
             vn = self.name + name
             new_vn = new_name + name
@@ -901,40 +942,42 @@ class Variable(object):
 
     def __call__(self):
         var_list = np.ones(shape=self.shape).tolist()
+        vm_variables = self.vm.variables
+
         if self.shape:
             def func(name, **kwargs):
                 tmp = var_list
                 idx_str = name.split('_')[-len(self.shape):]
                 for i in idx_str[:-1]:
                     tmp = tmp[int(i)]
+                var_r = vm_variables[name + 'r']
+                var_i = vm_variables[name + 'i']
                 if self.cplx:
                     if (name in self.vm.complex_vars) and self.vm.complex_vars[name]:
-                        real = self.vm.variables[name + 'r'] * tf.cos(self.vm.variables[name + 'i'])
-                        imag = self.vm.variables[name + 'r'] * tf.sin(self.vm.variables[name + 'i'])
+                        real = var_r * tf.cos(var_i)
+                        imag = var_r * tf.sin(var_i)
                         tmp[int(idx_str[-1])] = tf.complex(real, imag)
-                        # print("&&&&&pg",name)
                     else:
-                        # print("$$$$$xg",name)
-                        tmp[int(idx_str[-1])] = tf.complex(self.vm.variables[name + 'r'], self.vm.variables[name + 'i'])
-                    # print(tmp[int(idx_str[-1])])
+                        tmp[int(idx_str[-1])] = tf.complex(var_r, var_i)
                 else:
-                    tmp[int(idx_str[-1])] = self.vm.variables[name]
+                    var = vm_variables[name]
+                    tmp[int(idx_str[-1])] = var
 
             _shape_func(func, self.shape, self.name)
         else:
             if self.cplx:
                 name = self.name
+                var_r = vm_variables[self.name + 'r']
+                var_i = vm_variables[self.name + 'i']
                 if (name in self.vm.complex_vars) and self.vm.complex_vars[name]:
-                    real = self.vm.variables[name + 'r'] * tf.cos(self.vm.variables[name + 'i'])
-                    imag = self.vm.variables[name + 'r'] * tf.sin(self.vm.variables[name + 'i'])
+                    real = var_r * tf.cos(var_i)
+                    imag = var_r * tf.sin(var_i)
                     var_list = tf.complex(real, imag)
-                    # print("&&&pt",name)
                 else:
-                    # print("$$$xt",name)
-                    var_list = tf.complex(self.vm.variables[self.name + 'r'], self.vm.variables[self.name + 'i'])
-                # print(var_list)
+                    var_list = tf.complex(var_r, var_i)
             else:
-                var_list = self.vm.variables[self.name]
+                var = vm_variables[self.name]
+                var_list = var
 
         # return tf.stack(var_list)
         return var_list
