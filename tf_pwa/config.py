@@ -5,6 +5,7 @@ from functools import partial
 class ConfigManager(dict):
     pass
 
+
 def create_config(default):
     _config = ConfigManager(default)
 
@@ -35,16 +36,20 @@ def create_config(default):
             def regist(f):
                 _config[name] = f
                 return f
+
             return regist
         _config[name] = var
         return var
+
     return set_, get_, regist_
+
 
 set_config, get_config, regist_config = create_config({
     "multi_gpus": False,
     "dtype": "float64",
     "complex_dtype": "complex128"
 })
+
 
 @contextmanager
 def temp_config(name, var):
@@ -53,4 +58,5 @@ def temp_config(name, var):
     yield var
     set_config(name, tmp)
 
-using_amplitude = lambda var: temp_config("amp",var)
+
+using_amplitude = lambda var: temp_config("amp", var)

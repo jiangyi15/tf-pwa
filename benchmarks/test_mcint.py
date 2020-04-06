@@ -1,6 +1,6 @@
 import pytest
 
-from tf_pwa.phasespace_tf import PhaseSpaceGenerator
+from tf_pwa.phasespace import PhaseSpaceGenerator
 from tf_pwa.cal_angle import *
 from tf_pwa.amp import *
 

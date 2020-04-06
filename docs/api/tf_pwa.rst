@@ -4,35 +4,26 @@ tf\_pwa package
 Submodules
 ----------
 
-tf\_pwa.data module
+tf\_pwa.version module
+----------------------
+
+.. automodule:: tf_pwa.version
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.gpu\_info module
 ------------------------
 
-.. automodule:: tf_pwa.data
+.. automodule:: tf_pwa.gpu_info
    :members:
    :undoc-members:
    :show-inheritance:
 
+tf\_pwa.config module
+------------------------
 
-tf\_pwa.angle_tf module
---------------------
-
-.. automodule:: tf_pwa.angle_tf
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-tf\_pwa.amp module
----------------------
-
-.. automodule:: tf_pwa.amp
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-tf\_pwa.breit\_wigner module
-----------------------------
-
-.. automodule:: tf_pwa.breit_wigner
+.. automodule:: tf_pwa.config
    :members:
    :undoc-members:
    :show-inheritance:
@@ -53,26 +44,34 @@ tf\_pwa.dfun module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.fitfractions module
----------------------------
+tf\_pwa.breit\_wigner module
+----------------------------
 
-.. automodule:: tf_pwa.fitfractions
+.. automodule:: tf_pwa.breit_wigner
    :members:
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.gpu\_info module
+tf\_pwa.data module
 ------------------------
 
-.. automodule:: tf_pwa.gpu_info
+.. automodule:: tf_pwa.data
    :members:
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.model_new module
+tf\_pwa.angle module
 --------------------
 
-.. automodule:: tf_pwa.model_new
+.. automodule:: tf_pwa.angle_tf
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.cal_angle module
+--------------------
+
+.. automodule:: tf_pwa.cal_angle
    :members:
    :undoc-members:
    :show-inheritance:
@@ -85,14 +84,6 @@ tf\_pwa.particle module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.utils module
---------------------
-
-.. automodule:: tf_pwa.utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 tf\_pwa.variable module
 -----------------------
 
@@ -101,10 +92,42 @@ tf\_pwa.variable module
    :undoc-members:
    :show-inheritance:
 
-tf\_pwa.version module
-----------------------
+tf\_pwa.amp module
+---------------------
 
-.. automodule:: tf_pwa.version
+.. automodule:: tf_pwa.amp
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.model module
+--------------------
+
+.. automodule:: tf_pwa.model_new
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.utils module
+--------------------
+
+.. automodule:: tf_pwa.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.applications module
+--------------------
+
+.. automodule:: tf_pwa.applications
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.phasespace module
+--------------------
+
+.. automodule:: tf_pwa.phasespace
    :members:
    :undoc-members:
    :show-inheritance:

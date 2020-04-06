@@ -11,6 +11,7 @@ Welcome to TFPWA's documentation!
    :caption: Contents:
    
    amplitude
+   decay_topology
    phasespace
    api/modules
 

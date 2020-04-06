@@ -1,14 +1,19 @@
-from .model import Cache_Model,param_list,FCN
 import tensorflow as tf
 import time
 import numpy as np
 import json
-from .angle import cal_ang_file,cal_ang_file4
-from .utils import load_config_file,flatten_np_data,pprint,error_print
 
 
 from iminuit import Minuit
 def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
+    """
+
+    :param fcn:
+    :param bounds_dict:
+    :param hesse:
+    :param minos:
+    :return:
+    """
     var_args = {}
     var_names = fcn.model.Amp.vm.trainable_vars
     for i in var_names:
@@ -37,6 +42,14 @@ def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
 
 from scipy.optimize import minimize,BFGS,basinhopping
 def fit_scipy(fcn, method="BFGS",bounds_dict={}, **kwargs):
+    """
+
+    :param fcn:
+    :param method:
+    :param bounds_dict:
+    :param kwargs:
+    :return:
+    """
     points = []
     nlls = []
     maxiter = 2000
@@ -46,7 +59,6 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, **kwargs):
             nlls.append(float(fcn.cached_nll))
             if len(nlls) > maxiter:
                 return False, {"nlls": nlls, "points": points}
-                raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
         fcn.model.Amp.set_bound(bounds_dict)
         f_g = fcn.model.Amp.trans_fcn_grad(fcn.nll_grad)

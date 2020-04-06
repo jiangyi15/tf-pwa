@@ -11,7 +11,7 @@ with open("README.md", "r") as fh:
 name = "TFPWA"
 
 setup(
-    name=name, # Replace with your own username
+    name=name,  # Replace with your own username
     version=version["__version__"],
     author="Example Author",
     author_email="author@example.com",
@@ -22,41 +22,42 @@ setup(
     packages=["tf_pwa"],
     package_data={
         # If any package contains files, include them:
-        "": ["*.yml","*.json"],
+        "": ["*.yml", "*.json"],
         # And include any *.json files found in the "tf_pwa" package, too:
         "tf_pwa": ["*.json"],
     },
     scripts=[
-      "fit_scipy.py",
-      "fit.py",
-      "plot_amp.py",
-      "fitfractions.py",
-      "fitfractions_toy.py",
-      "state_cache.sh",
-      "for_fit.sh",
+        "state_cache.sh",
     ],
-    data_files = [
+    data_files=[
         "Resonances.yml",
-        "Resonances.json",
+        "config.yml.sample",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
-        #"License :: OSI Approved :: MIT License",
+        # "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
     entry_points={
-      "console_scripts": [
-        "fit_scipy = fit_scipy:fit",
-        "tf_pwa = tf_pwa.__main__:main"
-      ],
+        "console_scripts": [
+            "fit_scipy = fit_scipy:fit",
+            "tf_pwa = tf_pwa.__main__:main"
+        ],
     },
+    install_requires=[
+        "matplotlib",
+        "sympy",
+        "tensorflow>=2.0",
+        "PyYAML",
+        "opt_einsum"
+    ],
     command_options={
-      'build_sphinx': {
-          'project': ('setup.py', name),
-          'version': ('setup.py', version["__version__"]),
-          'release': ('setup.py', version["__version__"]),
-          'source_dir': ('setup.py', 'docs')
+        'build_sphinx': {
+            'project': ('setup.py', name),
+            'version': ('setup.py', version["__version__"]),
+            'release': ('setup.py', version["__version__"]),
+            'source_dir': ('setup.py', 'docs')
         }
     }
 )

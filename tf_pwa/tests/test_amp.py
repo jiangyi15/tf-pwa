@@ -1,19 +1,9 @@
-import tempfile
-import os
-import contextlib
 import pytest
 
 from tf_pwa.amp import *
 from tf_pwa.cal_angle import cal_angle_from_momentum
-
-
-@contextlib.contextmanager
-def write_temp_file(s):
-    a = tempfile.mktemp()
-    with open(a, "w") as f:
-        f.write(s)
-    yield a
-    os.remove(a)
+from tf_pwa.model import Model, FCN
+from .common import write_temp_file
 
 
 @regist_particle("Gounaris–Sakurai")
@@ -54,10 +44,11 @@ def get_test_decay():
     HelicityDecay(bc, [b, c])
     HelicityDecay(a, [cd, b])
     HelicityDecay(cd, [c, d])
-    HelicityDecay(a, [bd, c])
+    get_decay(a, [bd, c], model="helicity_full-bf")
     get_decay(bd, [b, d])
     HelicityDecayNP(a, [R, c])
     HelicityDecayP(R, [b, d])
+    d3 = AngSam3Decay(a, [b, c, d])
     de = DecayGroup(a.chain_decay())
     print(de)
     return de, [b, c, d]
@@ -80,16 +71,30 @@ test_data = [
 def test_amp():
     decs, particle = get_test_decay()
     amp = AmplitudeModel(decs)
-    for p_data in test_data: 
+    for p_data in test_data:
         p = dict(zip(particle, p_data))
         data = cal_angle_from_momentum(p, decs)
         amp(data)
 
 
+def test_model_new():
+    decs, particle = get_test_decay()
+    amp = AmplitudeModel(decs)
+    data = []
+    for p_data in test_data:
+        p = dict(zip(particle, p_data))
+        data.append(cal_angle_from_momentum(p, decs))
+    model = Model(amp)
+    fcn = FCN(model, data[0], data[1])
+    nll1, grad1 = fcn.nll_grad({})
+    nll2 = fcn({})
+    nll3, grad3, he = fcn.nll_grad_hessian({})
+
+
 def test_particle():
     a = get_particle("ss", model="Gounaris–Sakurai")
     with pytest.raises(NotImplementedError):
-        a.get_amp({},{})
+        a.get_amp({}, {})
 
 
 def test_dec():
@@ -124,7 +129,3 @@ End
 
     inner = list(inner)
     assert inner[0].decay[0].params == ["one", "zero"]
-
-
-
-

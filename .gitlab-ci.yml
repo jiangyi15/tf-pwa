@@ -6,9 +6,17 @@ pytest:
   stage: build_test
   image: tensorflow/tensorflow:2.0.1-py3
   script:
-  - pip install numpy scipy sympy matplotlib iminuit
+  - pip install -r requirements.txt
   - pip install pysnooper pytest pytest-cov pytest-benchmark
-  - py.test --benchmark-disable --cov=tf_pwa
+  - py.test --benchmark-disable --cov=tf_pwa --doctest-modules tf_pwa
+
+pylint:
+  stage: build_test
+  image: tensorflow/tensorflow:2.0.1-py3
+  script:
+  - pip install -r requirements.txt
+  - pip install pylint pytest
+  - pylint tf_pwa --errors-only --exit-zero
 
 build_wheel:
   stage: build_test

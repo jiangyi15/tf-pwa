@@ -14,7 +14,7 @@ except Exception:
     tf_version = 2
 if tf_version < 2:
   tf.compat.v1.enable_eager_execution()
-  import tensorflow.compat.v2 as tf
+  import tensorflow.compat.v2 as tf  # pragma pylint: disable=import-error
 
 def set_gpu_mem_growth():
   gpus = tf.config.experimental.list_physical_devices('GPU')

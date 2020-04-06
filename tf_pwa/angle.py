@@ -1,311 +1,260 @@
-import numpy as np
-from .utils import AttrDict
+"""
+This module implements three classes **Vector3**, **LorentzVector**, **EulerAngle** .
+"""
+from .tensorflow_wrapper import tf
+
+_epsilon = 1.0e-14
 
 
-class Vector3(object): # 3-d vector
-  def __init__(self,x=0.0,y=0.0,z=0.0):
-    self.data = np.array([x,y,z])
-  @property
-  def X(self):
-    return self.data[0]
-  @property
-  def Y(self):
-    return self.data[1]
-  @property
-  def Z(self):
-    return self.data[2]
-  
-  def __neg__(self): # opposite
-    return Vector3(-self.X,-self.Y,-self.Z)
-  def Norm2(self): # norm square
-    return np.sum(self.data * self.data,0)
-  def Norm(self):
-    return np.sqrt(np.sum(self.data * self.data,0))
-  def __add__(self,o):
-    return Vector3(self.X+o.X,self.Y+o.Y,self.Z+o.Z)
-  def __sub__(self,o):
-    return Vector3(self.X-o.X,self.Y-o.Y,self.Z-o.Z)
-  def Dot(self,other):
-    ret = np.sum(self.data * other.data,0)
-    return ret
-  def Cross(self,o):
-    p = np.cross(self.data,o.data,axis=0)
-    return Vector3(p[0],p[1],p[2])
-  def Unit(self): # if zero, the unit is itself
-    p = np.where(self.Norm() == 0.,self.data,self.data/self.Norm())
-    return Vector3(p[0],p[1],p[2])
-  def ang_from(self,x,y): # angle from x-axis (x⊥y and both are unit vectors)
-    return np.arctan2(self.Dot(y),self.Dot(x))
-
-  def __repr__(self):
-    return str(self.data)+"\n"
+# import functools
+# from pysnooper import snoop
 
 
-class LorentzVector(object): # 4-d vector (x,y,z,-t)
-  def __init__(self,x=0.0,y=0.0,z=0.0,e=0.0):
-    self.p ,self.e = np.array([x, y, z]), np.array(e)
-  @property
-  def X(self):
-    return self.p[0]
-  @property
-  def Y(self):
-    return self.p[1]
-  @property
-  def Z(self):
-    return self.p[2]
-  @property
-  def T(self):
-    return self.e
-  
-  def BoostVector(self): # 3-d β=p/e 
-    return Vector3(self.p[0]/self.e,self.p[1]/self.e,self.p[2]/self.e)
-  
-  def Vect(self): # 3-d p
-    return Vector3(self.p[0],self.p[1],self.p[2])
-  
-  def Rest_Vector(self,other): # boost other to the RF of self
-    ret = LorentzVector(other.p[0],other.p[1],other.p[2],other.e)
-    p = -self.BoostVector()
-    ret.Boost(p.X,p.Y,p.Z)
-    return ret
-    
-  def __neg__(self):
-    return LorentzVector(-self.p[0],-self.p[1],-self.p[2],self.e)
-  
-  def Boost(self,px,py,pz,epslion=1e-14): # switch to frame β #洛伦兹变换公式
-    pb = Vector3(px,py,pz) #β
-    beta2 = pb.Norm2()
-    gamma = 1.0/np.sqrt(1-beta2) #γ
-    bp = pb.Dot(self.p) #β·p
-    gamma2 = np.where(beta2 > epslion,(gamma-1.0)/beta2,0.0) #Γ # epsilon精度范围内防止beta2为0
-    self.p = self.p + gamma2*bp*pb.data + gamma*pb.data*self.e
-    self.e = gamma*(self.e + bp)
-  
-  def M2(self):
-    return self.e * self.e - np.sum(self.p *self.p,0)
-  
-  def M(self): # invariant mass
-    return np.sqrt(self.e * self.e - np.sum(self.p *self.p,0))
-  
-  def __add__(self,o):
-    return LorentzVector(self.X+o.X,self.Y+o.Y,self.Z+o.Z,self.T+o.T)
-  def __sub__(self,o):
-    return LorentzVector(self.X-o.X,self.Y-o.Y,self.Z-o.Z,self.T-o.T)
-  def __repr__(self):
-    return str(self.p)+"\n"+str(self.e)+"\n"
+class Vector3(tf.Tensor):
+    """
+    This class provides methods for 3-d vectors (X,Y,Z)
+    """
+
+    def get_X(self):
+        return self[..., 0]
+
+    def get_Y(self):
+        return self[..., 1]
+
+    def get_Z(self):
+        return self[..., 2]
+
+    def norm2(self):
+        """
+        The norm square
+        """
+        return tf.reduce_sum(self * self, axis=-1)
+
+    def norm(self):
+        return tf.norm(self, axis=-1)
+
+    def dot(self, other):
+        """
+        Dot product with another Vector3 object
+        """
+        ret = tf.reduce_sum(self * other, axis=-1)
+        return ret
+
+    def cross(self, other):
+        """
+        Cross product with another Vector3 instance
+        """
+        p = tf.cross(self, other)
+        return p
+
+    def unit(self):
+        """
+        The unit vector of itself. It has interface to *tf.linalg.normalize()*.
+        """
+        p, _n = tf.linalg.normalize(self, axis=-1)
+        return p
+
+    def cross_unit(self, other):
+        """
+        The unit vector of the cross product with another Vector3 object. It has interface to *tf.linalg.normalize()*.
+        """
+        cro = tf.cross(self, other)
+        norm_cro = tf.expand_dims(tf.norm(cro, axis=-1), -1)
+        mask = norm_cro < _epsilon
+        bias_other = tf.ones_like(norm_cro) + other
+        cro = tf.where(mask, tf.cross(self, bias_other), cro)
+        p, _n = tf.linalg.normalize(cro, axis=-1)
+        return p
+
+    def angle_from(self, x, y):
+        """
+        The angle from x-axis providing the x,y axis to define a 3-d coordinate.
+
+        :param x: A Vector3 instance as x-axis
+        :param y: A Vector3 instance as y-axis. It should be perpendicular to the x-axis.
+        """
+        return tf.math.atan2(Vector3.dot(self, y), Vector3.dot(self, x))
+
+    def cos_theta(self, other):
+        """
+        cos theta of included angle
+        """
+        d = Vector3.dot(self, other)
+        return d / Vector3.norm(self) / Vector3.norm(other)
 
 
-class EularAngle(AttrDict):
-  def __init__(self,alpha=0.0,beta=0.0,gamma=0.0):
-    self.alpha = alpha
-    self.beta  = beta
-    self.gamma = gamma
+class LorentzVector(tf.Tensor):
+    """
+    This class provides methods for Lorentz vectors (T,X,Y,Z). or -T???
+    """
 
-  @staticmethod
-  def angle_zx_zx(z1,x1,z2,x2): #计算从Frame 1经过Frame r转到Frame 2的欧拉角 (输入都是Vector3类实例)
-    u_z1 = z1.Unit()
-    u_z2 = z2.Unit()
-    u_y1 = z1.Cross(x1).Unit()
-    u_x1 = u_y1.Cross(z1).Unit()
-    u_yr = z1.Cross(z2).Unit() #共同y轴(三步转动过程中间那个参考系)
-    u_xr = u_yr.Cross(z1).Unit() #共同y轴的x1轴
-    u_y2 = z2.Cross(x2).Unit()
-    u_x2 = u_y2.Cross(z2).Unit()
-    alpha = u_xr.ang_from(u_x1,u_y1)#np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
-    beta  = u_z2.ang_from(u_z1,u_xr)#np.arctan2(u_z2.Dot(u_xr),u_z2.Dot(u_z1))
-    gamma = -u_yr.ang_from(u_y2,-u_x2)#np.arctan2(u_xr.Dot(u_y2),u_xr.Dot(u_x2))
-    return EularAngle(alpha,beta,gamma)
-  
-  @staticmethod
-  def angle_zx_z_gety(z1,x1,z2):
-    u_z1 = z1.Unit()
-    u_z2 = z2.Unit()
-    u_y1 = z1.Cross(x1).Unit()
-    u_x1 = u_y1.Cross(z1).Unit()
-    u_yr = z1.Cross(z2).Unit()
-    u_xr = u_yr.Cross(z1).Unit()
-    alpha = u_xr.ang_from(u_x1,u_y1)#np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
-    beta  = u_z2.ang_from(u_z1,u_xr)#np.arctan2(u_z2.Dot(u_xr),u_z2.Dot(u_z1))
-    gamma = np.zeros_like(beta) #不用转第三步了，γ设为0
-    u_x2 = u_yr.Cross(u_z2).Unit() #γ为0对应的x2轴
-    return (EularAngle(alpha,beta,gamma),u_x2)
+    @staticmethod
+    def from_p4(p_0, p_1, p_2, p_3):
+        """
+        Given **p_0** is a real number, it will make it transform into the same shape with **p_1**.
+        """
+        zeros = tf.zeros_like(p_1)
+        return tf.stack([p_0 + zeros, p_1, p_2, p_3], axis=-1)
 
+    def get_X(self):
+        return self[..., 1]
 
-def cal_angle(p_B,p_C,p_D): #从末态粒子四动量计算amplitude PDF中用到的角度变量
-  p_A = p_B + p_C + p_D # conservation of 4-vector
-  p_B_A = p_A.Rest_Vector(p_B) # p_B in the RF of A
-  p_C_A = p_A.Rest_Vector(p_C)
-  p_D_A = p_A.Rest_Vector(p_D)
-  return cal_angle_rest(p_B_A,p_C_A,p_D_A)
+    def get_Y(self):
+        return self[..., 2]
 
-def cal_angle_rest(p4_B,p4_C,p4_D):
-  p4_BD = p4_B + p4_D
-  p4_BC = p4_B + p4_C
-  p4_CD = p4_C + p4_D
-  p4_B_BD = p4_BD.Rest_Vector(p4_B)
-  p4_B_BC = p4_BC.Rest_Vector(p4_B)
-  p4_D_CD = p4_CD.Rest_Vector(p4_D)
-  
-  zeros = np.zeros_like(p4_B.e) # length of data
-  ones = np.ones_like(p4_B.e)
-  u_z = Vector3(zeros,zeros,ones) # the current frame
-  u_x = Vector3(ones,zeros,zeros)
-  ang_BC,x_BC = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BC.Vect()) #z轴转到BC方向
-  ang_B_BC,x_B_BC = EularAngle.angle_zx_z_gety(p4_BC.Vect(),x_BC,p4_B_BC.Vect())
-  ang_BD,x_BD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BD.Vect())
-  ang_B_BD,x_B_BD = EularAngle.angle_zx_z_gety(p4_BD.Vect(),x_BD,p4_B_BD.Vect())
-  ang_CD,x_CD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_CD.Vect())
-  ang_D_CD,x_D_CD = EularAngle.angle_zx_z_gety(p4_CD.Vect(),x_CD,p4_D_CD.Vect())
-  
-  ang_BD_B = EularAngle.angle_zx_zx( p4_B_BD.Vect() , x_B_BD, p4_B.Vect(), x_CD)
-  ang_BC_B = EularAngle.angle_zx_zx( p4_B_BC.Vect() , x_B_BC, p4_B.Vect(), x_CD)
-  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect() , x_B_BD, p4_D.Vect(), x_BC)
-  ang_CD_D = EularAngle.angle_zx_zx( p4_D_CD.Vect() , x_D_CD, p4_D.Vect(), x_BC)
+    def get_Z(self):
+        return self[..., 3]
 
-  return {
-    "ang_BC":ang_BC,  
-    "ang_BD":ang_BD,
-    "ang_CD":ang_CD,
-    "ang_B_BC":ang_B_BC,
-    "ang_B_BD":ang_B_BD,
-    "ang_D_CD":ang_D_CD,
-    "ang_BD_B":ang_BD_B,
-    "ang_BD_D":ang_BD_D,
-    "ang_BC_B":ang_BC_B,
-    "ang_CD_D":ang_CD_D,
-  }
+    def get_T(self):
+        return self[..., 0]
 
+    def get_e(self):
+        """rm???"""
+        return self[..., 0]
 
-def cal_angle4(p_B,p_C,p_E,p_F): #四体A->BC(EF)
-  p_D = p_E + p_F
-  p_A = p_B + p_C + p_D
-  p_B_A = p_A.Rest_Vector(p_B)
-  p_C_A = p_A.Rest_Vector(p_C)
-  p_E_A = p_A.Rest_Vector(p_E)
-  p_F_A = p_A.Rest_Vector(p_F)
-  return  cal_angle_rest4(p_B_A,p_C_A,p_E_A,p_F_A)
+    def boost_vector(self):
+        """
+        :math:`\\beta=(X,Y,Z)/T`
+        :return: 3-d vector :math:`\\beta`
+        """
+        return self[..., 1:4] / self[..., 0:1]
 
-def cal_angle_rest4(p4_B,p4_C,p4_E,p4_F):
-  p4_D = p4_E + p4_F
-  p4_BD = p4_B + p4_D
-  p4_BC = p4_B + p4_C
-  p4_CD = p4_C + p4_D
-  p4_B_BD = p4_BD.Rest_Vector(p4_B)
-  p4_D_BD = p4_BD.Rest_Vector(p4_D)
-  p4_B_BC = p4_BC.Rest_Vector(p4_B)
-  p4_D_CD = p4_CD.Rest_Vector(p4_D)
-  
-  p4_E_CD = p4_CD.Rest_Vector(p4_E)
-  p4_E_CD = p4_D_CD.Rest_Vector(p4_E_CD)
-  p4_E_BD = p4_BD.Rest_Vector(p4_E)
-  p4_E_BD = p4_D_BD.Rest_Vector(p4_E_BD)
-  
-  p4_E_BC = p4_D.Rest_Vector(p4_E)
-  
-  zeros = np.zeros_like(p4_B.e)
-  ones = np.ones_like(p4_B.e)
-  u_z = Vector3(zeros,zeros,ones)
-  u_x = Vector3(ones,zeros,zeros)
-  ang_BC,x_BC = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BC.Vect())
-  ang_B_BC,x_B_BC = EularAngle.angle_zx_z_gety(p4_BC.Vect(),x_BC,p4_B_BC.Vect())
-  ang_BD,x_BD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_BD.Vect())
-  ang_B_BD,x_B_BD = EularAngle.angle_zx_z_gety(p4_BD.Vect(),x_BD,p4_B_BD.Vect())
-  ang_CD,x_CD = EularAngle.angle_zx_z_gety(u_z,u_x,p4_CD.Vect())
-  ang_D_CD,x_D_CD = EularAngle.angle_zx_z_gety(p4_CD.Vect(),x_CD,p4_D_CD.Vect())
-  
-  ang_BD_B = EularAngle.angle_zx_zx(p4_B_BD.Vect(),x_B_BD,p4_B.Vect(),x_CD)
-  ang_BC_B = EularAngle.angle_zx_zx(p4_B_BC.Vect(),x_B_BC,p4_B.Vect(),x_CD)
-  ang_BD_D = EularAngle.angle_zx_zx(-p4_B_BD.Vect(),x_B_BD,p4_D.Vect(),x_BC)
-  ang_CD_D = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_D_CD,p4_D.Vect(),x_BC)
+    def vect(self):
+        """
+        It returns the 3-d vector (X,Y,Z).
+        """
+        return self[..., 1:4]
 
-  ang_E_BC,x_E_BC = EularAngle.angle_zx_z_gety(p4_D.Vect(),x_BC,p4_E_BC.Vect())
-  ang_E_BD = EularAngle.angle_zx_zx(p4_D_BD.Vect(),x_BD,p4_E_BD.Vect(),x_E_BC)
-  ang_E_CD = EularAngle.angle_zx_zx(p4_D_CD.Vect(),x_CD,p4_E_CD.Vect(),x_E_BC)
-  
-  return {
-    "ang_BC":ang_BC,  
-    "ang_BD":ang_BD,
-    "ang_CD":ang_CD,
-    "ang_B_BC":ang_B_BC,
-    "ang_B_BD":ang_B_BD,
-    "ang_D_CD":ang_D_CD,
-    "ang_BD_B":ang_BD_B,
-    "ang_BD_D":ang_BD_D,
-    "ang_BC_B":ang_BC_B,
-    "ang_CD_D":ang_CD_D,
-    "ang_E_BC":ang_E_BC,
-    "ang_E_BD":ang_E_BD,
-    "ang_E_CD":ang_E_CD
-  }
- 
+    def rest_vector(self, other):
+        """
+        Boost another Lorentz vector into the rest frame of :math:`\\beta`.
+        """
+        p = -LorentzVector.boost_vector(self)
+        ret = LorentzVector.boost(other, p)
+        return ret
 
-def cal_ang_file(fname,dtype="float64"): #从末态粒子四动量信息文件计算拟合变量
-  data = np.loadtxt(fname,dtype=dtype) #三个末态粒子的四动量信息 [[dt,dx,dy,dz],[b...],[c...],[d...]]
-  pd = data[0::3] #从第0个开始每隔三个
-  lpd = LorentzVector(pd[:,1],pd[:,2],pd[:,3],pd[:,0])
-  pb = data[1::3]
-  lpb = LorentzVector(pb[:,1],pb[:,2],pb[:,3],pb[:,0])
-  pc = data[2::3]
-  lpc = LorentzVector(pc[:,1],pc[:,2],pc[:,3],pc[:,0])
-  
-  ret = cal_angle(lpb,lpc,lpd) #从末态粒子四动量计算amplitude PDF中用到的角度变量
-  
-  ret["m_BC"] = (lpb + lpc).M() # mass parameters
-  ret["m_CD"] = (lpd + lpc).M()
-  ret["m_BD"] = (lpb + lpd).M()
-  ret["m_A"] = (lpb + lpc + lpd).M()
-  ret["m_B"] = lpb.M()
-  ret["m_C"] = lpc.M()
-  ret["m_D"] = lpd.M()
-  return ret
+    def boost(self, p):
+        """
+        Boost this Lorentz vector into the frame indicated by the 3-d vector p.
+        """
+        # pb = Vector3(p)
+        pb = p
+        beta2 = Vector3.norm2(pb)
+        gamma = 1.0 / tf.sqrt(1 - beta2)
+        bp = Vector3.dot(pb, LorentzVector.vect(self))
+        gamma2 = tf.where(beta2 > _epsilon, (gamma - 1.0) / beta2, 0.0)
+        p_r = LorentzVector.vect(self)
+        p_r += tf.reshape(gamma2 * bp, (-1, 1)) * pb
+        p_r += tf.reshape(gamma * LorentzVector.get_T(self), (-1, 1)) * pb
+        T_r = tf.reshape(gamma * (LorentzVector.get_T(self) + bp), (-1, 1))
+        ret = tf.concat([T_r, p_r], -1)
+        return ret
+
+    def get_metric(self):
+        """
+        The metric is (1,-1,-1,-1) by default
+        """
+        return tf.cast(tf.constant([1.0, -1.0, -1.0, -1.0]), self.dtype)
+
+    def M2(self):
+        """
+        The invariant mass squared
+        """
+        s = self * self * LorentzVector.get_metric(self)
+        return tf.reduce_sum(s, axis=-1)
+
+    def M(self):
+        """
+        The invariant mass
+        """
+        return tf.sqrt(LorentzVector.M2(self))
+
+    def neg(self):
+        """
+        The negative vector
+        """
+        return tf.concat([self[..., 0:1], -self[..., 1:4]], axis=-1)
 
 
-def cal_ang_file4(fname,dst_fname,dtype="float64"):
-  data = np.loadtxt(fname,dtype=dtype)
-  data2 = np.loadtxt(dst_fname,dtype=dtype)
-  pb = data[1::3]
-  lpb = LorentzVector(pb[:,1],pb[:,2],pb[:,3],pb[:,0])
-  pc = data[2::3]
-  lpc = LorentzVector(pc[:,1],pc[:,2],pc[:,3],pc[:,0])
-  pd = data[0::3]
-  lpd = LorentzVector(pd[:,1],pd[:,2],pd[:,3],pd[:,0])
-  pe = data2[0::2]
-  lpe = LorentzVector(pe[:,1],pe[:,2],pe[:,3],pe[:,0])
-  pf = data2[1::2]
-  lpf = LorentzVector(pf[:,1],pf[:,2],pf[:,3],pf[:,0])
-  ret = cal_angle4(lpb,lpc,lpe,lpf)
-  
-  ret["m_BC"] = (lpb + lpc).M()
-  ret["m_CD"] = (lpd + lpc).M()
-  ret["m_BD"] = (lpb + lpd).M()
-  
-  ret["m_A"] = (lpb + lpc + lpd).M()
-  ret["m_B"] = lpb.M()
-  ret["m_C"] = lpc.M()
-  ret["m_D"] = lpd.M()
-  return ret
+class EulerAngle(dict):
+    """
+    This class provides methods for Eular angle :math:`(\\alpha,\\beta,\\gamma)`
+    """
 
+    def __init__(self, alpha=0.0, beta=0.0, gamma=0.0):
+        super(EulerAngle, self).__init__()
+        self["alpha"] = alpha
+        self["beta"] = beta
+        self["gamma"] = gamma
 
-if __name__ == "__main__":
-  f = ["data/data4600_new.dat","data/bg4600_new.dat","data/PHSP4600_new.dat"]
-  t = ["data","bg","PHSP"]
-  data = {}
-  for i in range(3):
-    data[t[i]] = cal_ang_file(f[i])
+    @staticmethod
+    def angle_zx_zx(z1, x1, z2, x2):
+        """
+        The Euler angle from coordinate 1 to coordinate 2 (right-hand coordinates).
 
-  import json
-  class MyEncoder(json.JSONEncoder):
-    def default(self, obj):
-      if isinstance(obj, EularAngle): #把三个欧拉角展开
-        return {
-          "alpha":obj.alpha.tolist(),
-          "beta":obj.beta.tolist(),
-          "gamma":obj.gamma.tolist()
-        }
-      return json.JSONEncoder.default(self, obj)
-    
-  def save_data(dat,name):
-    with open("data/"+name+"_ang_struct.json","w") as f:
-      json.dump(dat,f,cls=MyEncoder,indent=2)
-  for i in t:
-    save_data(data[i],i) #产生"data","bg","PHSP"三个json文件
+        :param z1: Vector3 z-axis of the initial coordinate
+        :param x1: Vector3 x-axis of the initial coordinate
+        :param z2: Vector3 z-axis of the final coordinate
+        :param x2: Vector3 x-axis of the final coordinate
+        :return: Euler Angle object
+        """
+        u_z1 = Vector3.unit(z1)
+        u_z2 = Vector3.unit(z2)
+        u_y1 = Vector3.cross_unit(z1, x1)
+        u_x1 = Vector3.cross_unit(u_y1, z1)
+        u_yr = Vector3.cross_unit(z1, z2)
+        u_xr = Vector3.cross_unit(u_yr, z1)
+        u_y2 = Vector3.cross_unit(z2, x2)
+        u_x2 = Vector3.cross_unit(u_y2, z2)
+        # np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
+        alpha = Vector3.angle_from(u_xr, u_x1, u_y1)
+        # np.arctan2(u_z2.Dot(u_xr),u_z2.Dot(u_z1))
+        beta = Vector3.angle_from(u_z2, u_z1, u_xr)
+        # np.arctan2(u_xr.Dot(u_y2),u_xr.Dot(u_x2))
+        gamma = -Vector3.angle_from(u_yr, u_y2, -u_x2)
+        return EulerAngle(alpha, beta, gamma)
+
+    @staticmethod
+    # @pysnooper.snoop()
+    def angle_zx_z_getx(z1, x1, z2):
+        """
+        The Eular angle from coordinate 1 to coordinate 2. Only the z-axis is provided for coordinate 2, so
+        :math:`\\gamma` is set to be 0.
+
+        :param z1: Vector3 z-axis of the initial coordinate
+        :param x1: Vector3 x-axis of the initial coordinate
+        :param z2: Vector3 z-axis of the final coordinate
+        :return eular_angle: EularAngle object with :math:`\\gamma=0`.
+        :return x2: Vector3 object, which is the x-axis of the final coordinate when :math:`\\gamma=0`.
+        """
+        u_z1 = Vector3.unit(z1)
+        u_z2 = Vector3.unit(z2)
+        u_y1 = Vector3.cross_unit(z1, x1)
+        u_x1 = Vector3.cross_unit(u_y1, z1)
+        u_yr = Vector3.cross_unit(z1, z2)
+        u_xr = Vector3.cross_unit(u_yr, z1)
+        # np.arctan2(u_xr.Dot(u_y1),u_xr.Dot(u_x1))
+        alpha = Vector3.angle_from(u_xr, u_x1, u_y1)
+        # np.arctan2(u_z2.Dot(u_xr),u_z2.Dot(u_z1))
+        beta = Vector3.angle_from(u_z2, u_z1, u_xr)
+        gamma = tf.zeros_like(beta)
+        u_x2 = Vector3.cross_unit(u_yr, u_z2)
+        return (EulerAngle(alpha, beta, gamma), u_x2)
+
+    @staticmethod
+    def angle_zx_zzz_getx(z, x, zi):
+        """
+        The Eular angle from coordinate 1 to coordinate 2. 
+        Z-axis of coordinate 2 is the normal vector of a plane.
+
+        :param z1: Vector3 z-axis of the initial coordinate
+        :param x1: Vector3 x-axis of the initial coordinate
+        :param z: list of Vector3 of the plane point.
+        :return eular_angle: EularAngle object.
+        :return x2: list of Vector3 object, which is the x-axis of the final coordinate in zi.
+        """
+        z1, z2, z3 = zi
+        zz = Vector3.cross_unit(z1 - z2, z2 - z3)
+        xi = [Vector3.cross_unit(i, zz) for i in zi]
+        ang = EulerAngle.angle_zx_zx(z, x, zz, xi[2])
+        return ang, xi

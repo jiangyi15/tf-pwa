@@ -1,57 +1,10 @@
 """
 module for describing data process.
 
-All data structure is describing as nested combination of `dict` or `list` for `ndarray`.
-Data process is a translation from data structure to another data structure or typical `ndarray`.
-Data cache can be implemented based on the dynamic features of `list` and `dict`.
+All data structure is describing as nested combination of ``dict`` or ``list`` for ``ndarray``.
+Data process is a translation from data structure to another data structure or typical ``ndarray``.
+Data cache can be implemented based on the dynamic features of ``list`` and ``dict``.
 
-The full data structure is
-
-```
-{
-  "particle":{
-    "A":{"p":...,"m":...}
-    ...
-  },
-  
-  "decay":[
-    {
-      "A->R1+B": {
-        "R1": {
-          "ang":  {
-            "alpha":[...],
-            "beta": [...],
-            "gamma": [...]
-          },
-          "z": [[x1,y1,z1],...],
-          "x": [[x2,y2,z2],...]
-        },
-        "B" : {...}
-      },
-      
-      "R->C+D": {
-        "C": {
-          ...,
-          "aligned_angle":{
-            "alpha":[...],
-            "beta":[...],
-            "gamme":[...]
-          }
-        },
-        
-        "D": {...}
-      },
-    },
-    {
-      "A->R2+C": {...},
-      "R2->B+D": {...}
-    },
-    ...
-  ],
-  
-  "weight": [...]
-}
-```
 """
 
 from pprint import pprint
@@ -59,8 +12,6 @@ import numpy as np
 # import tensorflow as tf
 # from pysnooper import  snoop
 
-from .particle import BaseParticle, BaseDecay, DecayChain, DecayGroup
-from .angle_tf import LorentzVector, EularAngle
 from .tensorflow_wrapper import tf
 from .config import get_config
 
@@ -72,7 +23,15 @@ except ImportError:  # python version < 3.7
 
 def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_list=False):
     """
-    load *.dat file(s) for particles momentum.
+    Load *.dat file(s) of 4-momenta of the final particles.
+
+    :param fnames: String or list of strings. File names.
+    :param particles: List of Particle. Final particles.
+    :param dtype: Data type.
+    :param split: sizes of each splited dat files
+    :param order: transpose order
+
+    :return: Dictionary of data indexed by Particle.
     """
     n = len(particles)
     if dtype is None:
@@ -89,6 +48,7 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     sizes = []
     for fname in fnames:
         data = np.loadtxt(fname, dtype=dtype)
+        data = np.reshape(data, (-1, 4))
         sizes.append(data.shape[0])
         datas.append(data)
 
@@ -115,20 +75,28 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     return ret
 
 
-def save_data(*args, **kwargs):
-    """save structured data to files."""
-    return np.save(*args, **kwargs)
+def save_data(file_name, obj, **kwargs):
+    """Save structured data to files. The arguments will be passed to ``numpy.save()``."""
+    return np.save(file_name, obj, **kwargs)
 
 
-def load_data(*args, **kwargs):
-    """load data file from save_data."""
+def save_dataz(file_name, obj, **kwargs):
+    """Save compressed structured data to files. The arguments will be passed to ``numpy.save()``."""
+    return np.savez(file_name, obj, **kwargs)
+
+
+def load_data(file_name, **kwargs):
+    """Load data file from save_data. The arguments will be passed to ``numpy.load()``."""
     if "allow_pickle" not in kwargs:
         kwargs["allow_pickle"] = True
-    data = np.load(*args, **kwargs)
+    data = np.load(file_name, **kwargs)
     try:
-        return data.item()
-    except ValueError:
-        return data
+        return data["arr_0"].item()
+    except IndexError:
+        try:
+            return data.item()
+        except ValueError:
+            return data
 
 
 def _data_split(dat, batch_size, axis=0):
@@ -144,7 +112,7 @@ def _data_split(dat, batch_size, axis=0):
 
 
 def data_generator(data, fun=_data_split, args=(), kwargs=None):
-    """data generator: call fun for each data as a generator"""
+    """Data generator: call ``fun`` to each ``data`` as a generator. The extra arguments will be passed to ``fun``."""
     kwargs = kwargs if kwargs is not None else {}
 
     def _gen(dat):
@@ -175,7 +143,22 @@ def data_generator(data, fun=_data_split, args=(), kwargs=None):
 
 
 def data_split(data, batch_size, axis=0):
-    """split data for batch_size each in axis"""
+    """
+    Split ``data`` for ``batch_size`` each in ``axis``.
+
+    :param data: structured data
+    :param batch_size: Integer, data size for each split data
+    :param axis: Integer, axis for split, [option]
+    :return: a generator for split data
+
+    >>> data = {"a": [np.array([1.0, 2.0]), np.array([3.0, 4.0])], "b": {"c": np.array([5.0, 6.0])}}
+    >>> for i, data_i in enumerate(data_split(data, 1)):
+    ...     print(i, data_to_numpy(data_i))
+    ...
+    0 {'a': [array([1.]), array([3.])], 'b': {'c': array([5.])}}
+    1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}}
+
+    """
     return data_generator(data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis})
 
 
@@ -183,7 +166,7 @@ split_generator = data_split
 
 
 def data_map(data, fun, args=(), kwargs=None):
-    """map data: call fun(data, *args, **kwargs) for each data. return the same structure."""
+    """Map data: call fun(data, *args, **kwargs) for each data. It returns the same structure."""
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(data, dict):
         return {k: data_map(v, fun, args, kwargs) for k, v in data.items()}
@@ -195,13 +178,38 @@ def data_map(data, fun, args=(), kwargs=None):
 
 
 def data_mask(data, select):
-    """merge data with the same structure."""
+    """
+    This function using boolean mask to select data.
+
+    :param data: data to select
+    :param select: 1-d boolean array for selection
+    :return: data after selection
+    """
     ret = data_map(data, tf.boolean_mask, args=(select,))
     return ret
 
 
+def data_cut(data, expr, var_map=None):
+    """data cut as boolean expr
+
+    :param data: data need to cut
+    :param expr: cut expression
+    :param var_map: variable map between parameters in expr and data, [option]
+
+    :return: data after being cut,
+    """
+    var_map = var_map if isinstance(var_map, dict) else {}
+    import sympy as sym
+    expr_s = sym.sympify(expr)
+    params = tuple(expr_s.free_symbols)
+    args = [data_index(data, var_map.get(i.name, i.name)) for i in params]
+    expr_f = sym.lambdify(params, expr, "tensorflow")
+    mask = expr_f(*args)
+    return data_mask(data, mask)
+
+
 def data_merge(*data, axis=0):
-    """merge data with the same structure."""
+    """This function merges data with the same structure."""
     if isinstance(data[0], dict):
         assert all([isinstance(i, dict) for i in data]), "not all type same"
         all_idx = [set(list(i)) for i in data]
@@ -218,7 +226,15 @@ def data_merge(*data, axis=0):
 
 
 def data_shape(data, axis=0, all_list=False):
-    """get data size."""
+    """
+    Get data size.
+
+    :param data: Data array
+    :param axis: Integer. ???
+    :param all_list: Boolean. ???
+    :return:
+    """
+
     def flatten(dat):
         ret = []
 
@@ -235,7 +251,8 @@ def data_shape(data, axis=0, all_list=False):
 
 
 def data_to_numpy(dat):
-    """convert Tensor data to numpy ndarray"""
+    """Convert Tensor data to ``numpy.ndarray``."""
+
     def to_numpy(data):
         if hasattr(data, "numpy"):
             return data.numpy()
@@ -246,7 +263,8 @@ def data_to_numpy(dat):
 
 
 def data_to_tensor(dat):
-    """convert data to tensorflow Tensor"""
+    """convert data to ``tensorflow.Tensor``."""
+
     def to_tensor(data):
         return tf.convert_to_tensor(data)
 
@@ -255,7 +273,8 @@ def data_to_tensor(dat):
 
 
 def flatten_dict_data(data, fun="{}/{}".format):
-    """flatten data as dict with structure named as fun"""
+    """Flatten data as dict with structure named as ``fun``."""
+
     def dict_gen(dat):
         return dat.items()
 
@@ -275,3 +294,25 @@ def flatten_dict_data(data, fun="{}/{}".format):
                 ret[i] = tmp
         return ret
     return data
+
+
+def data_index(data, key):
+    """Indexing data for key or a list of keys."""
+
+    def idx(data, i):
+        if isinstance(i, int):
+            return data[i]
+        assert isinstance(data, dict)
+        if i in data:
+            return data[i]
+        for k, v in data.items():
+            if str(k) == str(i):
+                return v
+        raise ValueError("{} is not found".format(i))
+
+    if isinstance(key, (list, tuple)):
+        keys = list(key)
+        if len(keys) > 1:
+            return data_index(idx(data, keys[0]), keys[1:])
+        return idx(data, keys[0])
+    return idx(data, key)
