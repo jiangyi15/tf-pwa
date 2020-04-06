@@ -83,6 +83,11 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
     return nll, g, h
 
 
+def clip_log(x, _epsilon=1e-6):
+    """clip log to allowed large value"""
+    return tf.where(x < _epsilon, tf.math.log(x), tf.zeros_like(x))
+
+
 class Model(object):
     """
     This class implements methods to calculate NLL as well as its derivatives for an amplitude model. It may include
@@ -164,7 +169,7 @@ class Model(object):
         ln_data, g_ln_data = sum_gradient(self.Amp, split_generator(data, batch),
                                           self.Amp.trainable_variables, weight=split_generator(
                                               weight, batch),
-                                          trans=tf.math.log)
+                                          trans=clip_log)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
                                         self.Amp.trainable_variables, weight=1/n_mc)
 

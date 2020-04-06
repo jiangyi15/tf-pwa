@@ -354,7 +354,7 @@ class ConfigLoader(object):
         return args_name, x0, args, bnds
 
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=True):
+    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False):
         model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg = self.get_all_data()
@@ -378,13 +378,14 @@ class ConfigLoader(object):
         
         if check_grad:
             print("checking gradients ...")
-            _, gs0 = fcn.nll_grad(x0)
+            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            _, gs0 = f_g(x0)
             gs = []
             for i, name in enumerate(args_name):
                 x0[i] += 1e-5
-                nll0, _ = fcn.nll_grad(x0)
+                nll0, _ = f_g(x0)
                 x0[i] -= 2e-5
-                nll1, _ = fcn.nll_grad(x0)
+                nll1, _ = f_g(x0)
                 x0[i] += 1e-5
                 gs.append((nll0-nll1)/2e-5)
                 print(args_name[i], gs[i], gs0[i])
@@ -420,6 +421,7 @@ class ConfigLoader(object):
                 if edm < 1e-5 or abs(s.fun - min_nll) < 1e-3:
                     break
             print(s)
+            
             xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
@@ -438,6 +440,19 @@ class ConfigLoader(object):
             min_nll = s.fun
         else:
             raise Exception("unknown method")
+        if check_grad:
+            print("checking gradients ...")
+            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            _, gs0 = f_g(xn)
+            gs = []
+            for i, name in enumerate(args_name):
+                xn[i] += 1e-5
+                nll0, _ = f_g(xn)
+                xn[i] -= 2e-5
+                nll1, _ = f_g(xn)
+                xn[i] += 1e-5
+                gs.append((nll0-nll1)/2e-5)
+                print(args_name[i], gs[i], gs0[i])
         fcn.model.Amp.vm.set_all(xn)
         params = fcn.model.Amp.vm.get_all_dic()
         return FitResult(params, fcn, min_nll, ndf = ndf)
