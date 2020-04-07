@@ -85,7 +85,8 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
 
 def clip_log(x, _epsilon=1e-6):
     """clip log to allowed large value"""
-    return tf.where(x < _epsilon, tf.math.log(x), tf.zeros_like(x))
+    x_cut = tf.where(x > _epsilon, x, tf.ones_like(x)*_epsilon)
+    return tf.math.log(x_cut)
 
 
 class Model(object):
@@ -199,7 +200,7 @@ class Model(object):
         """
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data = sum_gradient(self.Amp, data,
-                                          self.Amp.trainable_variables, weight=weight, trans=tf.math.log)
+                                          self.Amp.trainable_variables, weight=weight, trans=clip_log)
         int_mc, g_int_mc = sum_gradient(self.Amp, mcdata,
                                         self.Amp.trainable_variables, weight=mc_weight)
 
