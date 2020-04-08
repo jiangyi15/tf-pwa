@@ -158,9 +158,10 @@ def get_relative_p(m_0, m_1, m_2):
 @regist_particle("default")
 @regist_particle("BWR")
 class Particle(BaseParticle, AmpBase):
-    def __init__(self, *args, running_width=True, **kwargs):
+    def __init__(self, *args, running_width=True, bw_l=None, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
         self.running_width = running_width
+        self.bw_l = bw_l
 
     def init_params(self):
         self.d = 3.0
@@ -176,7 +177,6 @@ class Particle(BaseParticle, AmpBase):
     def get_amp(self, data, data_c):
         mass = self.get_mass()
         width = self.get_width()
-        decay = self.decay[0]
         if width is None:
             return tf.ones_like(data["m"])
         if not self.running_width:
@@ -184,8 +184,11 @@ class Particle(BaseParticle, AmpBase):
         else:
             q = data_c["|q|"]
             q0 = data_c["|q0|"]
+            if self.bw_l is None:
+                decay = self.decay[0]
+                self.bw_l = min(decay.get_l_list())
             ret = BWR(data["m"], mass, width, q, q0,
-                    min(decay.get_l_list()), self.d)
+                    self.bw_l, self.d)
         return ret
 
     def amp_shape(self):

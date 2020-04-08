@@ -34,7 +34,9 @@ class ConfigLoader(object):
             "P": "P",
             "spins": "spins",
             "bw": "model",
-            "model": "model"
+            "model": "model",
+            "bw_l": "bw_l",
+            "running_width": "running_width"
         }
         self.decay_key_map = {
             "model": "model"
