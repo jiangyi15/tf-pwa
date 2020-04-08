@@ -19,6 +19,7 @@ import itertools
 import os
 import sympy as sy
 from tf_pwa.root_io import save_dict_to_root, has_uproot
+import warnings
 
 
 class ConfigLoader(object):
@@ -513,7 +514,7 @@ class ConfigLoader(object):
         data["decay"].update(ret)
         return data
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, save_pdf=False, root_name="data_var", bin_scale=2):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, plot_pull=False, save_pdf=False, root_name="data_var", bin_scale=4):
         if not os.path.exists(prefix):
             os.mkdir(prefix)
         data = self._flatten_data(data)
@@ -553,7 +554,7 @@ class ConfigLoader(object):
                 bins = conf.get("bins", None)
                 units = conf.get("units", "")
                 fig = plt.figure()
-                if plot_delta:
+                if plot_delta or plot_pull:
                     ax = plt.subplot2grid((4, 1), (0, 0),  rowspan=3)
                 else:
                     ax = fig.add_subplot(1, 1, 1)
@@ -592,14 +593,24 @@ class ConfigLoader(object):
                 ax.set_title(display)
                 ax.set_xlabel(display + units)
                 ax.set_ylabel("Events/{:.3f}{}".format((max(data_x) - min(data_x))/bins, units))
-                if plot_delta:
+                if plot_delta or plot_pull:
                     plt.setp(ax.get_xticklabels(), visible=False)
                     ax2 = plt.subplot2grid((4, 1), (3, 0),  rowspan=1)
-                    ax2.plot(data_x, (fit_y - data_y), color="r")
+                    y_err = fit_y - data_y
+                    if plot_pull:
+                        _epsilon = 1e-10
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            y_err = y_err/data_err
+                        y_err[data_err<_epsilon] = 0.0
+                    ax2.plot(data_x, y_err, color="r")
                     ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r")
-                    ax2.set_ylim((-max(abs((fit_y - data_y))),
-                                  max(abs((fit_y - data_y)))))
-                    ax2.set_ylabel("$\\Delta$Events")
+                    if plot_pull:
+                        ax2.set_ylabel("pull")
+                        ax2.set_ylim((-5, 5))
+                    else:    
+                        ax2.set_ylabel("$\\Delta$Events")
+                        ax2.set_ylim((-max(abs(y_err)),
+                                  max(abs(y_err))))
                     ax.set_xlabel("")
                     ax2.set_xlabel(display + units)
                     if xrange is not None:

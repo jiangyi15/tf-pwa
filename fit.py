@@ -22,7 +22,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     
     pprint(fit_result.params)
     fit_result.save_as("final_params.json")
-    config.plot_partial_wave(fit_result, data, phsp, bg=bg, plot_delta=True)
+    config.plot_partial_wave(fit_result, data, phsp, bg=bg, plot_pull=True)
     fit_error = config.get_params_error(fit_result, data, phsp, bg=bg, batch=13000)
     fit_result.set_error(fit_error)
     pprint(fit_error)
