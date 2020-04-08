@@ -76,3 +76,5 @@ def numpy_cross(a, b):
 regist_function("sum", tf.reduce_sum, base_mod=tf)
 regist_function("arctan2", tf.math.atan2, base_mod=tf)
 
+
+# from .jax_wrapper import tf

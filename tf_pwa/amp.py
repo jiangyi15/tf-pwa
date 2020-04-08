@@ -167,9 +167,11 @@ class Particle(BaseParticle, AmpBase):
         if self.mass is None:
             self.mass = self.add_var("mass", fix=True)
         else:
-            self.mass = self.add_var("mass", value=self.mass, fix=True)
+            if not isinstance(self.mass, Variable):
+                self.mass = self.add_var("mass", value=self.mass, fix=True)
         if self.width is not None:
-            self.width = self.add_var("width", value=self.width, fix=True)
+            if not isinstance(self.width, Variable):
+                self.width = self.add_var("width", value=self.width, fix=True)
 
     def get_amp(self, data, data_c):
         mass = self.get_mass()

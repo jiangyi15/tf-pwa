@@ -342,19 +342,19 @@ class ConfigLoader(object):
         x0 = []
         bnds = []
 
-        for i in model.Amp.trainable_variables:
-            args[i.name] = i.numpy()
+        for name, i in zip(args_name, model.Amp.trainable_variables):
+            args[name] = i.numpy()
             x0.append(i.numpy())
-            if i.name in bounds_dict:
-                bnds.append(bounds_dict[i.name])
+            if name in bounds_dict:
+                bnds.append(bounds_dict[name])
             else:
                 bnds.append((None, None))
-            args["error_" + i.name] = 0.1
+            args["error_" + name] = 0.1
 
         return args_name, x0, args, bnds
 
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False):
+    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False, imporve=False):
         model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg = self.get_all_data()
@@ -375,11 +375,9 @@ class ConfigLoader(object):
         min_nll = 0.0
         ndf = 0
         
-        
-        if check_grad:
-            print("checking gradients ...")
+        def v_g2(x0):
             f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
-            _, gs0 = f_g(x0)
+            nll, gs0 = f_g(x0)
             gs = []
             for i, name in enumerate(args_name):
                 x0[i] += 1e-5
@@ -388,6 +386,14 @@ class ConfigLoader(object):
                 nll1, _ = f_g(x0)
                 x0[i] += 1e-5
                 gs.append((nll0-nll1)/2e-5)
+            return nll, np.array(gs)
+        
+        if check_grad:
+            print("checking gradients ...")
+            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            nll, gs0 = f_g(x0)
+            _, gs = v_g2(x_0)
+            for i, name in enumerate(args_name):
                 print(args_name[i], gs[i], gs0[i])
 
         if method in ["BFGS", "CG", "Nelder-Mead"]:
@@ -409,7 +415,7 @@ class ConfigLoader(object):
             x0 = np.array(fcn.model.Amp.vm.get_all_val(True))
             s = minimize(f_g, x0, method=method,
                          jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
-            while not s.success:
+            while imporve and not s.success:
                 min_nll = s.fun
                 maxiter -= s.nit
                 s = minimize(f_g, s.x, method=method,
@@ -418,7 +424,11 @@ class ConfigLoader(object):
                     edm = np.dot(np.dot(s.hess_inv, s.jac), s.jac)
                 else:
                     break
-                if edm < 1e-5 or abs(s.fun - min_nll) < 1e-3:
+                if edm < 1e-5:
+                    print("edm: ", edm)
+                    s.message = "Edm allowed"
+                    break
+                if abs(s.fun - min_nll) < 1e-3:
                     break
             print(s)
             
@@ -865,7 +875,7 @@ class MultiConfig(object):
             raise Exception("unknown method")
         fcn.model.Amp.vm.set_all(xn)
         params = fcn.model.Amp.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf=ndf)
+        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)
 
     def cal_error(self, params=None, batch=10000):
         if params is None:
@@ -943,12 +953,13 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
 
 
 class FitResult(object):
-    def __init__(self, params, model, min_nll, ndf=0):
+    def __init__(self, params, model, min_nll, ndf=0, success=True):
         self.params = params
         self.error = {}
         self.model = model
         self.min_nll = min_nll
         self.ndf = ndf
+        self.success = success
 
     def save_as(self, file_name):
         s = {"value": self.params, "error": self.error}

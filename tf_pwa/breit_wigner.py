@@ -5,7 +5,7 @@ Breit-Wigner function. Users can also define new lineshape using the function wr
 
 import functools
 import warnings
-import tensorflow as tf
+from .tensorflow_wrapper import tf
 
 breit_wigner_dict = {}
 
