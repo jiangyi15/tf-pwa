@@ -277,11 +277,11 @@ class ConfigLoader(object):
         if vm in self.amps:
             return self.amps[vm]
         amp = AmplitudeModel(decay_group, vm=vm, name=name)
-        self.add_constrans(amp)
+        self.add_constraints(amp)
         self.amps[vm] = amp
         return amp
 
-    def add_constrans(self, amp):
+    def add_constraints(self, amp):
         constrains = self.config['constrains']
         decay_constrains = self.config['constrains'].get('decay', {})
         if decay_constrains is None:
@@ -289,9 +289,11 @@ class ConfigLoader(object):
         fix_total_idx = decay_constrains["fix_chain_idx"] if "fix_chain_idx" in decay_constrains else 0
         fix_total_val = decay_constrains["fix_chain_val"] if "fix_chain_val" in decay_constrains else np.random.uniform(0,2)
         di = 0
+        res_dec = {}
         for d in amp.decay_group:
-            for i in d.inner: # random order!
+            for i in d.inner:
                 i = str(i)
+                res_dec[i] = d
                 # free mass and width and set bounds
                 if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
                     if 'm' in self.config['particle'][i]["float"]:
@@ -304,15 +306,22 @@ class ConfigLoader(object):
                         upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
                         lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
                         amp.vm.set_bound({i+'_width':(lower,upper)})
+                # share helicity variables 
+                if "coef_head" in self.config['particle'][i]:
+                    coef_head = self.config['particle'][i]["coef_head"]
+                    if coef_head in res_dec:
+                        d_coef_head = res_dec[coef_head]
+                        for j,h in zip(d,d_coef_head):
+                            if i in [str(jj) for jj in j.outs] or i is str(j.core):
+                                h.g_ls.sameas(j.g_ls)
+                        # share total radium
+                        d_coef_head.total.r_shareto(d.total)
+                    else:
+                        self.config['particle'][coef_head]["coef_head"] = i
             # fix which total factor
             if di == fix_total_idx:
                 d.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val,0.0)) #.fixed(complex(fix_total_val))
             di += 1
-            # share radium and helicity variables 
-            #if "coef_head" in self.config['particle'][i]:
-            #    coef_head = self.config['particle'][i]["coef_head"]
-            #    for j in d:
-            #        j.g_ls.sameas()
 
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):

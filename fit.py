@@ -11,7 +11,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
         config.set_params(init_params)
         print("using {}".format(init_params))
     except Exception as e:
-        print("using RANDOM parameters")
+        print(e,"\nusing RANDOM parameters")
     
     print("\n########### initial parameters")
     pprint(config.get_params())
