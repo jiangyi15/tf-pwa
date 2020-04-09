@@ -514,7 +514,8 @@ class ConfigLoader(object):
         data["decay"].update(ret)
         return data
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", plot_delta=False, plot_pull=False, save_pdf=False, root_name="data_var", bin_scale=4):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", 
+                          plot_delta=False, plot_pull=False, save_pdf=False, root_name="data_var", bin_scale=3):
         if not os.path.exists(prefix):
             os.mkdir(prefix)
         data = self._flatten_data(data)
@@ -607,7 +608,7 @@ class ConfigLoader(object):
                     if plot_pull:
                         ax2.set_ylabel("pull")
                         ax2.set_ylim((-5, 5))
-                    else:    
+                    else:
                         ax2.set_ylabel("$\\Delta$Events")
                         ax2.set_ylim((-max(abs(y_err)),
                                   max(abs(y_err))))
