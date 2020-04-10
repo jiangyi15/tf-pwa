@@ -8,6 +8,9 @@
 
 
 ## Install 
+
+Get the packages using ```git clone```
+
 ### conda
 
 get miniconda for python3 from [minicoda](https://docs.conda.io/en/latest/miniconda.html) and install it.
@@ -15,10 +18,8 @@ get miniconda for python3 from [minicoda](https://docs.conda.io/en/latest/minico
 install following packages
 
 ```
-conda install tensorflow iminuit sympy matplotlib scipy
+conda install tensorflow-gpu pyyaml sympy matplotlib scipy
 ```
-
-then get the packages using ```git clone```
 
 ### pip
 
@@ -29,43 +30,29 @@ python3 setup.py install
 
 ## Scripts
 
-### fit.py or fit_scipy.py 
+### fit.py
 
 simple fit scripts, 
-Resonances is describing in ```Resonances.yml```
+decay structure is described in ```config.yml```
 
 ```
 python fit.py
 ```
-fit parameters will save in final_params.json
+fit parameters will save in final_params.json,
+figure can be found in ```figure/```
 
-### plot_amp.py 
-
-resonance plot scripts
-
-```
-python plot_amp.py
-```
-
-### fitfractions.py 
-
-calculate fitfractions with error
-
-```
-python fitfractions.py
-```
 
 ### state_cache.sh
 
-script for cache state, using the latest *_params.json file as parameters and cache newer files in ```trash/```.
+script for cache state, using the latest *_params.json file as parameters and cache newer files in ```path``` (the default is ```trash/```).
 
 ```
 ./state_cache.sh [path]
 ```
 
-## autodocs
+## Documents
 
-autodoc using sphinx-doc, need sphinx-doc 
+Autodoc using sphinx-doc, need sphinx-doc 
 
 ```
   python setup.py build_sphinx 
@@ -75,11 +62,11 @@ autodoc using sphinx-doc, need sphinx-doc
 
 tensorflow or tensorflow-gpu >= 2.0.0 
 
-sympy 
+sympy : symbolic expression
 
-iminuit 
+PyYAML : config.yml file
 
-matplotlib : for plot_amp.py
+matplotlib : plot
 
-scipy : for fit
+scipy : fit
 
