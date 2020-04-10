@@ -18,6 +18,8 @@ data:
     bg: ["data/bg4600_new.dat"]
     # background weight
     bg_weight: 0.731
+    # whether boost data to center mass frame first
+    # center_mass: True
 
 
 # `decay` describe the decay structure, each node can be a list of particle name

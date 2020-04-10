@@ -74,7 +74,8 @@ class ConfigLoader(object):
     def get_data(self, idx):
         files = self.get_data_file(idx)
         order = self.get_dat_order()
-        data = prepare_data_from_decay(files, self.decay_struct, order)
+        center_mass = self.config["data"].get("center_mass", True)
+        data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass)
         return data
 
     def get_all_data(self):
@@ -609,8 +610,9 @@ class ConfigLoader(object):
                     if plot_pull:
                         _epsilon = 1e-10
                         with np.errstate(divide='ignore', invalid='ignore'):
-                            y_err = y_err/data_err
-                        y_err[data_err<_epsilon] = 0.0
+                            fit_err = np.sqrt(fit_y)
+                            y_err = y_err/fit_err
+                        y_err[fit_err<_epsilon] = 0.0
                     ax2.plot(data_x, y_err, color="r")
                     ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r")
                     if plot_pull:
@@ -946,7 +948,7 @@ class MultiConfig(object):
         self.vm.set_all(params)
 
 
-def hist_error(data, bins=50, xrange=None, kind="binomial"):
+def hist_error(data, bins=50, xrange=None, kind="possion"):
     data_hist = np.histogram(data, bins=bins, range=xrange)
     # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
     data_y, data_x = data_hist[0:2]

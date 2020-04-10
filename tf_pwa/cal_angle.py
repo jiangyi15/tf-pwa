@@ -302,7 +302,7 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
     return ret
 
 
-def prepare_data_from_decay(fnames, decs, particles=None, dtype=None, using_topology=True):
+def prepare_data_from_decay(fnames, decs, particles=None, dtype=None, **kwargs):
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -317,7 +317,7 @@ def prepare_data_from_decay(fnames, decs, particles=None, dtype=None, using_topo
     if particles is None:
         particles = sorted(decs.outs)
     p = load_dat_file(fnames, particles, dtype=dtype)
-    data = cal_angle_from_momentum(p, decs, using_topology)
+    data = cal_angle_from_momentum(p, decs, **kwargs)
     return data
 
 
@@ -341,7 +341,7 @@ def prepare_data_from_dat_file(fnames):
     return data
 
 
-def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True) -> dict:
+def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mass=False) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -349,7 +349,8 @@ def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True) -> dict:
     :param decs: DecayGroup
     :return: Dictionary of data
     """
-    data_p = struct_momentum(p, center_mass=False)
+    p = {i: p[i] for i in decs.outs}
+    data_p = struct_momentum(p, center_mass=center_mass)
     if using_topology:
         decay_chain_struct = decs.topology_structure()
     else:
