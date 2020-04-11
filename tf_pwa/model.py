@@ -3,6 +3,7 @@ This module provides methods to calculate NLL(Negative Log-Likelihood) as well a
 """
 
 import numpy as np
+import math
 from .data import data_shape, split_generator, data_merge, data_split
 from .tensorflow_wrapper import tf
 from .utils import time_print
@@ -85,8 +86,11 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
 
 def clip_log(x, _epsilon=1e-6):
     """clip log to allowed large value"""
-    x_cut = tf.where(x > _epsilon, x, tf.ones_like(x)*_epsilon)
-    return tf.math.log(x_cut)
+    x_cut = tf.where(x > _epsilon, x, tf.ones_like(x) * _epsilon)
+    b_t = tf.math.log(x)
+    delta_x = x - _epsilon
+    b_f = np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
+    return tf.where(x > _epsilon, b_t, b_f)
 
 
 class Model(object):
@@ -116,7 +120,7 @@ class Model(object):
         if isinstance(weight, float):
             n_data = data_shape(data)
             weight = tf.convert_to_tensor(
-                [weight]*n_data, dtype=get_config("dtype"))
+                [weight] * n_data, dtype=get_config("dtype"))
         if bg is not None:
             n_bg = data_shape(bg)
             data = data_merge(data, bg)
@@ -169,15 +173,15 @@ class Model(object):
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data = sum_gradient(self.Amp, split_generator(data, batch),
                                           self.Amp.trainable_variables, weight=split_generator(
-                                              weight, batch),
+                weight, batch),
                                           trans=clip_log)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
-                                        self.Amp.trainable_variables, weight=1/n_mc)
+                                        self.Amp.trainable_variables, weight=1 / n_mc)
 
         sw = tf.cast(sw, ln_data.dtype)
 
         g = list(map(lambda x: - x[0] + sw * x[1] /
-                     int_mc, zip(g_ln_data, g_int_mc)))
+                               int_mc, zip(g_ln_data, g_int_mc)))
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
@@ -207,7 +211,7 @@ class Model(object):
         sw = tf.cast(sw, ln_data.dtype)
 
         g = list(map(lambda x: - x[0] + sw * x[1] /
-                     int_mc, zip(g_ln_data, g_int_mc)))
+                               int_mc, zip(g_ln_data, g_int_mc)))
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
@@ -224,7 +228,7 @@ class Model(object):
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
                                                     self.Amp.trainable_variables, weight=split_generator(
-                                                        weight, batch),
+                weight, batch),
                                                     trans=tf.math.log)
         int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
                                                  self.Amp.trainable_variables)
@@ -279,7 +283,7 @@ class ConstrainModel(Model):
             if isinstance(pi, tuple) and len(pi) == 2:
                 mean, sigma = pi
                 var = var_dict[i]
-                nll += (var - mean)**2/(sigma**2)/2
+                nll += (var - mean) ** 2 / (sigma ** 2) / 2
         return nll
 
     def get_constrain_grad(self):  # the constrained parameter's 1st differentiation
@@ -299,7 +303,7 @@ class ConstrainModel(Model):
             if isinstance(pi, tuple) and len(pi) == 2:
                 mean, sigma = pi
                 var = var_dict[i]
-                g_dict[i] = (var - mean)/(sigma**2)  # 1st differentiation
+                g_dict[i] = (var - mean) / (sigma ** 2)  # 1st differentiation
         nll_g = []
         for i in t_var_name:
             if i in g_dict:
@@ -321,7 +325,7 @@ class ConstrainModel(Model):
             if isinstance(pi, tuple) and len(pi) == 2:
                 mean, sigma = pi
                 var = var_dict[i]
-                g_dict[i] = 1/(sigma**2)  # 2nd differentiation
+                g_dict[i] = 1 / (sigma ** 2)  # 2nd differentiation
         nll_g = []
         for i in t_var_name:
             if i in g_dict:
@@ -386,7 +390,7 @@ class FCN(object):
         self.batch_mcdata = list(split_generator(mcdata, batch))
         self.batch = batch
         self.mc_weight = tf.convert_to_tensor(
-            [1/n_mcdata] * n_mcdata, dtype="float64")
+            [1 / n_mcdata] * n_mcdata, dtype="float64")
 
     # @time_print
     def __call__(self, x):
