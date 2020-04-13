@@ -217,7 +217,7 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
         for decay in decay_chain:
             part_data = decay_data[decay_chain][decay]
             for i in decay.outs:
-                if i in decay_group.outs and decay != set_x[i][1]:
+                if i in decay_group.outs and decay_chain != set_x[i][0]:
                     idx2, decay2 = set_x[i]
                     part_data2 = decay_data[idx2][decay2]
                     x1 = part_data[i]["x"]
@@ -388,6 +388,7 @@ def prepare_data_from_dat_file4(fnames):
     data = flatten_dict_data(data)
     return data
 
+
 def get_keys(dic, key_path=''):
     """get_keys of nested dictionary
     """
@@ -400,6 +401,7 @@ def get_keys(dic, key_path=''):
             keys_list.append(key_path)
     get_keys(dic, key_path)
     return keys_list
+
 
 def get_key_content(dic, key_path):
     """get key content. E.g. get_key_content(data, '/particle/(B, C)/m')

@@ -746,4 +746,4 @@ class DecayGroup(object):
                     break
             else:
                 return decay_chain
-        raise ValueError("not founf such decay chain")
+        raise ValueError("Not found such decay chain")
