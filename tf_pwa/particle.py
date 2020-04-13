@@ -591,6 +591,29 @@ class DecayChain(object):
             raise TypeError("unsupport type {}".format(type(other)))
         return self.topology_id(identical) == other.topology_id(identical)
 
+    def get_all_particles(self):
+        """
+        get all particles in the decay chains
+        """
+        ret = []
+        for i in self:
+            if i.core not in ret:
+                ret.append(i.core)
+            for j in i.outs:
+                if j not in ret:
+                    ret.append(j)
+        return ret
+
+    def get_particle_decay(self, particle):
+        """
+        get particle decay in the chain
+        """
+        p = BaseParticle(str(particle))
+        for i in self:
+            if i.core == p:
+                return i
+        raise ValueError("Not found particle {} decay".format(p))
+
 
 class _Chain_Graph(object):
     def __init__(self):
@@ -710,3 +733,17 @@ class DecayGroup(object):
                     tmp[j] = chain_map
             chain_maps.append(tmp)
         return chain_maps
+
+    def get_chain_from_particle(self, names):
+        """
+        get the first decay chain has all particles in names
+        """
+        particles = [BaseParticle(str(i)) for i in names]
+        for decay_chain in self.chains:
+            all_particles = list(decay_chain.get_all_particles())
+            for i in particles:
+                if i not in all_particles:
+                    break
+            else:
+                return decay_chain
+        raise ValueError("not founf such decay chain")

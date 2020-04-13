@@ -20,6 +20,8 @@ import os
 import sympy as sy
 from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
+from scipy.optimize import BFGS
+# from .test_fit import minimize
 
 
 class ConfigLoader(object):
@@ -426,8 +428,9 @@ class ConfigLoader(object):
             fcn.model.Amp.vm.set_bound(bounds_dict)
             f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
             x0 = np.array(fcn.model.Amp.vm.get_all_val(True))
+            # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
             s = minimize(f_g, x0, method=method,
-                         jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+                         jac=True, callback=callback, options={"disp": 1, "gtol": 1e-5, "maxiter": maxiter})
             while imporve and not s.success:
                 min_nll = s.fun
                 maxiter -= s.nit
@@ -528,9 +531,6 @@ class ConfigLoader(object):
                           plot_delta=False, plot_pull=False, save_pdf=False, root_name="data_var", bin_scale=3):
         if not os.path.exists(prefix):
             os.mkdir(prefix)
-        data = self._flatten_data(data)
-        phsp = self._flatten_data(phsp)
-        bg = self._flatten_data(bg)
         if params is None:
             params = {}
         if data is None:
@@ -712,17 +712,33 @@ class ConfigLoader(object):
         for k, i in ang.items():
             names = k.split("/")
             name = names[0]
+            number_decay = True
             if len(names) > 1:
-                count = int(names[-1])
+                try:
+                    count = int(names[-1])
+                except ValueError:
+                    number_decay = False
             else:
                 count = 0
-            decay = None
-            part = re_map.get(get_particle(name), get_particle(name))
-            for decs in self.decay_struct:
-                for dec in decs:
-                    if dec.core == get_particle(name):
-                        decay = dec.core.decay[count]
-                        decay = re_map.get(decay, decay)
+            if number_decay:
+                decay_chain, decay = None, None
+                part = re_map.get(get_particle(name), get_particle(name))
+                for decs in self.decay_struct:
+                    for dec in decs:
+                        if dec.core == get_particle(name):
+                            decay = dec.core.decay[count]
+                            for j in self.decay_struct:
+                                if decay in j:
+                                    decay_chain = j.standard_topology()
+                            decay = re_map.get(decay, decay)
+                part = decay.outs[0]
+            else:
+                decay_chain = self.decay_struct.get_chain_from_particle(names)
+                decay = decay_chain.get_particle_decay(names[-2])
+                part = names[-1]
+                decay_chain = decay_chain.standard_topology()
+                decay = re_map.get(decay, decay)
+                part = re_map.get(part, part)
             for j, v in i.items():
                 display = v.get("display", j)
                 upper_ylim = v.get("upper_ylim", None)
@@ -732,8 +748,9 @@ class ConfigLoader(object):
                     theta = j[4:-1]
                     def trans(x): return np.cos(x)
                 yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
-                       "idx": ("decay", decay, decay.outs[0], "ang", theta),
+                       "idx": ("decay", decay_chain, decay, part, "ang", theta),
                        "trans": trans, "bins": defaults_config.get("bins", 50)}
+                
 
     def get_chain(self, i):
         decay_group = self.full_decay
