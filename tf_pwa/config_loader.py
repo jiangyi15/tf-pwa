@@ -735,7 +735,7 @@ class ConfigLoader(object):
             else:
                 decay_chain = self.decay_struct.get_chain_from_particle(names)
                 decay = decay_chain.get_particle_decay(names[-2])
-                part = names[-1]
+                part = get_particle(names[-1])
                 decay_chain = decay_chain.standard_topology()
                 decay = re_map.get(decay, decay)
                 part = re_map.get(part, part)
