@@ -388,3 +388,29 @@ def prepare_data_from_dat_file4(fnames):
     data = flatten_dict_data(data)
     return data
 
+def get_keys(dic, key_path=''):
+    """get_keys of nested dictionary
+    """
+    keys_list = []
+    def get_keys(dic, key_path):
+        if type(dic) == dict:
+            for i in dic:
+                get_keys(dic[i], key_path + "/" + str(i))
+        else:
+            keys_list.append(key_path)
+    get_keys(dic, key_path)
+    return keys_list
+
+def get_key_content(dic, key_path):
+    """get key content. E.g. get_key_content(data, '/particle/(B, C)/m')
+    """
+    keys = key_path.strip('/').split('/')
+    def get_content(dic, keys):
+        if len(keys) == 0:
+            return dic
+        for k in dic:
+            if str(k) == keys[0]:
+                ret = get_content(dic[k], keys[1:])
+                break
+        return ret
+    return get_content(dic, keys)

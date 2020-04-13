@@ -90,6 +90,7 @@ def clip_log(x, _epsilon=1e-6):
     b_t = tf.math.log(x)
     delta_x = x - _epsilon
     b_f = np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
+    #print("$$$$$", tf.where(x < _epsilon).numpy().tolist())
     return tf.where(x > _epsilon, b_t, b_f)
 
 
