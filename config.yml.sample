@@ -111,36 +111,44 @@ plot:
             display: "$M_{BC}$"
     # helicity angle
     angle:
-        # each entry is `particle[/number]` means the decay of particle, number is the order.
-        A/0:
+        # Each entry is `particle[/number]` means the decay of particle, number is the order. "/0" is optional.
+        # If it named as `[.../]A/R_BC`, it refer to the  decay A -> R_BC ... in the decay chain has A and R_BC, 
+        # the angle is determined by the last 2 particles, the other order is random.
+        # for example, D->E+F in [A->R_BC+D, D->E+F, R_BC->B+C] is `R_BC/D/E` or `A/R_BC/D/E` or `R_BC/A/D/E`
+        # A/0:
+        A/R_CD:
             # include "alpha, cos(beta), gamma", # add `cos` for cos(beta)
             alpha:
                 display: "$\\phi_{1}$" # the default is "A/0:$\alpha$"
             cos(beta):
                 display: "$\\cos(\\theta_1)$" # the default is "A/0:$\beta$"
                 range: [-1, 1] # range for plot
-        A/1:
+        # A/1:
+        A/R_BD
             alpha:
                 display: "$\\phi_{2}$"
             cos(beta):
                 display: "$\\cos(\\theta_2)$"
-        A/2:
+        # A/2:
+        A/R_BC
             alpha:
                 display: "$\\phi_{3}$"
             cos(beta):
                 display: "$\\cos(\\theta_3)$"
-        R_BC/0:
+        # R_BC/0:
+        R_BC/B:
             alpha:
                 display: "$\\phi_{11}$"
             cos(beta):
                 display: "$\\cos(\\theta_{11})$"
-        # "/0" is optional
-        R_CD:
+        # R_CD:
+        R_CD/C:
             alpha:
                 display: "$\\phi_{1}$"
             cos(beta):
                 display: "$\\cos(\\theta_{21})$"
-        R_BD:
+        # R_BD:
+        R_BD/B
             alpha:
                 display: "$\\phi_{1}$"
             cos(beta):
