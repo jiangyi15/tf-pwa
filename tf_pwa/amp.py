@@ -687,7 +687,14 @@ class DecayGroup(BaseDecayGroup):
         ret = []
         for chains in chain_maps:
             for decay_chain in chains:
-                data_c = rename_data_dict(data_decay[decay_chain.standard_topology()], chains[decay_chain])
+                chain_topo = decay_chain.standard_topology()
+                for i in data_decay.keys():
+                    if i == chain_topo:
+                        data_decay_i = data_decay[i]
+                        break
+                else:
+                    raise KeyError("not found {}".format(chain_topo))
+                data_c = rename_data_dict(data_decay_i, chains[decay_chain])
                 data_p = rename_data_dict(data_particle, chains[decay_chain])
                 amp = decay_chain.get_amp(data_c, data_p, base_map=base_map)
                 ret.append(amp)

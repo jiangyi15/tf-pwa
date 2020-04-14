@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import minimize, BFGS, basinhopping
 import numpy as np
 import matplotlib.pyplot as plt
-from tf_pwa.data import data_index, data_shape, data_split
+from tf_pwa.data import data_index, data_shape, data_split, load_data, save_data
 from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.variable import VarsManager
 from tf_pwa.utils import time_print
@@ -52,6 +52,7 @@ class ConfigLoader(object):
         self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
         self.vm = vm
         self.amps = {}
+        self.cached_data = None
 
     @staticmethod
     def load_config(file_name):
@@ -74,15 +75,41 @@ class ConfigLoader(object):
 
     @functools.lru_cache()
     def get_data(self, idx):
+        if self.cached_data is not None:
+            data = self.cached_data.get(idx, None)
+            if data is not None:
+                print(data.keys())
+                return data
         files = self.get_data_file(idx)
         order = self.get_dat_order()
         center_mass = self.config["data"].get("center_mass", True)
         data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass)
+        print(data.keys())
         return data
+    
+    def load_cached_data(self, file_name=None):
+        if file_name is None:
+            file_name = self.config["data"].get("cached_data", None)
+        if file_name is not None and os.path.exists(file_name):
+            if self.cached_data is None:
+                self.cached_data = load_data(file_name)
+                print("load cached_data {}".format(file_name))
+                print(self.cached_data["data"]["decay"].keys())
+    
+    def save_cached_data(self, data, file_name=None):
+        if file_name is None:
+            file_name = self.config["data"].get("cached_data", None)
+        if file_name is not None:
+            if not os.path.exists(file_name):
+                save_data(file_name, data)
+                print("save cached_data {}".format(file_name))
 
     def get_all_data(self):
         datafile = ["data", "phsp", "bg"]
-        return [self.get_data(i) for i in datafile]
+        self.load_cached_data()
+        all_data = [self.get_data(i) for i in datafile]
+        self.save_cached_data(dict(zip(datafile, all_data)))
+        return all_data
 
     def get_decay(self, full=True):
         if full:
