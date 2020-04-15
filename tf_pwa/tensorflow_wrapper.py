@@ -62,7 +62,7 @@ def regist_function(name, var=None, base_mod=tensorflow_wrapper):
         return wrapper(var)
 
 
-@regist_function("cross", base_mod=tf)
+#@regist_function("cross", base_mod=tf)
 def numpy_cross(a, b):
     a = tf.convert_to_tensor(a)
     b = tf.convert_to_tensor(b)
@@ -73,7 +73,7 @@ def numpy_cross(a, b):
     return ret
 
 
-regist_function("sum", tf.reduce_sum, base_mod=tf)
+# regist_function("sum", tf.reduce_sum, base_mod=tf)
 regist_function("arctan2", tf.math.atan2, base_mod=tf)
 
 

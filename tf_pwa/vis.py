@@ -63,11 +63,11 @@ digraph {
         return ret
 
 
-def draw_decay_struct(decay_chain, show=True, **kwargs):
+def draw_decay_struct(decay_chain, show=False, **kwargs):
     from graphviz import Source
     a = DotGenerator.dot_chain(decay_chain)
     g = Source(a, **kwargs)
     if show:
         g.view()
     else:
-        g.save()
+        g.render()

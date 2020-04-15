@@ -1,7 +1,7 @@
 """
 This module implements three classes **Vector3**, **LorentzVector**, **EulerAngle** .
 """
-from .tensorflow_wrapper import tf
+from .tensorflow_wrapper import tf, numpy_cross
 
 _epsilon = 1.0e-14
 
@@ -44,7 +44,7 @@ class Vector3(tf.Tensor):
         """
         Cross product with another Vector3 instance
         """
-        p = tf.cross(self, other)
+        p =  numpy_cross(self, other)
         return p
 
     def unit(self):
@@ -58,11 +58,11 @@ class Vector3(tf.Tensor):
         """
         The unit vector of the cross product with another Vector3 object. It has interface to *tf.linalg.normalize()*.
         """
-        cro = tf.cross(self, other)
+        cro =  numpy_cross(self, other)
         norm_cro = tf.expand_dims(tf.norm(cro, axis=-1), -1)
         mask = norm_cro < _epsilon
         bias_other = tf.ones_like(norm_cro) + other
-        cro = tf.where(mask, tf.cross(self, bias_other), cro)
+        cro = tf.where(mask,  numpy_cross(self, bias_other), cro)
         p, _n = tf.linalg.normalize(cro, axis=-1)
         return p
 

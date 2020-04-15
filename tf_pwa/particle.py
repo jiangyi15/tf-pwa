@@ -114,11 +114,7 @@ class BaseParticle(object):
         return self.__repr__() < other
 
     def chain_decay(self):
-        """
-        ???
-
-        :return:
-        """
+        """return all decay chain self decay to"""
         ret = []
         for i in self.decay:
             ret_tmp = [[[i]]]
@@ -130,9 +126,7 @@ class BaseParticle(object):
         return ret
 
     def get_resonances(self):
-        """
-        :return:
-        """
+        """return all resonances self decay to"""
         decay_chain = self.chain_decay()
         chains = [DecayChain(i) for i in decay_chain]
         decaygroup = DecayGroup(chains)
@@ -357,9 +351,7 @@ def split_particle_type(decays):
 def split_len(dicts):
     """
     Split a dictionary of lists by their length.
-    E.g. {"b":[2],"c":[1,3],"d":[1]} => [None,{"b":[2],"d":[1]},{"c":[1,3]}]
-
-    I get [None, [('b', [2]), ('d', [1])], [('c', [1, 3])]]???
+    E.g. {"b":[2],"c":[1,3],"d":[1]} => [None, [('b', [2]), ('d', [1])], [('c', [1, 3])]]
 
     Put to utils.py or _split_len if not used anymore???
 
@@ -428,8 +420,10 @@ class DecayChain(object):
 
     def sorted_table_layers(self):
         """
-        Use ``split_len(dicts)`` to further sort the return of ``self.sorted_table()``.
-        E.g. [a->rb,r->cd] => ???
+        Get the layer of decay chain as sorted table.
+        Or the list of particle with the same number of final particles.
+        So, the first item is always None.
+        E.g. [a->rb,r->cd] => [None, [(b, [b]), (c, [c]), (d, [d])], [(r, [c, d])], [(a, [b, c, d])]]
 
         :return: List of dictionary
         """
@@ -532,14 +526,15 @@ class DecayChain(object):
 
     @simple_cache_fun
     def get_id(self):
+        """return identity of the decay"""
         decay = sorted(list(self.chain))
         return tuple(decay)
 
     def standard_topology(self):
         """
-        ???
-
-        :return:
+        standard topology structure of the decay chain, 
+        all inner particle will be replace as a tuple of out particles.
+        for example [A->R+C, R->B+D], is [A->(B, D)+C, (B, D)->B+D]
         """
         a = self.sorted_table()
         name_map = {}
@@ -557,11 +552,8 @@ class DecayChain(object):
         return DecayChain(ret)
 
     def topology_map(self, other):
-        """
+        """ Mapping relations of the same topology decay
         E.g. [A->R+B,R->C+D],[A->Z+B,Z->C+D] => {A:A,B:B,C:C,D:D,R:Z,A->R+B:A->Z+B,R->C+D:Z->C+D}
-
-        :param other:
-        :return:
         """
         a = self.sorted_table()
         b = other.sorted_table()
