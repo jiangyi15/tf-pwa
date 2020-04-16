@@ -49,6 +49,38 @@ def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=No
     g = list(map(sum, zip(*gs)))
     return nll, g
 
+def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log, w_flatmc=0, args=(), kwargs=None):
+    """
+    NLL is the sum of trans(f(data)):math:`*`weight; gradient is the derivatives for each variable in ``var``.
+
+    :param f: Function. The amplitude PDF.
+    :param data: Data array
+    :param var: List of strings. Names of the trainable variables in the PDF.
+    :param weight: Weight factor for each data point. It's either a real number or an array of the same shape with ``data``.
+    :param trans: Function. Transformation of ``data`` before multiplied by ``weight``.
+    :param kwargs: Further arguments for ``f``.
+    :return: Real number NLL, list gradient
+    """
+    kwargs = kwargs if kwargs is not None else {}
+    if isinstance(weight, float):
+        weight = loop_generator(weight)
+    ys = []
+    #gs = []
+    ymc = []
+    with tf.GradientTape() as tape:
+        for mcdata_i, mcweight_i in zip(mcdata, mcweight):
+            part_y = amp(mcdata_i, *args, **kwargs)
+            y_i = tf.reduce_sum(tf.cast(mcweight_i, part_y.dtype) * part_y)
+            ymc.append(y_i)
+        int_dt = tf.reduce_sum(ymc)
+        for data_i, weight_i in zip(data, weight):
+            part_y = amp(data_i, *args, **kwargs)/int_dt + w_flatmc
+            part_y = trans(part_y)
+            y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
+            ys.append(y_i)
+        nll = tf.reduce_sum(ys)
+    g = tape.gradient(nll, var, unconnected_gradients="zero")
+    return nll, g
 
 def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
     """
@@ -92,7 +124,6 @@ def clip_log(x, _epsilon=1e-6):
     b_f = np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
     #print("$$$$$", tf.where(x < _epsilon).numpy().tolist())
     return tf.where(x > _epsilon, b_t, b_f)
-
 
 class Model(object):
     """
@@ -257,6 +288,115 @@ class Model(object):
         return self.Amp.get_params(trainable_only)
 
 
+class Model_new(Model):
+    """
+    This class implements methods to calculate NLL as well as its derivatives for an amplitude model. It may include
+    data for both signal and background.
+
+    :param amp: ``AllAmplitude`` object. The amplitude model.
+    :param w_bkg: Real number. The weight of background.
+    """
+    def __init__(self, amp, w_bkg=1.0, w_inmc=0):
+        super(Model_new, self).__init__(amp, w_bkg)
+        self.w_inmc = w_inmc
+
+    def get_weight_data(self, data, weight=1.0, bg=None, inmc=None, alpha=True):
+        """
+        Blend data and background data together multiplied by their weights.
+
+        :param data: Data array
+        :param weight: Weight for data
+        :param bg: Data array for background
+        :param alpha: Boolean. If it's true, ``weight`` will be multiplied by a factor :math:`\\alpha=`???
+        :return: Data, weight. Their length both equals ``len(data)+len(bg)``.
+        """
+        n_data = data_shape(data)
+        if isinstance(weight, float):
+            weight = tf.convert_to_tensor(
+                [weight] * n_data, dtype=get_config("dtype"))
+        if bg is not None:
+            n_bg = data_shape(bg)
+            data = data_merge(data, bg)
+            bg_weight = tf.convert_to_tensor(
+                [-self.w_bkg] * n_bg, dtype=get_config("dtype"))
+            weight = tf.concat([weight, bg_weight], axis=0)
+        if inmc is not None:
+            n_inmc = data_shape(inmc)
+            data = data_merge(data, inmc)
+            wmc = self.w_inmc * n_data / n_inmc
+            inmc_weight = tf.convert_to_tensor(
+                [wmc] * n_inmc, dtype=get_config("dtype"))
+            weight = tf.concat([weight, inmc_weight], axis=0)
+
+        if alpha:
+            alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight) # correct with inject MC?
+            return data, alpha * weight
+        return data, weight
+
+    def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None):
+        """
+        Calculate NLL.
+
+        .. math::
+          -\\ln L = -\\sum_{x_i \\in data } w_i \\ln f(x_i;\\theta_k) +  (\\sum w_j ) \\ln \\sum_{x_i \\in mc } f(x_i;\\theta_k)
+
+        :param data: Data array
+        :param mcdata: MCdata array
+        :param weight: Weight of data???
+        :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
+        :param bg: Background data array. It can be set to ``None`` if there is no such thing.
+        :return: Real number. The value of NLL.
+        """
+        data, weight = self.get_weight_data(data, weight, bg=bg)
+        sw = tf.reduce_sum(weight)
+        ln_data = tf.math.log(self.Amp(data))
+        int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
+        nll_0 = - tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
+        return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
+
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
+        """
+        ``self.nll_grad_new``
+        """
+        #N_data = 2525
+        #N_flatmc = 3106
+        #w_flatmc = 0#878/2525#2889/2525#3106/2525
+        ln_data, g_ln_data = sum_gradient_new(self.Amp, data, mcdata, weight, mc_weight,
+                                          self.Amp.trainable_variables, tf.math.log, self.w_inmc)
+        nll = -ln_data
+        g = [-i for i in g_ln_data]
+        #print("@@@",nll,np.array(g).tolist())
+        return nll, g
+
+    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000, bg=None):
+        """
+        The parameters are the same with ``self.nll()``, but it will return Hessian as well.
+
+        :return NLL: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        :return Hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
+        """
+        data, weight = self.get_weight_data(data, weight, bg=bg)
+        n_mc = data_shape(mcdata)
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
+                                                    self.Amp.trainable_variables, weight=split_generator(
+                weight, batch),
+                                                    trans=tf.math.log)
+        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
+                                                 self.Amp.trainable_variables)
+
+        n_var = len(g_ln_data)
+        nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
+        g = - g_ln_data + sw * g_int_mc / int_mc
+
+        g_int_mc = g_int_mc / int_mc
+        g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
+
+        h = - h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
+        return nll, g, h
+
+
 class ConstrainModel(Model):
     """
     negative log likelihood model with constrains
@@ -376,12 +516,17 @@ class FCN(object):
     :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
     """
 
-    def __init__(self, model, data, mcdata, bg=None, batch=65000):
+    def __init__(self, model, data, mcdata, bg=None, batch=65000, inmc=None):
         self.model = model
         self.n_call = 0
         self.n_grad = 0
         self.cached_nll = None
-        data, weight = self.model.get_weight_data(data, bg=bg)
+        if inmc is None:
+            data, weight = self.model.get_weight_data(data, bg=bg)
+            print("Using Model_old")
+        else:
+            data, weight = self.model.get_weight_data(data, bg=bg, inmc=inmc)
+            print("Using Model_new")
         n_mcdata = data_shape(mcdata)
         self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = weight

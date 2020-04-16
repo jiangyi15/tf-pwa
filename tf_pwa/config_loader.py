@@ -3,7 +3,7 @@ import json
 from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
-from tf_pwa.model import Model, FCN, CombineFCN
+from tf_pwa.model import Model, Model_new, FCN, CombineFCN
 import re
 import functools
 import time
@@ -63,7 +63,11 @@ class ConfigLoader(object):
         return ret
 
     def get_data_file(self, idx):
-        return self.config["data"][idx]
+        if idx in self.config["data"]:
+            ret = self.config["data"][idx]
+        else:
+            ret = None
+        return ret
 
     def get_dat_order(self):
         order = self.config["data"].get("dat_order", None)
@@ -81,6 +85,8 @@ class ConfigLoader(object):
                 print(data.keys())
                 return data
         files = self.get_data_file(idx)
+        if files is None:
+            return None
         order = self.get_dat_order()
         center_mass = self.config["data"].get("center_mass", True)
         data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass)
@@ -105,7 +111,7 @@ class ConfigLoader(object):
                 print("save cached_data {}".format(file_name))
 
     def get_all_data(self):
-        datafile = ["data", "phsp", "bg"]
+        datafile = ["data", "phsp", "bg", "inmc"]
         self.load_cached_data()
         all_data = [self.get_data(i) for i in datafile]
         self.save_cached_data(dict(zip(datafile, all_data)))
@@ -356,18 +362,23 @@ class ConfigLoader(object):
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):
         amp = self.get_amplitude(vm=vm, name=name)
-        w_bkg = self.get_bg_weight()
-        return Model(amp, w_bkg)
+        w_bkg, w_inmc = self.get_bg_weight()
+        if w_inmc == 0:
+            model = Model(amp, w_bkg)
+        else:
+            model = Model_new(amp, w_bkg, w_inmc)
+        return model
     
     def get_bg_weight(self, data=None, bg=None):
         w_bkg = self.config["data"].get("bg_weight", 0.0)
+        w_inmc = self.config["data"].get("inject_ratio", 0.0)
         weight_scale = self.config["data"].get("weight_scale", False)
         if weight_scale:
             data = data if data is not None else self.get_data("data")
             bg = bg if bg is not None else self.get_data("bg") 
             w_bkg = w_bkg * data_shape(data) / data_shape(bg)
             print("background weight:", w_bkg)
-        return w_bkg
+        return w_bkg, w_inmc
 
     def get_fcn(self, batch=65000, vm=None, name=""):
         model = self.get_model(vm, name="")
@@ -399,12 +410,12 @@ class ConfigLoader(object):
     def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False, imporve=False):
         model = self.get_model()
         if data is None and phsp is None:
-            data, phsp, bg = self.get_all_data()
+            data, phsp, bg, inmc = self.get_all_data()
         print("decay chains included: ")
         for i in self.full_decay:
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
-        fcn = FCN(model, data, phsp, bg=bg, batch=batch)
+        fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
         print("initial NLL: ", fcn({}))
         # fit configure
         bounds_dict = {}
@@ -510,14 +521,14 @@ class ConfigLoader(object):
         params = fcn.model.Amp.vm.get_all_dic()
         return FitResult(params, fcn, min_nll, ndf = ndf)
 
-    def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
+    def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000, inmc=None):
         if params is None:
             params = {}
         if data is None:
-            data, phsp, bg = self.get_all_data()
+            data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch)
+        fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch, inmc=inmc)
         t = time.time()
         # data_w,mcdata,weight=weights,batch=50000)
         nll, g, h = fcn.nll_grad_hessian(params)
@@ -534,10 +545,10 @@ class ConfigLoader(object):
         if params is None:
             params = {}
         if data is None:
-            data, phsp, bg = self.get_all_data()
+            data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000)
+        self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000, inmc=inmc)
         diag_he = self.inv_he.diagonal()
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         print("hesse_error:", hesse_error)
@@ -561,11 +572,11 @@ class ConfigLoader(object):
         if params is None:
             params = {}
         if data is None:
-            data, phsp, bg = self.get_all_data()
+            data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
         amp = self.get_amplitude()
-        w_bkg = self.get_bg_weight(data, bg)
+        w_bkg, w_inmc = self.get_bg_weight(data, bg)
         #cmap = plt.get_cmap("jet")
         #N = 10
         #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
