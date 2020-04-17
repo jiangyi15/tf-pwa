@@ -363,10 +363,10 @@ class ConfigLoader(object):
     def get_model(self, vm=None, name=""):
         amp = self.get_amplitude(vm=vm, name=name)
         w_bkg, w_inmc = self.get_bg_weight()
-        if w_inmc == 0:
-            model = Model(amp, w_bkg)
-        else:
+        if "inmc" in self.config["data"]:
             model = Model_new(amp, w_bkg, w_inmc)
+        else:
+            model = Model(amp, w_bkg)
         return model
     
     def get_bg_weight(self, data=None, bg=None):
@@ -407,7 +407,7 @@ class ConfigLoader(object):
         return args_name, x0, args, bnds
 
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False, imporve=False):
+    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False, improve=False):
         model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
@@ -469,7 +469,7 @@ class ConfigLoader(object):
             # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
             s = minimize(f_g, x0, method=method,
                          jac=True, callback=callback, options={"disp": 1, "gtol": 1e-5, "maxiter": maxiter})
-            while imporve and not s.success:
+            while improve and not s.success:
                 min_nll = s.fun
                 maxiter -= s.nit
                 s = minimize(f_g, s.x, method=method,
