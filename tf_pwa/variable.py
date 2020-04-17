@@ -776,7 +776,7 @@ class Variable(object):
         _shape_func(func, self.shape, '')
         self.name = new_name
 
-    def fixed(self, value):
+    def fixed(self, value=None):
         """
         Fix this Variable. Note only non-shape real Variable supports this method.
 
@@ -784,9 +784,13 @@ class Variable(object):
         """
         if not self.shape:
             if self.cplx:
-                value = complex(value)
-                self.vm.set_fix(self.name + 'r', value.real)
-                self.vm.set_fix(self.name + 'i', value.imag)
+                if value is None:
+                    value = [None, None]
+                else:
+                    cplx_value = complex(value)
+                    value = [cplx_value.real, cplx_value.imag]
+                self.vm.set_fix(self.name + 'r', value[0])
+                self.vm.set_fix(self.name + 'i', value[1])
             else:
                 self.vm.set_fix(self.name, value)
         else:

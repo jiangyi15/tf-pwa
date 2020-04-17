@@ -8,6 +8,7 @@ from .data import data_shape, split_generator, data_merge, data_split
 from .tensorflow_wrapper import tf
 from .utils import time_print
 from .config import get_config
+from .variable import Variable
 
 
 def loop_generator(var):
@@ -74,7 +75,7 @@ def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log
             ymc.append(y_i)
         int_dt = tf.reduce_sum(ymc)
         for data_i, weight_i in zip(data, weight):
-            part_y = amp(data_i, *args, **kwargs)/int_dt + w_flatmc
+            part_y = amp(data_i, *args, **kwargs)/int_dt + w_flatmc()
             part_y = trans(part_y)
             y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
             ys.append(y_i)
@@ -122,7 +123,7 @@ def clip_log(x, _epsilon=1e-6):
     b_t = tf.math.log(x)
     delta_x = x - _epsilon
     b_f = np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
-    #print("$$$$$", tf.where(x < _epsilon).numpy().tolist())
+    print("$$$", tf.where(x < _epsilon).numpy().tolist())
     return tf.where(x > _epsilon, b_t, b_f)
 
 class Model(object):
@@ -298,7 +299,10 @@ class Model_new(Model):
     """
     def __init__(self, amp, w_bkg=1.0, w_inmc=0):
         super(Model_new, self).__init__(amp, w_bkg)
-        self.w_inmc = w_inmc
+        #self.w_inmc = w_inmc
+        self.w_inmc = Variable("weight_injectMC", value=w_inmc, vm=self.Amp.vm)
+        if True:
+            self.w_inmc.fixed()
 
     def get_weight_data(self, data, weight=1.0, bg=None, inmc=None, alpha=True):
         """
@@ -323,7 +327,7 @@ class Model_new(Model):
         if inmc is not None:
             n_inmc = data_shape(inmc)
             data = data_merge(data, inmc)
-            wmc = self.w_inmc * n_data / n_inmc
+            wmc = self.w_inmc() * n_data / n_inmc
             inmc_weight = tf.convert_to_tensor(
                 [wmc] * n_inmc, dtype=get_config("dtype"))
             weight = tf.concat([weight, inmc_weight], axis=0)
@@ -362,7 +366,7 @@ class Model_new(Model):
         #N_flatmc = 3106
         #w_flatmc = 0#878/2525#2889/2525#3106/2525
         ln_data, g_ln_data = sum_gradient_new(self.Amp, data, mcdata, weight, mc_weight,
-                                          self.Amp.trainable_variables, tf.math.log, self.w_inmc)
+                                          self.Amp.trainable_variables, clip_log, self.w_inmc)
         nll = -ln_data
         g = [-i for i in g_ln_data]
         #print("@@@",nll,np.array(g).tolist())
