@@ -50,39 +50,6 @@ def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=No
     g = list(map(sum, zip(*gs)))
     return nll, g
 
-def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log, w_flatmc=0, args=(), kwargs=None):
-    """
-    NLL is the sum of trans(f(data)):math:`*`weight; gradient is the derivatives for each variable in ``var``.
-
-    :param f: Function. The amplitude PDF.
-    :param data: Data array
-    :param var: List of strings. Names of the trainable variables in the PDF.
-    :param weight: Weight factor for each data point. It's either a real number or an array of the same shape with ``data``.
-    :param trans: Function. Transformation of ``data`` before multiplied by ``weight``.
-    :param kwargs: Further arguments for ``f``.
-    :return: Real number NLL, list gradient
-    """
-    kwargs = kwargs if kwargs is not None else {}
-    if isinstance(weight, float):
-        weight = loop_generator(weight)
-    ys = []
-    #gs = []
-    ymc = []
-    with tf.GradientTape() as tape:
-        for mcdata_i, mcweight_i in zip(mcdata, mcweight):
-            part_y = amp(mcdata_i, *args, **kwargs)
-            y_i = tf.reduce_sum(tf.cast(mcweight_i, part_y.dtype) * part_y)
-            ymc.append(y_i)
-        int_dt = tf.reduce_sum(ymc)
-        for data_i, weight_i in zip(data, weight):
-            part_y = amp(data_i, *args, **kwargs)/int_dt + w_flatmc()
-            part_y = trans(part_y)
-            y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
-            ys.append(y_i)
-        nll = tf.reduce_sum(ys)
-    g = tape.gradient(nll, var, unconnected_gradients="zero")
-    return nll, g
-
 def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
     """
     The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
@@ -116,6 +83,73 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
     # h = [[sum(j) for j in zip(*i)] for i in h_s]
     return nll, g, h
 
+def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log, w_flatmc=lambda:0, args=(), kwargs=None):
+    """
+    NLL is the sum of trans(f(data)):math:`*`weight; gradient is the derivatives for each variable in ``var``.
+
+    :param f: Function. The amplitude PDF.
+    :param data: Data array
+    :param var: List of strings. Names of the trainable variables in the PDF.
+    :param weight: Weight factor for each data point. It's either a real number or an array of the same shape with ``data``.
+    :param trans: Function. Transformation of ``data`` before multiplied by ``weight``.
+    :param kwargs: Further arguments for ``f``.
+    :return: Real number NLL, list gradient
+    """
+    kwargs = kwargs if kwargs is not None else {}
+    if isinstance(weight, float):
+        weight = loop_generator(weight)
+    ys = []
+    #gs = []
+    ymc = []
+    with tf.GradientTape() as tape:
+        for mcdata_i, mcweight_i in zip(mcdata, mcweight):
+            part_y = amp(mcdata_i, *args, **kwargs)
+            y_i = tf.reduce_sum(tf.cast(mcweight_i, part_y.dtype) * part_y)
+            ymc.append(y_i)
+        int_dt = tf.reduce_sum(ymc)
+        for data_i, weight_i in zip(data, weight):
+            wmc = w_flatmc()
+            part_y = (amp(data_i, *args, **kwargs)/int_dt + wmc) / tf.math.sqrt(1+wmc*wmc)
+            part_y = trans(part_y)
+            y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
+            ys.append(y_i)
+        nll = -tf.reduce_sum(ys)
+    g = tape.gradient(nll, var, unconnected_gradients="zero")
+    return nll, g
+
+def sum_hessian_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log, w_flatmc=lambda:0, args=(), kwargs=None):
+    """
+    The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
+    which is the matrix of the second-order derivative.
+
+    :return: Real number NLL, list gradient, 2-D list hessian
+    """
+    kwargs = kwargs if kwargs is not None else {}
+    if isinstance(weight, float):
+        weight = loop_generator(weight)
+    ys = []
+    ymc = []
+    with tf.GradientTape(persistent=True) as tape0:
+        with tf.GradientTape() as tape:
+            for mcdata_i, mcweight_i in zip(mcdata, mcweight):
+                part_y = amp(mcdata_i, *args, **kwargs)
+                y_i = tf.reduce_sum(tf.cast(mcweight_i, part_y.dtype) * part_y)
+                ymc.append(y_i)
+            int_dt = tf.reduce_sum(ymc)
+            for data_i, weight_i in zip(data, weight):
+                wmc = w_flatmc()
+                part_y = (amp(data_i, *args, **kwargs)/int_dt + wmc) / tf.math.sqrt(1+wmc*wmc)
+                part_y = trans(part_y)
+                y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
+                ys.append(y_i)
+            nll = -tf.reduce_sum(ys)
+        gradient = tape.gradient(nll, var, unconnected_gradients="zero")
+    hessian = []
+    for gi in gradient:
+        # 2nd order derivative
+        hessian.append(tape0.gradient(gi, var, unconnected_gradients="zero"))
+    del tape0
+    return nll, gradient, hessian
 
 def clip_log(x, _epsilon=1e-6):
     """clip log to allowed large value"""
@@ -297,11 +331,11 @@ class Model_new(Model):
     :param amp: ``AllAmplitude`` object. The amplitude model.
     :param w_bkg: Real number. The weight of background.
     """
-    def __init__(self, amp, w_bkg=1.0, w_inmc=0):
+    def __init__(self, amp, w_bkg=1.0, w_inmc=0, float_wmc=False):
         super(Model_new, self).__init__(amp, w_bkg)
         #self.w_inmc = w_inmc
         self.w_inmc = Variable("weight_injectMC", value=w_inmc, vm=self.Amp.vm)
-        if True:
+        if not float_wmc:
             self.w_inmc.fixed()
 
     def get_weight_data(self, data, weight=1.0, bg=None, inmc=None, alpha=True):
@@ -365,14 +399,12 @@ class Model_new(Model):
         #N_data = 2525
         #N_flatmc = 3106
         #w_flatmc = 0#878/2525#2889/2525#3106/2525
-        ln_data, g_ln_data = sum_gradient_new(self.Amp, data, mcdata, weight, mc_weight,
+        nll, g = sum_gradient_new(self.Amp, data, mcdata, weight, mc_weight,
                                           self.Amp.trainable_variables, clip_log, self.w_inmc)
-        nll = -ln_data
-        g = [-i for i in g_ln_data]
         #print("@@@",nll,np.array(g).tolist())
         return nll, g
 
-    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000, bg=None):
+    def nll_grad_hessian(self, data, mcdata, weight, mc_weight):
         """
         The parameters are the same with ``self.nll()``, but it will return Hessian as well.
 
@@ -380,24 +412,9 @@ class Model_new(Model):
         :return gradients: List of real numbers. The gradients for each variable.
         :return Hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
         """
-        data, weight = self.get_weight_data(data, weight, bg=bg)
-        n_mc = data_shape(mcdata)
-        sw = tf.reduce_sum(weight)
-        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
-                                                    self.Amp.trainable_variables, weight=split_generator(
-                weight, batch),
-                                                    trans=tf.math.log)
-        int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
-                                                 self.Amp.trainable_variables)
-
-        n_var = len(g_ln_data)
-        nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
-        g = - g_ln_data + sw * g_int_mc / int_mc
-
-        g_int_mc = g_int_mc / int_mc
-        g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
-
-        h = - h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
+        nll, g, h = sum_hessian_new(self.Amp, data, mcdata, weight, mc_weight,
+                                          self.Amp.trainable_variables, clip_log, self.w_inmc)
+        h = tf.stack(h)
         return nll, g, h
 
 
@@ -549,9 +566,12 @@ class FCN(object):
         :return nll: Real number. The value of NLL.
         """
         self.model.set_params(x)
-        nll = self.model.nll(self.data, self.mcdata, weight=self.weight)
-        self.cached_nll = nll
-        self.n_call += 1
+        if type(self.model) == Model_new:
+            nll, g = self.nll_grad(x)
+        else:
+            nll = self.model.nll(self.data, self.mcdata, weight=self.weight)
+            self.cached_nll = nll
+            self.n_call += 1
         return nll
 
     def grad(self, x):
@@ -571,8 +591,7 @@ class FCN(object):
         """
         self.model.set_params(x)
         nll, g = self.model.nll_grad_batch(self.batch_data, self.batch_mcdata,
-                                           weight=list(data_split(
-                                               self.weight, self.batch)),
+                                           weight=list(data_split(self.weight, self.batch)),
                                            mc_weight=data_split(self.mc_weight, self.batch))
         self.cached_nll = nll
         self.n_call += 1
@@ -585,11 +604,17 @@ class FCN(object):
         :return gradients: List of real numbers. The gradients for each variable.
         :return hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
         """
-        if batch is None:
-            batch = self.batch
         self.model.set_params(x)
-        nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
-                                                weight=self.weight, batch=batch)
+        if type(self.model) == Model_new:
+            nll, g, h = self.model.nll_grad_hessian(self.batch_data, self.batch_mcdata,
+                                           weight=list(data_split(self.weight, self.batch)),
+                                           mc_weight=data_split(self.mc_weight, self.batch))
+        else:
+            if batch is None:
+                batch = self.batch
+            nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
+                                                    weight=self.weight, batch=batch)
+
         return nll, g, h
 
 

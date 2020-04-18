@@ -364,7 +364,8 @@ class ConfigLoader(object):
         amp = self.get_amplitude(vm=vm, name=name)
         w_bkg, w_inmc = self.get_bg_weight()
         if "inmc" in self.config["data"]:
-            model = Model_new(amp, w_bkg, w_inmc)
+            float_wmc = self.config["data"].get("float_inmc_ratio_in_pdf", False)
+            model = Model_new(amp, w_bkg, w_inmc, float_wmc)
         else:
             model = Model(amp, w_bkg)
         return model
