@@ -16,14 +16,14 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     print("\n########### initial parameters")
     pprint(config.get_params())
 
-    data, phsp, bg = config.get_all_data()
+    data, phsp, bg, inmc = config.get_all_data()
     
-    fit_result = config.fit(data, phsp, bg=bg, batch=65000, method=method)
+    fit_result = config.fit(batch=65000, method=method)
     
     pprint(fit_result.params)
     fit_result.save_as("final_params.json")
-    config.plot_partial_wave(fit_result, data, phsp, bg=bg, plot_pull=True)
-    fit_error = config.get_params_error(fit_result, data, phsp, bg=bg, batch=13000)
+    config.plot_partial_wave(fit_result, plot_pull=True)
+    fit_error = config.get_params_error(fit_result, batch=13000)
     fit_result.set_error(fit_error)
     pprint(fit_error)
     

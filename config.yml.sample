@@ -18,6 +18,10 @@ data:
     bg: ["data/bg4600_new.dat"]
     # background weight
     bg_weight: 0.731
+    # inject MC in data
+    # inmc: ["data/inMC.dat"]
+    # inject_ratio: 0.01
+    # float_inmc_ratio_in_pdf: False
     # whether boost data to center mass frame first
     # center_mass: True
     # cached data file
