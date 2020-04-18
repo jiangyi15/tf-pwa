@@ -21,7 +21,7 @@ import sympy as sy
 from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
 from scipy.optimize import BFGS
-# from .test_fit import minimize
+from .fit_improve import minimize
 
 
 class ConfigLoader(object):
@@ -84,7 +84,7 @@ class ConfigLoader(object):
         order = self.get_dat_order()
         center_mass = self.config["data"].get("center_mass", True)
         data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass)
-        print(data.keys())
+        # print(data.keys())
         return data
     
     def load_cached_data(self, file_name=None):
