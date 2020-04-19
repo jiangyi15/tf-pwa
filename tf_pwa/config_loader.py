@@ -21,7 +21,7 @@ import sympy as sy
 from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
 from scipy.optimize import BFGS
-from .fit_improve import minimize
+# from .fit_improve import minimize
 
 
 class ConfigLoader(object):
@@ -538,6 +538,7 @@ class ConfigLoader(object):
         # print([i.numpy() for i in g])
         # print(h.numpy())
         self.inv_he = np.linalg.pinv(h.numpy())
+        check_positive_definite(self.inv_he)
         np.save("error_matrix.npy", self.inv_he)
         # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
         return self.inv_he
@@ -939,6 +940,8 @@ class MultiConfig(object):
             xn = s.x  # self.vm.get_all_val()  # bd.get_y(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
+            if hasattr(s, "hess_inv"):
+                self.inv_he = s.hess_inv
         elif method in ["L-BFGS-B"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -1031,6 +1034,15 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
     x_new = np.linspace(np.min(x), np.max(x), num=num, endpoint=True)
     y_new = func(x_new)
     return x_new, y_new
+
+
+def check_positive_definite(m):
+    e, v = np.linalg.eig(m)
+    if np.all(e > 0.0):
+        return True
+    warnings.warn("matrix is not positive definited")
+    print("eigvalues: ", e)
+    return False
 
 
 class FitResult(object):
