@@ -209,7 +209,7 @@ def cal_hesse_error(model):
     return hesse_error, inv_he
 
 
-def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
+def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
              bgfile=None, genfile=None):
     """
     This function is used to generate toy data according to an amplitude model.
@@ -233,7 +233,8 @@ def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
     print("data:", Nmc + Nbg, ", sig:", Nmc, ", bkg:", Nbg)
     dtype = "float64"
 
-    phsp = prepare_data_from_decay(mcfile, amp.decay_group, particles=particles, dtype=dtype)
+    particles = sorted(amp.decay_group.outs)
+    phsp = prepare_data_from_decay(mcfile, amp.decay_group, dtype=dtype)
     phsp = data_to_tensor(phsp)
     ampsq = amp(phsp)
     ampsq_max = tf.reduce_max(ampsq).numpy()
@@ -288,7 +289,7 @@ def gen_data(amp, particles, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
     return data_to_tensor(data)
 
 
-def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
+def gen_mc(mother, daughters, number, outfile=None):
     """
     This function generates phase-space MC data (without considering the effect of detector performance). It imports
     ``PhaseSpaceGenerator`` from module **tf_pwa.phasespace**.
@@ -306,7 +307,8 @@ def gen_mc(mother, daughters, number, outfile="data/flat_mc.dat"):
     for i in range(len(daughters)):
         pf.append(flat_mc_data[i])
     pf = np.transpose(pf, (1, 0, 2)).reshape((-1, 4))
-    np.savetxt(outfile, pf)  # 一个不包含探测器效率的MC样本
+    if isinstance(outfile, str):
+        np.savetxt(outfile, pf)  # 一个不包含探测器效率的MC样本
     return pf
 
 

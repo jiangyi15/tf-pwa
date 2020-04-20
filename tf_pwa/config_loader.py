@@ -623,8 +623,8 @@ class ConfigLoader(object):
                                               range=xrange,
                                               histtype="step", label="total fit", bins=bins, color="black")
                 else:
-                    fit_y, fit_x, _ = ax.hist(phsp, weights=total_weight*bin_scale, range=xrange,
-                                              label="total fit", bins=bins*bin_scale, color="black")
+                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=total_weight*norm_frac, range=xrange, histtype="step", 
+                                              label="total fit", bins=bins, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 style = itertools.product(colors, linestyles)
                 for i, j in enumerate(weights):
@@ -680,6 +680,7 @@ class ConfigLoader(object):
                 var1 = var1.rstrip()
                 var2 = var2.lstrip()
                 display = i["display"]
+                plot_figs = i["plot_figs"]
                 name1, name2 = display.split('vs')
                 name1 = name1.rstrip()
                 name2 = name2.lstrip()
@@ -693,30 +694,35 @@ class ConfigLoader(object):
                 range2 = plot_var_dic[var2]["range"]
                 data_2 = trans2(data_index(data, idx2))
                 phsp_2 = trans2(data_index(phsp, idx2))
-                if bg is not None:
-                    bg_1 = trans1(data_index(bg, idx1))
-                    bg_2 = trans2(data_index(bg, idx2))
                 # data
-                plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')
-                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
-                plt.xlim(range1); plt.ylim(range2)
-                plt.savefig(prefix+k+'_data')
-                plt.clf()
-                print("Finish plotting 2D data "+prefix+k)
+                if "data" in plot_figs:
+                    plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')
+                    plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                    plt.xlim(range1); plt.ylim(range2)
+                    plt.savefig(prefix+k+'_data')
+                    plt.clf()
+                    print("Finish plotting 2D data "+prefix+k)
                 # sideband
-                plt.scatter(bg_1,bg_2,s=1,c='g',alpha=0.8,label='sideband')
-                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
-                plt.xlim(range1); plt.ylim(range2)
-                plt.savefig(prefix+k+'_bkg')
-                plt.clf()
-                print("Finish plotting 2D sideband "+prefix+k)
+                if "sideband" in plot_figs:
+                    if bg is None:
+                        print("There's no bkg input")
+                    else:
+                        bg_1 = trans1(data_index(bg, idx1))
+                        bg_2 = trans2(data_index(bg, idx2))
+                        plt.scatter(bg_1,bg_2,s=1,c='g',alpha=0.8,label='sideband')
+                        plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                        plt.xlim(range1); plt.ylim(range2)
+                        plt.savefig(prefix+k+'_bkg')
+                        plt.clf()
+                        print("Finish plotting 2D sideband "+prefix+k)
                 # fit pdf
-                plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
-                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
-                plt.xlim(range1); plt.ylim(range2)
-                plt.savefig(prefix+k+'_fitted')
-                plt.clf()
-                print("Finish plotting 2D fitted "+prefix+k)
+                if "fitted" in plot_figs:
+                    plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
+                    plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
+                    plt.xlim(range1); plt.ylim(range2)
+                    plt.savefig(prefix+k+'_fitted')
+                    plt.clf()
+                    print("Finish plotting 2D fitted "+prefix+k)
         if has_uproot and root_name:
             save_dict_to_root(root_dict, file_name=prefix+root_name, tree_name="Tree")
             print("Save root file "+prefix+root_name)

@@ -370,9 +370,10 @@ class VarsManager(object):
         :param name: String
         :param value: Real number
         """
-        if name not in self.variables:
-            raise Exception("{} not found".format(name))
-        self.variables[name].assign(value)
+        if name in self.variables:
+            self.variables[name].assign(value)
+        else:
+            warnings.warn("{} not found".format(name))
 
     def rp2xy(self, name):
         """

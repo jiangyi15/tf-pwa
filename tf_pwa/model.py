@@ -109,7 +109,7 @@ def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log
         int_dt = tf.reduce_sum(ymc)
         for data_i, weight_i in zip(data, weight):
             wmc = w_flatmc()
-            part_y = (amp(data_i, *args, **kwargs)/int_dt + wmc) / tf.math.sqrt(1+wmc*wmc)
+            part_y = (amp(data_i, *args, **kwargs)/int_dt + wmc) / (1+wmc)
             part_y = trans(part_y)
             y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
             ys.append(y_i)

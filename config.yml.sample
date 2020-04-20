@@ -163,3 +163,4 @@ plot:
     2Dplot:
         m_R_CD & m_R_BC:
             display: "$M_{CD}$ vs $M_{BC}$"
+            plot_figs: ["data", "sideband", "fitted"]
