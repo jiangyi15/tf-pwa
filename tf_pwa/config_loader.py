@@ -21,7 +21,7 @@ import sympy as sy
 from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
 from scipy.optimize import BFGS
-from .fit_improve import minimize
+from .fit_improve import minimize as my_minimize
 
 
 class ConfigLoader(object):
@@ -82,7 +82,7 @@ class ConfigLoader(object):
         if self.cached_data is not None:
             data = self.cached_data.get(idx, None)
             if data is not None:
-                print(data.keys())
+                # print(data.keys())
                 return data
         files = self.get_data_file(idx)
         if files is None:
@@ -100,7 +100,7 @@ class ConfigLoader(object):
             if self.cached_data is None:
                 self.cached_data = load_data(file_name)
                 print("load cached_data {}".format(file_name))
-                print(self.cached_data["data"]["decay"].keys())
+                # print(self.cached_data["data"]["decay"].keys())
     
     def save_cached_data(self, data, file_name=None):
         if file_name is None:
@@ -450,7 +450,7 @@ class ConfigLoader(object):
             for i, name in enumerate(args_name):
                 print(args_name[i], gs[i], gs0[i])
 
-        if method in ["BFGS", "CG", "Nelder-Mead"]:
+        if method in ["BFGS", "CG", "Nelder-Mead", "test"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
                     x_p = dict(zip(args_name, x))
@@ -468,8 +468,12 @@ class ConfigLoader(object):
             f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
             x0 = np.array(fcn.model.Amp.vm.get_all_val(True))
             # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
-            s = minimize(f_g, x0, method=method,
-                         jac=True, callback=callback, options={"disp": 1, "gtol": 1e-5, "maxiter": maxiter})
+            if method == "test":
+                s = my_minimize(f_g, x0, method=method,
+                            jac=True, callback=callback, options={"disp": 1, "gtol": 1e-5, "maxiter": maxiter})
+            else:
+                s = minimize(f_g, x0, method=method,
+                            jac=True, callback=callback, options={"disp": 1, "gtol": 1e-5, "maxiter": maxiter})
             while improve and not s.success:
                 min_nll = s.fun
                 maxiter -= s.nit
@@ -538,6 +542,7 @@ class ConfigLoader(object):
         # print([i.numpy() for i in g])
         # print(h.numpy())
         self.inv_he = np.linalg.pinv(h.numpy())
+        check_positive_definite(self.inv_he)
         np.save("error_matrix.npy", self.inv_he)
         # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
         return self.inv_he
@@ -945,6 +950,8 @@ class MultiConfig(object):
             xn = s.x  # self.vm.get_all_val()  # bd.get_y(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
+            if hasattr(s, "hess_inv"):
+                self.inv_he = s.hess_inv
         elif method in ["L-BFGS-B"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -1037,6 +1044,15 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
     x_new = np.linspace(np.min(x), np.max(x), num=num, endpoint=True)
     y_new = func(x_new)
     return x_new, y_new
+
+
+def check_positive_definite(m):
+    e, v = np.linalg.eig(m)
+    if np.all(e > 0.0):
+        return True
+    warnings.warn("matrix is not positive definited")
+    print("eigvalues: ", e)
+    return False
 
 
 class FitResult(object):
