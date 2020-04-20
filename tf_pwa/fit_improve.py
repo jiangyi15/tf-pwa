@@ -66,24 +66,25 @@ class Seq:
             self._cached.pop(0)
 
 
-def fmin_bfgs_f(f_g, x0, B0=None, epsilon=1e-5, Delta=10.0, maxiter=2000, callback=None, norm_ord=np.Inf):
+def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, callback=None, norm_ord=np.Inf, **_kwargs):
     fk, gk = f_g(x0)
     if B0 is None:
         Bk = np.eye(len(x0))
     else:
         Bk = B0
+    maxiter = 200 * len(x0) if maxiter is None else maxiter
     xk = x0
     norm = lambda x: np.linalg.norm(x, ord=norm_ord)
     theta = 0.9
     C = 0.5
     k = 0
     old_old_fval = fk + np.linalg.norm(gk) / 2
-    f_s = Seq(5)
+    f_s = Seq(2)
     f_s.add(fk)
     flag = 0
     re_search = 0
     for k in range(maxiter):
-        if norm(gk) <= epsilon:
+        if norm(gk) <= gtol:
             break
         dki = - np.dot(np.linalg.pinv(Bk), gk)
         try:
@@ -91,7 +92,7 @@ def fmin_bfgs_f(f_g, x0, B0=None, epsilon=1e-5, Delta=10.0, maxiter=2000, callba
             f = f_g.fun
             myfprime = f_g.grad
             gfk = gk
-            if k < 50:
+            if k < 30 and old_old_fval - fk > 1e-1:
                 old_fval = fk
                 alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
                     line_search_wolfe2(f, myfprime, xk, pk, gfk,
@@ -161,13 +162,14 @@ def fmin_bfgs_f(f_g, x0, B0=None, epsilon=1e-5, Delta=10.0, maxiter=2000, callba
 
 
 def minimize(fun, x0, args=(), method=None, jac=None, hess=None, hessp=None, bounds=None, constraints=(), tol=None, callback=None, options=None):
-    s = fmin_bfgs_f(Cached_FG(fun), x0, callback=callback)
+    options = options if options is not None else {}
+    s = fmin_bfgs_f(Cached_FG(fun), x0, callback=callback, **options)
     return s
 
 
 def line_search_nonmonote(f, myfprime, xk, pk, gfk=None, old_fval=None, old_old_fval=None, args=(), c1=0.5, maxiter=10):
-    alpha = max(- np.dot(gfk, pk)/np.dot(pk, pk), 0.5)
-    print("init alpha", alpha, gfk)
+    alpha = max(- np.dot(gfk, pk)/np.dot(pk, pk), 1.0)
+    print("init alpha", alpha, "\ngrad:", gfk)
     for i in range(maxiter):
         phi_star = f(xk + alpha * pk)
         if phi_star < old_fval + c1 * alpha * np.dot(gfk, pk):
