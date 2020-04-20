@@ -78,7 +78,7 @@ def fmin_bfgs_f(f_g, x0, B0=None, epsilon=1e-5, Delta=10.0, maxiter=2000, callba
     C = 0.5
     k = 0
     old_old_fval = fk + np.linalg.norm(gk) / 2
-    f_s = Seq(1)
+    f_s = Seq(5)
     f_s.add(fk)
     flag = 0
     re_search = 0
@@ -91,10 +91,16 @@ def fmin_bfgs_f(f_g, x0, B0=None, epsilon=1e-5, Delta=10.0, maxiter=2000, callba
             f = f_g.fun
             myfprime = f_g.grad
             gfk = gk
-            old_fval = f_s.get_max()  # fk
-            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-                line_search_wolfe2(f, myfprime, xk, pk, gfk,
-                                   old_fval, old_old_fval)
+            if k < 50:
+                old_fval = fk
+                alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
+                    line_search_wolfe2(f, myfprime, xk, pk, gfk,
+                                    old_fval, old_old_fval)
+            else:
+                old_fval = f_s.get_max()  # fk
+                alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
+                    line_search_nonmonote(f, myfprime, xk, pk, gfk,
+                                    old_fval, old_old_fval)
         except Exception as e:
             print(e)
             re_search += 1
@@ -157,6 +163,20 @@ def fmin_bfgs_f(f_g, x0, B0=None, epsilon=1e-5, Delta=10.0, maxiter=2000, callba
 def minimize(fun, x0, args=(), method=None, jac=None, hess=None, hessp=None, bounds=None, constraints=(), tol=None, callback=None, options=None):
     s = fmin_bfgs_f(Cached_FG(fun), x0, callback=callback)
     return s
+
+
+def line_search_nonmonote(f, myfprime, xk, pk, gfk=None, old_fval=None, old_old_fval=None, args=(), c1=0.5, maxiter=10):
+    alpha = max(- np.dot(gfk, pk)/np.dot(pk, pk), 0.5)
+    print("init alpha", alpha, gfk)
+    for i in range(maxiter):
+        phi_star = f(xk + alpha * pk)
+        if phi_star < old_fval + c1 * alpha * np.dot(gfk, pk):
+            derphi_star = myfprime(xk + alpha * pk)
+            return alpha, 0, 0, phi_star, old_fval, derphi_star
+        alpha = c1 * alpha
+    derphi_star = myfprime(xk + alpha * pk)
+    print("not found")
+    return alpha, 0, 0, phi_star, old_fval, derphi_star
 
 
 #------------------------------------------------------------------------------
