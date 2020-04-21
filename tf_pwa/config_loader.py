@@ -408,7 +408,7 @@ class ConfigLoader(object):
         return args_name, x0, args, bnds
 
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, batch=65000, method="BFGS", check_grad=False, improve=False):
+    def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False):
         model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
