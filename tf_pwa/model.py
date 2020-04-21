@@ -269,7 +269,7 @@ class Model(object):
         :param mc_weight:
         :return:
         """
-        sw = tf.reduce_sum(weight)
+        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
         ln_data, g_ln_data = sum_gradient(self.Amp, data,
                                           self.Amp.trainable_variables, weight=weight, trans=clip_log)
         int_mc, g_int_mc = sum_gradient(self.Amp, mcdata,

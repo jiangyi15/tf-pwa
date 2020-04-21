@@ -69,13 +69,32 @@ class ConfigLoader(object):
             ret = None
         return ret
 
-    def get_dat_order(self):
+    def get_dat_order(self, standard=False):
         order = self.config["data"].get("dat_order", None)
         if order is None:
             order = list(self.decay_struct.outs)
         else:
             order = [get_particle(str(i)) for i in order]
-        return order
+        if not standard:
+            return order
+
+        re_map = self.decay_struct.get_chains_map()
+
+        def particle_item():
+            for j in re_map:
+                for k, v in j.items():
+                    for s, l in v.items():
+                        yield s, l
+
+        new_order = []
+        for i in order:
+            for s, l in particle_item():
+                if str(l) == str(i):
+                    new_order.append(s)
+                    break
+            else:
+                new_order.append(i)
+        return new_order
 
     @functools.lru_cache()
     def get_data(self, idx):
