@@ -389,15 +389,16 @@ class ConfigLoader(object):
             model = Model(amp, w_bkg)
         return model
     
-    def get_bg_weight(self, data=None, bg=None):
+    def get_bg_weight(self, data=None, bg=None, display=True):
         w_bkg = self.config["data"].get("bg_weight", 0.0)
         w_inmc = self.config["data"].get("inject_ratio", 0.0)
         weight_scale = self.config["data"].get("weight_scale", False)
         if weight_scale:
             data = data if data is not None else self.get_data("data")
-            bg = bg if bg is not None else self.get_data("bg") 
+            bg = bg if bg is not None else self.get_data("bg")
             w_bkg = w_bkg * data_shape(data) / data_shape(bg)
-            print("background weight:", w_bkg)
+            if display:
+                print("background weight:", w_bkg)
         return w_bkg, w_inmc
 
     def get_fcn(self, batch=65000, vm=None, name=""):
@@ -407,6 +408,11 @@ class ConfigLoader(object):
         data, phsp, bg = self.get_all_data()
         fcn = FCN(model, data, phsp, bg=bg, batch=batch)
         return fcn
+    
+    def get_ndf(self):
+        model = self.get_model()
+        args_name = model.Amp.vm.trainable_vars
+        return len(args_name)
 
     def get_args_value(self, bounds_dict):
         model = self.get_model()

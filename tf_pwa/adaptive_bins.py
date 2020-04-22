@@ -34,9 +34,10 @@ class AdaptiveBound(object):
     def get_bool_mask(self, data):
         """bool mask for splitting data"""
         bounds = self.get_bounds()
+        idx_data = data[:bounds[0][0].shape[0]]
         ret = []
         for lb, rb in bounds:
-            mask = np.logical_and(data >= lb[..., np.newaxis], data < rb[..., np.newaxis])
+            mask = np.logical_and(idx_data >= lb[..., np.newaxis], idx_data < rb[..., np.newaxis])
             mask = np.all(mask, axis=0)
             ret.append(mask)
         return ret
