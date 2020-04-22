@@ -11,6 +11,7 @@ from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.phasespace import  PhaseSpaceGenerator
 from tf_pwa.data import data_mask, data_index, data_to_numpy
 import numpy as np
+import json
 
 
 def gen_phasespace(top, finals, number):
@@ -41,8 +42,13 @@ def save_dat(file_name, data, config):
 
 def gen_toy(config, params, file_name):
     config = ConfigLoader(config)
-    config.set_params(params)
-
+    try:
+        config.set_params(params)
+    except Exception as e:
+        print(e)
+    
+    print("using params")
+    print(json.dumps(config.get_params(), indent=2))
     amp = config.get_amplitude()
     phsp = config.get_data("phsp")
 
