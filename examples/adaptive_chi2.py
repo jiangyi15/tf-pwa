@@ -9,6 +9,7 @@ from tf_pwa.config_loader import ConfigLoader
 
 from tf_pwa.adaptive_bins import AdaptiveBound
 from tf_pwa.data import data_to_numpy, data_index
+from tf_pwa.angle import kine_min, kine_max
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -47,7 +48,10 @@ def cal_chi2(config, adapter, data, phsp, data_idx, bg=None, data_cut=None):
         chi21.append(ndata * np.log(nmc))
     max_weight = np.max(weights)
     chi2 = np.sum(weights)
-    ndf = len(bound) - 1 - config.get_ndf()
+    n_fp = config.get_ndf()
+    print("bins: ", len(bound))
+    print("number of free parameters: ", n_fp)
+    ndf = len(bound) - 1 - n_fp
     print("chi2/ndf: ", np.sum(weights), "/", ndf) # ,"another", np.sum(chi21))
     return chi2, ndf
 
@@ -57,19 +61,28 @@ def draw_dalitz(data_cut, bound):
     my_cmap = plt.get_cmap("jet")
     # my_cmap.set_under('w', 1)
 
-    ah =  ax.hist2d(data_cut[0]**2, data_cut[1]**2, bins=50, norm=mcolors.LogNorm())
+    
     for i, bnd in enumerate(bound):
         min_x, min_y = bnd[0]
         max_x, max_y = bnd[1]
         rect = mpathes.Rectangle((min_x, min_y), max_x-min_x, max_y-min_y, linewidth=1, facecolor="none", edgecolor="black") #cmap(weights[i]/max_weight))
         ax.add_patch(rect)
+    
+    ah =  ax.hist2d(data_cut[0]**2, data_cut[1]**2, bins=50, norm=mcolors.LogNorm())
+    m0, m1, m2, m3 = 5.27926, 2.01026, 1.86961, 0.49368
     # print(ah)
-    ax.set_xlim((np.min(data_cut[0])**2, np.max(data_cut[0])**2))
-    ax.set_ylim((np.min(data_cut[1])**2, np.max(data_cut[1])**2))
+    s12_min, s12_max = (m1 + m2)**2, (m0 - m3)**2
+    s13_min, s13_max = (m1 + m3)**2, (m0 - m2)**2
+    s12 = np.linspace(s12_min, s12_max, 1000)
+    ax.plot(s12, kine_max(s12, m0, m2, m1, m3), color="grey")
+    ax.plot(s12, kine_min(s12, m0, m2, m1, m3), color="grey")
+    
+    ax.set_xlim((s12_min, s12_max))
+    ax.set_ylim((s13_min, s13_max))
     ax.set_xlabel("$M_{12}$")
     ax.set_ylabel("$M_{13}$")
     fig.colorbar(ah[-1])
-    plt.savefig("figure/m_12_m13_adaptive.png")
+    plt.savefig("figure/m_12_m13_adaptive.png", dpi=200)
 
 
 def main():

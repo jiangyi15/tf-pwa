@@ -62,7 +62,7 @@ particle:
     # top decay particle
     $top:
         A:
-            J: 1  # spin
+            J: 1  # spin, use 1/2 or 0.5 for half spin
             P: -1  # parity, alias: `Par`
             spins: [-1, 1]  # list of possible of spin-projected quantum numbers
     # final particles

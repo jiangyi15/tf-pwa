@@ -258,3 +258,31 @@ class EulerAngle(dict):
         xi = [Vector3.cross_unit(i, zz) for i in zi]
         ang = EulerAngle.angle_zx_zx(z, x, zz, xi[2])
         return ang, xi
+
+
+def kine_min_max(s12, m0, m1, m2, m3):
+    """ min max s23 for s12 in p0 -> p1 p2 p3"""
+    m12 = tf.sqrt(s12)
+    m12 = tf.where(m12 > (m1 + m2), m12,  m1 + m2)
+    m12 = tf.where(m12 < (m0 - m3), m12,  m0 - m3)
+    # if(mz < (m_d+m_pi)) return 0;
+    # if(mz > (m_b-m_pi)) return 0;
+    E2st = 0.5*(m12*m12-m1*m1+m2*m2)/m12
+    E3st = 0.5*(m0*m0-m12*m12-m3*m3)/m12
+    p2st = tf.sqrt(E2st*E2st - m2*m2)
+    p3st = tf.sqrt(E3st*E3st - m3*m3)
+    s_min = (E2st + E3st)**2 - (p2st + p3st)**2
+    s_max = (E2st + E3st)**2 - (p2st - p3st)**2
+    return s_min, s_max
+
+
+def kine_min(s12, m0, m1, m2, m3):
+    """ min s23 for s12 in p0 -> p1 p2 p3"""
+    s_min, s_max = kine_min_max(s12, m0, m1, m2, m3)
+    return s_min
+
+
+def kine_max(s12, m0, m1, m2, m3):
+    """ max s23 for s12 in p0 -> p1 p2 p3"""
+    s_min, s_max = kine_min_max(s12, m0, m1, m2, m3)
+    return s_max

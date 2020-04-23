@@ -17,7 +17,7 @@ import copy
 # from pysnooper import snoop
 
 from .particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
-    DecayGroup as BaseDecayGroup
+    DecayGroup as BaseDecayGroup, _spin_int, _spin_range
 from .tensorflow_wrapper import tf
 from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime
 from .dfun import get_D_matrix_lambda
@@ -323,12 +323,12 @@ class HelicityDecay(AmpDecay, AmpBase):
         ja = self.core.J
         jb = self.outs[0].J
         jc = self.outs[1].J
-        n = (2 * jb + 1), (2 * jc + 1)
+        n = _spin_int(2 * jb + 1), _spin_int(2 * jc + 1)
         ret = np.zeros(shape=(m, *n))
         for i, ls_i in enumerate(ls):
             l, s = ls_i
-            for i1, lambda_b in enumerate(range(-jb, jb + 1)):
-                for i2, lambda_c in enumerate(range(-jc, jc + 1)):
+            for i1, lambda_b in enumerate(_spin_range(-jb, jb)):
+                for i2, lambda_c in enumerate(_spin_range(-jc, jc)):
                     ret[i][i1][i2] = np.sqrt((2 * l + 1) / (2 * ja + 1)) \
                         * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
                         * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)

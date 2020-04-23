@@ -22,15 +22,23 @@ import numpy as np
 from .tensorflow_wrapper import tf
 
 
+def _spin_int(x):
+    if isinstance(x, int):
+        return x
+    return int(x+0.1)
+
+
 @functools.lru_cache()
 def _tuple_delta_D_trans(j, la, lb, lc):
-    s = np.zeros(shape=((2 * j + 1), (2 * j + 1), len(la), len(lb), len(lc)))
+    ln = _spin_int(2 * j + 1)
+    s = np.zeros(shape=(ln, ln, len(la), len(lb), len(lc)))
     for i_a, la_i in enumerate(la):
         for i_b, lb_i in enumerate(lb):
             for i_c, lc_i in enumerate(lc):
                 delta = lb_i - lc_i
                 if abs(delta) <= j:
-                    s[la_i + j][delta + j][i_a][i_b][i_c] = 1.0
+                    idx = la_i + j, delta + j, i_a, i_b, i_c
+                    s[tuple(map(_spin_int, idx))] = 1.0
     return s
 
 
@@ -52,10 +60,12 @@ def Dfun_delta(d, ja, la, lb, lc=(0,)):
     :math:`D_{ma,mb-mc} = \\delta[(m1,m2)->(ma, mb,mc))] D_{m1,m2}`
     """
     t = delta_D_trans(ja, la, lb, lc)
-    t_trans = tf.reshape(t, ((2 * ja + 1) * (2 * ja + 1), len(la) * len(lb) * len(lc)))
+    ln = _spin_int(2 * ja + 1)
+    t_trans = tf.reshape(t, (ln * ln, len(la) * len(lb) * len(lc)))
     t_cast = tf.cast(t_trans, d.dtype)
     # print(d[0])
-    d = tf.reshape(d, (-1, (2 * ja + 1) * (2 * ja + 1)))
+    
+    d = tf.reshape(d, (-1, ln * ln))
 
     ret = tf.matmul(d, t_cast)
     return tf.reshape(ret, (-1, len(la), len(lb), len(lc)))
@@ -189,7 +199,7 @@ def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     :param lc:
     :return:
     """
-    d = get_D_matrix_for_angle(angle, 2 * ja)
+    d = get_D_matrix_for_angle(angle, _spin_int(2 * ja))
     if lc is None:
         return tf.reshape(Dfun_delta(d, ja, la, lb, (0,)), (-1, len(la), len(lb)))
     else:

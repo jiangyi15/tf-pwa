@@ -33,6 +33,18 @@ def cross_combine(x):
     return ret
 
 
+def _spin_range(a, b):
+    while a <= b:
+        yield a
+        a = a + 1
+
+
+def _spin_int(x):
+    if isinstance(x, int):
+        return x
+    return int(x+0.1)
+
+
 @functools.total_ordering
 class BaseParticle(object):
     """
@@ -49,11 +61,12 @@ class BaseParticle(object):
         self.set_name(name, id_)
         self.decay = []  # list of Decay
         self.creators = []  # list of Decay which creates the particle
-
+        if isinstance(J, str):
+            J = eval(J)
         self.J = J
         self.P = P
         if spins is None:
-            spins = tuple(range(-J, J + 1))
+            spins = tuple(_spin_range(-J, J))
         self.spins = tuple(spins)
         self.mass = mass
         self.width = width
@@ -157,13 +170,15 @@ def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
     s_max = jb + jc
     # ns = s_max - s_min + 1
     ret = []
-    for s in range(s_min, s_max + 1):
-        for l in range(abs(ja - s), ja + s + 1):
+    for s in _spin_range(s_min, s_max):
+        for l in _spin_range(abs(ja - s), ja + s):
+            l = _spin_int(l)
             if not p_break:
                 if l % 2 == dl:
                     ret.append((l, s))
             else:
                 ret.append((l, s))
+    # print(ret, ja, jb, jc, pa, pb, pc)
     return ret
 
 
