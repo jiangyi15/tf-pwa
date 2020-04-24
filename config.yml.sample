@@ -10,10 +10,15 @@ data:
     # the `finals` in `particle` will be used by default.
     # it is necessary when dat files has momentum out of final particles
     dat_order: [B, C, D]
-    # basic data files
+    # basic data files, every line is `E px py pz` as 4-momentum of a particle, 
+    # and every m lines group as m final particls
     data: ["data/data4600_new.dat"]
+    # data weight file, each line for a weight 
+    # data_weight: ["data/data_weight.dat"]
     # phase space data for normalize amplitude 
     phsp: ["data/PHSP4600_new.dat"]
+    # phase space weight file, each line for a weight
+    # phps_weight: ["data/phps_weight.dat"]
     # optional weight background data, need bg_weight
     bg: ["data/bg4600_new.dat"]
     # background weight

@@ -173,7 +173,7 @@ class Model(object):
         self.Amp = amp
         self.w_bkg = w_bkg
 
-    def get_weight_data(self, data, weight=1.0, bg=None, alpha=True):
+    def get_weight_data(self, data, weight=None, bg=None, alpha=True):
         """
         Blend data and background data together multiplied by their weights.
 
@@ -183,7 +183,8 @@ class Model(object):
         :param alpha: Boolean. If it's true, ``weight`` will be multiplied by a factor :math:`\\alpha=`???
         :return: Data, weight. Their length both equals ``len(data)+len(bg)``.
         """
-        has_bg = False  # ???
+        if weight is None:
+            weight = data.get("weight", 1.0)
         if isinstance(weight, float):
             n_data = data_shape(data)
             weight = tf.convert_to_tensor(
@@ -191,8 +192,12 @@ class Model(object):
         if bg is not None:
             n_bg = data_shape(bg)
             data = data_merge(data, bg)
-            bg_weight = tf.convert_to_tensor(
-                [-self.w_bkg] * n_bg, dtype=get_config("dtype"))
+            bg_weight = bg.get("weight", None)
+            if bg_weight is None:
+                bg_weight = tf.convert_to_tensor(
+                    [-self.w_bkg] * n_bg, dtype=get_config("dtype"))
+            else:
+                bg_weight = tf.convert_to_tensor(bg_weight, dtype=get_config("dtype"))
             weight = tf.concat([weight, bg_weight], axis=0)
         if alpha:
             alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
@@ -556,8 +561,11 @@ class FCN(object):
         self.mcdata = mcdata
         self.batch_mcdata = list(split_generator(mcdata, batch))
         self.batch = batch
-        self.mc_weight = tf.convert_to_tensor(
-            [1 / n_mcdata] * n_mcdata, dtype="float64")
+        if "weight" in mcdata:
+            self.mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
+        else:
+            self.mc_weight = tf.convert_to_tensor(
+                [1 / n_mcdata] * n_mcdata, dtype="float64")
 
     # @time_print
     def __call__(self, x):

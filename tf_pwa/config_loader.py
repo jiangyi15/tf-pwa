@@ -109,9 +109,33 @@ class ConfigLoader(object):
         order = self.get_dat_order()
         center_mass = self.config["data"].get("center_mass", True)
         data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass)
+        if idx == "bg":
+            return data
+        weight = self.config["data"].get(idx+"_weight", None)
+        if weight is not None:
+            if isinstance(weight, float):
+                data["weight"] = np.array([weight] * data_shape(data))
+            else:  # weight files
+                weight = self.load_weight_file(weight)
+                data["weight"] = weight[:data_shape(data)]
         # print(data.keys())
         return data
-    
+
+    def load_weight_file(self, weight_files):
+        ret = []
+        if isinstance(weight_files, list):
+            for i in weight_files:
+                data = np.loadtxt(i).reshape((-1,))
+                ret.append(data)
+        elif isinstance(weight_files, str):
+            data = np.loadtxt(i).reshape((-1,))
+            ret.append(data)
+        else:
+            raise TypeError("weight files must be string of list of strings, not {}".format(type(weight_files)))
+        if len(ret) == 1:
+            return ret[0]
+        return np.concatenate(ret)
+
     def load_cached_data(self, file_name=None):
         if file_name is None:
             file_name = self.config["data"].get("cached_data", None)
