@@ -11,13 +11,7 @@ from .config import get_config
 from .variable import Variable
 
 
-def loop_generator(var):
-    """
-    Put to utils.py???
-
-    :param var:
-    :return:
-    """
+def _loop_generator(var):
     while True:
         yield var
 
@@ -36,7 +30,7 @@ def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=No
     """
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(weight, float):
-        weight = loop_generator(weight)
+        weight = _loop_generator(weight)
     ys = []
     gs = []
     for data_i, weight_i in zip(data, weight):
@@ -50,6 +44,7 @@ def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=No
     g = list(map(sum, zip(*gs)))
     return nll, g
 
+
 def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
     """
     The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
@@ -59,7 +54,7 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
     """
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(weight, float):
-        weight = loop_generator(weight)
+        weight = _loop_generator(weight)
     y_s = []
     g_s = []
     h_s = []
@@ -83,6 +78,7 @@ def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=Non
     # h = [[sum(j) for j in zip(*i)] for i in h_s]
     return nll, g, h
 
+
 def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log, w_flatmc=lambda:0, args=(), kwargs=None):
     """
     NLL is the sum of trans(f(data)):math:`*`weight; gradient is the derivatives for each variable in ``var``.
@@ -97,7 +93,7 @@ def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log
     """
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(weight, float):
-        weight = loop_generator(weight)
+        weight = _loop_generator(weight)
     ys = []
     #gs = []
     ymc = []
@@ -117,6 +113,7 @@ def sum_gradient_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log
     g = tape.gradient(nll, var, unconnected_gradients="zero")
     return nll, g
 
+
 def sum_hessian_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log, w_flatmc=lambda:0, args=(), kwargs=None):
     """
     The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
@@ -126,7 +123,7 @@ def sum_hessian_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log,
     """
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(weight, float):
-        weight = loop_generator(weight)
+        weight = _loop_generator(weight)
     ys = []
     ymc = []
     with tf.GradientTape(persistent=True) as tape0:
@@ -151,14 +148,16 @@ def sum_hessian_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log,
     del tape0
     return nll, gradient, hessian
 
+
 def clip_log(x, _epsilon=1e-6):
     """clip log to allowed large value"""
     x_cut = tf.where(x > _epsilon, x, tf.ones_like(x) * _epsilon)
     b_t = tf.math.log(x)
     delta_x = x - _epsilon
     b_f = np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
-    print("$$$", tf.where(x < _epsilon).numpy().tolist())
+    # print("$$$", tf.where(x < _epsilon).numpy().tolist())
     return tf.where(x > _epsilon, b_t, b_f)
+
 
 class Model(object):
     """

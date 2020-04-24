@@ -11,7 +11,8 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
         config.set_params(init_params)
         print("using {}".format(init_params))
     except Exception as e:
-        print(e,"\nusing RANDOM parameters")
+        if str(e) != "[Errno 2] No such file or directory: 'init_params.json'":
+            print(e,"\nusing RANDOM parameters")
     
     print("\n########### initial parameters")
     pprint(config.get_params())

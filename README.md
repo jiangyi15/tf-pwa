@@ -25,7 +25,6 @@ conda install tensorflow-gpu pyyaml sympy matplotlib scipy
 
 ```
 pip3 install -r requirements.txt
-python3 setup.py install
 ```
 
 ## Scripts
@@ -36,8 +35,9 @@ simple fit scripts,
 decay structure is described in ```config.yml```
 
 ```
-python fit.py
+python fit.py [--config config.yml]  [--init_params init_params.json]
 ```
+
 fit parameters will save in final_params.json,
 figure can be found in ```figure/```
 
@@ -57,6 +57,15 @@ Autodoc using sphinx-doc, need sphinx-doc
 ```
   python setup.py build_sphinx 
 ```
+
+Then, the documents can be found in build/sphinx/index.html.
+
+Documents cna also build with `Makefile` in `docs` as
+
+```
+cd docs && make html
+```
+Then, the documents can be found in docs/_build/html.
 
 ## Dependencies
 

@@ -6,5 +6,5 @@ iminuit
 opt_einsum
 matplotlib
 PyYAML
-tensorflow
+tensorflow-gpu
 uproot
