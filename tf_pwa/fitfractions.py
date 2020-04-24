@@ -2,6 +2,7 @@ import functools
 import tensorflow as tf
 import numpy as np
 
+from tf_pwa.data import data_split
 
 def nll_grad(f, var, args=(), kwargs=None, options=None):
     kwargs = kwargs if kwargs is not None else {}
@@ -17,7 +18,7 @@ def nll_grad(f, var, args=(), kwargs=None, options=None):
     return f_w
 
 
-def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
+def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
     r"""
   defination:
 
@@ -50,7 +51,13 @@ def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
     err_fitFrac = {}
     g_fitFrac = [None] * n_res
     amp.set_used_res(res)
-    int_mc, g_int_mc = sum_gradient(amp, mcdata, var=var, args=args, kwargs=kwargs)
+    weight = 1.0
+    if batch is not None:
+        weight = mcdata.get("weight", 1.0)
+        mcdata = list(data_split(mcdata, batch))
+        if not isinstance(weight, float):
+            weight = list(data_split(weight, batch))
+    int_mc, g_int_mc = sum_gradient(amp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
     for i in range(n_res):
         for j in range(i, -1, -1):
             amp_tmp = amp
@@ -60,7 +67,7 @@ def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
             else:
                 name = "{}x{}".format(res[i], res[j])
                 amp_tmp.set_used_res([res[i], res[j]])
-            int_tmp, g_int_tmp = sum_gradient(amp_tmp, mcdata, var=var, args=args, kwargs=kwargs)
+            int_tmp, g_int_tmp = sum_gradient(amp_tmp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
             if i == j:
                 fitFrac[name] = (int_tmp / int_mc)
                 gij = g_int_tmp / int_mc - (int_tmp / int_mc) * g_int_mc / int_mc
@@ -74,7 +81,7 @@ def cal_fitfractions(amp, mcdata, res=None, args=(), kwargs=None):
     return fitFrac, err_fitFrac
 
 
-def cal_fitfractions_no_grad(amp, mcdata, res=None, args=(), kwargs=None):
+def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
     r"""
   calculate fit fractions without gradients.
   """
@@ -87,7 +94,13 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, args=(), kwargs=None):
     n_res = len(res)
     fitFrac = {}
     amp.set_used_res(res)
-    int_mc = sum_no_gradient(amp, mcdata, var=var, args=args, kwargs=kwargs)
+    weight = 1.0
+    if batch is not None:
+        weight = mcdata.get("weight", 1.0)
+        mcdata = list(data_split(mcdata, batch))
+        if not isinstance(weight, float):
+            weight = list(data_split(weight, batch))
+    int_mc = sum_no_gradient(amp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
     for i in range(n_res):
         for j in range(i, -1, -1):
             amp_tmp = amp
@@ -97,7 +110,7 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, args=(), kwargs=None):
             else:
                 name = "{}x{}".format(res[i], res[j])
                 amp_tmp.set_used_res([res[i], res[j]])
-            int_tmp = sum_no_gradient(amp_tmp, mcdata, var=var, args=args, kwargs=kwargs)
+            int_tmp = sum_no_gradient(amp_tmp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
             if i == j:
                 fitFrac[name] = (int_tmp / int_mc)
             else:

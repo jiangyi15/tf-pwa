@@ -160,6 +160,11 @@ class ConfigLoader(object):
         self.save_cached_data(dict(zip(datafile, all_data)))
         return all_data
 
+    def get_phsp_noeff(self):
+        if "phsp_noeff" in self.config["data"]:
+            return self.get_data("phsp_noeff")
+        return self.get_data("phsp")
+
     def get_decay(self, full=True):
         if full:
             return self.full_decay
@@ -610,15 +615,6 @@ class ConfigLoader(object):
         model = self.get_model()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
-    
-    def _flatten_data(self, data):
-        if "decay" not in data:
-            return data
-        ret = {}
-        for k, v in data["decay"].items():
-            ret.update(v)
-        data["decay"].update(ret)
-        return data
 
     def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", 
                           plot_delta=False, plot_pull=False, save_pdf=False, root_name="data_var", bin_scale=3):
@@ -871,12 +867,14 @@ class ConfigLoader(object):
             names.append(pro.get("display", str(i)))
         return " ".join(names), curve_style
 
-    def cal_fitfractions(self, params, mcdata, batch=25000):
+    def cal_fitfractions(self, params, mcdata=None, batch=25000):
         if hasattr(params, "params"):
             params = getattr(params, "params")
+        if mcdata is None:
+            mcdata = self.get_phsp_noeff()
         amp = self.get_amplitude()
         with amp.temp_params(params):
-            frac, grad = cal_fitfractions(amp, list(data_split(mcdata, batch)))
+            frac, grad = cal_fitfractions(amp, mcdata, batch=batch)
         err_frac = self.cal_fitfractions_err(grad, self.inv_he)
         return frac, err_frac
 

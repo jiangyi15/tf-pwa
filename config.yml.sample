@@ -19,6 +19,8 @@ data:
     phsp: ["data/PHSP4600_new.dat"]
     # phase space weight file, each line for a weight
     # phps_weight: ["data/phps_weight.dat"]
+    # phase space without efficiencies, used for calculating fit fraction.
+    # phsp_noeff: ["data/PHSP4600_noeff.dat"]
     # optional weight background data, need bg_weight
     bg: ["data/bg4600_new.dat"]
     # background weight

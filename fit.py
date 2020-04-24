@@ -31,8 +31,8 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     print("\n########## fit results:")
     for k, v in config.get_params().items():
         print(k, error_print(v, fit_error.get(k, None)))
-    
-    fit_frac, err_frac = config.cal_fitfractions({}, phsp)
+    phsp_noeff = config.get_phsp_noeff()
+    fit_frac, err_frac = config.cal_fitfractions({}, phsp_noeff)
     print("########## fit fractions")
     for i in fit_frac:
         print(i, error_print(fit_frac[i], err_frac.get(i, None)))
