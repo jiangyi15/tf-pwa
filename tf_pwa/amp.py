@@ -294,7 +294,10 @@ class HelicityDecay(AmpDecay, AmpBase):
         self.d = 3.0
         ls = self.get_ls_list()
         self.g_ls = self.add_var("g_ls", is_complex=True, shape=(len(ls),))
-        self.g_ls.set_fix_idx(fix_idx=0, fix_vals=(1.0,0.0))
+        try:
+            self.g_ls.set_fix_idx(fix_idx=0, fix_vals=(1.0,0.0))
+        except Exception as e:
+            print(e, self,self.get_ls_list())
 
     def get_relative_momentum(self, data, from_data=False):
 

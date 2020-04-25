@@ -635,11 +635,16 @@ class ConfigLoader(object):
         linestyles = ['-', '--', '-.', ':']
         root_dict = {}
         with amp.temp_params(params):
-            total_weight = amp(phsp)
-            if bg is None:
-                norm_frac = data_shape(data) / np.sum(total_weight)
+            total_weight = amp(phsp) * phsp.get("weight", 1.0)
+            data_weight = data.get("weight", None)
+            if data_weight is None:
+                n_data = data_shape(data)
             else:
-                norm_frac = (data_shape(data) - w_bkg *
+                n_data = np.sum(data_weight)
+            if bg is None:
+                norm_frac = n_data / np.sum(total_weight)
+            else:
+                norm_frac = (n_data - w_bkg *
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             plot_var_dic = {}
@@ -660,7 +665,7 @@ class ConfigLoader(object):
                     ax = fig.add_subplot(1, 1, 1)
                 data_i = trans(data_index(data, idx))
                 phsp_i = trans(data_index(phsp, idx))
-                data_x, data_y, data_err = hist_error(data_i, bins=bins, xrange=xrange)
+                data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data.get("weight", 1.0),xrange=xrange)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
                             zorder=-2, label="data", color="black")  #, capsize=2)
                 if bg is not None:
@@ -678,7 +683,8 @@ class ConfigLoader(object):
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 style = itertools.product(colors, linestyles)
                 for i, j in enumerate(weights):
-                    x, y = hist_line(phsp_i, weights=j * norm_frac*bin_scale, xrange=xrange, bins=bins*bin_scale)
+                    # print(phsp.get("weight", 1.0))
+                    x, y = hist_line(phsp_i, weights=j * norm_frac*bin_scale*phsp.get("weight", 1.0), xrange=xrange, bins=bins*bin_scale)
                     label, curve_style = self.get_chain_property(i)
                     if curve_style is None:
                         color, ls = next(style)
@@ -1065,8 +1071,8 @@ class MultiConfig(object):
         self.vm.set_all(params)
 
 
-def hist_error(data, bins=50, xrange=None, kind="possion"):
-    data_hist = np.histogram(data, bins=bins, range=xrange)
+def hist_error(data, bins=50, xrange=None, weights=1.0, kind="possion"):
+    data_hist = np.histogram(data, bins=bins, weights=weights, range=xrange)
     # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
     data_y, data_x = data_hist[0:2]
     data_x = (data_x[:-1]+data_x[1:])/2
