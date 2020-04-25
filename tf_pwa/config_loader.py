@@ -1083,7 +1083,7 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
     data_y, data_x = data_hist[0:2]
     data_x = (data_x[:-1]+data_x[1:])/2
     if kind == "poisson":
-        data_err = np.sqrt(data_y)
+        data_err = np.sqrt(np.abs(data_y))
     elif kind == "binomial":
         n = data.shape[0]
         p = data_y / n

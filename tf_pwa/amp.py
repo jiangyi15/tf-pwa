@@ -146,13 +146,28 @@ def simple_cache_fun(f):
     return g
 
 
-def get_relative_p(m_0, m_1, m_2):
+def get_relative_p(m_0, m_1, m_2, m_max=None):
     M12S = m_1 + m_2
     M12D = m_1 - m_2
-    p = (m_0 - M12S) * (m_0 + M12S) * (m_0 - M12D) * (m_0 + M12D)
+    if m_max is not None:
+        m_eff = tf.where(m_0 > M12S, m_0, ad_hoc(m_0, m_max, M12S))
+    else:
+        m_eff = tf.where(m_0 > M12S, m_0, M12S)
+    p = (m_eff - M12S) * (m_eff + M12S) * (m_eff - M12D) * (m_eff + M12D)
     # if p is negative, which results from bad data, the return value is 0.0
-    q = (p + tf.abs(p)) / 2
-    return tf.sqrt(q) / (2 * m_0)
+    # print("p", tf.where(p==0), m_0, m_1, m_2)
+    return tf.sqrt(p) / (2 * m_eff)
+
+
+def ad_hoc(m0, m_max, m_min):
+    r"""ad-hoc formula
+    .. math::
+        m_0^{eff} = m^{min} + \frac{m^{max} - m^{min}}{2}(1+tanh \frac{m_0 - \frac{m^{max} + m^{min}}{2}}{m^{max} - m^{min}})
+
+    """
+    k = (m_max - m_min)/2
+    m_eff = k * (1 + tf.tanh((2*m0 - (m_max + m_min))/k))
+    return m_eff + m_min
 
 
 @regist_particle("default")
@@ -189,6 +204,8 @@ class Particle(BaseParticle, AmpBase):
                 self.bw_l = min(decay.get_l_list())
             ret = BWR(data["m"], mass, width, q, q0,
                     self.bw_l, self.d)
+            # ret = tf.where(q0 > 0, ret, tf.zeros_like(ret))
+            # ret = tf.where(q > 0, ret, tf.zeros_like(ret))
         return ret
 
     def amp_shape(self):
@@ -241,7 +258,8 @@ class ParticleLass(Particle):
         q0 = data_c["|q0|"]
         mass = self.get_mass()
         width = self.get_width()
-        cot_delta_B = (1.0 / self.a()) / q + 0.5 * self.r() * q
+        a, r = tf.abs(self.a()), tf.abs(self.r())
+        cot_delta_B = (1.0 / a) / q + 0.5 * r * q
         cot2_delta_B = cot_delta_B * cot_delta_B
         expi_2delta_B = tf.complex(2 * cot_delta_B, cot2_delta_B - 1)
         expi_2delta_B /= tf.cast(cot2_delta_B + 1, expi_2delta_B.dtype)
@@ -282,13 +300,14 @@ class AmpDecay(Decay, AmpBase):
 class HelicityDecay(AmpDecay, AmpBase):
     def __init__(self, *args, has_barrier_factor=True, l_list=None,
                  barrier_factor_mass=False, has_bprime=True,
-                 aligned=False, **kwargs):
+                 aligned=False, ad_hoc_max=None, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
         self.barrier_factor_mass = barrier_factor_mass
         self.has_bprime = has_bprime
         self.aligned = aligned
+        self.ad_hoc_max = ad_hoc_max
 
     def init_params(self):
         self.d = 3.0
@@ -309,7 +328,8 @@ class HelicityDecay(AmpDecay, AmpBase):
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
         m2 = _get_mass(self.outs[1])
-        return get_relative_p(m0, m1, m2)
+        m_max = self.ad_hoc_max
+        return get_relative_p(m0, m1, m2, m_max)
 
     @functools.lru_cache()
     def get_cg_matrix(self):  # CG factor inside H
@@ -374,6 +394,7 @@ class HelicityDecay(AmpDecay, AmpBase):
                 tmp = q**l * tf.cast(Bprime(l, q, q0, d), dtype=q.dtype)
             else:
                 tmp = q**l
+            # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
             ret.append(tf.reshape(tmp, (-1, 1)))
         ret = tf.concat(ret, axis=-1)
         mass_dep = self.get_barrier_factor_mass(mass)
