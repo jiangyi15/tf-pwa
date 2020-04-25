@@ -1071,12 +1071,14 @@ class MultiConfig(object):
         self.vm.set_all(params)
 
 
-def hist_error(data, bins=50, xrange=None, weights=1.0, kind="possion"):
+def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
+    if not hasattr(weights, "__len__"):
+        weights = [weights] * data.__len__()
     data_hist = np.histogram(data, bins=bins, weights=weights, range=xrange)
     # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
     data_y, data_x = data_hist[0:2]
     data_x = (data_x[:-1]+data_x[1:])/2
-    if kind == "possion":
+    if kind == "poisson":
         data_err = np.sqrt(data_y)
     elif kind == "binomial":
         n = data.shape[0]
