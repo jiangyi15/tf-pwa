@@ -203,7 +203,7 @@ class Model(object):
             return data, alpha * weight
         return data, weight
 
-    def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None):
+    def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None, mc_weight=None):
         """
         Calculate NLL.
 
@@ -220,11 +220,14 @@ class Model(object):
         data, weight = self.get_weight_data(data, weight, bg=bg)
         sw = tf.reduce_sum(weight)
         ln_data = tf.math.log(self.Amp(data))
-        int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
+        if mc_weight is None:
+            int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
+        else:
+            int_mc = tf.math.log(tf.reduce_sum(mc_weight*self.Amp(mcdata)))
         nll_0 = - tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
         return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
 
-    def nll_grad(self, data, mcdata, weight=1.0, batch=65000, bg=None):
+    def nll_grad(self, data, mcdata, weight=1.0, batch=65000, bg=None, mc_weight=1.0):
         """
         Calculate NLL and its gradients.
 
@@ -246,8 +249,11 @@ class Model(object):
                                           self.Amp.trainable_variables, weight=split_generator(
                 weight, batch),
                                           trans=clip_log)
+        if isinstance(mc_weight, float):
+            mc_weight = tf.convert_to_tensor([mc_weight] * data_shape(mcdata), dtype="float64")
+            mc_weight = mc_weight / tf.reduce_sum(mc_weight)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
-                                        self.Amp.trainable_variables, weight=1 / n_mc)
+                                        self.Amp.trainable_variables, weight=data_split(mc_weight))
 
         sw = tf.cast(sw, ln_data.dtype)
 
@@ -286,7 +292,7 @@ class Model(object):
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
-    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000, bg=None):
+    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000, bg=None, mc_weight=1.0):
         """
         The parameters are the same with ``self.nll()``, but it will return Hessian as well.
 
@@ -295,17 +301,20 @@ class Model(object):
         :return Hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
         """
         data, weight = self.get_weight_data(data, weight, bg=bg)
-        n_mc = data_shape(mcdata)
+        if isinstance(mc_weight, float):
+            mc_weight = tf.convert_to_tensor([mc_weight] * data_shape(mcdata), dtype="float64")
+        n_mc = tf.reduce_sum(mc_weight)
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
                                                     self.Amp.trainable_variables, weight=split_generator(
                 weight, batch),
                                                     trans=tf.math.log)
         int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
-                                                 self.Amp.trainable_variables)
+                                                 self.Amp.trainable_variables, weight=split_generator(
+                mc_weight, batch))
 
         n_var = len(g_ln_data)
-        nll = - ln_data + sw * tf.math.log(int_mc / n_mc)
+        nll = - ln_data + sw * tf.math.log(int_mc/n_mc)
         g = - g_ln_data + sw * g_int_mc / int_mc
 
         g_int_mc = g_int_mc / int_mc
@@ -561,7 +570,8 @@ class FCN(object):
         self.batch_mcdata = list(split_generator(mcdata, batch))
         self.batch = batch
         if "weight" in mcdata:
-            self.mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
+            mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
+            self.mc_weight = mc_weight / tf.reduce_sum(mc_weight)
         else:
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64")
@@ -576,7 +586,7 @@ class FCN(object):
         if type(self.model) == Model_new:
             nll, g = self.nll_grad(x)
         else:
-            nll = self.model.nll(self.data, self.mcdata, weight=self.weight)
+            nll = self.model.nll(self.data, self.mcdata, weight=self.weight, mc_weight=self.mc_weight)
             self.cached_nll = nll
             self.n_call += 1
         return nll
@@ -620,7 +630,7 @@ class FCN(object):
             if batch is None:
                 batch = self.batch
             nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
-                                                    weight=self.weight, batch=batch)
+                                                    weight=self.weight, batch=batch, mc_weight=self.mc_weight)
 
         return nll, g, h
 
