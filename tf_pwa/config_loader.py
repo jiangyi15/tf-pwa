@@ -53,6 +53,7 @@ class ConfigLoader(object):
         self.vm = vm
         self.amps = {}
         self.cached_data = None
+        self.bound_dic = {}
 
     @staticmethod
     def load_config(file_name):
@@ -384,12 +385,12 @@ class ConfigLoader(object):
                         amp.vm.set_fix(i+'_mass',unfix=True)
                         upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
                         lower = self.config['particle'][i]["m_min"] if "m_min" in self.config['particle'][i] else None
-                        amp.vm.set_bound({i+'_mass':(lower,upper)})
+                        self.bound_dic[i+'_mass'] = (lower,upper)
                     if 'g' in self.config['particle'][i]["float"]:
                         amp.vm.set_fix(i+'_width',unfix=True)
                         upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
                         lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
-                        amp.vm.set_bound({i+'_width':(lower,upper)})
+                        self.bound_dic[i+'_width'] = (lower,upper)
                 # share helicity variables 
                 if "coef_head" in self.config['particle'][i]:
                     coef_head = self.config['particle'][i]["coef_head"]
@@ -471,10 +472,10 @@ class ConfigLoader(object):
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
         fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
-        print("initial NLL: ", fcn({}))
+        print("initial NLL: ", fcn(model.get_params()))
         # fit configure
-        bounds_dict = {}
-        args_name, x0, args, bnds = self.get_args_value(bounds_dict)
+        # self.bound_dic[""] = (,)
+        args_name, x0, args, bnds = self.get_args_value(self.bound_dic)
 
         points = []
         nlls = []
@@ -518,7 +519,8 @@ class ConfigLoader(object):
                 print(fcn.cached_nll)
 
             #bd = Bounds(bnds)
-            fcn.model.Amp.vm.set_bound(bounds_dict)
+            fcn.model.Amp.vm.set_bound(self.bound_dic)
+
             f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
             x0 = np.array(fcn.model.Amp.vm.get_all_val(True))
             # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
@@ -545,9 +547,12 @@ class ConfigLoader(object):
                     break
             print(s)
             
-            xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
+            #xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
+            fcn.model.Amp.vm.set_all(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
+            fcn.model.Amp.vm.remove_bound()
+            xn = fcn.model.Amp.vm.get_all_val()
         elif method in ["L-BFGS-B"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -995,7 +1000,6 @@ class MultiConfig(object):
                 #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
                 print(fcn.cached_nll)
 
-            #bd = Bounds(bnds)
             self.vm.set_bound(bounds_dict)
             f_g = self.vm.trans_fcn_grad(fcn.nll_grad)
             s = minimize(f_g, np.array(self.vm.get_all_val(True)), method=method,

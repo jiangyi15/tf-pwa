@@ -115,6 +115,8 @@ class VarsManager(object):
                     tf.random.uniform(shape=[], minval=range_[0], maxval=range_[1], dtype=self.dtype),
                     trainable=trainable)
         else:  # constant value
+            if name in self.bnd_dic:
+                value = self.bnd_dic[name].get_y2x(value)
             self.variables[name] = tf.Variable(value, dtype=self.dtype, trainable=trainable)
 
         if trainable:
@@ -274,8 +276,11 @@ class VarsManager(object):
         :param value: The fixed value. It's useless if **unfix=True**.
         :param unfix: Boolean. If it's **True**, the variable will become trainable rather than be fixed.
         """
-        if value == None:
+        if value is None:
             value = self.variables[name].value
+        else:
+            if name in self.bnd_dic:
+                value = self.bnd_dic[name].get_y2x(value)
         var = tf.Variable(value, dtype=self.dtype, trainable=unfix)
         self.variables[name] = var
         if unfix:
@@ -302,6 +307,24 @@ class VarsManager(object):
                 if not overwrite:
                     warnings.warn("Overwrite bound of {}!".format(name))
             self.bnd_dic[name] = Bound(*bound_dic[name], func=func)
+            if name in self.variables:
+                val = self.get(name).numpy()
+                self.set(name, self.bnd_dic[name].get_y2x(val))
+
+    def _remove_bound(self, name):
+        if name in self.variables:
+            value = self.get(name, val_in_fit=False)
+            self.set(name, value)
+        del self.bnd_dic[name]
+
+    def remove_bound(self):
+        """
+        Remove a boundary for a variable
+        """
+        bnd_dic = self.bnd_dic.copy()
+        for i in bnd_dic:
+            self._remove_bound(i)
+        return bnd_dic
 
     def set_share_r(self, name_list):  # name_list==[name1,name2,...]
         """
@@ -353,23 +376,29 @@ class VarsManager(object):
             same_real(name_list)
         self.same_list.append(name_list)
 
-    def get(self, name):
+    def get(self, name, val_in_fit=True):
         """
-        Get a real variable
+        Get a real variable. If ``val_in_fit is True``, this is the variable used in fitting, not considering its boundary transformation.
+
         :param name: String
         :return: tf.Variable
         """
         if name not in self.variables:
             raise Exception("{} not found".format(name))
-        return self.variables[name]  # tf.Variable
+        if val_in_fit or name not in self.bnd_dic:
+            return self.variables[name]  # tf.Variable
+        else:
+            return self.bnd_dic[name].get_x2y(self.variables[name].numpy())
 
-    def set(self, name, value):
+    def set(self, name, value, val_in_fit=True):
         """
-        Set value for a real variable
+        Set value for a real variable. If ``val_in_fit is True``, this is the variable used in fitting, not considering its boundary transformation.
 
         :param name: String
         :param value: Real number
         """
+        if not val_in_fit and name in self.bnd_dic:
+            value = self.bnd_dic[name].get_y2x(value)
         if name in self.variables:
             self.variables[name].assign(value)
         else:
@@ -425,25 +454,25 @@ class VarsManager(object):
             vars_list.append(self.variables[name])
         return vars_list
 
-    def get_all_val(self, after_trans=False):  # if bound transf var
+    def get_all_val(self, val_in_fit=False):  # if bound transf var
         """
         Get the values of all trainable variables.
 
-        :param after_trans: Boolean. If it's **True**, the values will be the ones post-boundary-transformation (the ones that are actually used in fitting).
+        :param val_in_fit: Boolean. If it's **True**, the values will be the ones that are actually used in fitting (thus may not be the physical values because of the boundary transformation).
         :return: List of real numbers.
         """
         vals = []
-        if after_trans:
+        if val_in_fit:
             for name in self.trainable_vars:
-                yval = self.get(name).numpy()
-                if name in self.bnd_dic:
-                    xval = self.bnd_dic[name].get_y2x(yval)
-                else:
-                    xval = yval
+                xval = self.get(name).numpy()
                 vals.append(xval)
         else:
             for name in self.trainable_vars:
-                yval = self.get(name).numpy()
+                xval = self.get(name).numpy()
+                if name in self.bnd_dic:
+                    yval = self.bnd_dic[name].get_x2y(xval)
+                else:
+                    yval = xval
                 vals.append(yval)
         return vals  # list (for list of tf.Variable use self.trainable_variables; for dict of all vars, use self.variables)
 
@@ -458,10 +487,16 @@ class VarsManager(object):
         dic = {}
         if trainable_only:
             for i in self.trainable_vars:
-                dic[i] = self.variables[i].numpy()
+                val = self.variables[i].numpy()
+                if i in self.bnd_dic:
+                    val = self.bnd_dic[i].get_x2y(val)
+                dic[i] = val
         else:
             for i in self.variables:
-                dic[i] = self.variables[i].numpy()
+                val = self.variables[i].numpy()
+                if i in self.bnd_dic:
+                    val = self.bnd_dic[i].get_x2y(val)
+                dic[i] = val
         return dic
 
     def set_all(self, vals):  # use either dict or list
@@ -472,7 +507,7 @@ class VarsManager(object):
         """
         if type(vals) == dict:
             for name in vals:
-                self.set(name, vals[name])
+                self.set(name, vals[name], val_in_fit=False)
         else:
             i = 0
             for name in self.trainable_vars:
@@ -608,6 +643,9 @@ class Bound(object):
                 else:
                     self.func = "(b-a)*(sin(x)+1)/2+a"
         self.f, self.df, self.inv = self.get_func()
+
+    def __repr__(self):
+        return '['+str(self.lower)+', '+str(self.upper)+']'
 
     def get_func(self):  # init func string into sympy f(x) or f(y)
         """
