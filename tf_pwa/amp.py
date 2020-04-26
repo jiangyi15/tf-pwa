@@ -631,13 +631,20 @@ class DecayChain(BaseDecayChain, AmpBase):
         if not self.inner:
             return None
         for i in self.inner:
-            if len(i.decay) == 1 and i.decay[0] in self:
-                data_c_i = data_c[i.decay[0]]
+            if len(i.decay) >= 1:
+                decay_i = i.decay[0]
+                for j in i.decay:
+                    if j in self:
+                        decay_i = j
+                        break
+                else:
+                    raise IndexError("not found {} decay in {}".foramt(i, self))
+                data_c_i = data_c[decay_i]
                 if "|q|" not in data_c_i:
-                    data_c_i["|q|"] = i.decay[0].get_relative_momentum(
+                    data_c_i["|q|"] = decay_i.get_relative_momentum(
                         data_p, True)
                 if "|q0|" not in data_c_i:
-                    data_c_i["|q0|"] = i.decay[0].get_relative_momentum(
+                    data_c_i["|q0|"] = decay_i.get_relative_momentum(
                         data_p, False)
                 amp_p.append(i.get_amp(data_p[i], data_c_i))
             else:
