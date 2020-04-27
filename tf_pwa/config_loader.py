@@ -166,6 +166,11 @@ class ConfigLoader(object):
             return self.get_data("phsp_noeff")
         return self.get_data("phsp")
 
+    def get_phsp_plot(self):
+        if "phsp_plot" in self.config["data"]:
+            return self.get_data("phsp_plot")
+        return self.get_data("phsp")
+
     def get_decay(self, full=True):
         if full:
             return self.full_decay
@@ -628,7 +633,9 @@ class ConfigLoader(object):
         if params is None:
             params = {}
         if data is None:
-            data, phsp, bg, inmc = self.get_all_data()
+            data = self.get_data("data")
+            bg = self.get_data("bg")
+            phsp = self.get_phsp_plot()
         if hasattr(params, "params"):
             params = getattr(params, "params")
         amp = self.get_amplitude()

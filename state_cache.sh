@@ -5,7 +5,7 @@ time_tag=`date +%Y_%m_%d_%H_%M_%S`
 head_tag=`git rev-parse --short HEAD`
 cache_path=trash/${time_tag}_${head_tag}
 
-if [[ $# > 2 ]];
+if [[ $# > 0 ]];
 then
   cache_path=${1} 
 fi

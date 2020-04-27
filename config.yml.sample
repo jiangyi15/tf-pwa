@@ -18,9 +18,11 @@ data:
     # phase space data for normalize amplitude 
     phsp: ["data/PHSP4600_new.dat"]
     # phase space weight file, each line for a weight
-    # phps_weight: ["data/phps_weight.dat"]
+    # phsp_weight: ["data/phsp_weight.dat"]
     # phase space without efficiencies, used for calculating fit fraction.
     # phsp_noeff: ["data/PHSP4600_noeff.dat"]
+    # much more phase space, used for plotting
+    # phsp_plot: ["data/PHSP4600_plot.dat"]
     # optional weight background data, need bg_weight
     bg: ["data/bg4600_new.dat"]
     # background weight
