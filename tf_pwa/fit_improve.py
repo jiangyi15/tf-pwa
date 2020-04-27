@@ -67,6 +67,7 @@ class Seq:
 
 
 def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, callback=None, norm_ord=np.Inf, **_kwargs):
+    """test BFGS with nonmonote line search"""
     fk, gk = f_g(x0)
     if B0 is None:
         Bk = np.eye(len(x0))
@@ -79,7 +80,7 @@ def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, call
     C = 0.5
     k = 0
     old_old_fval = fk + np.linalg.norm(gk) / 2
-    f_s = Seq(2)
+    f_s = Seq(M)
     f_s.add(fk)
     flag = 0
     re_search = 0
@@ -92,16 +93,10 @@ def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, call
             f = f_g.fun
             myfprime = f_g.grad
             gfk = gk
-            if k < 30 and old_old_fval - fk > 1e-1:
-                old_fval = fk
-                alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-                    line_search_wolfe2(f, myfprime, xk, pk, gfk,
-                                    old_fval, old_old_fval)
-            else:
-                old_fval = f_s.get_max()  # fk
-                alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
-                    line_search_nonmonote(f, myfprime, xk, pk, gfk,
-                                    old_fval, old_old_fval)
+            old_fval = fk
+            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = \
+                line_search_wolfe2(f, myfprime, xk, pk, gfk, f_s.get_max(), 
+                                old_fval, old_old_fval)
         except Exception as e:
             print(e)
             re_search += 1
@@ -167,7 +162,7 @@ def minimize(fun, x0, args=(), method=None, jac=None, hess=None, hessp=None, bou
     return s
 
 
-def line_search_nonmonote(f, myfprime, xk, pk, gfk=None, old_fval=None, old_old_fval=None, args=(), c1=0.5, maxiter=10):
+def line_search_nonmonote(f, myfprime, xk, pk, gfk=None, old_fval=None, fk=None, old_old_fval=None, args=(), c1=0.5, maxiter=10):
     alpha = max(- np.dot(gfk, pk)/np.dot(pk, pk), 1.0)
     print("init alpha", alpha, "\ngrad:", gfk)
     for i in range(maxiter):
@@ -186,7 +181,7 @@ def line_search_nonmonote(f, myfprime, xk, pk, gfk=None, old_fval=None, old_old_
 # from scipy.optimize.linesearch
 #------------------------------------------------------------------------------
 
-def line_search_wolfe2(f, myfprime, xk, pk, gfk=None, old_fval=None,
+def line_search_wolfe2(f, myfprime, xk, pk, gfk=None, fk=None, old_fval=None,
                        old_old_fval=None, args=(), c1=1e-4, c2=0.9, amax=None,
                        extra_condition=None, maxiter=10):
     """Find alpha that satisfies strong Wolfe conditions.
@@ -305,6 +300,7 @@ def line_search_wolfe2(f, myfprime, xk, pk, gfk=None, old_fval=None,
 
     if derphi_star is None:
         warn('The line search algorithm did not converge', LineSearchWarning)
+        return line_search_nonmonote(f, myfprime, xk, pk, gfk, fk, old_fval, old_old_fval, args, c1, maxiter)
     else:
         # derphi_star is a number (derphi) -- so use the most recently
         # calculated gradient used in computing it derphi = gfk*pk
