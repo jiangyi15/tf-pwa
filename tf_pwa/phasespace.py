@@ -90,7 +90,7 @@ class PhaseSpaceGenerator(object):
 
     def generate_momentum_i(self, m0, m1, m2, n_iter, p_list=[]):
         """
-        |p| =  m0,m1,m2 in m0 rest frame
+        :math:`|p|` =  m0,m1,m2 in m0 rest frame
         :param p_list: extra list for momentum need to boost
         """
         # random angle

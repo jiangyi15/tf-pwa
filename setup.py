@@ -30,7 +30,7 @@ setup(
         "state_cache.sh",
     ],
     data_files=[
-        "Resonances.yml",
+        "Resonances.yml.sample",
         "config.yml.sample",
     ],
     classifiers=[
@@ -41,7 +41,7 @@ setup(
     python_requires=">=3.6",
     entry_points={
         "console_scripts": [
-            "fit_scipy = fit_scipy:fit",
+            "fit_pwa = fit:fit",
             "tf_pwa = tf_pwa.__main__:main"
         ],
     },
