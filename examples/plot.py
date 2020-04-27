@@ -7,6 +7,11 @@ from scipy import interpolate
 import matplotlib.pyplot as plt
 from functools import reduce
 
+import sys
+import os.path
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + '/..')
+
 from fit_scipy_new import prepare_data, get_decay_chains, get_amplitude, load_params
 
 import tf_pwa

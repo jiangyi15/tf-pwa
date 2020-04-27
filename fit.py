@@ -71,9 +71,10 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="simple fit scripts")
     parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
-    parser.add_argument("--config", default="config.yml", dest="config")
-    parser.add_argument("--init_params", default="init_params.json", dest="init")
-    parser.add_argument("--method", default="BFGS", dest="method")
+    parser.add_argument("-c", "--config", default="config.yml", dest="config")
+    parser.add_argument("-i", "--init_params", default="init_params.json", dest="init")
+    parser.add_argument("-m", "--method", default="test", dest="method")
+    parser.add_argument("-l", "--loop", type=int, default=1, dest="loop")
     results = parser.parse_args()
     config = results.config.split(",")
     if results.has_gpu:
@@ -81,10 +82,11 @@ def main():
     else:
         devices = "/device:CPU:0"
     with tf.device(devices):
-        if len(config) > 1:
-            fit_combine(config, results.init)
-        else:
-            fit(results.config, results.init, results.method)
+        for i in range(results.loop):
+            if len(config) > 1:
+                fit_combine(config, results.init)
+            else:
+                fit(results.config, results.init, results.method)
 
 
 if __name__ == "__main__":

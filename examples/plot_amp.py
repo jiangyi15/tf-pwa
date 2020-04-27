@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+import sys
+import os.path
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + '/..')
+
 from tf_pwa.model import *
 import json
 import numpy as np

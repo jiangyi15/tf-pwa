@@ -1,3 +1,10 @@
+
+import sys
+import os.path
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + '/..')
+
+
 import tensorflow as tf
 import numpy as np
 import json
