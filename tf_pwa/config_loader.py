@@ -1130,8 +1130,8 @@ class FitResult(object):
         self.params = params
         self.error = {}
         self.model = model
-        self.min_nll = min_nll
-        self.ndf = ndf
+        self.min_nll = float(min_nll)
+        self.ndf = int(ndf)
         self.success = success
 
     def save_as(self, file_name):

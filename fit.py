@@ -28,6 +28,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     config.plot_partial_wave(fit_result, plot_pull=True)
     fit_error = config.get_params_error(fit_result, batch=13000)
     fit_result.set_error(fit_error)
+    fit_result.save_as("final_params.json")
     pprint(fit_error)
     
     print("\n########## fit results:")
