@@ -440,8 +440,8 @@ class ConfigLoader(object):
         model = self.get_model(vm, name="")
         for i in self.full_decay:
             print(i)
-        data, phsp, bg = self.get_all_data()
-        fcn = FCN(model, data, phsp, bg=bg, batch=batch)
+        data, phsp, bg, inmc = self.get_all_data()
+        fcn = FCN(model, data, phsp, bg=bg, inmc=inmc, batch=batch)
         return fcn
     
     def get_ndf(self):
@@ -676,6 +676,8 @@ class ConfigLoader(object):
                 else:
                     ax = fig.add_subplot(1, 1, 1)
                 data_i = trans(data_index(data, idx))
+                if xrange is None:
+                    xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
                 phsp_i = trans(data_index(phsp, idx))
                 data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data.get("weight", 1.0),xrange=xrange)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
@@ -1031,9 +1033,9 @@ class MultiConfig(object):
             min_nll = s.fun
         else:
             raise Exception("unknown method")
-        fcn.model.Amp.vm.set_all(xn)
-        params = fcn.model.Amp.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)
+        self.vm.set_all(xn)
+        params = self.vm.get_all_dic()
+        return FitResult(params, fcn, min_nll, ndf=ndf, success=s.success)
 
     def cal_error(self, params=None, batch=10000):
         if params is None:
@@ -1101,6 +1103,7 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
 
 
 def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
+    """interpolate data from hostgram into a line"""
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     x = (x[:-1] + x[1:])/2
     if xrange is None:
@@ -1113,6 +1116,7 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
 
 
 def check_positive_definite(m):
+    """check if matrix m is postive definite"""
     e, v = np.linalg.eig(m)
     if np.all(e > 0.0):
         return True

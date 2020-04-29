@@ -3,6 +3,7 @@ from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from pprint import pprint
 from tf_pwa.utils import error_print
 import tensorflow as tf
+import json
 
 def fit(config_file="config.yml", init_params="init_params.json", method="BFGS"):
 
@@ -15,13 +16,14 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
             print(e,"\nusing RANDOM parameters")
     
     print("\n########### initial parameters")
-    pprint(config.get_params())
+    s = json.dumps(config.get_params(), indent=2)
+    print(s)
 
     data, phsp, bg, inmc = config.get_all_data()
     
     fit_result = config.fit(batch=65000, method=method)
     
-    pprint(fit_result.params)
+    print(json.dumps(fit_result.params, indent=2))
     fit_result.save_as("final_params.json")
     config.plot_partial_wave(fit_result, plot_pull=True)
     fit_error = config.get_params_error(fit_result, batch=13000)
@@ -36,10 +38,16 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     print("########## fit fractions")
     fit_frac_string = ""
     for i in fit_frac:
-        fit_frac_string += (i+' '+error_print(fit_frac[i], err_frac.get(i, None))+'\n')
+        if isinstance(i, tuple):
+            name = "{}x{}".format(*i)
+        else:
+            name = i
+        fit_frac_string += "{} {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
     print(fit_frac_string)
     #from tf_pwa.utils import frac_table
     #frac_table(fit_frac_string)
+
+
 
 
 def fit_combine(config_file=["config.yml"], init_params="init_params.json"):
