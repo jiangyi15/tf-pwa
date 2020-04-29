@@ -34,8 +34,12 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     phsp_noeff = config.get_phsp_noeff()
     fit_frac, err_frac = config.cal_fitfractions({}, phsp_noeff)
     print("########## fit fractions")
+    fit_frac_string = ""
     for i in fit_frac:
-        print(i, error_print(fit_frac[i], err_frac.get(i, None)))
+        fit_frac_string += (i+' '+error_print(fit_frac[i], err_frac.get(i, None))+'\n')
+    print(fit_frac_string)
+    #from tf_pwa.utils import frac_table
+    #frac_table(fit_frac_string)
 
 
 def fit_combine(config_file=["config.yml"], init_params="init_params.json"):

@@ -1131,9 +1131,9 @@ class FitResult(object):
         self.success = success
 
     def save_as(self, file_name):
-        s = {"value": self.params, "error": self.error}
+        s = {"value": self.params, "error": self.error, "status": {"success":self.success,"NLL":self.min_nll,"Ndf":self.ndf}}
         with open(file_name, "w") as f:
-            json.dump(self.params, f, indent=2)
+            json.dump(s, f, indent=2)
 
     def set_error(self, error):
         self.error = error.copy()
