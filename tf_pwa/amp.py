@@ -342,7 +342,7 @@ class HelicityDecay(AmpDecay, AmpBase):
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
         m2 = _get_mass(self.outs[1])
-        return get_relative_p(m0, m1, m2, m_max)
+        return get_relative_p(m0, m1, m2)
 
     @functools.lru_cache()
     def get_cg_matrix(self):  # CG factor inside H
