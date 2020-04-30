@@ -5,6 +5,24 @@ from tf_pwa.utils import error_print
 import tensorflow as tf
 import json
 
+
+"""
+# examples of custom particle model
+"""
+from tf_pwa.amp import Particle, regist_particle
+
+@regist_particle("New")
+class NewParticle(Particle):
+    def init_params(self):
+        # self.a = self.add_var("a")
+        pass
+    def get_amp(self, data, data_extra):
+        # m = data["m"]
+        # q = data_extra[self.outs[0]]["|q|"]
+        return 1.0
+
+
+
 def fit(config_file="config.yml", init_params="init_params.json", method="BFGS"):
 
     config = ConfigLoader(config_file)

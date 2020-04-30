@@ -620,9 +620,16 @@ class ConfigLoader(object):
             params = getattr(params, "params")
         self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000, inmc=inmc)
         diag_he = self.inv_he.diagonal()
+        model = self.get_model()
+        print("parameters order")
+        print(model.Amp.vm.trainable_vars)
+        print("error matrix:")
+        print(self.inv_he)
+        diag_he_s = np.sqrt(np.fabs(diag_he))
+        print("correlation matrix:")
+        print(self.inv_he /(diag_he_s[:, np.newaxis] * diag_he_s[np.newaxis, :]))
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         print("hesse_error:", hesse_error)
-        model = self.get_model()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
 
@@ -679,7 +686,8 @@ class ConfigLoader(object):
                 if xrange is None:
                     xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
                 phsp_i = trans(data_index(phsp, idx))
-                data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data.get("weight", 1.0),xrange=xrange)
+                data_weights = data.get("weight", [1.0]*data_shape(data))
+                data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data_weights,xrange=xrange)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
                             zorder=-2, label="data", color="black")  #, capsize=2)
                 if bg is not None:
@@ -687,12 +695,14 @@ class ConfigLoader(object):
                     bg_weight = np.ones_like(bg_i)*w_bkg
                     ax.hist(bg_i, weights=bg_weight,
                             label="back ground", bins=bins, range=xrange, histtype="stepfilled", alpha=0.5, color="grey")
-                    fit_y, fit_x, _ = ax.hist(np.concatenate([bg_i, phsp_i]),
-                                              weights=np.concatenate([bg_weight, total_weight*norm_frac]), 
-                                              range=xrange,
+                    mc_i = np.concatenate([bg_i, phsp_i])
+                    mc_weights = np.concatenate([bg_weight, total_weight*norm_frac])
+                    fit_y, fit_x, _ = ax.hist(mc_i, weights=mc_weights, range=xrange,
                                               histtype="step", label="total fit", bins=bins, color="black")
                 else:
-                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=total_weight*norm_frac, range=xrange, histtype="step", 
+                    mc_i = phsp_i
+                    mc_weights = total_weight*norm_frac
+                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=mc_weights, range=xrange, histtype="step", 
                                               label="total fit", bins=bins, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 style = itertools.product(colors, linestyles)
@@ -743,6 +753,12 @@ class ConfigLoader(object):
                 plt.close(fig)
                 plot_var_dic[name] = {"idx": idx, "trans": trans, "range": [xlimin, xlimax]}
                 root_dict[name] = data_i
+                root_dict[name+"_weights"] = data_weights
+                #root_dict[name+"_mc"] = mc_i
+                #root_dict[name+"_mc_weight"] = mc_weights
+                #if bg is not None:
+                    #root_dict[name+"_bg"] = bg_i
+                    #root_dict[name+"_bg_weights"] = bg_weight
 
             twodplot = self.config["plot"].get("2Dplot", {})
             for k, i in twodplot.items():
@@ -1062,8 +1078,15 @@ class MultiConfig(object):
             params = getattr(params, "params")
         self.inv_he = self.cal_error(params, batch=20000)
         diag_he = self.inv_he.diagonal()
+        print("parameters order")
+        print(self.vm.trainable_vars)
+        print("error matrix:")
+        print(self.inv_he)
+        diag_he_s = np.sqrt(np.fabs(diag_he))
+        print("correlation matrix:")
+        print(self.inv_he /(diag_he_s[:, np.newaxis] * diag_he_s[np.newaxis, :]))
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
-        print(hesse_error)
+        print("hesse_error:", hesse_error)
         err = dict(zip(self.vm.trainable_vars, hesse_error))
         return err
 
