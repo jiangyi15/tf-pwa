@@ -36,6 +36,11 @@ regist_config(DECAY_MODEL, {})
 
 
 def regist_particle(name=None, f=None):
+    """register a particle model 
+
+    :params name: model name used in configuration
+    :params f: Model class
+    """
     def regist(g):
         if name is None:
             my_name = g.__name__
@@ -53,6 +58,12 @@ def regist_particle(name=None, f=None):
 
 
 def regist_decay(name=None, num_outs=2, f=None):
+    """register a decay model 
+
+    :params name: model name used in configuration
+    :params f: Model class
+    """
+    
     def regist(g):
         if name is None:
             my_name = g.__name__
@@ -105,6 +116,7 @@ def _add_var(self, names, is_complex=False, shape=(), **kwargs):
 
 
 class AmpBase(object):
+    """Base class for amplitude """
     def add_var(self, names, is_complex=False, shape=(), **kwargs):
         """
         default add_var method
@@ -118,6 +130,7 @@ class AmpBase(object):
 
 @contextlib.contextmanager
 def variable_scope(vm=None):
+    """variabel name scope"""
     if vm is None:
         vm = VarsManager(dtype=get_config("dtype"))
     with temp_config("vm", vm):
@@ -146,21 +159,20 @@ def simple_cache_fun(f):
     return g
 
 
-def get_relative_p(m_0, m_1, m_2, m_max=None):
+def get_relative_p(m_0, m_1, m_2):
+    """relative momentum for 0 -> 1 + 2"""
     M12S = m_1 + m_2
     M12D = m_1 - m_2
-    if m_max is not None:
-        m_eff = tf.where(m_0 > M12S, m_0, ad_hoc(m_0, m_max, M12S))
-    else:
-        m_eff = tf.where(m_0 > M12S, m_0, M12S)
+    m_eff = tf.where(m_0 > M12S, m_0, M12S)
     p = (m_eff - M12S) * (m_eff + M12S) * (m_eff - M12D) * (m_eff + M12D)
     # if p is negative, which results from bad data, the return value is 0.0
     # print("p", tf.where(p==0), m_0, m_1, m_2)
     return tf.sqrt(p) / (2 * m_eff)
 
 
-def ad_hoc(m0, m_max, m_min):
+def _ad_hoc(m0, m_max, m_min):
     r"""ad-hoc formula
+
     .. math::
         m_0^{eff} = m^{min} + \frac{m^{max} - m^{min}}{2}(1+tanh \frac{m_0 - \frac{m^{max} + m^{min}}{2}}{m^{max} - m^{min}})
 
@@ -281,6 +293,7 @@ class ParticleOne(Particle):
 
 
 class AmpDecay(Decay, AmpBase):
+    """base class for decay with amplitude"""
     def amp_shape(self):
         ret = [len(self.core.spins)]
         for i in self.outs:
@@ -298,16 +311,16 @@ class AmpDecay(Decay, AmpBase):
 @regist_decay("default")
 @regist_decay("gls-bf")
 class HelicityDecay(AmpDecay, AmpBase):
+    """default decay model"""
     def __init__(self, *args, has_barrier_factor=True, l_list=None,
                  barrier_factor_mass=False, has_bprime=True,
-                 aligned=False, ad_hoc_max=None, **kwargs):
+                 aligned=False, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
         self.barrier_factor_mass = barrier_factor_mass
         self.has_bprime = has_bprime
         self.aligned = aligned
-        self.ad_hoc_max = ad_hoc_max
 
     def init_params(self):
         self.d = 3.0
@@ -319,6 +332,7 @@ class HelicityDecay(AmpDecay, AmpBase):
             print(e, self,self.get_ls_list())
 
     def get_relative_momentum(self, data, from_data=False):
+        """"""
 
         def _get_mass(p):
             if from_data or p.mass is None:
@@ -328,7 +342,6 @@ class HelicityDecay(AmpDecay, AmpBase):
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
         m2 = _get_mass(self.outs[1])
-        m_max = self.ad_hoc_max
         return get_relative_p(m0, m1, m2, m_max)
 
     @functools.lru_cache()

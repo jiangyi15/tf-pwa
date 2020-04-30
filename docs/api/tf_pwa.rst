@@ -1,24 +1,27 @@
 tf\_pwa package
 ===============
 
+
+Module contents
+---------------
+
+.. automodule:: tf_pwa
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Submodules
 ----------
 
-tf\_pwa.version module
-----------------------
+.. tf\_pwa.version module
+.. ----------------------
+.. 
+.. .. automodule:: tf_pwa.version
+..    :members:
+..    :undoc-members:
+..    :show-inheritance:
 
-.. automodule:: tf_pwa.version
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-tf\_pwa.gpu\_info module
-------------------------
-
-.. automodule:: tf_pwa.gpu_info
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 tf\_pwa.config module
 ------------------------
@@ -27,6 +30,15 @@ tf\_pwa.config module
    :members:
    :undoc-members:
    :show-inheritance:
+
+tf\_pwa.config\_loader module
+-----------------------------
+
+.. automodule:: tf_pwa.config_loader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 tf\_pwa.cg module
 -----------------
@@ -63,13 +75,13 @@ tf\_pwa.data module
 tf\_pwa.angle module
 --------------------
 
-.. automodule:: tf_pwa.angle_tf
+.. automodule:: tf_pwa.angle
    :members:
    :undoc-members:
    :show-inheritance:
 
 tf\_pwa.cal_angle module
---------------------
+------------------------
 
 .. automodule:: tf_pwa.cal_angle
    :members:
@@ -103,7 +115,7 @@ tf\_pwa.amp module
 tf\_pwa.model module
 --------------------
 
-.. automodule:: tf_pwa.model_new
+.. automodule:: tf_pwa.model
    :members:
    :undoc-members:
    :show-inheritance:
@@ -117,7 +129,7 @@ tf\_pwa.utils module
    :show-inheritance:
 
 tf\_pwa.applications module
---------------------
+---------------------------
 
 .. automodule:: tf_pwa.applications
    :members:
@@ -125,18 +137,41 @@ tf\_pwa.applications module
    :show-inheritance:
 
 tf\_pwa.phasespace module
---------------------
+-------------------------
 
 .. automodule:: tf_pwa.phasespace
    :members:
    :undoc-members:
    :show-inheritance:
 
+tf\_pwa.einsum module
+------------------------
 
-Module contents
----------------
+.. automodule:: tf_pwa.einsum
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-.. automodule:: tf_pwa
+tf\_pwa.vis module
+------------------------
+
+.. automodule:: tf_pwa.vis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.significance module
+---------------------------
+
+.. automodule:: tf_pwa.significance
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tf\_pwa.gpu\_info module
+------------------------
+
+.. automodule:: tf_pwa.gpu_info
    :members:
    :undoc-members:
    :show-inheritance:

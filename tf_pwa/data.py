@@ -23,7 +23,7 @@ except ImportError:  # python version < 3.7
 
 def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_list=False):
     """
-    Load *.dat file(s) of 4-momenta of the final particles.
+    Load ``*.dat`` file(s) of 4-momenta of the final particles.
 
     :param fnames: String or list of strings. File names.
     :param particles: List of Particle. Final particles.
@@ -166,7 +166,7 @@ split_generator = data_split
 
 
 def data_map(data, fun, args=(), kwargs=None):
-    """Map data: call fun(data, *args, **kwargs) for each data. It returns the same structure."""
+    """Apply fun for each data. It returns the same structure."""
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(data, dict):
         return {k: data_map(v, fun, args, kwargs) for k, v in data.items()}
@@ -175,6 +175,20 @@ def data_map(data, fun, args=(), kwargs=None):
     if isinstance(data, tuple):
         return tuple([data_map(data_i, fun, args, kwargs) for data_i in data])
     return fun(data, *args, **kwargs)
+
+
+def data_struct(data):
+    """get the structure of data, keys and shape"""
+    if isinstance(data, dict):
+        return {k: data_struct(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [data_struct(data_i) for data_i in data]
+    if isinstance(data, tuple):
+        return tuple([data_struct(data_i) for data_i in data])
+    if hasattr(data, "shape"):
+        return tuple(data.shape)
+    return data
+
 
 
 def data_mask(data, select):
@@ -190,7 +204,7 @@ def data_mask(data, select):
 
 
 def data_cut(data, expr, var_map=None):
-    """data cut as boolean expr
+    """cut data with boolean expression
 
     :param data: data need to cut
     :param expr: cut expression
