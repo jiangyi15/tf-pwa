@@ -171,6 +171,7 @@ class Model(object):
     def __init__(self, amp, w_bkg=1.0):
         self.Amp = amp
         self.w_bkg = w_bkg
+        self.vm = amp.vm
 
     def get_weight_data(self, data, weight=None, bg=None, alpha=True):
         """
@@ -552,6 +553,7 @@ class FCN(object):
 
     def __init__(self, model, data, mcdata, bg=None, batch=65000, inmc=None):
         self.model = model
+        self.vm = model.vm
         self.n_call = 0
         self.n_grad = 0
         self.cached_nll = None
@@ -659,6 +661,7 @@ class CombineFCN(object):
                 self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
         else:
             self.fcns = list(fcns)
+        self.vm = self.fcns[0].vm
 
     # @time_print
     def __call__(self, x):

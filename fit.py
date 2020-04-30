@@ -19,6 +19,7 @@ class NewParticle(Particle):
     def get_amp(self, data, data_extra):
         # m = data["m"]
         # q = data_extra[self.outs[0]]["|q|"]
+        # a = self.a()
         return 1.0
 
 
@@ -69,7 +70,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
 
 
 
-def fit_combine(config_file=["config.yml"], init_params="init_params.json"):
+def fit_combine(config_file=["config.yml"], init_params="init_params.json", method="BFGS"):
 
     config = MultiConfig(config_file)
     try:
@@ -79,9 +80,10 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json"):
         print("using RANDOM parameters")
     
     print("\n########### initial parameters")
+    pprint = lambda dic: print(json.dumps(dic, indent=2))
     pprint(config.get_params())
     
-    fit_result = config.fit(batch=65000)
+    fit_result = config.fit(method=method, batch=65000)
     
     pprint(fit_result.params)
     fit_result.save_as("final_params.json")
@@ -115,7 +117,7 @@ def main():
     with tf.device(devices):
         for i in range(results.loop):
             if len(config) > 1:
-                fit_combine(config, results.init)
+                fit_combine(config, results.init, results.method)
             else:
                 fit(results.config, results.init, results.method)
 

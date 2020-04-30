@@ -490,7 +490,7 @@ class ConfigLoader(object):
         ndf = 0
         
         def v_g2(x0):
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
             nll, gs0 = f_g(x0)
             gs = []
             for i, name in enumerate(args_name):
@@ -504,7 +504,7 @@ class ConfigLoader(object):
         
         if check_grad:
             print("checking gradients ...")
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
             nll, gs0 = f_g(x0)
             _, gs = v_g2(x_0)
             for i, name in enumerate(args_name):
@@ -515,7 +515,7 @@ class ConfigLoader(object):
                 if np.fabs(x).sum() > 1e7:
                     x_p = dict(zip(args_name, x))
                     raise Exception("x too large: {}".format(x_p))
-                points.append(model.Amp.vm.get_all_val())
+                points.append(fcn.vm.get_all_val())
                 nlls.append(float(fcn.cached_nll))
                 # if len(nlls) > maxiter:
                 #    with open("fit_curve.json", "w") as f:
@@ -524,10 +524,10 @@ class ConfigLoader(object):
                 print(fcn.cached_nll)
 
             #bd = Bounds(bnds)
-            fcn.model.Amp.vm.set_bound(self.bound_dic)
+            fcn.vm.set_bound(self.bound_dic)
 
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
-            x0 = np.array(fcn.model.Amp.vm.get_all_val(True))
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+            x0 = np.array(fcn.vm.get_all_val(True))
             # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
             if method == "test":
                 s = my_minimize(f_g, x0, method=method,
@@ -553,11 +553,12 @@ class ConfigLoader(object):
             print(s)
             
             #xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
-            fcn.model.Amp.vm.set_all(s.x)
+            fcn.vm.set_all(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
-            fcn.model.Amp.vm.remove_bound()
-            xn = fcn.model.Amp.vm.get_all_val()
+            success = s.success
+            fcn.vm.remove_bound()
+            xn = fcn.vm.get_all_val()
         elif method in ["L-BFGS-B"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -571,11 +572,19 @@ class ConfigLoader(object):
             xn = s.x
             ndf = s.x.shape[0]
             min_nll = s.fun
+            success = s.success
+        elif method in ["iminuit"]:
+            from .fit import fit_minuit
+            m = fit_minuit(fcn)
+            xn = m.values
+            min_nll = m.fval
+            ndf = len(xn)
+            success = m.migrad_ok()
         else:
             raise Exception("unknown method")
         if check_grad:
             print("checking gradients ...")
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
             _, gs0 = f_g(xn)
             gs = []
             for i, name in enumerate(args_name):
@@ -586,9 +595,9 @@ class ConfigLoader(object):
                 xn[i] += 1e-5
                 gs.append((nll0-nll1)/2e-5)
                 print(args_name[i], gs[i], gs0[i])
-        fcn.model.Amp.vm.set_all(xn)
-        params = fcn.model.Amp.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf = ndf)
+        fcn.vm.set_all(xn)
+        params = fcn.vm.get_all_dic()
+        return FitResult(params, fcn, min_nll, ndf = ndf, success=success)
 
     def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000, inmc=None):
         if params is None:
@@ -1034,6 +1043,7 @@ class MultiConfig(object):
             min_nll = s.fun
             if hasattr(s, "hess_inv"):
                 self.inv_he = s.hess_inv
+            success = s.success
         elif method in ["L-BFGS-B"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -1047,11 +1057,19 @@ class MultiConfig(object):
             xn = s.x
             ndf = s.x.shape[0]
             min_nll = s.fun
+            success = s.success
+        elif method in ["iminuit"]:
+            from .fit import fit_minuit
+            m = fit_minuit(fcn)
+            xn = m.values
+            min_nll = m.fval
+            ndf = len(xn)
+            success = m.migrad_ok()
         else:
             raise Exception("unknown method")
         self.vm.set_all(xn)
         params = self.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf=ndf, success=s.success)
+        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)
 
     def cal_error(self, params=None, batch=10000):
         if params is None:
