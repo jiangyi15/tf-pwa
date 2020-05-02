@@ -12,6 +12,7 @@ import functools
 import numpy as np
 import contextlib
 from pprint import pprint
+from itertools import combinations
 import warnings
 import copy
 # from pysnooper import snoop
@@ -827,6 +828,24 @@ class DecayGroup(BaseDecayGroup):
         self.set_used_chains(o_used_chains)
         return weights
 
+    def chains_particle(self):
+        ret = []
+        for i in self:
+            ret.append(tuple(i.inner))
+        return ret
+
+    def partial_weight_interference(self, data):
+        chains = list(self.chains)
+        combine = combinations(range(len(chains)), 2)
+        o_used_chains = self.chains_idx
+        weights = {}
+        for i in combine:
+            self.set_used_chains(i)
+            weight = self.sum_amp(data)
+            weights[i] = weight
+        self.set_used_chains(o_used_chains)
+        return weights
+
     def generate_phasespace(self, num=100000):
 
         def get_mass(i):
@@ -903,6 +922,9 @@ class AmplitudeModel(object):
     def partial_weight(self, data, combine=None):
         return self.decay_group.partial_weight(data, combine)
 
+    def partial_weight_interference(self, data):
+        return self.decay_group.partial_weight_interference(data)
+
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)
 
@@ -915,6 +937,9 @@ class AmplitudeModel(object):
         self.set_params(var)
         yield var
         self.set_params(params)
+
+    def chains_particle(self):
+        return self.decay_group.chains_particle()
 
     @property
     def variables(self):

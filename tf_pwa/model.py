@@ -4,16 +4,12 @@ This module provides methods to calculate NLL(Negative Log-Likelihood) as well a
 
 import numpy as np
 import math
+from itertools import repeat as _loop_generator
 from .data import data_shape, split_generator, data_merge, data_split
 from .tensorflow_wrapper import tf
 from .utils import time_print
 from .config import get_config
 from .variable import Variable
-
-
-def _loop_generator(var):
-    while True:
-        yield var
 
 
 def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):

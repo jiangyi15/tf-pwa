@@ -268,8 +268,7 @@ class ConfigLoader(object):
         else:
             key_map = self.decay_key_map
         for k, v in params.items():
-            if k in key_map:
-                ret[key_map[k]] = v
+            ret[key_map.get(k, k)] = v
         return ret
 
     def get_decay_struct(self, decay, particle_map=None, particle_params=None, top=None, finals=None):
@@ -920,7 +919,10 @@ class ConfigLoader(object):
         amp = self.get_amplitude()
         with amp.temp_params(params):
             frac, grad = cal_fitfractions(amp, mcdata, batch=batch)
-        err_frac = self.cal_fitfractions_err(grad, self.inv_he)
+        if hasattr(self, "inv_he"):
+            err_frac = self.cal_fitfractions_err(grad, self.inv_he)
+        else:
+            err_frac = {}
         return frac, err_frac
 
     def cal_fitfractions_err(self, grad, inv_he=None):
