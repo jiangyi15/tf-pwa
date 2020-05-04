@@ -17,7 +17,7 @@ import copy
 # from pysnooper import snoop
 
 from .particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
-    DecayGroup as BaseDecayGroup, _spin_int, _spin_range
+    DecayGroup as BaseDecayGroup, _spin_int, _spin_range, DEFAULT_DECAY
 from .tensorflow_wrapper import tf
 from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime
 from .dfun import get_D_matrix_lambda
@@ -28,12 +28,10 @@ from .data import data_shape, split_generator, data_map
 from .config import regist_config, get_config, temp_config
 from .einsum import einsum
 from .dec_parser import load_dec_file
-
 PARTICLE_MODEL = "particle_model"
 regist_config(PARTICLE_MODEL, {})
 DECAY_MODEL = "decay_model"
 regist_config(DECAY_MODEL, {})
-
 
 def regist_particle(name=None, f=None):
     def regist(g):
@@ -947,3 +945,8 @@ def load_decfile_particle(fname):
             setattr(pa, "running_width", True)
     top, inner, outs = split_particle_type(decay)
     return top, inner, outs
+
+
+
+
+regist_config(DEFAULT_DECAY, (HelicityDecay, {}))

@@ -6,6 +6,13 @@ class ConfigManager(dict):
     pass
 
 
+class _Default:
+        pass
+
+
+default_var = _Default()
+
+
 def create_config(default):
     _config = ConfigManager(default)
 
@@ -18,13 +25,15 @@ def create_config(default):
         else:
             raise Exception("No configuration named {} found.".format(name))
 
-    def get_(name):
+    def get_(name, default=default_var):
         """
         get a configuration.
         """
         if name in _config:
             return _config[name]
-        raise Exception("No configuration named {} found.".format(name))
+        if isinstance(default, _Default):
+            raise Exception("No configuration named {} found.".format(name))
+        return default
 
     def regist_(name, var=None):
         """

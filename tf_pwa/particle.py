@@ -3,11 +3,15 @@ This module implements classes to describe particles and decays.
 """
 import functools
 import numpy as np
+from collections import UserList
 # from pysnooper import snoop
 
 from .cg import cg_coef
 from .breit_wigner import barrier_factor as default_barrier_factor
 from .utils import deep_ordered_iter
+from .config import get_config
+
+DEFAULT_DECAY = "defalut_decay"
 
 
 def cross_combine(x):
@@ -126,6 +130,13 @@ class BaseParticle(object):
             return (self.name, self._id) < (other.name, other._id)
         return self.__repr__() < other
 
+    def __add__(self, other):
+        return ParticleList([self]) + other
+
+    def __lshift__(self, other):
+        _BaseDecay, kwargs = get_config(DEFAULT_DECAY, (BaseDecay, {}))
+        return _BaseDecay(self, other, **kwargs)
+
     def chain_decay(self):
         """return all decay chain self decay to"""
         ret = []
@@ -144,6 +155,14 @@ class BaseParticle(object):
         chains = [DecayChain(i) for i in decay_chain]
         decaygroup = DecayGroup(chains)
         return decaygroup.resonances
+
+
+class ParticleList(UserList):
+    """List for Particle"""
+    def __add__(self, other):
+        if isinstance(other, BaseParticle):
+            other = [other]
+        return super(ParticleList, self).__add__(other)
 
 
 def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
