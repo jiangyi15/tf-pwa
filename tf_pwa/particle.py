@@ -321,9 +321,9 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         The matrix indexed by :math:`[(l,s),(\\lambda_b,\\lambda_c)]`. The matrix element is
 
         .. math::
-        \\sqrt{\\frac{ 2 l + 1 }{ 2 j_a + 1 }}
-        \\langle j_b, j_c, \\lambda_b, - \\lambda_c | s, \\lambda_b - \\lambda_c \\rangle
-        \\langle l, s, 0, \\lambda_b - \\lambda_c | j_a, \\lambda_b - \\lambda_c \\rangle
+            \\sqrt{\\frac{ 2 l + 1 }{ 2 j_a + 1 }}
+            \\langle j_b, j_c, \\lambda_b, - \\lambda_c | s, \\lambda_b - \\lambda_c \\rangle
+            \\langle l, s, 0, \\lambda_b - \\lambda_c | j_a, \\lambda_b - \\lambda_c \\rangle
 
         This is actually the pre-factor of :math:`g_ls` in the amplitude formula.
 

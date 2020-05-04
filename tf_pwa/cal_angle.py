@@ -122,9 +122,11 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                        base_z=np.array([[0.0, 0.0, 1.0]]),
                        base_x=np.array([[1.0, 0.0, 0.0]])) -> dict:
     """
-    Calculate helicity angle for A -> B + C: :math:`\\theta_{B}^{A}, \\phi_{B}^{A}` from momentum.
-    {A:{p:momentum},B:{p:...},C:{p:...}} =>
-        {A->B+C:{B:{"ang":{"alpha":...,"beta":...,"gamma":...},"x":...,"z"},...}}
+    Calculate helicity angle for A -> B + C: :math:`\\theta_{B}^{A}, \\phi_{B}^{A}` from momentum. 
+    
+    from `{A:{p:momentum},B:{p:...},C:{p:...}}`
+
+    to   `{A->B+C:{B:{"ang":{"alpha":...,"beta":...,"gamma":...},"x":...,"z"},...}}`
     """
     part_data = {}
     ret = {}
@@ -287,9 +289,11 @@ def Getp(M_0, M_1, M_2):
 
 def get_relative_momentum(data: dict, decay_chain: DecayChain):
     """
-    add add rest frame momentum scalar from data momentum.
-    {"particle": {A: {"m": ...}, ...}, "decay": {A->B+C: {...}, ...}
-        => {"particle": {A: {"m": ...}, ...},"decay": {A->B+C:{...,"|q|": ...},...}
+    add add rest frame momentum scalar from data momentum. 
+
+    from `{"particle": {A: {"m": ...}, ...}, "decay": {A->B+C: {...}, ...}`
+
+    to `{"particle": {A: {"m": ...}, ...},"decay": {A->B+C:{...,"|q|": ...},...}`
     """
     ret = {}
     for decay in decay_chain:

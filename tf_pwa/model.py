@@ -4,16 +4,12 @@ This module provides methods to calculate NLL(Negative Log-Likelihood) as well a
 
 import numpy as np
 import math
+from itertools import repeat as _loop_generator
 from .data import data_shape, split_generator, data_merge, data_split
 from .tensorflow_wrapper import tf
 from .utils import time_print
 from .config import get_config
 from .variable import Variable
-
-
-def _loop_generator(var):
-    while True:
-        yield var
 
 
 def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
@@ -171,6 +167,7 @@ class Model(object):
     def __init__(self, amp, w_bkg=1.0):
         self.Amp = amp
         self.w_bkg = w_bkg
+        self.vm = amp.vm
 
     def get_weight_data(self, data, weight=None, bg=None, alpha=True):
         """
@@ -552,6 +549,7 @@ class FCN(object):
 
     def __init__(self, model, data, mcdata, bg=None, batch=65000, inmc=None):
         self.model = model
+        self.vm = model.vm
         self.n_call = 0
         self.n_grad = 0
         self.cached_nll = None
@@ -659,6 +657,7 @@ class CombineFCN(object):
                 self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
         else:
             self.fcns = list(fcns)
+        self.vm = self.fcns[0].vm
 
     # @time_print
     def __call__(self, x):

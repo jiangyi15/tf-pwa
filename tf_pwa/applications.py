@@ -57,7 +57,7 @@ def fit_fractions(model, mcdata, inv_he, hesse=False):
 
 def corr_coef_matrix(npy_name):
     """
-    This function obtains correlation coefficients matrix of all trainable variables from *.npy file.
+    This function obtains correlation coefficients matrix of all trainable variables from `*.npy` file.
 
     :param npy_name: String. Name of the npy file
     :return: Numpy 2-d array. The correlation coefficient matrix.

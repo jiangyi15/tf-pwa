@@ -14,6 +14,7 @@ Welcome to TFPWA's documentation!
    decay_topology
    phasespace
    api/modules
+   FAQ
 
 
 Indices and tables

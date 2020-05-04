@@ -147,8 +147,11 @@ def exp_i(theta, mi):
 
 def D_matrix_conj(alpha, beta, gamma, j):
     """
-    The conjugated D-matrix element with indices (:math:`m_1,m_2`) is :math:`D^{j}_{m_1,m_2}(\\alpha, \\beta, \\gamma)^\\star =
-                        e^{i m_1 \\alpha} d^{j}_{m_1,m_2}(\\beta) e^{i m_2 \\gamma}`
+    The conjugated D-matrix element with indices (:math:`m_1,m_2`) is 
+
+    .. math::
+        D^{j}_{m_1,m_2}(\\alpha, \\beta, \\gamma)^\\star =
+                        e^{i m_1 \\alpha} d^{j}_{m_1,m_2}(\\beta) e^{i m_2 \\gamma}
 
     :param alpha: Array
     :param beta: Array

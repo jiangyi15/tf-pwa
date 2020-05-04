@@ -65,7 +65,7 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
                 name = "{}".format(res[i])
                 amp_tmp.set_used_res([res[i]])
             else:
-                name = "{}x{}".format(res[i], res[j])
+                name = (str(res[i]), str(res[j]))
                 amp_tmp.set_used_res([res[i], res[j]])
             int_tmp, g_int_tmp = sum_gradient(amp_tmp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
             if i == j:

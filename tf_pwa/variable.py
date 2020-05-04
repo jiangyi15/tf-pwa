@@ -12,7 +12,7 @@ def combineVM(vm1, vm2, name="", same_list=None):
     This function combines two VarsManager objects into one. (WIP)
 
     :param name: The name of this combined VarsManager
-    :param same_list: To make some variables in the two VarsManager to be the same. E.g. if ``same_list = ["var",["var1","var2"]], then "var" in vm1 and vm2 will be the same, and "var1" in vm1 and "var2" in vm2 will be the same.
+    :param same_list: To make some variables in the two VarsManager to be the same. E.g. if ``same_list = ["var",["var1","var2"]]``, then "var" in vm1 and vm2 will be the same, and "var1" in vm1 and "var2" in vm2 will be the same.
     """
     if same_list is None:
         same_list = []

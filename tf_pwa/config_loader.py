@@ -268,8 +268,7 @@ class ConfigLoader(object):
         else:
             key_map = self.decay_key_map
         for k, v in params.items():
-            if k in key_map:
-                ret[key_map[k]] = v
+            ret[key_map.get(k, k)] = v
         return ret
 
     def get_decay_struct(self, decay, particle_map=None, particle_params=None, top=None, finals=None):
@@ -440,8 +439,8 @@ class ConfigLoader(object):
         model = self.get_model(vm, name="")
         for i in self.full_decay:
             print(i)
-        data, phsp, bg = self.get_all_data()
-        fcn = FCN(model, data, phsp, bg=bg, batch=batch)
+        data, phsp, bg, inmc = self.get_all_data()
+        fcn = FCN(model, data, phsp, bg=bg, inmc=inmc, batch=batch)
         return fcn
     
     def get_ndf(self):
@@ -490,7 +489,7 @@ class ConfigLoader(object):
         ndf = 0
         
         def v_g2(x0):
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
             nll, gs0 = f_g(x0)
             gs = []
             for i, name in enumerate(args_name):
@@ -504,7 +503,7 @@ class ConfigLoader(object):
         
         if check_grad:
             print("checking gradients ...")
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
             nll, gs0 = f_g(x0)
             _, gs = v_g2(x_0)
             for i, name in enumerate(args_name):
@@ -515,7 +514,7 @@ class ConfigLoader(object):
                 if np.fabs(x).sum() > 1e7:
                     x_p = dict(zip(args_name, x))
                     raise Exception("x too large: {}".format(x_p))
-                points.append(model.Amp.vm.get_all_val())
+                points.append(fcn.vm.get_all_val())
                 nlls.append(float(fcn.cached_nll))
                 # if len(nlls) > maxiter:
                 #    with open("fit_curve.json", "w") as f:
@@ -524,10 +523,10 @@ class ConfigLoader(object):
                 print(fcn.cached_nll)
 
             #bd = Bounds(bnds)
-            fcn.model.Amp.vm.set_bound(self.bound_dic)
+            fcn.vm.set_bound(self.bound_dic)
 
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
-            x0 = np.array(fcn.model.Amp.vm.get_all_val(True))
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+            x0 = np.array(fcn.vm.get_all_val(True))
             # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
             if method == "test":
                 s = my_minimize(f_g, x0, method=method,
@@ -553,11 +552,12 @@ class ConfigLoader(object):
             print(s)
             
             #xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
-            fcn.model.Amp.vm.set_all(s.x)
+            fcn.vm.set_all(s.x)
             ndf = s.x.shape[0]
             min_nll = s.fun
-            fcn.model.Amp.vm.remove_bound()
-            xn = fcn.model.Amp.vm.get_all_val()
+            success = s.success
+            fcn.vm.remove_bound()
+            xn = fcn.vm.get_all_val()
         elif method in ["L-BFGS-B"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -571,11 +571,19 @@ class ConfigLoader(object):
             xn = s.x
             ndf = s.x.shape[0]
             min_nll = s.fun
+            success = s.success
+        elif method in ["iminuit"]:
+            from .fit import fit_minuit
+            m = fit_minuit(fcn)
+            xn = m.values
+            min_nll = m.fval
+            ndf = len(xn)
+            success = m.migrad_ok()
         else:
             raise Exception("unknown method")
         if check_grad:
             print("checking gradients ...")
-            f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
             _, gs0 = f_g(xn)
             gs = []
             for i, name in enumerate(args_name):
@@ -586,9 +594,9 @@ class ConfigLoader(object):
                 xn[i] += 1e-5
                 gs.append((nll0-nll1)/2e-5)
                 print(args_name[i], gs[i], gs0[i])
-        fcn.model.Amp.vm.set_all(xn)
-        params = fcn.model.Amp.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf = ndf)
+        fcn.vm.set_all(xn)
+        params = fcn.vm.get_all_dic()
+        return FitResult(params, fcn, min_nll, ndf = ndf, success=success)
 
     def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000, inmc=None):
         if params is None:
@@ -620,9 +628,16 @@ class ConfigLoader(object):
             params = getattr(params, "params")
         self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000, inmc=inmc)
         diag_he = self.inv_he.diagonal()
+        model = self.get_model()
+        print("parameters order")
+        print(model.Amp.vm.trainable_vars)
+        print("error matrix:")
+        print(self.inv_he)
+        diag_he_s = np.sqrt(np.fabs(diag_he))
+        print("correlation matrix:")
+        print(self.inv_he /(diag_he_s[:, np.newaxis] * diag_he_s[np.newaxis, :]))
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         print("hesse_error:", hesse_error)
-        model = self.get_model()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
         return err
 
@@ -676,8 +691,11 @@ class ConfigLoader(object):
                 else:
                     ax = fig.add_subplot(1, 1, 1)
                 data_i = trans(data_index(data, idx))
+                if xrange is None:
+                    xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
                 phsp_i = trans(data_index(phsp, idx))
-                data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data.get("weight", 1.0),xrange=xrange)
+                data_weights = data.get("weight", [1.0]*data_shape(data))
+                data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data_weights,xrange=xrange)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
                             zorder=-2, label="data", color="black")  #, capsize=2)
                 if bg is not None:
@@ -685,12 +703,14 @@ class ConfigLoader(object):
                     bg_weight = np.ones_like(bg_i)*w_bkg
                     ax.hist(bg_i, weights=bg_weight,
                             label="back ground", bins=bins, range=xrange, histtype="stepfilled", alpha=0.5, color="grey")
-                    fit_y, fit_x, _ = ax.hist(np.concatenate([bg_i, phsp_i]),
-                                              weights=np.concatenate([bg_weight, total_weight*norm_frac]), 
-                                              range=xrange,
+                    mc_i = np.concatenate([bg_i, phsp_i])
+                    mc_weights = np.concatenate([bg_weight, total_weight*norm_frac])
+                    fit_y, fit_x, _ = ax.hist(mc_i, weights=mc_weights, range=xrange,
                                               histtype="step", label="total fit", bins=bins, color="black")
                 else:
-                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=total_weight*norm_frac, range=xrange, histtype="step", 
+                    mc_i = phsp_i
+                    mc_weights = total_weight*norm_frac
+                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=mc_weights, range=xrange, histtype="step", 
                                               label="total fit", bins=bins, color="black")
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 style = itertools.product(colors, linestyles)
@@ -741,6 +761,12 @@ class ConfigLoader(object):
                 plt.close(fig)
                 plot_var_dic[name] = {"idx": idx, "trans": trans, "range": [xlimin, xlimax]}
                 root_dict[name] = data_i
+                root_dict[name+"_weights"] = data_weights
+                #root_dict[name+"_mc"] = mc_i
+                #root_dict[name+"_mc_weight"] = mc_weights
+                #if bg is not None:
+                    #root_dict[name+"_bg"] = bg_i
+                    #root_dict[name+"_bg_weights"] = bg_weight
 
             twodplot = self.config["plot"].get("2Dplot", {})
             for k, i in twodplot.items():
@@ -893,7 +919,10 @@ class ConfigLoader(object):
         amp = self.get_amplitude()
         with amp.temp_params(params):
             frac, grad = cal_fitfractions(amp, mcdata, batch=batch)
-        err_frac = self.cal_fitfractions_err(grad, self.inv_he)
+        if hasattr(self, "inv_he"):
+            err_frac = self.cal_fitfractions_err(grad, self.inv_he)
+        else:
+            err_frac = {}
         return frac, err_frac
 
     def cal_fitfractions_err(self, grad, inv_he=None):
@@ -1016,6 +1045,7 @@ class MultiConfig(object):
             min_nll = s.fun
             if hasattr(s, "hess_inv"):
                 self.inv_he = s.hess_inv
+            success = s.success
         elif method in ["L-BFGS-B"]:
             def callback(x):
                 if np.fabs(x).sum() > 1e7:
@@ -1029,10 +1059,18 @@ class MultiConfig(object):
             xn = s.x
             ndf = s.x.shape[0]
             min_nll = s.fun
+            success = s.success
+        elif method in ["iminuit"]:
+            from .fit import fit_minuit
+            m = fit_minuit(fcn)
+            xn = m.values
+            min_nll = m.fval
+            ndf = len(xn)
+            success = m.migrad_ok()
         else:
             raise Exception("unknown method")
-        fcn.model.Amp.vm.set_all(xn)
-        params = fcn.model.Amp.vm.get_all_dic()
+        self.vm.set_all(xn)
+        params = self.vm.get_all_dic()
         return FitResult(params, fcn, min_nll, ndf=ndf, success=success)
 
     def cal_error(self, params=None, batch=10000):
@@ -1060,8 +1098,15 @@ class MultiConfig(object):
             params = getattr(params, "params")
         self.inv_he = self.cal_error(params, batch=20000)
         diag_he = self.inv_he.diagonal()
+        print("parameters order")
+        print(self.vm.trainable_vars)
+        print("error matrix:")
+        print(self.inv_he)
+        diag_he_s = np.sqrt(np.fabs(diag_he))
+        print("correlation matrix:")
+        print(self.inv_he /(diag_he_s[:, np.newaxis] * diag_he_s[np.newaxis, :]))
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
-        print(hesse_error)
+        print("hesse_error:", hesse_error)
         err = dict(zip(self.vm.trainable_vars, hesse_error))
         return err
 
@@ -1101,6 +1146,7 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
 
 
 def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
+    """interpolate data from hostgram into a line"""
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     x = (x[:-1] + x[1:])/2
     if xrange is None:
@@ -1113,6 +1159,7 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
 
 
 def check_positive_definite(m):
+    """check if matrix m is postive definite"""
     e, v = np.linalg.eig(m)
     if np.all(e > 0.0):
         return True
@@ -1126,14 +1173,14 @@ class FitResult(object):
         self.params = params
         self.error = {}
         self.model = model
-        self.min_nll = min_nll
-        self.ndf = ndf
+        self.min_nll = float(min_nll)
+        self.ndf = int(ndf)
         self.success = success
 
     def save_as(self, file_name):
-        s = {"value": self.params, "error": self.error}
+        s = {"value": self.params, "error": self.error, "status": {"success":self.success,"NLL":self.min_nll,"Ndf":self.ndf}}
         with open(file_name, "w") as f:
-            json.dump(self.params, f, indent=2)
+            json.dump(s, f, indent=2)
 
     def set_error(self, error):
         self.error = error.copy()
