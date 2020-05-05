@@ -68,11 +68,9 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     #frac_table(fit_frac_string)
 
 
+def fit_combine(config_file=["config.yml"], init_params="init_params.json", method="BFGS", total_same=False):
 
-
-def fit_combine(config_file=["config.yml"], init_params="init_params.json", method="BFGS"):
-
-    config = MultiConfig(config_file)
+    config = MultiConfig(config_file, total_same=total_same)
     try:
         config.set_params(init_params)
         print("using {}".format(init_params))
@@ -99,15 +97,15 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json", meth
         print(k, error_print(v, fit_error.get(k, None)))
 
 
-
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="simple fit scripts")
     parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
     parser.add_argument("-c", "--config", default="config.yml", dest="config")
     parser.add_argument("-i", "--init_params", default="init_params.json", dest="init")
-    parser.add_argument("-m", "--method", default="test", dest="method")
+    parser.add_argument("-m", "--method", default="BFGS", dest="method")
     parser.add_argument("-l", "--loop", type=int, default=1, dest="loop")
+    parser.add_argument("--total-same", action="store_true", default=False, dest="total_same")
     results = parser.parse_args()
     config = results.config.split(",")
     if results.has_gpu:
@@ -117,7 +115,7 @@ def main():
     with tf.device(devices):
         for i in range(results.loop):
             if len(config) > 1:
-                fit_combine(config, results.init, results.method)
+                fit_combine(config, results.init, results.method, results.total_same)
             else:
                 fit(results.config, results.init, results.method)
 
