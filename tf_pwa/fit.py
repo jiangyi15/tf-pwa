@@ -41,7 +41,7 @@ def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
 
 
 from scipy.optimize import minimize,BFGS,basinhopping
-def fit_scipy(fcn, method="BFGS",bounds_dict={}, **kwargs):
+def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False):
     """
 
     :param fcn:
@@ -50,50 +50,153 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, **kwargs):
     :param kwargs:
     :return:
     """
+    args_name = fcn.model.Amp.vm.trainable_vars
+    x0 = []
+    bnds = []
+    for name, i in zip(args_name, fcn.model.Amp.trainable_variables):
+        x0.append(i.numpy())
+        if name in bounds_dict:
+            bnds.append(bounds_dict[name])
+        else:
+            bnds.append((None, None))
+
     points = []
     nlls = []
+    now = time.time()
     maxiter = 2000
-    if method in ["BFGS","CG","Nelder-Mead"]:
+    min_nll = 0.0
+    ndf = 0
+    
+    def v_g2(x0):
+        f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+        nll, gs0 = f_g(x0)
+        gs = []
+        for i, name in enumerate(args_name):
+            x0[i] += 1e-5
+            nll0, _ = f_g(x0)
+            x0[i] -= 2e-5
+            nll1, _ = f_g(x0)
+            x0[i] += 1e-5
+            gs.append((nll0-nll1)/2e-5)
+        return nll, np.array(gs)
+    
+    if check_grad:
+        print("checking gradients ...")
+        f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+        nll, gs0 = f_g(x0)
+        _, gs = v_g2(x_0)
+        for i, name in enumerate(args_name):
+            print(args_name[i], gs[i], gs0[i])
+
+    if method in ["BFGS", "CG", "Nelder-Mead", "test"]:
         def callback(x):
-            points.append([float(i) for i in fcn.model.Amp.get_all_val()])
+            if np.fabs(x).sum() > 1e7:
+                x_p = dict(zip(args_name, x))
+                raise Exception("x too large: {}".format(x_p))
+            points.append(fcn.vm.get_all_val())
             nlls.append(float(fcn.cached_nll))
-            if len(nlls) > maxiter:
-                return False, {"nlls": nlls, "points": points}
+            # if len(nlls) > maxiter:
+            #    with open("fit_curve.json", "w") as f:
+            #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
+            #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
-        fcn.model.Amp.set_bound(bounds_dict)
-        f_g = fcn.model.Amp.trans_fcn_grad(fcn.nll_grad)
-        fitres = minimize(f_g, np.array(fcn.model.Amp.get_all_val(True)), method=method, jac=True, callback=callback,
-                     options={"disp": 1})
+
+        #bd = Bounds(bnds)
+        fcn.vm.set_bound(bounds_dict)
+
+        f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+        x0 = np.array(fcn.vm.get_all_val(True))
+        # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
+        if method == "test":
+            s = my_minimize(f_g, x0, method=method,
+                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+        else:
+            s = minimize(f_g, x0, method=method,
+                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+        while improve and not s.success:
+            min_nll = s.fun
+            maxiter -= s.nit
+            s = minimize(f_g, s.x, method=method,
+                     jac=True, callback=callback, options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter})
+            if hasattr(s, "hess_inv"):
+                edm = np.dot(np.dot(s.hess_inv, s.jac), s.jac)
+            else:
+                break
+            if edm < 1e-5:
+                print("edm: ", edm)
+                s.message = "Edm allowed"
+                break
+            if abs(s.fun - min_nll) < 1e-3:
+                break
+        print(s)
+        
+        #xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
+        fcn.vm.set_all(s.x)
+        ndf = s.x.shape[0]
+        min_nll = s.fun
+        success = s.success
+        fcn.vm.remove_bound()
+        xn = fcn.vm.get_all_val()
     elif method in ["L-BFGS-B"]:
         def callback(x):
+            if np.fabs(x).sum() > 1e7:
+                x_p = dict(zip(args_name, x))
+                raise Exception("x too large: {}".format(x_p))
             points.append([float(i) for i in x])
             nlls.append(float(fcn.cached_nll))
-        bnds = []
-        for name in fcn.model.Amp.trainable_vars:
-            if name in bounds_dict:
-                bnds.append(bounds_dict[name])
-            else:
-                bnds.append((None, None))
-        fitres = minimize(fcn.nll_grad, fcn.model.Amp.get_all_val(), method=method, jac=True, bounds=bnds, callback=callback,
-                     options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
-    elif method in ["basinhopping"]:
-        def callback(x):
-            points.append([float(i) for i in fcn.model.Amp.get_all_val()])
-            nlls.append(float(fcn.cached_nll))
-            print(fcn.cached_nll)
-        fcn.model.Amp.set_bound(bounds_dict)
-        f_g = fcn.model.Amp.trans_fcn_grad(fcn.nll_grad)
-        if "niter" in kwargs:
-            niter = kwargs["niter"]
-        else:
-            niter = 1
-        fitres = basinhopping(f_g,np.array(fcn.model.Amp.get_all_val(True)),niter=niter,stepsize=3.0,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True},"callback":callback})
+
+        s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
+                     options={"disp": 1, "maxcor": 50, "ftol": 1e-15, "maxiter": maxiter})
+        xn = s.x
+        ndf = s.x.shape[0]
+        min_nll = s.fun
+        success = s.success
+    elif method in ["iminuit"]:
+        from .fit import fit_minuit
+        m = fit_minuit(fcn)
+        xn = m.values
+        min_nll = m.fval
+        ndf = len(xn)
+        success = m.migrad_ok()
     else:
         raise Exception("unknown method")
-
-    return fitres, nlls, points
+    if check_grad:
+        print("checking gradients ...")
+        f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+        _, gs0 = f_g(xn)
+        gs = []
+        for i, name in enumerate(args_name):
+            xn[i] += 1e-5
+            nll0, _ = f_g(xn)
+            xn[i] -= 2e-5
+            nll1, _ = f_g(xn)
+            xn[i] += 1e-5
+            gs.append((nll0-nll1)/2e-5)
+            print(args_name[i], gs[i], gs0[i])
+    fcn.vm.set_all(xn)
+    params = fcn.vm.get_all_dic()
+    return FitResult(params, fcn, min_nll, ndf = ndf, success=success)
 
 
 #import pymultinest
 def fit_multinest(model):
     pass
+
+
+
+class FitResult(object):
+    def __init__(self, params, model, min_nll, ndf=0, success=True):
+        self.params = params
+        self.error = {}
+        self.model = model
+        self.min_nll = float(min_nll)
+        self.ndf = int(ndf)
+        self.success = success
+
+    def save_as(self, file_name):
+        s = {"value": self.params, "error": self.error, "status": {"success":self.success,"NLL":self.min_nll,"Ndf":self.ndf}}
+        with open(file_name, "w") as f:
+            json.dump(s, f, indent=2)
+
+    def set_error(self, error):
+        self.error = error.copy()
