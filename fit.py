@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+
+# avoid using Xwindow
+import matplotlib
+matplotlib.use("agg")
+
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from pprint import pprint
 from tf_pwa.utils import error_print
@@ -6,13 +11,13 @@ import tensorflow as tf
 import json
 
 
-"""
 # examples of custom particle model
-"""
 from tf_pwa.amp import Particle, regist_particle
+
 
 @regist_particle("New")
 class NewParticle(Particle):
+    """example Particle model define, can be used in config.yml as `model: New`"""
     def init_params(self):
         # self.a = self.add_var("a")
         pass
@@ -23,10 +28,20 @@ class NewParticle(Particle):
         return 1.0
 
 
+def json_print(dic):
+    """print parameters as json"""
+    s = json.dumps(dic, indent=2)
+    print(s)
+
 
 def fit(config_file="config.yml", init_params="init_params.json", method="BFGS"):
-
+    """
+    simple fit script 
+    """
+    # load config.yml
     config = ConfigLoader(config_file)
+    
+    # set initial parameters if have
     try:
         config.set_params(init_params)
         print("using {}".format(init_params))
@@ -35,26 +50,31 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
             print(e,"\nusing RANDOM parameters")
     
     print("\n########### initial parameters")
-    s = json.dumps(config.get_params(), indent=2)
-    print(s)
+    json_print(config.get_params())
 
+    # fit
     data, phsp, bg, inmc = config.get_all_data()
-    
     fit_result = config.fit(batch=65000, method=method)
-    
-    print(json.dumps(fit_result.params, indent=2))
+    json_print(fit_result.params)
     fit_result.save_as("final_params.json")
+
+    # plot partial wave distribution
     config.plot_partial_wave(fit_result, plot_pull=True)
+
+    # calculate parameters error
     fit_error = config.get_params_error(fit_result, batch=13000)
     fit_result.set_error(fit_error)
     fit_result.save_as("final_params.json")
     pprint(fit_error)
-    
+
     print("\n########## fit results:")
     for k, v in config.get_params().items():
         print(k, error_print(v, fit_error.get(k, None)))
+
+    # calculate fit fractions
     phsp_noeff = config.get_phsp_noeff()
     fit_frac, err_frac = config.cal_fitfractions({}, phsp_noeff)
+
     print("########## fit fractions")
     fit_frac_string = ""
     for i in fit_frac:
@@ -69,7 +89,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
 
 
 def fit_combine(config_file=["config.yml"], init_params="init_params.json", method="BFGS", total_same=False):
-
+    """fit with multiply config.yml"""
     config = MultiConfig(config_file, total_same=total_same)
     try:
         config.set_params(init_params)
@@ -98,6 +118,7 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json", meth
 
 
 def main():
+    """entry point of fit. add some arguments in commond line"""
     import argparse
     parser = argparse.ArgumentParser(description="simple fit scripts")
     parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")

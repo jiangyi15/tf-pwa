@@ -41,12 +41,13 @@ def _get_decay_data(num=1):
     p = dict(zip([d, b, c], data))
     amp = AmplitudeModel(decs)
     data = cal_angle_from_momentum(p, decs)
-    return amp, data
+    args = amp.trainable_variables
+    return amp, data, args
 
 
 @pytest.mark.benchmark(group="mc_int")
 def test_mc_int(benchmark):
-    amp, data = _get_decay_data(1)
+    amp, data, params = _get_decay_data(1)
 
     def mc_int(dat):
         return tf.reduce_sum(amp(dat))
@@ -55,7 +56,7 @@ def test_mc_int(benchmark):
 
 @pytest.mark.benchmark(group="mc_int")
 def test_mc_int_CPU(benchmark):
-    amp, data = _get_decay_data(1)
+    amp, data, params = _get_decay_data(1)
 
     def mc_int(dat):
         return tf.reduce_sum(amp(dat))
@@ -65,8 +66,19 @@ def test_mc_int_CPU(benchmark):
 
 @pytest.mark.benchmark(group="mc_int")
 def test_mc_int2(benchmark):
-    amp, data = _get_decay_data(2)
+    amp, data, params = _get_decay_data(2)
 
     def mc_int(dat):
         return tf.reduce_sum(amp(dat))
+    benchmark(mc_int, data)
+
+@pytest.mark.benchmark(group="mc_int")
+def test_mc_int_grad(benchmark):
+    amp, data, params = _get_decay_data(1)
+
+    def mc_int(dat):
+        with tf.GradientTape() as tape:
+            int_mc = tf.reduce_sum(amp(dat))
+        args = tape.gradient(int_mc, params)
+        return int_mc, args
     benchmark(mc_int, data)

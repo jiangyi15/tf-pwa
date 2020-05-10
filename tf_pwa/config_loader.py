@@ -750,10 +750,10 @@ class ConfigLoader(object):
                 display = v.get("display", j)
                 upper_ylim = v.get("upper_ylim", None)
                 theta = j
-                def trans(x): return x
+                trans = lambda x: x
                 if "cos" in j:
                     theta = j[4:-1]
-                    def trans(x): return np.cos(x)
+                    trans = np.cos
                 yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
                        "idx": ("decay", decay_chain, decay, part, "ang", theta),
                        "trans": trans, "bins": defaults_config.get("bins", 50)}

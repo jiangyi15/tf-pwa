@@ -250,7 +250,7 @@ class Model(object):
             mc_weight = tf.convert_to_tensor([mc_weight] * data_shape(mcdata), dtype="float64")
             mc_weight = mc_weight / tf.reduce_sum(mc_weight)
         int_mc, g_int_mc = sum_gradient(self.Amp, split_generator(mcdata, batch),
-                                        self.Amp.trainable_variables, weight=data_split(mc_weight))
+                                        self.Amp.trainable_variables, weight=data_split(mc_weight, batch))
 
         sw = tf.cast(sw, ln_data.dtype)
 
@@ -652,7 +652,7 @@ class CombineFCN(object):
             self.fcns = []
             self.cached_nll = 0.0
             if bg is None:
-                bg = loop_generator(None)
+                bg = _loop_generator(None)
             for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
                 self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
         else:
