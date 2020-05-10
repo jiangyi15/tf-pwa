@@ -158,5 +158,5 @@ def Bprime_polynomial(l, z):
     if l not in coeff:
         raise NotImplementedError
     z = tf.convert_to_tensor(z)
-    cof = tf.convert_to_tensor(coeff[int(l + 0.01)], dtype=z.dtype)
+    cof = [tf.convert_to_tensor(i, z.dtype) for i in [int(l + 0.01)]]
     return tf.math.polyval(cof, z)
