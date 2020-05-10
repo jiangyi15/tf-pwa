@@ -49,7 +49,7 @@ def BW(m, m0, g0, *args):
     m0 = tf.cast(m0, m.dtype)
     gamma = tf.cast(g0, m.dtype)
     num = 1.0
-    denom = tf.complex((m0 + m) * (m0 - m), -m0 * gamma)
+    denom = tf.complex((m0 + m) * (m0 - m), - (m0 * gamma))
     return num / denom
 
 
@@ -67,7 +67,7 @@ def BWR(m, m0, g0, q, q0, L, d):
     num = 1.0
     a = (tf.cast(m0, m.dtype) + m)
     b = (tf.cast(m0, m.dtype) - m)
-    denom = tf.complex(a * b, -tf.cast(m0, m.dtype) * gamma)
+    denom = tf.complex(a * b, - (tf.cast(m0, m.dtype) * gamma))
     return num / denom
 
 
@@ -158,5 +158,6 @@ def Bprime_polynomial(l, z):
     if l not in coeff:
         raise NotImplementedError
     z = tf.convert_to_tensor(z)
-    cof = [tf.convert_to_tensor(i, z.dtype) for i in [int(l + 0.01)]]
-    return tf.math.polyval(cof, z)
+    cof = [tf.convert_to_tensor(i, z.dtype) for i in coeff[int(l + 0.01)]]
+    ret = tf.math.polyval(cof, z)
+    return ret

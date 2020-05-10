@@ -463,7 +463,7 @@ class ConfigLoader(object):
         print("initial NLL: ", fcn(model.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
-        ret = fit(fcn=fcn, method="BFGS", bounds_dict=self.bound_dic, check_grad=False, improve=False)
+        ret = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False)
         return ret
 
     def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000, inmc=None):

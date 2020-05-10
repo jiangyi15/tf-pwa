@@ -650,7 +650,7 @@ class DecayChain(BaseDecayChain, AmpBase):
                         decay_i = j
                         break
                 else:
-                    raise IndexError("not found {} decay in {}".foramt(i, self))
+                    raise IndexError("not found {} decay in {}".format(i, self))
                 data_c_i = data_c[decay_i]
                 if "|q|" not in data_c_i:
                     data_c_i["|q|"] = decay_i.get_relative_momentum(

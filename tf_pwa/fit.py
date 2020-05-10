@@ -2,7 +2,7 @@ import tensorflow as tf
 import time
 import numpy as np
 import json
-
+from .fit_improve import minimize as my_minimize
 
 from iminuit import Minuit
 def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):

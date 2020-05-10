@@ -73,6 +73,7 @@ def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, call
         Bk = np.eye(len(x0))
     else:
         Bk = B0
+    Hk = np.linalg.inv(Bk)
     maxiter = 200 * len(x0) if maxiter is None else maxiter
     xk = x0
     norm = lambda x: np.linalg.norm(x, ord=norm_ord)
@@ -80,6 +81,7 @@ def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, call
     C = 0.5
     k = 0
     old_old_fval = fk + np.linalg.norm(gk) / 2
+    old_fval = fk
     f_s = Seq(M)
     f_s.add(fk)
     flag = 0
@@ -87,7 +89,7 @@ def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, call
     for k in range(maxiter):
         if norm(gk) <= gtol:
             break
-        dki = - np.dot(np.linalg.pinv(Bk), gk)
+        dki = - np.dot(Hk, gk)
         try:
             pk = dki
             f = f_g.fun
@@ -134,8 +136,18 @@ def fmin_bfgs_f(f_g, x0, B0=None, M=2, gtol=1e-5, Delta=10.0, maxiter=None, call
         bs = np.dot(Bk, dki)
         Bk = Bk + np.outer(yk, yk)/np.dot(yk, dki) - \
             np.outer(bs, bs)/np.dot(bs, dki)
+        # sk = dki
+        # rhok = 1.0 / (np.dot(yk, sk))
+        # A1 = 1 - np.outer(sk, yk) * rhok
+        # A2 = 1 - np.outer(yk, sk) * rhok
+        # Hk = np.dot(A2, np.dot(Hk, A1)) - (rhok * np.outer(sk, sk))
         # Bk = Bk + np.outer(ystark, ystark)/np.dot(ystark, dki) - \
         #    np.outer(bs, bs)/np.dot(bs, dki)  # MBFGS
+        # print(np.dot(Hk, Bk))
+        try:
+            Hk = np.linalg.inv(Bk)
+        except Exception:
+            pass
         f_s.add(fk)
         if callback is not None:
             callback(xk)
@@ -164,6 +176,7 @@ def minimize(fun, x0, args=(), method=None, jac=None, hess=None, hessp=None, bou
 
 def line_search_nonmonote(f, myfprime, xk, pk, gfk=None, old_fval=None, fk=None, old_old_fval=None, args=(), c1=0.5, maxiter=10):
     alpha = max(- np.dot(gfk, pk)/np.dot(pk, pk), 1.0)
+    phi_star = None
     print("init alpha", alpha, "\ngrad:", gfk)
     for i in range(maxiter):
         phi_star = f(xk + alpha * pk)
