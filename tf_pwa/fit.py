@@ -4,7 +4,10 @@ import numpy as np
 import json
 from .fit_improve import minimize as my_minimize
 
-from iminuit import Minuit
+try:
+    from iminuit import Minuit
+except:
+    print("You haven't installed iminuit so you can't use Minuit to fit.")
 def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
     """
 

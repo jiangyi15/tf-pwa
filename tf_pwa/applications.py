@@ -10,7 +10,6 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from scipy.stats import norm as Norm
-from iminuit import Minuit
 
 from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
 from .data import split_generator, load_dat_file, data_to_tensor
@@ -385,21 +384,45 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     _, bins, _ = plt.hist(data, nbins, density=True, alpha=0.6)
     bins = np.linspace(bins[0], bins[-1], 30)
 
-    def fitNormHist(data):
-        def nll(mu, sigma):
-            def normpdf(x, mu, sigma):
-                return np.exp(-(x - mu) * (x - mu) / 2 / sigma / sigma) / np.sqrt(2 * np.pi) / sigma
+    try:
+        from iminuit import Minuit
+        print("Using Minuit to fit the histogram")
+        def fitNormHist(data):
+            def nll(mu, sigma):
+                def normpdf(x, mu, sigma):
+                    return np.exp(-(x - mu) * (x - mu) / 2 / sigma / sigma) / np.sqrt(2 * np.pi) / sigma
 
-            return -np.sum(np.log(normpdf(data, mu, sigma)))
+                return -np.sum(np.log(normpdf(data, mu, sigma)))
 
-        m = Minuit(nll, mu=0, sigma=1, error_mu=0.1, error_sigma=0.1, errordef=0.5)
-        m.migrad()
-        m.hesse()
-        return m
+            m = Minuit(nll, mu=0, sigma=1, error_mu=0.1, error_sigma=0.1, errordef=0.5)
+            m.migrad()
+            m.hesse()
+            return m
 
-    m = fitNormHist(data)
-    mu, sigma = m.values["mu"], m.values["sigma"]
-    err_mu, err_sigma = m.errors["mu"], m.errors["sigma"]
+        m = fitNormHist(data)
+        mu, sigma = m.values["mu"], m.values["sigma"]
+        err_mu, err_sigma = m.errors["mu"], m.errors["sigma"]
+
+    except Exception as e:
+        if type(e) is ModuleNotFoundError:
+            print("No Minuit installed. Using scipy.optimize to fit the histogram")
+            from scipy.optimize import minimize
+            def fitNormHist(data):
+                def nll(mu_sigma):
+                    def normpdf(x, mu_sigma):
+                        return np.exp(-(x - mu_sigma[0]) * (x - mu_sigma[0]) / 2 / mu_sigma[1] / mu_sigma[1]) / np.sqrt(2 * np.pi) / mu_sigma[1]
+
+                    return -np.sum(np.log(normpdf(data, mu_sigma)))
+
+                s = minimize(nll, [0,1])
+                return s
+
+            s = fitNormHist(data)
+            mu, sigma = s.x
+            err_mu, err_sigma = np.sqrt(np.diagonal(s.hess_inv))
+        else:
+            raise e
+
     y = Norm.pdf(bins, mu, sigma)
     plt.plot(bins, y, "r-")
     plt.xlabel(name)
