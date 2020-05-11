@@ -706,7 +706,7 @@ class DecayGroup(object):
         self.outs = sorted(list(first_chain.outs))
         for i in chains:
             assert i.top == first_chain.top, ""
-            assert i.outs == first_chain.outs, "{} and {} praticles is differents".format(i, first_chain)
+            assert i.outs == first_chain.outs, "{} and {} particles are different".format(i, first_chain)
         # resonances = set()
         resonances = []
         for i in chains:
