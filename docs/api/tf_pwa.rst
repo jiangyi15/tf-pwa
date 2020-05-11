@@ -117,7 +117,7 @@ tf\_pwa.model module
 
 .. automodule:: tf_pwa.model
    :members:
-   :undoc-members:
+   :imported-members:
    :show-inheritance:
 
 tf\_pwa.utils module
