@@ -511,7 +511,7 @@ class ConfigLoader(object):
         return err
 
     def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", 
-                          plot_delta=False, plot_pull=False, save_pdf=False, root_name="data_var", bin_scale=3):
+                          plot_delta=False, plot_pull=False, save_pdf=False, root_name="", bin_scale=3):
         if not os.path.exists(prefix):
             os.mkdir(prefix)
         if params is None:
@@ -780,7 +780,7 @@ class ConfigLoader(object):
             names.append(pro.get("display", str(i)))
         return " ".join(names), curve_style
 
-    def cal_fitfractions(self, params, mcdata=None, batch=25000):
+    def cal_fitfractions(self, params={}, mcdata=None, batch=25000):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         if mcdata is None:

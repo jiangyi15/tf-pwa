@@ -1,7 +1,7 @@
 data:
     dat_order: [B, C, D]
-    data: ["ex_data/ex_data.dat"]
-    phsp: ["ex_data/ex_PHSP.dat"]
+    data: ["data/data.dat"]
+    phsp: ["data/PHSP.dat"]
 
 decay:
     A:
