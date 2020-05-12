@@ -120,6 +120,11 @@ tf\_pwa.model module
    :imported-members:
    :show-inheritance:
 
+.. automodule:: tf_pwa.model.cfit
+   :members:
+   :show-inheritance:
+
+
 tf\_pwa.utils module
 --------------------
 

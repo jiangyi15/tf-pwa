@@ -4,11 +4,12 @@ import numpy as np
 import json
 from .fit_improve import minimize as my_minimize
 
-try:
-    from iminuit import Minuit
-except:
-    print("You haven't installed iminuit so you can't use Minuit to fit.")
+
 def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
+    try:
+        from iminuit import Minuit
+    except ImportError:
+        raise RuntimeError("You haven't installed iminuit so you can't use Minuit to fit.")
     """
 
     :param fcn:
@@ -87,7 +88,7 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
         print("checking gradients ...")
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         nll, gs0 = f_g(x0)
-        _, gs = v_g2(x_0)
+        _, gs = v_g2(x0)
         for i, name in enumerate(args_name):
             print(args_name[i], gs[i], gs0[i])
 

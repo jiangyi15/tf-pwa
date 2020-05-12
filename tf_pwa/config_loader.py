@@ -4,6 +4,7 @@ from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, Amplitud
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.model import Model, Model_new, FCN, CombineFCN
+from tf_pwa.model.cfit import Model_cfit
 import re
 import functools
 import time
