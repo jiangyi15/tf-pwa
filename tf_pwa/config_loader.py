@@ -24,6 +24,7 @@ from scipy.optimize import BFGS
 from .fit_improve import minimize as my_minimize
 from .applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
 from .fit import FitResult
+from .variable import Variable
 
 
 class ConfigLoader(object):
@@ -373,30 +374,43 @@ class ConfigLoader(object):
         return amp
 
     def add_constraints(self, amp):
-        constrains = self.config['constrains']
-        decay_constrains = self.config['constrains'].get('decay', {})
-        if decay_constrains is None:
-            decay_constrains = {}
-        fix_total_idx = decay_constrains["fix_chain_idx"] if "fix_chain_idx" in decay_constrains else 0
-        fix_total_val = decay_constrains["fix_chain_val"] if "fix_chain_val" in decay_constrains else np.random.uniform(0,2)
-        di = 0
+        constrains = self.config.get("constrains", {})
+        if constrains is None:
+            constrains = {}
+        self.add_decay_constraints(amp, constrains.get("decay", {}))
+        self.add_particle_constraints(amp, constrains.get("particle", {}))
+
+    def add_decay_constraints(self, amp, dic=None):
+        if dic is None:
+            dic = {}
+        fix_total_idx = dic.get("fix_chain_idx", 0)
+        fix_total_val = dic.get("fix_chain_val", np.random.uniform(0,2))
+
+        fix_decay = amp.decay_group.get_decay_chain(fix_total_idx)
+        # fix which total factor
+        fix_decay.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val,0.0))
+
+    def add_particle_constraints(self, amp, dic=None):
+        if dic is None:
+            dic = {}
+
         res_dec = {}
         for d in amp.decay_group:
-            for i in d.inner:
-                i = str(i)
+            for p_i in d.inner:
+                i = str(p_i)
                 res_dec[i] = d
                 # free mass and width and set bounds
                 if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
                     if 'm' in self.config['particle'][i]["float"]:
-                        amp.vm.set_fix(i+'_mass',unfix=True)
+                        p_i.mass.freed() # set_fix(i+'_mass',unfix=True)
                         upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
                         lower = self.config['particle'][i]["m_min"] if "m_min" in self.config['particle'][i] else None
-                        self.bound_dic[i+'_mass'] = (lower,upper)
+                        self.bound_dic[p_i.mass.name] = (lower,upper)
                     if 'g' in self.config['particle'][i]["float"]:
-                        amp.vm.set_fix(i+'_width',unfix=True)
+                        p_i.width.freed() # amp.vm.set_fix(i+'_width',unfix=True)
                         upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
                         lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
-                        self.bound_dic[i+'_width'] = (lower,upper)
+                        self.bound_dic[p_i.width.name] = (lower,upper)
                 # share helicity variables 
                 if "coef_head" in self.config['particle'][i]:
                     coef_head = self.config['particle'][i]["coef_head"]
@@ -409,10 +423,20 @@ class ConfigLoader(object):
                         d_coef_head.total.r_shareto(d.total)
                     else:
                         self.config['particle'][coef_head]["coef_head"] = i
-            # fix which total factor
-            if di == fix_total_idx:
-                d.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val,0.0)) #.fixed(complex(fix_total_val))
-            di += 1
+
+        equal_params = dic.get("equal", {})
+        for k, v in equal_params.items():
+            for vi in v:
+                a = []
+                for i in amp.decay_group.resonances:
+                    if str(i) in vi:
+                        a.append(i)
+                a0 = a.pop(0)
+                arg = getattr(a0, k)
+                for i in a:
+                    arg_i = getattr(i, k)
+                    if isinstance(arg_i, Variable):
+                        arg_i.sameas(arg)
 
     @functools.lru_cache()
     def get_model(self, vm=None, name=""):

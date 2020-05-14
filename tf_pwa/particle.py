@@ -722,6 +722,20 @@ class DecayGroup(object):
     def __iter__(self):
         return iter(self.chains)
 
+    def get_decay_chain(self, id_):
+        """get decay chain from identity string"""
+        if isinstance(id_, int):
+            return self.chains[id_]
+        if isinstance(id_, str):
+            names = id_.split("/")
+        elif isinstance(id_, list):
+            names = [str(i) for i in id_]
+        elif isinstance(id_, BaseParticle):
+            names = [str(id_)]
+        else:
+            raise NotImplementedError
+        return self.get_chain_from_particle(names)
+
     def topology_structure(self, identical=False, standard=True):
         """
 

@@ -103,7 +103,9 @@ particle:
     
 # constrains for params [WIP]
 constrains:
-    particle: null
+    # particle: 
+        # equal:
+            # mass: [[D1_2430p, D1_2430]]
     decay: {fix_chain_idx: 1, fix_chain_val: 1}
 
 
