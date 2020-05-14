@@ -1,0 +1,39 @@
+import sys
+import os.path
+this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, this_dir + '/..')
+import numpy as np
+#import tf_pwa
+from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.utils import error_print
+from tf_pwa.applications import cal_hesse_error, corr_coef_matrix
+
+
+def main():
+    """Calculate errors of a given set of parameters and their correlation coefficients."""
+    import argparse
+    parser = argparse.ArgumentParser(description="calculate errors of a given set of parameters and their correlation coefficients")
+    parser.add_argument("--params", default="final_params.json", dest="params_file")
+    results = parser.parse_args()
+
+    cal_errors(params_file=results.params_file)
+
+def cal_errors(params_file):
+    config = ConfigLoader("config.yml")
+    config.set_params(params_file)
+    fcn = config.get_fcn()
+    fcn.model.Amp.vm.rp2xy_all()
+    params = config.get_params()
+    errors, config.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
+    print("\n########## fit parameters in XY-coordinates:")
+    errors = dict(zip(fcn.model.Amp.vm.trainable_vars, errors))
+    for key, value in config.get_params().items():
+        print(key, error_print(value, errors.get(key, None)))
+
+    print("\n########## correlation matrix:")
+    print("Matrix index:\n", fcn.model.Amp.vm.trainable_vars)
+    print("Correlation Coefficients:\n", corr_coef_matrix(config.inv_he))
+
+
+if __name__ == "__main__":
+    main()

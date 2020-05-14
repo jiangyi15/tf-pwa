@@ -13,7 +13,6 @@ from scipy.optimize import minimize, BFGS, basinhopping
 import numpy as np
 import matplotlib.pyplot as plt
 from tf_pwa.data import data_index, data_shape, data_split, load_data, save_data
-from tf_pwa.fitfractions import cal_fitfractions
 from tf_pwa.variable import VarsManager
 from tf_pwa.utils import time_print
 import itertools
@@ -439,11 +438,14 @@ class ConfigLoader(object):
         return w_bkg, w_inmc
 
     def get_fcn(self, batch=65000, vm=None, name=""):
-        model = self.get_model(vm, name="")
+        model = self.get_model()
+        data, phsp, bg, inmc = self.get_all_data()
+        fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
+        """model = self.get_model(vm, name="")
         for i in self.full_decay:
             print(i)
         data, phsp, bg, inmc = self.get_all_data()
-        fcn = FCN(model, data, phsp, bg=bg, inmc=inmc, batch=batch)
+        fcn = FCN(model, data, phsp, bg=bg, inmc=inmc, batch=batch)"""
         return fcn
     
     def get_ndf(self):

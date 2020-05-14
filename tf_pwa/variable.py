@@ -524,6 +524,7 @@ class VarsManager(object):
             name_list = self.complex_vars
         for name in name_list:
             self.rp2xy(name)
+        self.polar=False
 
     def xy2rp_all(self, name_list=None):
         """
@@ -535,6 +536,7 @@ class VarsManager(object):
             name_list = self.complex_vars
         for name in name_list:
             self.xy2rp(name)
+        self.polar=True
 
     @staticmethod
     def _std_polar_angle(p, a=-np.pi, b=np.pi):

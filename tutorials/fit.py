@@ -9,13 +9,13 @@ from tf_pwa.utils import error_print
 
 
 def main():
-    """Fit the amplitude model of data, calculating the fitting parameters and the fit fractions"""
+    """Fit the amplitude model of data, calculating the fitting parameters and the fit fractions."""
     import argparse
     parser = argparse.ArgumentParser(description="a simple but complete analysis process")
     parser.add_argument("--final_params", default="final_params.json", dest="final_params")
     results = parser.parse_args()
 
-    fit_res = fit(final_params_file=results.final_params)
+    fit(final_params_file=results.final_params)
 
 def fit(final_params_file):
     config = ConfigLoader("config.yml") # We use ConfigLoader to read the information in the configuration file
