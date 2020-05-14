@@ -5,6 +5,7 @@ import json
 import math
 import time
 import functools
+import numpy as np
 
 
 class AttrDict(dict):
@@ -220,3 +221,13 @@ def std_periodic_var(p, mid=0., pi=math.pi):
     while p >= mid + pi:
         p -= twopi
     return p
+
+
+def check_positive_definite(m):
+    """check if matrix m is postive definite"""
+    e, v = np.linalg.eig(m)
+    if np.all(e > 0.0):
+        return True
+    warnings.warn("matrix is not positive definited")
+    print("eigvalues: ", e)
+    return False

@@ -575,7 +575,7 @@ class FCN(object):
                 [1 / n_mcdata] * n_mcdata, dtype="float64")
 
     # @time_print
-    def __call__(self, x):
+    def __call__(self, x={}):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
@@ -589,7 +589,7 @@ class FCN(object):
             self.n_call += 1
         return nll
 
-    def grad(self, x):
+    def grad(self, x={}):
         """
         :param x: List. Values of variables.
         :return gradients: List of real numbers. The gradients for each variable.
@@ -598,7 +598,7 @@ class FCN(object):
         return g
 
     @time_print
-    def nll_grad(self, x):
+    def nll_grad(self, x={}):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
@@ -612,7 +612,7 @@ class FCN(object):
         self.n_call += 1
         return nll, np.array(g)
 
-    def nll_grad_hessian(self, x, batch=None):
+    def nll_grad_hessian(self, x={}, batch=None):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.

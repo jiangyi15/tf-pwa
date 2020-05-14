@@ -23,7 +23,6 @@ def fit(final_params_file):
     fit_result = config.fit(method="BFGS")
 
     errors = config.get_params_error(fit_result) # calculate Hesse errors of the parameters
-    fit_result.set_error(errors)
     print("\n########## fit parameters:")
     for key, value in config.get_params().items():
         print(key, error_print(value, errors.get(key, None)))

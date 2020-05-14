@@ -17,10 +17,10 @@ from .cal_angle import prepare_data_from_decay, cal_angle_from_momentum
 from .phasespace import PhaseSpaceGenerator
 from .fit import fit_scipy, fit_minuit, fit_multinest
 from .significance import significance
-from .utils import error_print, std_periodic_var
+from .utils import error_print, std_periodic_var, check_positive_definite
 
 
-def fit_fractions(model, mcdata, inv_he, hesse=False):
+def fit_fractions(model, mcdata, inv_he=None, params=None, batch=25000):
     """
     This function calculate fit fractions of the resonances as well as their coherent pairs. It imports
     ``cal_fitfractions`` and ``cal_fitfractions_no_grad`` from module **tf_pwa.fitfractions**.
@@ -37,32 +37,31 @@ def fit_fractions(model, mcdata, inv_he, hesse=False):
 
     :param model: Model object.
     :param mcdata: MCdata array.
-    :param inv_he: The inverse of Hessian matrix.
-    :param hesse: Boolean. Whether to calculate the error as well.
+    :param inv_he: The inverse of Hessian matrix. If it's not given, the errors will not be calculated.
     :return frac: Dictionary of fit fractions for each resonance.
-    :return err_frac: Dictionary of their errors. If ``hesse`` is ``False``, it will be a dictionary of ``None``.
+    :return err_frac: Dictionary of their errors. If ``inv_he`` is ``None``, it will be a dictionary of ``None``.
     """
+    if params is None:
+        params = {}
     err_frac = {}
-    if hesse:
-        frac, grad = cal_fitfractions(model.Amp, list(split_generator(mcdata, 25000)))
+    with model.Amp.temp_params(params):
+        frac, grad = cal_fitfractions(model.Amp, mcdata, batch=batch)
+    if inv_he is not None:
         for i in frac:
             err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
-    else:
-        frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
-        for i in frac:
-            err_frac[i] = None
     return frac, err_frac
 
 
-def corr_coef_matrix(npy_name):
+def corr_coef_matrix(err_mtx):
     """
     This function obtains correlation coefficients matrix of all trainable variables from `*.npy` file.
 
-    :param npy_name: String. Name of the npy file
+    :param err_mtx: Array or string (name of the npy file).
     :return: Numpy 2-d array. The correlation coefficient matrix.
     """
-    err_mtx = np.load(npy_name)
-    err = np.sqrt(err_mtx.diagonal())
+    if type(err_mtx) is str:
+        err_mtx = np.load(err_mtx)
+    err = np.sqrt(np.fabs(err_mtx.diagonal()))
     diag_mtx = np.diag(1 / err)
     tmp_mtx = np.matmul(diag_mtx, err_mtx)
     cc_mtx = np.matmul(tmp_mtx, diag_mtx)
@@ -189,7 +188,7 @@ def calPWratio(params, POLAR=True):
 '''
 
 
-def cal_hesse_error(model):
+def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     """
     This function calculates the errors of all trainable variables.
     The errors are given by the square root of the diagonal of the inverse Hessian matrix.
@@ -199,10 +198,13 @@ def cal_hesse_error(model):
     :return inv_he: The inverse Hessian matrix.
     """
     t = time.time()
-    nll, g, h = model.cal_nll_hessian()  # data_w,mcdata,weight=weights,batch=50000)
+    nll, g, h = fcn.nll_grad_hessian(params)  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     inv_he = np.linalg.pinv(h.numpy())
-    np.save("error_matrix.npy", inv_he)
+    if check_posi_def:
+        check_positive_definite(inv_he)
+    if save_npy:
+        np.save("error_matrix.npy", inv_he)
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
     return hesse_error, inv_he

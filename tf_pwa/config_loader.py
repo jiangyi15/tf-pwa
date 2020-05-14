@@ -23,7 +23,7 @@ from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
 from scipy.optimize import BFGS
 from .fit_improve import minimize as my_minimize
-from .applications import fit
+from .applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
 from .fit import FitResult
 
 
@@ -464,29 +464,8 @@ class ConfigLoader(object):
         print("initial NLL: ", fcn(model.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
-        ret = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False)
-        return ret
-
-    def cal_error(self, params=None, data=None, phsp=None, bg=None, batch=10000, inmc=None):
-        if params is None:
-            params = {}
-        if data is None:
-            data, phsp, bg, inmc = self.get_all_data()
-        if hasattr(params, "params"):
-            params = getattr(params, "params")
-        fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch, inmc=inmc)
-        t = time.time()
-        # data_w,mcdata,weight=weights,batch=50000)
-        nll, g, h = fcn.nll_grad_hessian(params)
-        print("Time for calculating errors:", time.time() - t)
-        # print(nll)
-        # print([i.numpy() for i in g])
-        # print(h.numpy())
-        self.inv_he = np.linalg.pinv(h.numpy())
-        check_positive_definite(self.inv_he)
-        np.save("error_matrix.npy", self.inv_he)
-        # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
-        return self.inv_he
+        self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False)
+        return self.fit_params
 
     def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
         if params is None:
@@ -495,19 +474,18 @@ class ConfigLoader(object):
             data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        self.inv_he = self.cal_error(params, data, phsp, bg, batch=20000, inmc=inmc)
-        diag_he = self.inv_he.diagonal()
-        model = self.get_model()
-        print("parameters order")
-        print(model.Amp.vm.trainable_vars)
-        print("error matrix:")
-        print(self.inv_he)
-        diag_he_s = np.sqrt(np.fabs(diag_he))
-        print("correlation matrix:")
-        print(self.inv_he /(diag_he_s[:, np.newaxis] * diag_he_s[np.newaxis, :]))
-        hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+        fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch, inmc=inmc)
+        hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
+        #print("parameters order")
+        #print(fcn.model.Amp.vm.trainable_vars)
+        #print("error matrix:")
+        #print(self.inv_he)
+        #print("correlation matrix:")
+        #print(corr_coef_matrix(self.inv_he))
         print("hesse_error:", hesse_error)
-        err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
+        err = dict(zip(fcn.model.Amp.vm.trainable_vars, hesse_error))
+        if hasattr(self, "fit_params"):
+            self.fit_params.set_error(err)
         return err
 
     def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", 
@@ -785,22 +763,9 @@ class ConfigLoader(object):
             params = getattr(params, "params")
         if mcdata is None:
             mcdata = self.get_phsp_noeff()
-        amp = self.get_amplitude()
-        with amp.temp_params(params):
-            frac, grad = cal_fitfractions(amp, mcdata, batch=batch)
-        if hasattr(self, "inv_he"):
-            err_frac = self.cal_fitfractions_err(grad, self.inv_he)
-        else:
-            err_frac = {}
+        model = self.get_model()
+        frac, err_frac = fit_fractions(model, mcdata, self.inv_he, params, batch)
         return frac, err_frac
-
-    def cal_fitfractions_err(self, grad, inv_he=None):
-        if inv_he is None:
-            inv_he = self.inv_he
-        err_frac = {}
-        for i in grad:
-            err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
-        return err_frac
 
     def get_params(self):
         return self.get_amplitude().get_params()
@@ -1025,17 +990,6 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
     x_new = np.linspace(np.min(x), np.max(x), num=num, endpoint=True)
     y_new = func(x_new)
     return x_new, y_new
-
-
-def check_positive_definite(m):
-    """check if matrix m is postive definite"""
-    e, v = np.linalg.eig(m)
-    if np.all(e > 0.0):
-        return True
-    warnings.warn("matrix is not positive definited")
-    print("eigvalues: ", e)
-    return False
-
 
 
 class PlotParams(dict):
