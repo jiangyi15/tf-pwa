@@ -335,7 +335,11 @@ class ConfigLoader(object):
             raise TypeError("{}: {}".format(finals, type(finals)))
 
         dec_chain = top.chain_decay()
-        return dec_chain
+        ret = []
+        for i in dec_chain:
+            if sorted(DecayChain(i).outs) == sorted(finals):
+                ret.append(i)
+        return ret
 
     def get_data_index(self, sub, name):
         dec = self.decay_struct.topology_structure()
@@ -343,22 +347,22 @@ class ConfigLoader(object):
             p = get_particle(name)
             return "particle", p, "m"
         if sub == "angle":
-            de, de_i = None, None
             name_i = name.split("/")
-            if len(name_i) > 1:
-                _id = int(name_i[-1])
+            de_i = self.decay_struct.get_decay_chain(name_i)
+            chain_map = self.decay_struct.get_chains_map()
+            re_map = {}
+            for i in chain_map:
+                for _, j in i.items():
+                    for k, v in j.items():
+                        re_map[v] = k
+            p = get_particle(name_i[-1])
+            for i in de_i:
+                if p in i.outs:
+                    de = i
+                    break
             else:
-                _id = 0
-            p = get_particle(name_i[0])
-            for idx, i in enumerate(dec):
-                for j in i:
-                    if j.core == p:
-                        de = j.core.decay[_id]
-                    if j == de:
-                        de_i = idx
-            if de is None or de_i is None:
-                raise ValueError("not found {}".format(name))
-            return "decay", de_i, de, de.outs[0], "ang"
+                raise IndexError("not found such decay {}".format(name))
+            return "decay", de_i.standard_topology(), re_map.get(de, de), re_map.get(p, p), "ang"
         raise ValueError("unknown sub {}".format(sub))
 
     @functools.lru_cache()
@@ -745,12 +749,7 @@ class ConfigLoader(object):
                             decay = re_map.get(decay, decay)
                 part = decay.outs[0]
             else:
-                decay_chain = self.decay_struct.get_chain_from_particle(names)
-                decay = decay_chain.get_particle_decay(names[-2])
-                part = get_particle(names[-1])
-                decay_chain = decay_chain.standard_topology()
-                decay = re_map.get(decay, decay)
-                part = re_map.get(part, part)
+                _, decay_chain, decay, part, _ = self.get_data_index("angle", k)
             for j, v in i.items():
                 display = v.get("display", j)
                 upper_ylim = v.get("upper_ylim", None)
@@ -762,15 +761,14 @@ class ConfigLoader(object):
                 yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
                        "idx": ("decay", decay_chain, decay, part, "ang", theta),
                        "trans": trans, "bins": defaults_config.get("bins", 50)}
-                
 
-    def get_chain(self, i):
+    def get_chain(self, idx):
         decay_group = self.full_decay
-        return list(decay_group)[i]
+        return decay_group.get_decay_chain(idx)
 
-    def get_chain_property(self, i):
+    def get_chain_property(self, idx):
         """Get chain name and curve style in plot"""
-        chain = self.get_chain(i)
+        chain = self.get_chain(idx)
         for i in chain:
             curve_style = i.curve_style
             break

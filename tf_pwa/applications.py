@@ -200,9 +200,10 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     t = time.time()
     nll, g, h = fcn.nll_grad_hessian(params)  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
-    inv_he = np.linalg.pinv(h.numpy())
-    if check_posi_def:
-        check_positive_definite(inv_he)
+    if check_positive_definite(h.numpy()):
+        inv_he = np.linalg.inv(h.numpy())
+    else:
+        inv_he = np.linalg.pinv(h.numpy())
     if save_npy:
         np.save("error_matrix.npy", inv_he)
     diag_he = inv_he.diagonal()
@@ -341,6 +342,9 @@ def fit(Use="scipy", **kwargs):
 
     :param fcn: FCN object to be minimized.
     """
+    method = kwargs.get("method", "BFGS")
+    if method in ["minuit"]:
+        Use = "minuit"
     if Use == "scipy":
         ret = fit_scipy(**kwargs)
     elif Use == "minuit":

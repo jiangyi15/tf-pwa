@@ -2,10 +2,10 @@ import tensorflow as tf
 import time
 import numpy as np
 import json
-from .fit_improve import minimize as my_minimize
+from .fit_improve import minimize as my_minimize, Cached_FG
 
 
-def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
+def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False, **kwargs):
     try:
         from iminuit import Minuit
     except ImportError:
@@ -25,7 +25,9 @@ def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
         if i in bounds_dict:
             var_args["limit_{}".format(i)] = bounds_dict[i]
         var_args["error_" + i] = 0.1
-    m = Minuit(fcn, forced_parameters=var_names, errordef=0.5, grad=fcn.grad, print_level=2, use_array_call=True,
+
+    f_g = Cached_FG(fcn.nll_grad)
+    m = Minuit(f_g.fun, forced_parameters=var_names, errordef=0.5, grad=f_g.grad, print_level=2, use_array_call=True,
                **var_args)
     print("########## begin MIGRAD")
     now = time.time()
@@ -41,7 +43,10 @@ def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False):
         now = time.time()
         m.minos()  # (var="")
         print("MINOS Time", time.time() - now)
-    return m
+    ndf = len(m.list_of_vary_param())
+    ret = FitResult(dict(m.values), fcn, m.fval, ndf = ndf, success = m.migrad_ok())
+    ret.set_error(dict(m.errors))
+    return ret
 
 
 from scipy.optimize import minimize,BFGS,basinhopping

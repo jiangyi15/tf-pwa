@@ -41,7 +41,7 @@ def get_data(config_file="config.yml", init_params="init_params.json"):
     pw_if = amp.partial_weight_interference(phsp)
     weight = amp(phsp)
     print(weight)
-    return amp, phsp, weight, pw, pw_if
+    return config, amp, phsp, weight, pw, pw_if
 
 def get_params():
     with open("test_results.json") as f:
@@ -66,11 +66,11 @@ def test_plot(init_params):
     matplotlib.rcParams['figure.subplot.right'] = 0.95
     matplotlib.rcParams['figure.subplot.top'] = 0.95
     matplotlib.rcParams['font.size'] = 5
-    amp, data, weight, pw, pw_if = get_data(init_params=init_params)#init_params=get_params())
+    config, amp, data, weight, pw, pw_if = get_data(init_params=init_params)#init_params=get_params())
     
-    m_DsDst = data_index(data, ("particle", "(Ds, Dst)", "m"))
-    m_DsK = data_index(data, ("particle", "(Ds, K)", "m"))
-    m_DstK = data_index(data, ("particle", "(Dst, K)", "m"))
+    m_DsDst = data_index(data, config.get_data_index("mass", "R_BC"))
+    m_DsK = data_index(data, config.get_data_index("mass", "R_BD"))
+    m_DstK = data_index(data, config.get_data_index("mass", "R_CD"))
     
     val = m_DsDst
 

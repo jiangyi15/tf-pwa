@@ -9,11 +9,15 @@
 
 ## Install 
 
-Get the packages using ```git clone```
+Get the packages using ```git clone```.
 
-### conda
+### Dependencies
 
-get miniconda for python3 from [minicoda](https://docs.conda.io/en/latest/miniconda.html) and install it.
+The dependencies can be installed by `conda` or `pip`.
+
+#### conda
+
+get miniconda for python3 from [minicoda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
 
 install following packages
 
@@ -21,10 +25,18 @@ install following packages
 conda install tensorflow-gpu pyyaml sympy matplotlib scipy
 ```
 
-### pip
+#### pip
 
 ```
 pip3 install -r requirements.txt
+```
+
+### Environment
+
+The following commond can be used to sett environment variables of Python.
+
+```
+python setup.py develop
 ```
 
 ## Scripts
