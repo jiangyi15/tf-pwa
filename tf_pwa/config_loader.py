@@ -343,18 +343,21 @@ class ConfigLoader(object):
 
     def get_data_index(self, sub, name):
         dec = self.decay_struct.topology_structure()
+        chain_map = self.decay_struct.get_chains_map()
+        re_map = {}
+        for i in chain_map:
+            for _, j in i.items():
+                for k, v in j.items():
+                    re_map[v] = k
         if sub == "mass":
             p = get_particle(name)
-            return "particle", p, "m"
+            return "particle", re_map.get(p, p), "m"
+        if sub == "p":
+            p = get_particle(name)
+            return "particle", re_map.get(p, p), "p"
         if sub == "angle":
             name_i = name.split("/")
             de_i = self.decay_struct.get_decay_chain(name_i)
-            chain_map = self.decay_struct.get_chains_map()
-            re_map = {}
-            for i in chain_map:
-                for _, j in i.items():
-                    for k, v in j.items():
-                        re_map[v] = k
             p = get_particle(name_i[-1])
             for i in de_i:
                 if p in i.outs:
@@ -363,6 +366,17 @@ class ConfigLoader(object):
             else:
                 raise IndexError("not found such decay {}".format(name))
             return "decay", de_i.standard_topology(), re_map.get(de, de), re_map.get(p, p), "ang"
+        if sub == "aligned_angle":
+            name_i = name.split("/")
+            de_i = self.decay_struct.get_decay_chain(name_i)
+            p = get_particle(name_i[-1])
+            for i in de_i:
+                if p in i.outs:
+                    de = i
+                    break
+            else:
+                raise IndexError("not found such decay {}".format(name))
+            return "decay", de_i.standard_topology(), re_map.get(de, de), re_map.get(p, p), "aligned_angle"
         raise ValueError("unknown sub {}".format(sub))
 
     @functools.lru_cache()
