@@ -167,7 +167,8 @@ class LorentzVector(tf.Tensor):
         """
         The invariant mass
         """
-        return tf.sqrt(LorentzVector.M2(self))
+        m2 = LorentzVector.M2(self)
+        return tf.sqrt(tf.abs(m2))
 
     def neg(self):
         """
