@@ -22,9 +22,9 @@ def cal_errors(params_file):
     config = ConfigLoader("config.yml")
     config.set_params(params_file)
     fcn = config.get_fcn()
-    fcn.model.Amp.vm.rp2xy_all()
+    fcn.model.Amp.vm.rp2xy_all() # we can use this to transform all complex parameters to xy-coordinates, since the Hesse errors of xy are more statistically reliable
     params = config.get_params()
-    errors, config.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
+    errors, config.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True) # obtain the Hesse errors and the error matrix (inverse Hessian)
     print("\n########## fit parameters in XY-coordinates:")
     errors = dict(zip(fcn.model.Amp.vm.trainable_vars, errors))
     for key, value in config.get_params().items():
@@ -32,7 +32,7 @@ def cal_errors(params_file):
 
     print("\n########## correlation matrix:")
     print("Matrix index:\n", fcn.model.Amp.vm.trainable_vars)
-    print("Correlation Coefficients:\n", corr_coef_matrix(config.inv_he))
+    print("Correlation Coefficients:\n", corr_coef_matrix(config.inv_he)) # obtain the correlation matrix using the inverse Hessian
 
 
 if __name__ == "__main__":

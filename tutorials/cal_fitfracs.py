@@ -23,21 +23,21 @@ def cal_fitfractions(params_file):
     config = ConfigLoader("config.yml")
     config.set_params(params_file)
     params = config.get_params()
-    errors = config.get_params_error(params)
+    config.get_params_error(params)
 
-    mcdata = config.get_phsp_noeff()
+    mcdata = config.get_phsp_noeff() # use the file of PhaseSpace MC without efficiency indicated in config.yml
     fit_frac, err_frac = fit_fractions(config.get_model(), mcdata, config.inv_he, params)
     print("########## fit fractions:")
     fit_frac_string = ""
     for i in fit_frac:
         if isinstance(i, tuple):
-            name = "{}x{}".format(*i)
+            name = "{}x{}".format(*i) # interference term
         else:
-            name = i
+            name = i # fit fraction
         fit_frac_string += "{}: {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
     print(fit_frac_string)
     print("########## fit fractions table:")
-    print_frac_table(fit_frac_string)
+    print_frac_table(fit_frac_string) # print the fit-fractions as a 2-D table. The codes below are just to implement the print function.
 
 def print_frac_table(frac_txt):
     def get_point(s):
@@ -87,8 +87,8 @@ def print_frac_table(frac_txt):
         for v in k:
             print(v, end="\t")
         print()
-    print("Total sum:", np.sum(table))
-    print("Non-interference sum:", np.sum(np.diagonal(table)))
+    print("Total sum:", np.sum(table)) # the sum of all elements in the table, which should be one but for precision
+    print("Non-interference sum:", np.sum(np.diagonal(table))) # the sum of all fit-fractions without the interference terms. We expect it to be near one.
 
 
 if __name__ == "__main__":
