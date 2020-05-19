@@ -48,6 +48,7 @@ Now that we have updated ``data.dat`` and ``PHSP.dat``, we'd better load the con
 and then fit the data.
 
 .. code-block:: python
+
    config = ConfigLoader("config_sample.yml")
    fit_result = config.fit()
 
@@ -56,6 +57,7 @@ For this example (the complexity of the amplitude expression matters a lot), the
 Then we can step further to complete the analysis, like calculating the fit fractions.
 
 .. code-block:: python
+
    errors = config.get_params_error(fit_result)
    fit_result.save_as("final_parameters.json")
    fit_frac, err_frac = config.cal_fitfractions()
@@ -63,6 +65,8 @@ Then we can step further to complete the analysis, like calculating the fit frac
 We can use ``error_print`` in ``tf_pwa.utils`` to print the fitting parameters as well as the fit fractions.
 
 .. code-block:: python
+
+   from tf_pwa.utils import error_print
    print("########## fitting parameters:")
    for key, value in config.get_params().items():
       print(key, error_print(value, errors.get(key, None)))
@@ -74,6 +78,7 @@ If the plotting options are also provided in the ``config_sample.yml``,
 we can also plot the distributions of variables indicated in the configuration file.
 
 .. code-block:: python
+
    config.plot_partial_wave(fit_result, prefix="figure/")
 
 The figures will be saved under path `figure`. Here are the three invariant mass pairs for example.
