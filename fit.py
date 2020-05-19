@@ -59,9 +59,6 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     json_print(fit_result.params)
     fit_result.save_as("final_params.json")
 
-    # plot partial wave distribution
-    config.plot_partial_wave(fit_result, plot_pull=True)
-
     # calculate parameters error
     fit_error = config.get_params_error(fit_result, batch=13000)
     fit_result.set_error(fit_error)
@@ -71,6 +68,9 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     print("\n########## fit results:")
     for k, v in config.get_params().items():
         print(k, error_print(v, fit_error.get(k, None)))
+
+    # plot partial wave distribution
+    config.plot_partial_wave(fit_result, plot_pull=True)
 
     # calculate fit fractions
     phsp_noeff = config.get_phsp_noeff()

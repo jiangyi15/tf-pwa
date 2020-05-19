@@ -16,7 +16,15 @@ Welcome to TFPWA's documentation!
    api/modules
    FAQ
 
+For starters
+============
+For more examples, see *tf_pwa.tutorials*
+.. code-block:: python
+   import tf_pwa
 
+For more examples, see ``tf_pwa.tutorials``
+.. code-block:: python
+   import tf_pwa
 Indices and tables
 ==================
 
