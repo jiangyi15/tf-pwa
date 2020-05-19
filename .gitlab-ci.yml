@@ -25,12 +25,15 @@ build_wheel:
     - apt-get install -y python3-dev python3-pip
     - pip3 install setuptools
     - python3 setup.py bdist_wheel
+    - cp dist/*.whl public/TFPWA-test.whl
 
   artifacts:
     untracked: true
+    paths:
+      - public
 
 build_docs:
-  stage: build_test
+  stage: deploy
   only:
     - tags
     - triggers
@@ -57,7 +60,3 @@ pages:
   artifacts:
     paths:
       - public
-  only:
-    - tags
-    - triggers
-    - schedules
