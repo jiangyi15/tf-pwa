@@ -161,12 +161,8 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
         min_nll = s.fun
         success = s.success
     elif method in ["iminuit"]:
-        from .fit import fit_minuit
         m = fit_minuit(fcn)
-        xn = m.values
-        min_nll = m.fval
-        ndf = len(xn)
-        success = m.migrad_ok()
+        return m
     else:
         raise Exception("unknown method")
     if check_grad:

@@ -937,10 +937,7 @@ class MultiConfig(object):
         elif method in ["iminuit"]:
             from .fit import fit_minuit
             m = fit_minuit(fcn)
-            xn = m.values
-            min_nll = m.fval
-            ndf = len(xn)
-            success = m.migrad_ok()
+            return m
         else:
             raise Exception("unknown method")
         self.vm.set_all(xn)
