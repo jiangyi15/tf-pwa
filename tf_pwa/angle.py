@@ -153,6 +153,7 @@ class LorentzVector(tf.Tensor):
     def gamma(self):
         pb = LorentzVector.boost_vector(self)
         beta2 = Vector3.norm2(pb)
+        beta2 = tf.where(beta2<1,beta2, tf.zeros_like(beta2))
         gamma = 1.0 / tf.sqrt(1 - beta2)
         return gamma
 
@@ -324,6 +325,7 @@ class SU2M(dict):
     def get_euler_angle(self):
         x = self["x"]
         cosbeta = tf.math.real(x[0][0] * x[1][1] + x[0][1] * x[1][0])
+        cosbeta = tf.where(cosbeta<1, cosbeta, tf.ones_like(cosbeta))
         zeros = tf.zeros_like(cosbeta)
         beta = tf.math.acos(cosbeta)
         m_1 = tf.abs(x[0][0])

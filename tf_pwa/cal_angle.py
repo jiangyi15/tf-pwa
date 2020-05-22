@@ -53,7 +53,7 @@ Inner nodes are named as tuple of particles.
 import numpy as np
 
 from .angle import EulerAngle, LorentzVector, Vector3, SU2M, _epsilon
-from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy
+from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy, data_strip
 from .tensorflow_wrapper import tf
 from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
 from .config import get_config
@@ -143,6 +143,7 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     set_x = {decay_chain.top: base_x}
     set_z = {decay_chain.top: base_z}
     r_matrix = {}
+    b_matrix = {}
     set_decay = list(decay_chain)
     while set_decay:
         extra_decay = []
@@ -160,9 +161,10 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                     ret[i][j]["x"] = x
                     ret[i][j]["z"] = z2
                     Bp = SU2M.Boost_z_from_p(p_rest)
-                    r = Bp * SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
+                    b_matrix[j] = Bp
+                    r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
                     if i.core in r_matrix:
-                        r_matrix[j] = r * r_matrix[i.core]
+                        r_matrix[j] = r * r_matrix[i.core] * b_matrix[i.core]
                     else:
                         r_matrix[j] = r
                 if len(i.outs) == 3:
@@ -175,19 +177,21 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                         ret[i][j]["x"] = x
                         ret[i][j]["z"] = z
                         Bp = SU2M.Boost_z_from_p(p_rest_i)
-                        r = Bp * SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
+                        b_matrix[j] = Bp
+                        r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
                         if i.core in r_matrix:
-                            r_matrix[j] = r * r_matrix[i.core]
+                            r_matrix[j] = r * b_matrix[i.core] * r_matrix[i.core]
                         else:
                             r_matrix[j] = r
             else:
                 extra_decay.append(i)
         set_decay = extra_decay
     ret["r_matrix"] = r_matrix
+    ret["b_matrix"] = b_matrix
     return ret
 
 
-def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, random_z=True, r_boost=True):
+def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, random_z=True, r_boost=True, final_rest=True):
     """
     Calculate helicity angle for particle momentum, add aligned angle.
     
@@ -243,8 +247,13 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
                     part_data2 = decay_data[idx2][decay2]
                     if r_boost:
                         r_matrix = decay_data[decay_chain]["r_matrix"][i]
+                        b_matrix = decay_data[decay_chain]["b_matrix"][i]
                         r_matrix_ref = decay_data[ref_matrix[i]]["r_matrix"][i]
-                        R = SU2M(r_matrix_ref["x"]) * SU2M.inv(r_matrix)
+                        b_matrix_ref = decay_data[ref_matrix[i]]["b_matrix"][i]
+                        R =  SU2M(r_matrix_ref["x"]) * SU2M.inv(r_matrix)
+                        # print(R)
+                        if final_rest:
+                            R = SU2M(b_matrix_ref["x"]) * R * SU2M.inv(b_matrix)
                         ang = R.get_euler_angle()
                     else:
                         x1 = part_data[i]["x"]
@@ -254,7 +263,8 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
                         ang = EulerAngle.angle_zx_zx(z1, x1, z2, x2)
                     #ang = AlignmentAngle.angle_px_px(z1, x1, z2, x2)
                     part_data[i]["aligned_angle"] = ang
-    return decay_data
+    ret = data_strip(decay_data, ["r_matrix", "b_matrix"])
+    return ret
 
 
 cal_angle = cal_angle_from_particle

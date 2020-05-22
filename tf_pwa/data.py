@@ -333,3 +333,19 @@ def data_index(data, key):
             return data_index(idx(data, keys[0]), keys[1:])
         return idx(data, keys[0])
     return idx(data, key)
+
+
+def data_strip(data, keys):
+    if isinstance(keys, str):
+        keys = [keys]
+    if isinstance(data, dict):
+        ret = {}
+        for k, v in data.items():
+            if k not in keys:
+                ret[k] = data_strip(v, keys)
+        return ret
+    if isinstance(data, list):
+        return [data_strip(data_i, keys) for data_i in data]
+    if isinstance(data, tuple):
+        return tuple([data_strip(data_i, keys) for data_i in data])
+    return data
