@@ -150,6 +150,22 @@ class LorentzVector(tf.Tensor):
         ret = tf.concat([T_r, p_r], -1)
         return ret
 
+    def gamma(self):
+        pb = LorentzVector.boost_vector(self)
+        beta2 = Vector3.norm2(pb)
+        gamma = 1.0 / tf.sqrt(1 - beta2)
+        return gamma
+
+    def beta(self):
+        pb = LorentzVector.boost_vector(self)
+        beta = Vector3.norm(pb)
+        return beta
+
+    def omega(self):
+        gamma = LorentzVector.gamma(self)
+        omega = tf.acosh(gamma)
+        return omega
+
     def get_metric(self):
         """
         The metric is (1,-1,-1,-1) by default
@@ -259,6 +275,88 @@ class EulerAngle(dict):
         xi = [Vector3.cross_unit(i, zz) for i in zi]
         ang = EulerAngle.angle_zx_zx(z, x, zz, xi[2])
         return ang, xi
+
+
+class SU2M(dict):
+    def __init__(self, x):
+        self["x"] = x
+    @staticmethod
+    def Boost_z(omega):
+        zeros = tf.zeros_like(omega)
+        a = tf.complex(tf.exp(omega/2), zeros)
+        zeros_c = tf.complex(zeros, zeros)
+        ret = SU2M([[1/a, zeros_c], [zeros_c,a]])
+        return ret
+
+    @staticmethod
+    def Boost_z_from_p(p):
+        omega = LorentzVector.omega(p)
+        return SU2M.Boost_z(omega)
+
+    @staticmethod
+    def Rotation_z(alpha):
+        zeros = tf.zeros_like(alpha)
+        zeros_c = tf.complex(zeros, zeros)
+        a = tf.exp(tf.complex(zeros, alpha/2))
+        return SU2M([[1/a, zeros_c], [zeros_c,a]])
+
+    @staticmethod
+    def Rotation_y(beta):
+        zeros = tf.zeros_like(beta)
+        s = tf.complex(tf.sin(beta/2), zeros)
+        c = tf.complex(tf.cos(beta/2), zeros)
+        return SU2M([[c, -s], [s,c]])
+
+    def __mul__(self, other):
+        x = self["x"]
+        y = other["x"]
+        aa = x[0][0] * y[0][0] + x[0][1] * y[1][0]
+        ab = x[0][0] * y[0][1] + x[0][1] * y[1][1]
+        ba = x[1][0] * y[0][0] + x[1][1] * y[1][0]
+        bb = x[1][0] * y[0][1] + x[1][1] * y[1][1]
+        return SU2M([[aa, ab], [ba, bb]])
+
+    def inv(self):
+        aa, ab = self["x"][0]
+        ba, bb = self["x"][1]
+        return SU2M([[bb, -ab],[-ba, aa]])
+
+    def get_euler_angle(self):
+        x = self["x"]
+        cosbeta = tf.math.real(x[0][0] * x[1][1] + x[0][1] * x[1][0])
+        zeros = tf.zeros_like(cosbeta)
+        beta = tf.math.acos(cosbeta)
+        m_1 = tf.abs(x[0][0])
+        m_2 = tf.abs(x[1][0])
+        alpha_p_gamma = tf.math.imag(tf.math.log(x[1][1] / tf.complex(m_1, zeros)))
+        alpha_m_gamma = - tf.math.imag(tf.math.log(x[1][0] / tf.complex(m_2, zeros)))
+        alpha = alpha_p_gamma + alpha_m_gamma
+        gamma = alpha_p_gamma - alpha_m_gamma
+        return EulerAngle(alpha, beta, gamma)
+
+    def __repr__(self):
+        return str(tf.stack(self["x"]))
+
+
+class AlignmentAngle(EulerAngle):
+    @staticmethod
+    def angle_px_px(p1, x1, p2, x2):
+        z1 = LorentzVector.vect(p1)
+        zr = LorentzVector.vect(p2 - p1)
+        z2 = LorentzVector.vect(p2)
+        r1, xr = EulerAngle.angle_zx_z_getx(z1, x1, zr)
+        m_p = LorentzVector.M(p1)
+        p3_1 = Vector3.norm(LorentzVector.vect(p1))
+        p3_2 = Vector3.norm(LorentzVector.vect(p2))
+        zeros = tf.zeros_like(p3_1)
+        delta_p = p3_2 - p3_1
+        p4_2 = LorentzVector.from_p4(tf.sqrt(m_p*m_p + delta_p * delta_p), zeros,zeros, delta_p)
+        b1 = SU2M.Boost_z_from_p(p4_2)
+        r2 = EulerAngle.angle_zx_zx(zr, xr, z2, x2)
+        r_1 = b1 * SU2M.Rotation_y(r1["beta"]) * SU2M.Rotation_z(r1["alpha"])
+        r_2 = SU2M.Rotation_z(r2["gamma"]) * SU2M.Rotation_y(r2["beta"]) * SU2M.Rotation_z(r2["alpha"])
+        r = r_2 * r_1
+        return r.get_eular_angle()
 
 
 def kine_min_max(s12, m0, m1, m2, m3):

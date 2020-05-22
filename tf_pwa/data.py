@@ -253,7 +253,10 @@ def data_shape(data, axis=0, all_list=False):
         ret = []
 
         def data_list(dat1):
-            ret.append(dat1.shape)
+            if hasattr(dat1, "shape"):
+                ret.append(dat1.shape)
+            else:
+                ret.append(())
 
         data_map(dat, data_list)
         return ret

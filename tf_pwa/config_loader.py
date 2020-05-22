@@ -112,7 +112,8 @@ class ConfigLoader(object):
             return None
         order = self.get_dat_order()
         center_mass = self.config["data"].get("center_mass", True)
-        data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass)
+        r_boost = self.config["data"].get("r_boost", False)
+        data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass, r_boost=r_boost)
         if idx == "bg":
             return data
         weight = self.config["data"].get(idx+"_weight", None)
