@@ -168,13 +168,13 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                 if len(i.outs) == 3:
                     # Euler Angle for
                     p_rest = [part_data[i]["rest_p"][j] for j in i.outs]
-                    zi = [LorentzVector.vect(i) for i in pi]
+                    zi = [LorentzVector.vect(i) for i in p_rest]
                     ret[i]["ang"], xi = EulerAngle.angle_zx_zzz_getx(set_z[i.core], set_x[i.core], zi)
                     for j, x, z, p_rest_i in zip(i.outs, xi, zi, p_rest):
                         ret[i][j] = {}
                         ret[i][j]["x"] = x
                         ret[i][j]["z"] = z
-                        Bp = SU2M.Boost_z_from_p(p_rest)
+                        Bp = SU2M.Boost_z_from_p(p_rest_i)
                         r = Bp * SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
                         if i.core in r_matrix:
                             r_matrix[j] = r * r_matrix[i.core]
