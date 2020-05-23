@@ -308,6 +308,13 @@ class VarsManager(object):
                     warnings.warn("Overwrite bound of {}!".format(name))
             self.bnd_dic[name] = Bound(*bound_dic[name], func=func)
             if name in self.variables:
+                has_same = False
+                for i in self.same_list:
+                    if name in i[1:]:
+                        has_same = True
+                        break
+                if has_same:
+                    continue
                 val = self.get(name).numpy()
                 self.set(name, self.bnd_dic[name].get_y2x(val))
 
@@ -686,7 +693,8 @@ class Bound(object):
             val = self.lower
         elif self.upper is not None and val > self.upper:
             val = self.upper
-        return float(self.inv.evalf(subs={y: val}))
+        x = self.inv.evalf(subs={y: val})
+        return complex(x).real
 
     def get_dydx(self, val):  # gradient in fitting: dNLL/dx = dNLL/dy * dy/dx
         """
