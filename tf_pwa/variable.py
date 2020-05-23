@@ -320,6 +320,7 @@ class VarsManager(object):
 
     def _remove_bound(self, name):
         if name in self.variables:
+            has_same = False
             for i in self.same_list:
                 if name in i[1:]:
                     has_same = True

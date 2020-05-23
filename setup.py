@@ -19,7 +19,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="",
-    packages=["tf_pwa"],
+    packages=find_packages(exclude=["benchmarks"]),
     package_data={
         # If any package contains files, include them:
         "": ["*.yml", "*.json"],
