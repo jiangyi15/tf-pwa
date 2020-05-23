@@ -320,8 +320,13 @@ class VarsManager(object):
 
     def _remove_bound(self, name):
         if name in self.variables:
-            value = self.get(name, val_in_fit=False)
-            self.set(name, value)
+            for i in self.same_list:
+                if name in i[1:]:
+                    has_same = True
+                    break
+            if not has_same:
+                value = self.get(name, val_in_fit=False)
+                self.set(name, value)
         del self.bnd_dic[name]
 
     def remove_bound(self):
