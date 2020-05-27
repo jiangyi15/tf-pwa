@@ -342,44 +342,6 @@ class ConfigLoader(object):
                 ret.append(i)
         return ret
 
-    def get_data_index(self, sub, name):
-        dec = self.decay_struct.topology_structure()
-        chain_map = self.decay_struct.get_chains_map()
-        re_map = {}
-        for i in chain_map:
-            for _, j in i.items():
-                for k, v in j.items():
-                    re_map[v] = k
-        if sub == "mass":
-            p = get_particle(name)
-            return "particle", re_map.get(p, p), "m"
-        if sub == "p":
-            p = get_particle(name)
-            return "particle", re_map.get(p, p), "p"
-        if sub == "angle":
-            name_i = name.split("/")
-            de_i = self.decay_struct.get_decay_chain(name_i)
-            p = get_particle(name_i[-1])
-            for i in de_i:
-                if p in i.outs:
-                    de = i
-                    break
-            else:
-                raise IndexError("not found such decay {}".format(name))
-            return "decay", de_i.standard_topology(), re_map.get(de, de), re_map.get(p, p), "ang"
-        if sub == "aligned_angle":
-            name_i = name.split("/")
-            de_i = self.decay_struct.get_decay_chain(name_i)
-            p = get_particle(name_i[-1])
-            for i in de_i:
-                if p in i.outs:
-                    de = i
-                    break
-            else:
-                raise IndexError("not found such decay {}".format(name))
-            return "decay", de_i.standard_topology(), re_map.get(de, de), re_map.get(p, p), "aligned_angle"
-        raise ValueError("unknown sub {}".format(sub))
-
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
         decay_group = self.full_decay
@@ -567,7 +529,8 @@ class ConfigLoader(object):
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             plot_var_dic = {}
-            for conf in self.get_plot_params():
+            plot_params = PlotParams(self.config["plot"], self.decay_struct)
+            for conf in plot_params.get_params():
                 name = conf.get("name")
                 display = conf.get("display", name)
                 upper_ylim = conf.get("upper_ylim", None)
@@ -713,70 +676,6 @@ class ConfigLoader(object):
         if has_uproot and save_root:
             save_dict_to_root(root_dict, file_name=prefix+"variables.root", tree_name="Tree")
             print("Save root file "+prefix+"variables.root")
-
-    def get_plot_params(self):
-        config = self.config["plot"]
-        defaults_config = {}
-        config_item = config.get("config", {})
-        if config_item is not None:
-            defaults_config.update(config_item)
-
-        chain_map = self.decay_struct.get_chains_map()
-        re_map = {}
-        for i in chain_map:
-            for _, j in i.items():
-                for k, v in j.items():
-                    re_map[v] = k
-        mass = config.get("mass", {})
-        x = sy.symbols('x')
-        for k, v in mass.items():
-            display = v.get("display", "M({})".format(k))
-            upper_ylim = v.get("upper_ylim", None)
-            xrange = v.get("range", None)
-            trans = v.get("trans", 'x')
-            trans = sy.sympify(trans)
-            trans = sy.lambdify(x,trans)
-            yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
-                   "idx": ("particle", re_map.get(get_particle(k), get_particle(k)), "m"),
-                   "legend": True, "range": xrange, "bins": defaults_config.get("bins", 50),
-                   "trans": trans, "units": "GeV"}
-        ang = config.get("angle", {})
-        for k, i in ang.items():
-            names = k.split("/")
-            name = names[0]
-            number_decay = True
-            if len(names) > 1:
-                try:
-                    count = int(names[-1])
-                except ValueError:
-                    number_decay = False
-            else:
-                count = 0
-            if number_decay:
-                decay_chain, decay = None, None
-                part = re_map.get(get_particle(name), get_particle(name))
-                for decs in self.decay_struct:
-                    for dec in decs:
-                        if dec.core == get_particle(name):
-                            decay = dec.core.decay[count]
-                            for j in self.decay_struct:
-                                if decay in j:
-                                    decay_chain = j.standard_topology()
-                            decay = re_map.get(decay, decay)
-                part = decay.outs[0]
-            else:
-                _, decay_chain, decay, part, _ = self.get_data_index("angle", k)
-            for j, v in i.items():
-                display = v.get("display", j)
-                upper_ylim = v.get("upper_ylim", None)
-                theta = j
-                trans = lambda x: x
-                if "cos" in j:
-                    theta = j[4:-1]
-                    trans = np.cos
-                yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
-                       "idx": ("decay", decay_chain, decay, part, "ang", theta),
-                       "trans": trans, "bins": defaults_config.get("bins", 50)}
 
     def get_chain(self, idx):
         decay_group = self.full_decay
@@ -1030,5 +929,115 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
 
 
 class PlotParams(dict):
-    def get_params(self):
-        pass
+    def __init__(self, plot_config, decay_struct):
+        self.config = plot_config
+        self.defaults_config = self.config.get("config", {}) #???
+        self.decay_struct = decay_struct
+        chain_map = self.decay_struct.get_chains_map()
+        self.re_map = {}
+        for i in chain_map:
+            for _, j in i.items():
+                for k, v in j.items():
+                    self.re_map[v] = k
+        self.params = []
+        for i in self.get_mass_vars():
+            self.params.append(i)
+        for i in self.get_angle_vars():
+            self.params.append(i)
+
+    def get_data_index(self, sub, name):
+        dec = self.decay_struct.topology_structure()
+        if sub == "mass":
+            p = get_particle(name)
+            return "particle", self.re_map.get(p, p), "m"
+        if sub == "p":
+            p = get_particle(name)
+            return "particle", self.re_map.get(p, p), "p"
+        if sub == "angle":
+            name_i = name.split("/")
+            de_i = self.decay_struct.get_decay_chain(name_i)
+            p = get_particle(name_i[-1])
+            for i in de_i:
+                if p in i.outs:
+                    de = i
+                    break
+            else:
+                raise IndexError("not found such decay {}".format(name))
+            return "decay", de_i.standard_topology(), self.re_map.get(de, de), self.re_map.get(p, p), "ang"
+        if sub == "aligned_angle":
+            name_i = name.split("/")
+            de_i = self.decay_struct.get_decay_chain(name_i)
+            p = get_particle(name_i[-1])
+            for i in de_i:
+                if p in i.outs:
+                    de = i
+                    break
+            else:
+                raise IndexError("not found such decay {}".format(name))
+            return "decay", de_i.standard_topology(), self.re_map.get(de, de), self.re_map.get(p, p), "aligned_angle"
+        raise ValueError("unknown sub {}".format(sub))
+
+    def get_mass_vars(self):
+        mass = self.config.get("mass", {})
+        x = sy.symbols('x')
+        for k, v in mass.items():
+            display = v.get("display", "M({})".format(k))
+            upper_ylim = v.get("upper_ylim", None)
+            xrange = v.get("range", None)
+            trans = v.get("trans", 'x')
+            trans = sy.sympify(trans)
+            trans = sy.lambdify(x,trans)
+            yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
+                   "idx": ("particle", self.re_map.get(get_particle(k), get_particle(k)), "m"),
+                   "legend": True, "range": xrange, "bins": self.defaults_config.get("bins", 50),
+                   "trans": trans, "units": "GeV"}
+
+    def get_angle_vars(self):
+        ang = self.config.get("angle", {})
+        for k, i in ang.items():
+            names = k.split("/")
+            name = names[0]
+            number_decay = True
+            if len(names) > 1:
+                try:
+                    count = int(names[-1])
+                except ValueError:
+                    number_decay = False
+            else:
+                count = 0
+            if number_decay:
+                decay_chain, decay = None, None
+                part = self.re_map.get(get_particle(name), get_particle(name))
+                for decs in self.decay_struct:
+                    for dec in decs:
+                        if dec.core == get_particle(name):
+                            decay = dec.core.decay[count]
+                            for j in self.decay_struct:
+                                if decay in j:
+                                    decay_chain = j.standard_topology()
+                            decay = self.re_map.get(decay, decay)
+                part = decay.outs[0]
+            else:
+                _, decay_chain, decay, part, _ = self.get_data_index("angle", k)
+            for j, v in i.items():
+                display = v.get("display", j)
+                upper_ylim = v.get("upper_ylim", None)
+                theta = j
+                trans = lambda x: x
+                if "cos" in j:
+                    theta = j[4:-1]
+                    trans = np.cos
+                yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
+                       "idx": ("decay", decay_chain, decay, part, "ang", theta),
+                       "trans": trans, "bins": self.defaults_config.get("bins", 50)}
+
+    def get_params(self, params=None):
+        if params is None:
+            return self.params
+        if isinstance(params, str):
+            params = [params]
+        params_list = []
+        for i in self.params:
+            if i["display"] in params:
+                params_list.append(i)
+        return params_list
