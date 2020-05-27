@@ -534,7 +534,7 @@ class ConfigLoader(object):
         return err
 
     def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", 
-                          plot_delta=False, plot_pull=False, save_pdf=False, root_name="", bin_scale=3):
+                          plot_delta=False, plot_pull=False, save_pdf=False, save_root=False, bin_scale=3):
         if not os.path.exists(prefix):
             os.mkdir(prefix)
         if params is None:
@@ -710,9 +710,9 @@ class ConfigLoader(object):
                     plt.savefig(prefix+k+'_fitted')
                     plt.clf()
                     print("Finish plotting 2D fitted "+prefix+k)
-        if has_uproot and root_name:
-            save_dict_to_root(root_dict, file_name=prefix+root_name, tree_name="Tree")
-            print("Save root file "+prefix+root_name)
+        if has_uproot and save_root:
+            save_dict_to_root(root_dict, file_name=prefix+"variables.root", tree_name="Tree")
+            print("Save root file "+prefix+"variables.root")
 
     def get_plot_params(self):
         config = self.config["plot"]

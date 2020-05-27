@@ -28,7 +28,7 @@ def fit(final_params_file):
         print(key, error_print(value, errors.get(key, None)))
 
     fit_result.save_as(final_params_file) # save fit_result to a json file
-    config.plot_partial_wave(fit_result, plot_pull=True, prefix="fig/") # Plot distributions of variables indicated in the configuration file
+    config.plot_partial_wave(fit_result) # Plot distributions of variables indicated in the configuration file
     
     fit_frac, err_frac = config.cal_fitfractions()
     print("\n########## fit fractions:")
