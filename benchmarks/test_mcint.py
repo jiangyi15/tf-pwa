@@ -28,7 +28,7 @@ def _get_decay_data(num=1):
     b = Particle("B", J=1, P=-1)
     c = Particle("C", J=0, P=-1)
     d = Particle("D", J=1, P=-1)
-    res = Particle("res", 1, 1, mass=2.4232, width=0.025)
+    res = Particle("res", 1, 1, mass=4.4232, width=0.025)
     dec1 = HelicityDecay(a, [res, c])
     dec2 = HelicityDecay(res, [b, d])
     if num == 1:
@@ -82,3 +82,15 @@ def test_mc_int_grad(benchmark):
         args = tape.gradient(int_mc, params)
         return int_mc, args
     benchmark(mc_int, data)
+
+@pytest.mark.benchmark(group="mc_int")
+def test_mc_int_grad_CPU(benchmark):
+    amp, data, params = _get_decay_data(1)
+
+    def mc_int(dat):
+        with tf.GradientTape() as tape:
+            int_mc = tf.reduce_sum(amp(dat))
+        args = tape.gradient(int_mc, params)
+        return int_mc, args
+    with tf.device("CPU:0"):
+        benchmark(mc_int, data)
