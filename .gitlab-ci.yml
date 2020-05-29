@@ -45,7 +45,7 @@ pages:
     - python3 setup.py build_sphinx
     - cp build/sphinx/html public -R
     - python3 setup.py bdist_wheel
-    - cp dist/*.whl public/TFPWA-test.whl
+    - cp dist/*.whl public/
   artifacts:
     paths:
       - public

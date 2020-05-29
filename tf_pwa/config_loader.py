@@ -468,7 +468,7 @@ class ConfigLoader(object):
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
         fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
-        print("initial NLL: ", fcn(model.get_params()))
+        print("initial NLL: ", fcn.nll_grad()[0]) # model.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
         self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False)
