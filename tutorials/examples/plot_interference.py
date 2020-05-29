@@ -68,9 +68,9 @@ def test_plot(init_params):
     matplotlib.rcParams['font.size'] = 5
     config, amp, data, weight, pw, pw_if = get_data(init_params=init_params)#init_params=get_params())
     
-    m_DsDst = data_index(data, config.get_data_index("mass", "R_BC"))
-    m_DsK = data_index(data, config.get_data_index("mass", "R_BD"))
-    m_DstK = data_index(data, config.get_data_index("mass", "R_CD"))
+    m_DsDst = data_index(data, config.plot_params.get_data_index("mass", "R_BC"))
+    m_DsK = data_index(data, config.plot_params.get_data_index("mass", "R_BD"))
+    m_DstK = data_index(data, config.plot_params.get_data_index("mass", "R_CD"))
     
     val = m_DsDst
 
