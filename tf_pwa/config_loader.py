@@ -57,6 +57,7 @@ class ConfigLoader(object):
         self.amps = {}
         self.cached_data = None
         self.bound_dic = {}
+        self.plot_params = PlotParams(self.config["plot"], self.decay_struct)
 
     @staticmethod
     def load_config(file_name):
@@ -529,8 +530,7 @@ class ConfigLoader(object):
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             plot_var_dic = {}
-            plot_params = PlotParams(self.config["plot"], self.decay_struct)
-            for conf in plot_params.get_params():
+            for conf in self.plot_params.get_params():
                 name = conf.get("name")
                 display = conf.get("display", name)
                 upper_ylim = conf.get("upper_ylim", None)
