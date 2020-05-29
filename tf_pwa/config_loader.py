@@ -987,9 +987,10 @@ class PlotParams(dict):
             trans = v.get("trans", 'x')
             trans = sy.sympify(trans)
             trans = sy.lambdify(x,trans)
+            bins = v.get("bins", self.defaults_config.get("bins", 50))
             yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
                    "idx": ("particle", self.re_map.get(get_particle(k), get_particle(k)), "m"),
-                   "legend": True, "range": xrange, "bins": self.defaults_config.get("bins", 50),
+                   "legend": True, "range": xrange, "bins": bins,
                    "trans": trans, "units": "GeV"}
 
     def get_angle_vars(self):
@@ -1027,9 +1028,11 @@ class PlotParams(dict):
                 if "cos" in j:
                     theta = j[4:-1]
                     trans = np.cos
+                bins = v.get("bins", self.defaults_config.get("bins", 50))
+                xrange = v.get("range", None)
                 yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
                        "idx": ("decay", decay_chain, decay, part, "ang", theta),
-                       "trans": trans, "bins": self.defaults_config.get("bins", 50)}
+                       "trans": trans, "bins": bins, "range": xrange}
 
     def get_params(self, params=None):
         if params is None:
