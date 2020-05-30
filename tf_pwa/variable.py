@@ -148,15 +148,14 @@ class VarsManager(object):
             self.add_real_var(name=var_i, value=fix_vals[1], trainable=False)
         self.complex_vars[name] = polar
 
-    def remove_var(self, name, cplx=False):
+    def remove_var(self, name):
         """
         Remove a variable from **self.variables**. More specifically, two variables (**name+'r'** and **name+'i'**)
-        will be removed if **cplx=True**.
+        will be removed if it's complex.
 
         :param name: The name of the variable
-        :param cplx: Boolean. Users should indicate if this variable is complex or not.
         """
-        if cplx:
+        if name in self.complex_vars:
             del self.complex_vars[name]
             name_r = name + 'r'
             name_i = name + 'i'
@@ -752,7 +751,7 @@ class Variable(object):
                 if not overwrite:
                     warnings.warn("Overwrite Variable {}!".format(i.name))
                 for j in self.vm.var_head[i]:
-                    self.vm.remove_var(j, cplx)
+                    self.vm.remove_var(j)
                 del self.vm.var_head[i]
                 break
         self.vm.var_head[self] = []
@@ -821,19 +820,34 @@ class Variable(object):
                 self.vm.set(var_name+'i', value[1])
             else:
                 self.vm.set(var_name, value)
-        '''else:
+        else:
             value = np.array(value)
+            def _get_val_from_index(val, index):
+                for i in index:
+                    val = val[i]
+                return val
             if self.cplx == True:
-                assert value.shape[:-1] == tuple(self.shape)
-                def func(name, idx, **kwargs):
-                    self.vm.set(name+'r', value[idx][0])
-                    self.vm.set(name+'i', value[idx][1])
+                if value.shape[:-1] == ():
+                    def func(name, idx, **kwargs):
+                        self.vm.set(name+'r', value[0])
+                        self.vm.set(name+'i', value[1])
+                elif value.shape[:-1] == tuple(self.shape):
+                    def func(name, idx, **kwargs):
+                        self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
+                        self.vm.set(name+'i', _get_val_from_index(value, idx)[1])
+                else:
+                    raise Exception("The shape of value should be ", self.shape)
             else:
-                assert value.shape == tuple(self.shape)
-                def func(name, idx, **kwargs):
-                    self.vm.set(name, value[idx])
+                if value.shape == ():
+                    def func(name, idx, **kwargs):
+                        self.vm.set(name, value)
+                elif value.shape == tuple(self.shape):
+                    def func(name, idx, **kwargs):
+                        self.vm.set(name, _get_val_from_index(value, idx))
+                else:
+                    raise Exception("The shape of value should be ", self.shape)
 
-            _shape_func(func, self.shape, self.name, idx=[])'''
+            _shape_func(func, self.shape, self.name, idx=[])
 
 
     @property
