@@ -713,12 +713,12 @@ class Bound(object):
         return float(self.df.evalf(subs={x: val}))
 
 
-def _shape_func(f, shape, name, **kwargs):
+def _shape_func(f, shape, name="", idx=[], **kwargs):
     if not shape:
-        f(name, **kwargs)
+        f(name, idx, **kwargs)
     else:
         for i in range(shape[0]):
-            _shape_func(f, shape[1:], name + '_' + str(i), **kwargs)
+            _shape_func(f, shape[1:], name + '_' + str(i), idx+[i], **kwargs)
 
 
 regist_config("vm", VarsManager(dtype="float64"))
@@ -776,7 +776,7 @@ class Variable(object):
         """
         trainable = not fix
 
-        def func(name, **kwargs):
+        def func(name, idx, **kwargs):
             self.vm.add_real_var(name, value, range_, trainable)
             self.vm.var_head[self].append(name)
 
@@ -793,7 +793,7 @@ class Variable(object):
         if not hasattr(fix_vals, "__len__"):
             fix_vals = [fix_vals, 0.]
 
-        def func(name, **kwargs):
+        def func(name, idx, **kwargs):
             trainable = not fix
             self.vm.add_complex_var(name, polar, trainable, fix_vals)
             self.vm.var_head[self].append(name)
@@ -810,6 +810,32 @@ class Variable(object):
         """
         return tf.Variable(self()).numpy()
 
+    def set_value(self, value, index=None):
+        if index is not None:
+            assert len(index) == len(self.shape)
+            var_name = self.name
+            for i in index:
+                var_name += ("_" + str(index[i]))
+            if self.cplx == True:
+                self.vm.set(var_name+'r', value[0])
+                self.vm.set(var_name+'i', value[1])
+            else:
+                self.vm.set(var_name, value)
+        '''else:
+            value = np.array(value)
+            if self.cplx == True:
+                assert value.shape[:-1] == tuple(self.shape)
+                def func(name, idx, **kwargs):
+                    self.vm.set(name+'r', value[idx][0])
+                    self.vm.set(name+'i', value[idx][1])
+            else:
+                assert value.shape == tuple(self.shape)
+                def func(name, idx, **kwargs):
+                    self.vm.set(name, value[idx])
+
+            _shape_func(func, self.shape, self.name, idx=[])'''
+
+
     @property
     def variables(self):
         """
@@ -821,7 +847,7 @@ class Variable(object):
 
     def rename(self, new_name):
         """Rename this Variable."""
-        def func(name):
+        def func(name, idx):
             vn = self.name + name
             new_vn = new_name + name
             self.vm.rename_var(vn, new_vn, cplx=self.cplx)
@@ -894,7 +920,7 @@ class Variable(object):
             elif not hasattr(fix_vals, "__len__"):
                 fix_vals = [fix_vals, 0.]
 
-            def func(name):
+            def func(name, idx):
                 if name[-2:] in fix_idx_str:
                     self.vm.set_fix(name + 'r', value=fix_vals[0])
                     self.vm.set_fix(name + 'i', value=fix_vals[1])
@@ -904,7 +930,7 @@ class Variable(object):
 
             _shape_func(func, self.shape, self.name)
         else:
-            def func(name):
+            def func(name, idx):
                 if name[-2:] in fix_idx_str:
                     self.vm.set_fix(name, value=fix_vals)
                 if name[-2:] in free_idx_str:
@@ -937,7 +963,7 @@ class Variable(object):
         if not (self.cplx and Var.cplx):
             raise Exception("Type is not complex var.")
 
-        def func(name, **kwargs):
+        def func(name, idx, **kwargs):
             self.vm.set_share_r([self.name + name, Var.name + name])
 
         _shape_func(func, self.shape, '')
@@ -953,7 +979,7 @@ class Variable(object):
         if self.cplx != Var.cplx:
             raise Exception("Types (real or complex) are not the same.")
 
-        def func(name, **kwargs):
+        def func(name, idx, **kwargs):
             self.vm.set_same([self.name + name, Var.name + name], cplx=self.cplx)
 
         _shape_func(func, self.shape, '')
@@ -961,7 +987,7 @@ class Variable(object):
     def __call__(self):
         var_list = np.ones(shape=self.shape).tolist()
         if self.shape:
-            def func(name, **kwargs):
+            def func(name, idx, **kwargs):
                 tmp = var_list
                 idx_str = name.split('_')[-len(self.shape):]
                 for i in idx_str[:-1]:
