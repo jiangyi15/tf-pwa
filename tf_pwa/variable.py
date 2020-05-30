@@ -712,6 +712,11 @@ class Bound(object):
         return float(self.df.evalf(subs={x: val}))
 
 
+def _get_val_from_index(val, index):
+    for i in index:
+        val = val[i]
+    return val
+
 def _shape_func(f, shape, name="", idx=[], **kwargs):
     if not shape:
         f(name, idx, **kwargs)
@@ -809,18 +814,15 @@ class Variable(object):
         """
         return tf.Variable(self()).numpy()
 
-    def set_value(self, value, index=None, r_only=False):
+    def set_value(self, value, index=None):
         if index is not None:
             assert len(index) == len(self.shape)
             var_name = self.name
             for i in index:
                 var_name += ("_" + str(index[i]))
             if self.cplx == True:
-                if r_only:
-                    self.vm.set(var_name+'r', value)
-                else:
-                    self.vm.set(var_name+'r', value[0])
-                    self.vm.set(var_name+'i', value[1])
+                self.vm.set(var_name+'r', value[0])
+                self.vm.set(var_name+'i', value[1])
             else:
                 self.vm.set(var_name, value)
         else:
@@ -830,26 +832,16 @@ class Variable(object):
                     val = val[i]
                 return val
             if self.cplx == True:
-                if r_only:
-                    if value.shape == ():
-                        def func(name, idx, **kwargs):
-                            self.vm.set(name+'r', value[0])
-                    elif value.shape == tuple(self.shape):
-                        def func(name, idx, **kwargs):
-                            self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
-                    else:
-                        raise Exception("The shape of value should be ", self.shape)
+                if value.shape[:-1] == ():
+                    def func(name, idx, **kwargs):
+                        self.vm.set(name+'r', value[0])
+                        self.vm.set(name+'i', value[1])
+                elif value.shape[:-1] == tuple(self.shape):
+                    def func(name, idx, **kwargs):
+                        self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
+                        self.vm.set(name+'i', _get_val_from_index(value, idx)[1])
                 else:
-                    if value.shape[:-1] == ():
-                        def func(name, idx, **kwargs):
-                            self.vm.set(name+'r', value[0])
-                            self.vm.set(name+'i', value[1])
-                    elif value.shape[:-1] == tuple(self.shape):
-                        def func(name, idx, **kwargs):
-                            self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
-                            self.vm.set(name+'i', _get_val_from_index(value, idx)[1])
-                    else:
-                        raise Exception("The shape of value should be ", self.shape)
+                    raise Exception("The shape of value should be ", self.shape)
             else:
                 if value.shape == ():
                     def func(name, idx, **kwargs):
@@ -860,6 +852,47 @@ class Variable(object):
                 else:
                     raise Exception("The shape of value should be ", self.shape)
 
+            _shape_func(func, self.shape, self.name, idx=[])
+
+    def set_rho(self, rho, index=None):
+        if self.cplx is not True:
+            raise Exception("This method only supports complex Variable!")
+        if index is not None:
+            assert len(index) == len(self.shape)
+            var_name = self.name
+            for i in index:
+                var_name += ("_" + str(index[i]))
+            self.vm.set(var_name+'r', rho)
+        else:
+            rho = np.array(rho)
+            if rho.shape == ():
+                def func(name, idx, **kwargs):
+                    self.vm.set(name+'r', rho)
+            elif rho.shape == tuple(self.shape):
+                def func(name, idx, **kwargs):
+                    self.vm.set(name+'r', _get_val_from_index(rho, idx)[0])
+            else:
+                raise Exception("The shape of rho should be ", self.shape)
+            _shape_func(func, self.shape, self.name, idx=[])
+    def set_phi(self, phi, index=None):
+        if self.cplx is not True:
+            raise Exception("This method only supports complex Variable!")
+        if index is not None:
+            assert len(index) == len(self.shape)
+            var_name = self.name
+            for i in index:
+                var_name += ("_" + str(index[i]))
+            self.vm.set(var_name+'i', phi)
+        else:
+            phi = np.array(phi)
+            if phi.shape == ():
+                def func(name, idx, **kwargs):
+                    self.vm.set(name+'i', phi)
+            elif phi.shape == tuple(self.shape):
+                def func(name, idx, **kwargs):
+                    self.vm.set(name+'i', _get_val_from_index(phi, idx)[0])
+            else:
+                raise Exception("The shape of phi should be ", self.shape)
             _shape_func(func, self.shape, self.name, idx=[])
 
 
