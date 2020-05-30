@@ -809,15 +809,18 @@ class Variable(object):
         """
         return tf.Variable(self()).numpy()
 
-    def set_value(self, value, index=None):
+    def set_value(self, value, index=None, r_only=False):
         if index is not None:
             assert len(index) == len(self.shape)
             var_name = self.name
             for i in index:
                 var_name += ("_" + str(index[i]))
             if self.cplx == True:
-                self.vm.set(var_name+'r', value[0])
-                self.vm.set(var_name+'i', value[1])
+                if r_only:
+                    self.vm.set(var_name+'r', value)
+                else:
+                    self.vm.set(var_name+'r', value[0])
+                    self.vm.set(var_name+'i', value[1])
             else:
                 self.vm.set(var_name, value)
         else:
@@ -827,16 +830,26 @@ class Variable(object):
                     val = val[i]
                 return val
             if self.cplx == True:
-                if value.shape[:-1] == ():
-                    def func(name, idx, **kwargs):
-                        self.vm.set(name+'r', value[0])
-                        self.vm.set(name+'i', value[1])
-                elif value.shape[:-1] == tuple(self.shape):
-                    def func(name, idx, **kwargs):
-                        self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
-                        self.vm.set(name+'i', _get_val_from_index(value, idx)[1])
+                if r_only:
+                    if value.shape == ():
+                        def func(name, idx, **kwargs):
+                            self.vm.set(name+'r', value[0])
+                    elif value.shape == tuple(self.shape):
+                        def func(name, idx, **kwargs):
+                            self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
+                    else:
+                        raise Exception("The shape of value should be ", self.shape)
                 else:
-                    raise Exception("The shape of value should be ", self.shape)
+                    if value.shape[:-1] == ():
+                        def func(name, idx, **kwargs):
+                            self.vm.set(name+'r', value[0])
+                            self.vm.set(name+'i', value[1])
+                    elif value.shape[:-1] == tuple(self.shape):
+                        def func(name, idx, **kwargs):
+                            self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
+                            self.vm.set(name+'i', _get_val_from_index(value, idx)[1])
+                    else:
+                        raise Exception("The shape of value should be ", self.shape)
             else:
                 if value.shape == ():
                     def func(name, idx, **kwargs):
