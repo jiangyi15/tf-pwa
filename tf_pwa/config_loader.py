@@ -731,7 +731,7 @@ class ConfigLoader(object):
     def get_params(self, trainable_only=False):
         return self.get_amplitude().get_params(trainable_only)
 
-    def set_params(self, params):
+    def set_params(self, params, neglect_mg=True):
         if isinstance(params, str):
             with open(params) as f:
                 params = yaml.safe_load(f)
@@ -740,7 +740,13 @@ class ConfigLoader(object):
         if isinstance(params, dict):
             if "value" in params:
                 params = params["value"]
-        self.get_amplitude().set_params(params)
+        ret = params.copy()
+        if neglect_mg:
+            warnings.warn("Neglect parameters mass and width from input values.")
+            for v in params:
+                if v[-5:] == "_mass" or v[-6:] == "_width":
+                    del ret[v]
+        self.get_amplitude().set_params(ret)
 
 
 def validate_file_name(s):
@@ -886,7 +892,7 @@ class MultiConfig(object):
         _amps = self.get_amplitudes()
         return self.vm.get_all_dic(trainable_only)
 
-    def set_params(self, params):
+    def set_params(self, params, neglect_mg=True):
         _amps = self.get_amplitudes()
         if isinstance(params, str):
             with open(params) as f:
@@ -896,7 +902,13 @@ class MultiConfig(object):
         if isinstance(params, dict):
             if "value" in params:
                 params = params["value"]
-        self.vm.set_all(params)
+        ret = params.copy()
+        if neglect_mg:
+            warnings.warn("Neglect parameters mass and width from input values.")
+            for v in params:
+                if v[-5:] == "_mass" or v[-6:] == "_width":
+                    del ret[v]
+        self.vm.set_all(ret)
 
 
 def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
