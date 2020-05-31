@@ -59,10 +59,10 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
     :param kwargs:
     :return:
     """
-    args_name = fcn.model.Amp.vm.trainable_vars
+    args_name = fcn.vm.trainable_vars
     x0 = []
     bnds = []
-    for name, i in zip(args_name, fcn.model.Amp.trainable_variables):
+    for name, i in zip(args_name, fcn.vm.trainable_variables):
         x0.append(i.numpy())
         if name in bounds_dict:
             bnds.append(bounds_dict[name])
@@ -139,7 +139,7 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
                 break
         print(s)
         
-        #xn = s.x  # fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
+        #xn = s.x  # fcn.vm.get_all_val()  # bd.get_y(s.x)
         fcn.vm.set_all(s.x)
         ndf = s.x.shape[0]
         min_nll = s.fun
@@ -184,16 +184,16 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
 
 
 #import pymultinest
-def fit_multinest(model):
+def fit_multinest(fcn):
     pass
 
 
 
 class FitResult(object):
-    def __init__(self, params, model, min_nll, ndf=0, success=True):
+    def __init__(self, params, fcn, min_nll, ndf=0, success=True):
         self.params = params
         self.error = {}
-        self.model = model
+        self.fcn = fcn
         self.min_nll = float(min_nll)
         self.ndf = int(ndf)
         self.success = success

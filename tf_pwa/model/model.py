@@ -131,7 +131,7 @@ def sum_hessian_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log,
             int_dt = tf.reduce_sum(ymc)
             for data_i, weight_i in zip(data, weight):
                 wmc = w_flatmc()
-                part_y = (amp(data_i, *args, **kwargs)/int_dt + wmc) / tf.math.sqrt(1+wmc*wmc)
+                part_y = (amp(data_i, *args, **kwargs)/int_dt + wmc) / (1+wmc)
                 part_y = trans(part_y)
                 y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
                 ys.append(y_i)
@@ -632,7 +632,6 @@ class FCN(object):
                 batch = self.batch
             nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
                                                     weight=self.weight, batch=batch, mc_weight=self.mc_weight)
-
         return nll, g, h
 
 
@@ -666,7 +665,7 @@ class CombineFCN(object):
         return self.vm.get_all_dic(trainable_only)
 
     # @time_print
-    def __call__(self, x):
+    def __call__(self, x={}):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
@@ -677,7 +676,7 @@ class CombineFCN(object):
         self.cached_nll = sum(nlls)
         return self.cached_nll
 
-    def grad(self, x):
+    def grad(self, x={}):
         """
         :param x: List. Values of variables.
         :return gradients: List of real numbers. The gradients for each variable.
@@ -689,7 +688,7 @@ class CombineFCN(object):
         return sum(gs)
 
     @time_print
-    def nll_grad(self, x):
+    def nll_grad(self, x={}):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
@@ -704,7 +703,7 @@ class CombineFCN(object):
         self.cached_nll = sum(nlls)
         return self.cached_nll, sum(gs)
 
-    def nll_grad_hessian(self, x, batch=None):
+    def nll_grad_hessian(self, x={}, batch=None):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
@@ -719,4 +718,6 @@ class CombineFCN(object):
             nlls.append(nll)
             gs.append(g)
             hs.append(h)
-        return sum(nlls), sum(gs), sum(hs)
+        print("NLL list: ",nlls)
+        print("Gradient List: ",tf.transpose(gs))
+        return tf.reduce_sum(nlls,axis=0), tf.reduce_sum(gs,axis=0), tf.reduce_sum(hs,axis=0)
