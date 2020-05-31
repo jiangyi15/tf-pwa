@@ -76,7 +76,7 @@ def Gamma(m, gamma0, q, q0, L, m0, d):
     Running width in the RBW
 
     .. math::
-        \\Gamma(m) = \\Gamma_0 \\left(\\frac{q}{q_0}\\right)^{2L+1}\\frac{m_0}{m} B_{L}'(q,q_0,d)
+        \\Gamma(m) = \\Gamma_0 \\left(\\frac{q}{q_0}\\right)^{2L+1}\\frac{m_0}{m} B_{L}'^2(q,q_0,d)
   
     """
     q0 = tf.cast(q0, q.dtype)

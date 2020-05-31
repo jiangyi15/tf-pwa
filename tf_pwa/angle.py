@@ -325,7 +325,7 @@ class SU2M(dict):
     def get_euler_angle(self):
         x = self["x"]
         cosbeta = tf.math.real(x[0][0] * x[1][1] + x[0][1] * x[1][0])
-        cosbeta = tf.where(cosbeta<1, cosbeta, tf.ones_like(cosbeta))
+        cosbeta = tf.clip_by_value(cosbeta, -1, 1)
         zeros = tf.zeros_like(cosbeta)
         beta = tf.math.acos(cosbeta)
         m_1 = tf.abs(x[0][0])
