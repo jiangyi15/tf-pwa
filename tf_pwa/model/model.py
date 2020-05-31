@@ -719,4 +719,6 @@ class CombineFCN(object):
             nlls.append(nll)
             gs.append(g)
             hs.append(h)
-        return sum(nlls), sum(gs), sum(hs)
+        print("NLL list: ",nlls)
+        print("Gradient List: ",tf.transpose(gs))
+        return tf.reduce_sum(nlls,axis=0), tf.reduce_sum(gs,axis=0), tf.reduce_sum(hs,axis=0)

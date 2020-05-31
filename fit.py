@@ -96,26 +96,28 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json", meth
         config.set_params(init_params)
         print("using {}".format(init_params))
     except Exception as e:
-        print("using RANDOM parameters")
+        if str(e) != "[Errno 2] No such file or directory: 'init_params.json'":
+            print(e)
+        print("\nusing RANDOM parameters")
     
     # print("\n########### initial parameters")
     # pprint = lambda dic: print(json.dumps(dic, indent=2))
     # pprint(config.get_params())
     
     fit_result = config.fit(method=method, batch=65000)
-    
     pprint(fit_result.params)
-    fit_result.save_as("final_params.json")
-    for i, c in enumerate(config.configs):
-        c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i))
 
     fit_error = config.get_params_error(fit_result, batch=13000)
     fit_result.set_error(fit_error)
+    fit_result.save_as("final_params.json")
     pprint(fit_error)
     
     print("\n########## fit results:")
     for k, v in fit_result.params.items():
         print(k, error_print(v, fit_error.get(k, None)))
+
+    #for i, c in enumerate(config.configs):
+    #    c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i))
 
 
 def main():

@@ -728,8 +728,8 @@ class ConfigLoader(object):
         frac, err_frac = fit_fractions(model, mcdata, self.inv_he, params, batch)
         return frac, err_frac
 
-    def get_params(self):
-        return self.get_amplitude().get_params()
+    def get_params(self, trainable_only=False):
+        return self.get_amplitude().get_params(trainable_only)
 
     def set_params(self, params):
         if isinstance(params, str):
@@ -809,7 +809,8 @@ class MultiConfig(object):
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2))
         print("initial NLL: ", fcn({}))
-        # fit configure
+        self.fit_params = fit(fcn=fcn, method=method, bounds_dict={})
+        '''# fit configure
         bounds_dict = {}
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
 
@@ -865,43 +866,20 @@ class MultiConfig(object):
             raise Exception("unknown method")
         self.vm.set_all(xn)
         params = self.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)
-
-    def cal_error(self, params=None, batch=10000):
-        if params is None:
-            params = {}
-        if hasattr(params, "params"):
-            params = getattr(params, "params")
-        fcn = self.get_fcn(batch=batch)
-        t = time.time()
-        # data_w,mcdata,weight=weights,batch=50000)
-        nll, g, h = fcn.nll_grad_hessian(params)
-        print("Time for calculating errors:", time.time() - t)
-        # print(nll)
-        # print([i.numpy() for i in g])
-        # print(h.numpy())
-        self.inv_he = np.linalg.pinv(h.numpy())
-        np.save("error_matrix.npy", self.inv_he)
-        # print("edm:",np.dot(np.dot(inv_he,np.array(g)),np.array(g)))
-        return self.inv_he
+        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)'''
+        return self.fit_params
 
     def get_params_error(self, params=None, batch=10000):
         if params is None:
             params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        self.inv_he = self.cal_error(params, batch=20000)
-        diag_he = self.inv_he.diagonal()
-        print("parameters order")
-        print(self.vm.trainable_vars)
-        print("error matrix:")
-        print(self.inv_he)
-        diag_he_s = np.sqrt(np.fabs(diag_he))
-        print("correlation matrix:")
-        print(self.inv_he /(diag_he_s[:, np.newaxis] * diag_he_s[np.newaxis, :]))
-        hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+        fcn = self.get_fcn(batch=batch)
+        hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
         print("hesse_error:", hesse_error)
         err = dict(zip(self.vm.trainable_vars, hesse_error))
+        if hasattr(self, "fit_params"):
+            self.fit_params.set_error(err)
         return err
 
     def get_params(self, trainable_only=True):
