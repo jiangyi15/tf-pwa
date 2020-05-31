@@ -459,8 +459,25 @@ class ConfigLoader(object):
         args_name = model.Amp.vm.trainable_vars
         return len(args_name)
 
+    @staticmethod
+    def reweight_init_value(amp, phsp, ns=None):
+        """reset decay chain total and make the integration to be ns"""
+        total = [i.total for i in amp.decay_group]
+        n_phsp = data_shape(phsp)
+        weight = np.array(phsp.get("weight", [1] * n_phsp))
+        sw = np.sum(weight)
+        if ns is None:
+            ns = [1] * len(total)
+        elif isinstance(ns, (int, float)):
+            ns = [ns/len(total)] * len(total)
+        for i in total:
+            i.set_rho(1.0)
+        pw = amp.partial_weight(phsp)
+        for i, w, ni in zip(total, pw, ns):
+            i.set_rho(np.sqrt(ni / np.sum(weight * w) * sw))
+
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False):
+    def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False):
         model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
@@ -468,7 +485,12 @@ class ConfigLoader(object):
         for i in self.full_decay:
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
+        if reweight:
+            ConfigLoader.reweight_init_value(model.Amp, phsp, ns=data_shape(data))
         fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
+
+        print("\n########### initial parameters")
+        print(json.dumps(model.get_params(), indent=2))
         print("initial NLL: ", fcn.nll_grad()[0]) # model.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
@@ -784,6 +806,8 @@ class MultiConfig(object):
 
     def fit(self, batch=65000, method="BFGS"):
         fcn = self.get_fcn()
+        print("\n########### initial parameters")
+        print(json.dumps(fcn.get_params(), indent=2))
         print("initial NLL: ", fcn({}))
         # fit configure
         bounds_dict = {}

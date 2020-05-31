@@ -574,6 +574,9 @@ class FCN(object):
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64")
 
+    def get_params(self, trainable_only=False):
+        return self.vm.get_all_dic(trainable_only)
+
     # @time_print
     def __call__(self, x={}):
         """
@@ -658,6 +661,9 @@ class CombineFCN(object):
         else:
             self.fcns = list(fcns)
         self.vm = self.fcns[0].vm
+    
+    def get_params(self, trainable_only=False):
+        return self.vm.get_all_dic(trainable_only)
 
     # @time_print
     def __call__(self, x):

@@ -50,8 +50,8 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
             print(e)
         print("\nusing RANDOM parameters")
     
-    print("\n########### initial parameters")
-    json_print(config.get_params())
+    # print("\n########### initial parameters")
+    # json_print(config.get_params())
 
     # fit
     data, phsp, bg, inmc = config.get_all_data()
@@ -98,9 +98,9 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json", meth
     except Exception as e:
         print("using RANDOM parameters")
     
-    print("\n########### initial parameters")
-    pprint = lambda dic: print(json.dumps(dic, indent=2))
-    pprint(config.get_params())
+    # print("\n########### initial parameters")
+    # pprint = lambda dic: print(json.dumps(dic, indent=2))
+    # pprint(config.get_params())
     
     fit_result = config.fit(method=method, batch=65000)
     
