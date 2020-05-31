@@ -169,7 +169,7 @@ def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
     """
     The :math:`L-S` coupling for the decay :math:`A\\rightarrow BC`, where :math:`L` is the orbital
     angular momentum of :math:`B` and :math:`B`, and :math:`S` is the superposition of their spins.
-    It's required that :math:`|J_B-J_C|<S<J_B+J_C` and :math:`|L-S|<J_A<L+S`. It's also required by the conservation of
+    It's required that :math:`|J_B-J_C|\leq S \leq J_B+J_C` and :math:`|L-S|\leq J_A \leq L+S`. It's also required by the conservation of
     parity that :math:`L` is even if :math:`P_A P_B P_C=1`; otherwise :math:`L` is odd.
 
     :param ja: `J` of particle `A`

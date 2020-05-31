@@ -13,8 +13,8 @@ name = "TFPWA"
 setup(
     name=name,  # Replace with your own username
     version=version["__version__"],
-    author="Example Author",
-    author_email="author@example.com",
+    author="Yi Jiang",
+    author_email="jiangyi15@mails.ucas.ac.cn",
     description="Partial Wave Analysis program using Tensorflow",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -35,7 +35,7 @@ setup(
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
-        # "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
@@ -50,8 +50,13 @@ setup(
         "sympy",
         "tensorflow>=2.0",
         "PyYAML",
-        "opt_einsum"
+        "opt_einsum",
     ],
+    extras_require = { 
+        "root": ["uproot"],
+        "minuit": ["iminuit"],
+        "all": ["uproot", "iminuit"]
+    },
     command_options={
         'build_sphinx': {
             'project': ('setup.py', name),
