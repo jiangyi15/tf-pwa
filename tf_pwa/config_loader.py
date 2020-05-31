@@ -764,6 +764,7 @@ class MultiConfig(object):
             self.vm = vm
         self.total_same = total_same
         self.configs = [ConfigLoader(i, vm=self.vm) for i in file_names]
+        self.bound_dic = {}
 
     def get_amplitudes(self, vm=None):
         if not self.total_same:
@@ -771,6 +772,8 @@ class MultiConfig(object):
                     for i, j in enumerate(self.configs)]
         else:
             amps = [j.get_amplitude(vm=vm) for j in self.configs]
+        for i in self.configs:
+            self.bound_dic.update(i.bound_dic)
         return amps
 
     def get_models(self, vm=None):
@@ -815,7 +818,7 @@ class MultiConfig(object):
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2))
         print("initial NLL: ", fcn({}))
-        self.fit_params = fit(fcn=fcn, method=method, bounds_dict={})
+        self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic)
         '''# fit configure
         bounds_dict = {}
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
