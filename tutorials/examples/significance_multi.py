@@ -21,7 +21,7 @@ def single_fit(configs, res, data):
     fit_result = config.fit(data)
     pprint(fit_result.params)
     # fit_result.save_as("final_params.json")
-    return fit_result.min_nll, fit_result.ndf, fit_result.status
+    return fit_result.min_nll, fit_result.ndf, fit_result.success
 
 
 def multi_fit(configs, res, data, num=5):
@@ -33,9 +33,9 @@ def multi_fit(configs, res, data, num=5):
             nll = nll_i
             status = status_i
         else:
-            if nll < nll_i:
+            if nll > nll_i:
                 nll = nll_i
-    return nll, ndf, status
+    return nll, ndf
 
 
 def cached_data(config_dict):
@@ -75,7 +75,7 @@ def cal_significance(config_files, res_file_name, base_res, test_res, loop=5):
     ndfs = {"base": ndf}
     print("nll: {}, ndf: {}".format(nll, ndf))
     signi = {}
-    for i in res:
+    for i in test_res:
         print("\ncalculate significance for {}\n".format(i))
         config_i = get_config([i])
         
