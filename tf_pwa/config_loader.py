@@ -25,12 +25,14 @@ from .fit_improve import minimize as my_minimize
 from .applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
 from .fit import FitResult
 from .variable import Variable
+import copy
 
 
 class ConfigLoader(object):
     """class for loading config.yml"""
 
-    def __init__(self, file_name, vm=None):
+    def __init__(self, file_name, vm=None, share_dict={}):
+        self.share_dict = share_dict
         self.config = self.load_config(file_name)
         self.particle_key_map = {
             "Par": "P",
@@ -49,7 +51,7 @@ class ConfigLoader(object):
         }
         self.dec = self.decay_item(self.config["decay"])
         self.particle_map, self.particle_property, self.top, self.finals = self.particle_item(
-            self.config["particle"])
+            self.config["particle"], share_dict)
         self.full_decay = DecayGroup(self.get_decay_struct(
             self.dec, self.particle_map, self.particle_property, self.top, self.finals))
         self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
@@ -60,12 +62,16 @@ class ConfigLoader(object):
         self.plot_params = PlotParams(self.config["plot"], self.decay_struct)
 
     @staticmethod
-    def load_config(file_name):
+    def load_config(file_name, share_dict={}):
         if isinstance(file_name, dict):
-            return file_name
-        with open(file_name) as f:
-            ret = yaml.safe_load(f)
-        return ret
+            return copy.deepcopy(file_name)
+        if isinstance(file_name, str):
+            if file_name in share_dict:
+                return ConfigLoader.load_config(share_dict[file_name])
+            with open(file_name) as f:
+                ret = yaml.safe_load(f)
+            return ret
+        raise TypeError("not support config {}".format(type(file_name)))
 
     def get_data_file(self, idx):
         if idx in self.config["data"]:
@@ -210,8 +216,8 @@ class ConfigLoader(object):
         return decs
 
     @staticmethod
-    def _do_include_dict(d, o):
-        s = ConfigLoader.load_config(o)
+    def _do_include_dict(d, o, share_dict={}):
+        s = ConfigLoader.load_config(o, share_dict)
         for i in s:
             if i not in d:
                 d[i] = s[i]
@@ -244,16 +250,16 @@ class ConfigLoader(object):
         return particle_map, particle_property
 
     @staticmethod
-    def particle_item(particle_list):
+    def particle_item(particle_list, share_dict={}):
         top = particle_list.pop("$top", None)
         finals = particle_list.pop("$finals", None)
         includes = particle_list.pop("$include", None)
         if includes:
             if isinstance(includes, list):
                 for i in includes:
-                    ConfigLoader._do_include_dict(particle_list, i)
+                    ConfigLoader._do_include_dict(particle_list, i, share_dict=share_dict)
             elif isinstance(includes, str):
-                ConfigLoader._do_include_dict(particle_list, includes)
+                ConfigLoader._do_include_dict(particle_list, includes, share_dict=share_dict)
             else:
                 raise ValueError("$include must be string or list of string not {}"
                                  .format(type(includes)))
@@ -443,9 +449,12 @@ class ConfigLoader(object):
                 print("background weight:", w_bkg)
         return w_bkg, w_inmc
 
-    def get_fcn(self, batch=65000, vm=None, name=""):
+    def get_fcn(self, all_data=None, batch=65000, vm=None, name=""):
         model = self.get_model()
-        data, phsp, bg, inmc = self.get_all_data()
+        if all_data is None:
+            data, phsp, bg, inmc = self.get_all_data()
+        else:
+            data, phsp, bg, inmc = all_data
         fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
         """model = self.get_model(vm, name="")
         for i in self.full_decay:
@@ -756,14 +765,14 @@ def validate_file_name(s):
 
 
 class MultiConfig(object):
-    def __init__(self, file_names, vm=None, total_same=False):
+    def __init__(self, file_names, vm=None, total_same=False, share_dict={}):
         if vm is None:
             self.vm = VarsManager()
             print(self.vm)
         else:
             self.vm = vm
         self.total_same = total_same
-        self.configs = [ConfigLoader(i, vm=self.vm) for i in file_names]
+        self.configs = [ConfigLoader(i, vm=self.vm, share_dict=share_dict) for i in file_names]
         self.bound_dic = {}
 
     def get_amplitudes(self, vm=None):
@@ -784,16 +793,23 @@ class MultiConfig(object):
             models = [j.get_model(vm=vm) for j in self.configs]
         return models
 
-    def get_fcns(self, vm=None, batch=65000):
-        if not self.total_same:
-            fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch)
-                    for i, j in enumerate(self.configs)]
+    def get_fcns(self, datas=None, vm=None, batch=65000):
+        if datas is not None:
+            if not self.total_same:
+                fcns = [i[1].get_fcn(name="s"+str(i[0]), all_data=j, vm=vm, batch=batch)
+                        for i, j in zip(enumerate(self.configs), datas)]
+            else:
+                fcns = [j.get_fcn(all_data=data, vm=vm, batch=batch) for data, j in zip(datas, self.configs)]
         else:
-            fcns = [j.get_fcn(vm=vm, batch=batch) for j in self.configs]
+            if not self.total_same:
+                fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch)
+                        for i, j in enumerate(self.configs)]
+            else:
+                fcns = [j.get_fcn(vm=vm, batch=batch) for j in self.configs]
         return fcns
 
-    def get_fcn(self, vm=None, batch=65000):
-        fcns = self.get_fcns(vm=vm, batch=batch)
+    def get_fcn(self, datas=None, vm=None, batch=65000):
+        fcns = self.get_fcns(datas=datas, vm=vm, batch=batch)
         return CombineFCN(fcns=fcns)
 
     def get_args_value(self, bounds_dict):
@@ -813,8 +829,8 @@ class MultiConfig(object):
 
         return args_name, x0, args, bnds
 
-    def fit(self, batch=65000, method="BFGS"):
-        fcn = self.get_fcn()
+    def fit(self, datas=None, batch=65000, method="BFGS"):
+        fcn = self.get_fcn(datas=datas)
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2))
         print("initial NLL: ", fcn({}))
@@ -892,7 +908,7 @@ class MultiConfig(object):
         return err
 
     def get_params(self, trainable_only=True):
-        _amps = self.get_amplitudes()
+        # _amps = self.get_fcn()
         return self.vm.get_all_dic(trainable_only)
 
     def set_params(self, params, neglect_mg=True):
