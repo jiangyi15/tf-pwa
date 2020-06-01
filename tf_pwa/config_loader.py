@@ -488,8 +488,6 @@ class ConfigLoader(object):
     def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False):
         model = self.get_model()
 
-        #model.gauss_constr.update({"Ds1_2860p_mass":(2.759, 0.1)})
-
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
         print("decay chains included: ")
@@ -832,6 +830,7 @@ class MultiConfig(object):
 
     def fit(self, batch=65000, method="BFGS"):
         fcn = self.get_fcn()
+        #fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2))
         print("initial NLL: ", fcn({}))
