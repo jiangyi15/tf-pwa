@@ -512,6 +512,77 @@ class GaussianConstr(object):
         return hessian
 
 
+class GaussianConstr(object):
+    def __init__(self, vm, constraint={}):
+        self.vm = vm
+        self.constraint = {}
+        self.update(constraint)
+            
+    
+    def update(self, constraint={}):
+        for i in constraint:
+            if not i in self.vm.trainable_vars:
+                warnings.warn("Constraint {} is useless to fitting because it's not trainable".format(i))
+        self.constraint.update(constraint)
+
+    def get_constrain_term(self):
+        r"""
+        constraint: Gauss(mean,sigma) 
+          by add a term :math:`\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2}`
+        """
+        term = 0.0
+        for i in self.constraint:
+            pi = self.constraint[i]
+            assert isinstance(pi, tuple) or isinstance(pi, list)
+            assert len(pi) == 2
+            mean, sigma = pi
+            var = self.vm.variables[i]
+            term += (var - mean) ** 2 / (sigma ** 2) / 2
+        return term
+    
+    def get_constrain_grad(self):
+        r"""
+        constraint: Gauss(mean,sigma) 
+          by add a term :math:`\frac{d}{d\theta_i}\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2} = \frac{\theta_i-\bar{\theta_i}}{\sigma^2}`
+        """
+        g_dict = {}
+        for i in self.constraint:
+            if not i in self.vm.trainable_vars:
+                continue
+            pi = self.constraint[i]
+            assert isinstance(pi, tuple) or isinstance(pi, list)
+            assert len(pi) == 2
+            mean, sigma = pi
+            var = self.vm.variables[i]
+            g_dict[i] = (var - mean) / (sigma ** 2)  # 1st differentiation
+        grad = []
+        for i in self.vm.trainable_vars:
+            if i in g_dict:
+                grad.append(g_dict[i])
+            else:
+                grad.append(0.0)
+        return np.array(grad)
+
+    def get_constrain_hessian(self):
+        """the constrained parameter's 2nd differentiation"""
+        h_dict = {}
+        for i in self.constraint:
+            if not i in self.vm.trainable_vars:
+                continue
+            pi = self.constraint[i]
+            assert isinstance(pi, tuple) or isinstance(pi, list)
+            assert len(pi) == 2
+            mean, sigma = pi
+            var = self.vm.variables[i]
+            h_dict[i] = 1 / (sigma ** 2)  # 2nd differentiation
+        nv = len(self.vm.trainable_vars)
+        hessian = np.zeros([nv, nv])
+        for v, i in zip(self.vm.trainable_vars, range(nv)):
+            if v in h_dict:
+                hessian[i, i] = h_dict[v]
+        return np.array(hessian)
+
+
 class ConstrainModel(Model):
     """
     negative log likelihood model with constrains
@@ -631,12 +702,12 @@ class FCN(object):
     :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
     """
 
-    def __init__(self, model, data, mcdata, bg=None, batch=65000, inmc=None):
+    def __init__(self, model, data, mcdata, bg=None, batch=65000, inmc=None, gauss_constr={}):
         self.model = model
         self.vm = model.vm
         self.n_call = 0
         self.n_grad = 0
-        self.cached_nll = None
+        self.cached_nll = None # what is the purpose of cached_nll. I don't see it's used
         if inmc is None:
             data, weight = self.model.get_weight_data(data, bg=bg)
             print("Using Model_old")
@@ -657,6 +728,7 @@ class FCN(object):
         else:
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64")
+        self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
 
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)
@@ -674,7 +746,7 @@ class FCN(object):
             nll = self.model.nll(self.data, self.mcdata, weight=self.weight, mc_weight=self.mc_weight)
             self.cached_nll = nll
             self.n_call += 1
-        return nll
+        return nll + self.gauss_constr.get_constrain_term()
 
     def grad(self, x={}):
         """
@@ -682,7 +754,7 @@ class FCN(object):
         :return gradients: List of real numbers. The gradients for each variable.
         """
         nll, g = self.nll_grad(x)
-        return g
+        return g + self.gauss_constr.get_constrain_grad()
 
     @time_print
     def nll_grad(self, x={}):
@@ -697,7 +769,9 @@ class FCN(object):
                                            mc_weight=data_split(self.mc_weight, self.batch))
         self.cached_nll = nll
         self.n_call += 1
-        return nll, np.array(g)
+        constr = self.gauss_constr.get_constrain_term()
+        constr_grad = self.gauss_constr.get_constrain_grad()
+        return nll + constr, g + constr_grad
 
     def nll_grad_hessian(self, x={}, batch=None):
         """
@@ -716,7 +790,11 @@ class FCN(object):
                 batch = self.batch
             nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
                                                     weight=self.weight, batch=batch, mc_weight=self.mc_weight)
-        return nll, g, h
+        
+        constr = self.gauss_constr.get_constrain_term()
+        constr_grad = self.gauss_constr.get_constrain_grad()
+        constr_hessian = self.gauss_constr.get_constrain_hessian()
+        return nll + constr, g + constr_grad, h + constr_hessian
 
 
 class CombineFCN(object):
@@ -730,7 +808,7 @@ class CombineFCN(object):
     :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
     """
 
-    def __init__(self, model=None, data=None, mcdata=None, bg=None, fcns=None, batch=65000):
+    def __init__(self, model=None, data=None, mcdata=None, bg=None, fcns=None, batch=65000, gauss_constr={}):
         if fcns is None:
             assert model is not None, "model required"
             assert data is not None, "data required"
@@ -744,6 +822,7 @@ class CombineFCN(object):
         else:
             self.fcns = list(fcns)
         self.vm = self.fcns[0].vm
+        self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
     
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)
@@ -758,7 +837,7 @@ class CombineFCN(object):
         for i in self.fcns:
             nlls.append(i(x))
         self.cached_nll = sum(nlls)
-        return self.cached_nll
+        return self.cached_nll + self.gauss_constr.get_constrain_term()
 
     def grad(self, x={}):
         """
@@ -769,7 +848,7 @@ class CombineFCN(object):
         for i in self.fcns:
             g = i.grad(x)
             gs.append(g)
-        return sum(gs)
+        return sum(gs) + self.gauss_constr.get_constrain_grad()
 
     @time_print
     def nll_grad(self, x={}):
@@ -785,7 +864,10 @@ class CombineFCN(object):
             nlls.append(nll)
             gs.append(g)
         self.cached_nll = sum(nlls)
-        return self.cached_nll, sum(gs)
+
+        constr = self.gauss_constr.get_constrain_term()
+        constr_grad = self.gauss_constr.get_constrain_grad()
+        return self.cached_nll + constr, sum(gs) + constr_grad
 
     def nll_grad_hessian(self, x={}, batch=None):
         """
@@ -804,4 +886,8 @@ class CombineFCN(object):
             hs.append(h)
         print("NLL list: ",nlls)
         print("Gradient List: ",tf.transpose(gs))
-        return tf.reduce_sum(nlls,axis=0), tf.reduce_sum(gs,axis=0), tf.reduce_sum(hs,axis=0)
+
+        constr = self.gauss_constr.get_constrain_term()
+        constr_grad = self.gauss_constr.get_constrain_grad()
+        constr_hessian = self.gauss_constr.get_constrain_hessian()
+        return tf.reduce_sum(nlls,axis=0) + constr, tf.reduce_sum(gs,axis=0) + constr_grad, tf.reduce_sum(hs,axis=0) + constr_hessian
