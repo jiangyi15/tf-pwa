@@ -342,13 +342,12 @@ class Model_new(Model):
     :param amp: ``AllAmplitude`` object. The amplitude model.
     :param w_bkg: Real number. The weight of background.
     """
-    def __init__(self, amp, w_bkg=1.0, w_inmc=0, float_wmc=False, gauss_constr={}):
+    def __init__(self, amp, w_bkg=1.0, w_inmc=0, float_wmc=False):
         super(Model_new, self).__init__(amp, w_bkg)
         #self.w_inmc = w_inmc
         self.w_inmc = Variable("weight_injectMC", value=w_inmc, vm=self.Amp.vm)
         if not float_wmc:
             self.w_inmc.fixed()
-        self.gauss_constr = GaussianConstr(self.Amp, gauss_constr)
 
     def get_weight_data(self, data, weight=1.0, bg=None, inmc=None, alpha=True):
         """
@@ -383,7 +382,7 @@ class Model_new(Model):
             return data, alpha * weight
         return data, weight
 
-    def get_nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None):
+    def nll(self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None):
         """
         Calculate NLL.
 
@@ -404,7 +403,7 @@ class Model_new(Model):
         nll_0 = - tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
         return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
 
-    def get_nll_grad_batch(self, data, mcdata, weight, mc_weight):
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
         """
         ``self.nll_grad_new``
         """
@@ -416,7 +415,7 @@ class Model_new(Model):
         #print("@@@",nll,np.array(g).tolist())
         return nll, g
 
-    def get_nll_grad_hessian(self, data, mcdata, weight, mc_weight):
+    def nll_grad_hessian(self, data, mcdata, weight, mc_weight):
         """
         The parameters are the same with ``self.nll()``, but it will return Hessian as well.
 
@@ -428,88 +427,6 @@ class Model_new(Model):
                                           self.Amp.trainable_variables, clip_log, self.w_inmc)
         h = tf.stack(h)
         return nll, g, h
-
-    def nll(self, *args, **kwargs):
-        nll_tot = self.get_nll(*args, **kwargs) + self.gauss_constr.get_constrain_term()
-        return nll_tot
-    
-    def nll_grad_batch(self, *args, **kwargs):
-        nll, grad = self.get_nll_grad_batch(*args, **kwargs)
-        constr = self.gauss_constr.get_constrain_term()
-        constr_grad = self.gauss_constr.get_constrain_grad()
-        return nll + constr, grad + constr_grad
-
-    def nll_grad_hessian(self, *args, **kwargs):
-        nll, grad, hessian = self.get_nll_grad_hessian(*args, **kwargs)
-        constr = self.gauss_constr.get_constrain_term()
-        constr_grad = self.gauss_constr.get_constrain_grad()
-        constr_hessian = self.gauss_constr.get_constrain_hessian()
-        return nll + constr, grad + constr_grad, hessian + constr_hessian
-
-
-class GaussianConstr(object):
-    def __init__(self, amp, constraint={}):
-        self.Amp = amp
-        self.constraint = constraint
-    
-    def get_constrain_term(self):
-        r"""
-        constraint: Gauss(mean,sigma) 
-          by add a term :math:`\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2}`
-        """
-        term = 0.0
-        for i in self.constraint:
-            if not i in self.Amp.trainable_vars:
-                warnings.warn("Constraint {} is useless to fitting because it's not trainable".format(i))
-            pi = self.constraint[i]
-            assert isinstance(pi, tuple) or isinstance(pi, list)
-            assert len(pi) == 2
-            mean, sigma = pi
-            var = self.Amp.variables[i]
-            term += (var - mean) ** 2 / (sigma ** 2) / 2
-        return term
-    
-    def get_constrain_grad(self):
-        r"""
-        constraint: Gauss(mean,sigma) 
-          by add a term :math:`\frac{d}{d\theta_i}\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2} = \frac{\theta_i-\bar{\theta_i}}{\sigma^2}`
-        """
-        g_dict = {}
-        for i in self.constraint:
-            if not i in self.Amp.trainable_vars:
-                continue
-            pi = self.constraint[i]
-            assert isinstance(pi, tuple) or isinstance(pi, list)
-            assert len(pi) == 2
-            mean, sigma = pi
-            var = self.Amp.variables[i]
-            g_dict[i] = (var - mean) / (sigma ** 2)  # 1st differentiation
-        grad = []
-        for i in self.Amp.trainable_vars:
-            if i in g_dict:
-                grad.append(g_dict[i])
-            else:
-                grad.append(0.0)
-        return grad
-
-    def get_constrain_hessian(self):
-        """the constrained parameter's 2nd differentiation"""
-        h_dict = {}
-        for i in self.constraint:
-            if not i in self.Amp.trainable_vars:
-                continue
-            pi = self.constraint[i]
-            assert isinstance(pi, tuple) or isinstance(pi, list)
-            assert len(pi) == 2
-            mean, sigma = pi
-            var = self.Amp.variables[i]
-            h_dict[i] = 1 / (sigma ** 2)  # 2nd differentiation
-        nv = len(self.Amp.trainable_vars)
-        hessian = np.zeros([nv, nv])
-        for v, i in zip(self.Amp.trainable_vars, range(nv)):
-            if v in h_dict:
-                hessian[i, i] = h_dict[v]
-        return hessian
 
 
 class GaussianConstr(object):

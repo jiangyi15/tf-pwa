@@ -528,9 +528,9 @@ class ConfigLoader(object):
     @time_print
     def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False):
         #model = self.get_model()
+        if data is None and phsp is None:
+            data, phsp, bg, inmc = self.get_all_data()
         fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
-        #if data is None and phsp is None:
-        #    data, phsp, bg, inmc = self.get_all_data()
         print("decay chains included: ")
         for i in self.full_decay:
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
@@ -550,8 +550,8 @@ class ConfigLoader(object):
     def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
         if params is None:
             params = {}
-        #if data is None:
-        #    data, phsp, bg, inmc = self.get_all_data()
+        if data is None:
+            data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
         #fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch, inmc=inmc)
@@ -791,6 +791,7 @@ class ConfigLoader(object):
         if isinstance(params, dict):
             if "value" in params:
                 params = params["value"]
+        amplitude = self.get_amplitude()
         ret = params.copy()
         if neglect_params is None:
             neglect_params = self._neglect_when_set_params
@@ -799,7 +800,7 @@ class ConfigLoader(object):
             for v in params:
                 if v in self._neglect_when_set_params:
                     del ret[v]
-        self.get_amplitude().set_params(ret)
+        amplitude.set_params(ret)
 
 
 def validate_file_name(s):
