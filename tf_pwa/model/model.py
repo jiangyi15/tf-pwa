@@ -624,7 +624,7 @@ class FCN(object):
         self.vm = model.vm
         self.n_call = 0
         self.n_grad = 0
-        self.cached_nll = None # what is the purpose of cached_nll. I don't see it's used
+        self.cached_nll = None 
         if inmc is None:
             data, weight = self.model.get_weight_data(data, bg=bg)
             print("Using Model_old")
@@ -650,31 +650,33 @@ class FCN(object):
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)
 
-    # @time_print
-    def __call__(self, x={}):
+    def get_nll(self, x={}):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
         """
         self.model.set_params(x)
         if type(self.model) == Model_new:
-            nll, g = self.nll_grad(x)
+            nll, g = self.get_nll_grad(x)
         else:
             nll = self.model.nll(self.data, self.mcdata, weight=self.weight, mc_weight=self.mc_weight)
-            self.cached_nll = nll
             self.n_call += 1
-        return nll + self.gauss_constr.get_constrain_term()
+        return nll
+    def __call__(self, x={}):
+        self.cached_nll = self.get_nll(x) + self.gauss_constr.get_constrain_term()
+        return self.cached_nll
 
-    def grad(self, x={}):
+    def get_grad(self, x={}):
         """
         :param x: List. Values of variables.
         :return gradients: List of real numbers. The gradients for each variable.
         """
-        nll, g = self.nll_grad(x)
-        return g + self.gauss_constr.get_constrain_grad()
+        nll, g = self.get_nll_grad(x)
+        return g
+    def grad(self, x={}):
+        return self.get_grad(x) + self.gauss_constr.get_constrain_grad()
 
-    @time_print
-    def nll_grad(self, x={}):
+    def get_nll_grad(self, x={}):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
@@ -684,13 +686,17 @@ class FCN(object):
         nll, g = self.model.nll_grad_batch(self.batch_data, self.batch_mcdata,
                                            weight=list(data_split(self.weight, self.batch)),
                                            mc_weight=data_split(self.mc_weight, self.batch))
-        self.cached_nll = nll
         self.n_call += 1
+        return nll, g
+    @time_print
+    def nll_grad(self, x={}):
+        nll, g = self.get_nll_grad(x)
         constr = self.gauss_constr.get_constrain_term()
         constr_grad = self.gauss_constr.get_constrain_grad()
-        return nll + constr, g + constr_grad
+        self.cached_nll = nll + constr
+        return self.cached_nll, g + constr_grad
 
-    def nll_grad_hessian(self, x={}, batch=None):
+    def get_nll_grad_hessian(self, x={}, batch=None):
         """
         :param x: List. Values of variables.
         :return nll: Real number. The value of NLL.
@@ -707,7 +713,9 @@ class FCN(object):
                 batch = self.batch
             nll, g, h = self.model.nll_grad_hessian(self.data, self.mcdata,
                                                     weight=self.weight, batch=batch, mc_weight=self.mc_weight)
-        
+        return nll, g, h
+    def nll_grad_hessian(self, x={}, batch=None):
+        nll, g, h = self.get_nll_grad_hessian(x, batch)
         constr = self.gauss_constr.get_constrain_term()
         constr_grad = self.gauss_constr.get_constrain_grad()
         constr_hessian = self.gauss_constr.get_constrain_hessian()
@@ -752,9 +760,9 @@ class CombineFCN(object):
         """
         nlls = []
         for i in self.fcns:
-            nlls.append(i(x))
-        self.cached_nll = sum(nlls)
-        return self.cached_nll + self.gauss_constr.get_constrain_term()
+            nlls.append(i.get_nll(x))
+        self.cached_nll = sum(nlls) + self.gauss_constr.get_constrain_term()
+        return self.cached_nll
 
     def grad(self, x={}):
         """
@@ -763,7 +771,7 @@ class CombineFCN(object):
         """
         gs = []
         for i in self.fcns:
-            g = i.grad(x)
+            g = i.get_grad(x)
             gs.append(g)
         return sum(gs) + self.gauss_constr.get_constrain_grad()
 
@@ -777,14 +785,14 @@ class CombineFCN(object):
         nlls = []
         gs = []
         for i in self.fcns:
-            nll, g = i.nll_grad(x)
+            nll, g = i.get_nll_grad(x)
             nlls.append(nll)
             gs.append(g)
-        self.cached_nll = sum(nlls)
 
         constr = self.gauss_constr.get_constrain_term()
+        self.cached_nll = sum(nlls) + constr
         constr_grad = self.gauss_constr.get_constrain_grad()
-        return self.cached_nll + constr, sum(gs) + constr_grad
+        return self.cached_nll, tf.reduce_sum(gs,axis=0) + constr_grad
 
     def nll_grad_hessian(self, x={}, batch=None):
         """
@@ -797,14 +805,15 @@ class CombineFCN(object):
         gs = []
         hs = []
         for i in self.fcns:
-            nll, g, h = i.nll_grad_hessian(x)
+            nll, g, h = i.get_nll_grad_hessian(x)
             nlls.append(nll)
             gs.append(g)
             hs.append(h)
-        print("NLL list: ",nlls)
-        print("Gradient List: ",tf.transpose(gs))
 
         constr = self.gauss_constr.get_constrain_term()
         constr_grad = self.gauss_constr.get_constrain_grad()
         constr_hessian = self.gauss_constr.get_constrain_hessian()
-        return tf.reduce_sum(nlls,axis=0) + constr, tf.reduce_sum(gs,axis=0) + constr_grad, tf.reduce_sum(hs,axis=0) + constr_hessian
+        print("NLL list: ",nlls, constr)
+        gs.append(constr_grad)
+        print("Gradient List: ",tf.transpose(gs))
+        return tf.reduce_sum(nlls,axis=0) + constr, tf.reduce_sum(gs,axis=0), tf.reduce_sum(hs,axis=0) + constr_hessian

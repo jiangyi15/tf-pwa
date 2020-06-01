@@ -25,12 +25,14 @@ from .fit_improve import minimize as my_minimize
 from .applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
 from .fit import FitResult
 from .variable import Variable
+import copy
 
 
 class ConfigLoader(object):
     """class for loading config.yml"""
 
-    def __init__(self, file_name, vm=None):
+    def __init__(self, file_name, vm=None, share_dict={}):
+        self.share_dict = share_dict
         self.config = self.load_config(file_name)
         self.particle_key_map = {
             "Par": "P",
@@ -49,7 +51,7 @@ class ConfigLoader(object):
         }
         self.dec = self.decay_item(self.config["decay"])
         self.particle_map, self.particle_property, self.top, self.finals = self.particle_item(
-            self.config["particle"])
+            self.config["particle"], share_dict)
         self.full_decay = DecayGroup(self.get_decay_struct(
             self.dec, self.particle_map, self.particle_property, self.top, self.finals))
         self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
@@ -57,16 +59,21 @@ class ConfigLoader(object):
         self.amps = {}
         self.cached_data = None
         self.bound_dic = {}
+        self.gauss_constr_dic = {}
         self.plot_params = PlotParams(self.config["plot"], self.decay_struct)
         self._neglect_when_set_params = []
 
     @staticmethod
-    def load_config(file_name):
+    def load_config(file_name, share_dict={}):
         if isinstance(file_name, dict):
-            return file_name
-        with open(file_name) as f:
-            ret = yaml.safe_load(f)
-        return ret
+            return copy.deepcopy(file_name)
+        if isinstance(file_name, str):
+            if file_name in share_dict:
+                return ConfigLoader.load_config(share_dict[file_name])
+            with open(file_name) as f:
+                ret = yaml.safe_load(f)
+            return ret
+        raise TypeError("not support config {}".format(type(file_name)))
 
     def get_data_file(self, idx):
         if idx in self.config["data"]:
@@ -211,8 +218,8 @@ class ConfigLoader(object):
         return decs
 
     @staticmethod
-    def _do_include_dict(d, o):
-        s = ConfigLoader.load_config(o)
+    def _do_include_dict(d, o, share_dict={}):
+        s = ConfigLoader.load_config(o, share_dict)
         for i in s:
             if i not in d:
                 d[i] = s[i]
@@ -245,16 +252,16 @@ class ConfigLoader(object):
         return particle_map, particle_property
 
     @staticmethod
-    def particle_item(particle_list):
+    def particle_item(particle_list, share_dict={}):
         top = particle_list.pop("$top", None)
         finals = particle_list.pop("$finals", None)
         includes = particle_list.pop("$include", None)
         if includes:
             if isinstance(includes, list):
                 for i in includes:
-                    ConfigLoader._do_include_dict(particle_list, i)
+                    ConfigLoader._do_include_dict(particle_list, i, share_dict=share_dict)
             elif isinstance(includes, str):
-                ConfigLoader._do_include_dict(particle_list, includes)
+                ConfigLoader._do_include_dict(particle_list, includes, share_dict=share_dict)
             else:
                 raise ValueError("$include must be string or list of string not {}"
                                  .format(type(includes)))
@@ -383,18 +390,49 @@ class ConfigLoader(object):
                 i = str(p_i)
                 res_dec[i] = d
                 # free mass and width and set bounds
+                m_sigma = self.config['particle'][i].get("m_sigma", None)
+                g_sigma = self.config['particle'][i].get("g_sigma", None)
+                if "gauss_constr" in self.config['particle'][i] and self.config['particle'][i]["gauss_constr"]:
+                    if 'm' in self.config['particle'][i]["gauss_constr"]:
+                        if m_sigma is None:
+                            raise Exception("Need sigma of mass of {} when adding gaussian constraint".format(i))
+                        self.gauss_constr_dic[i+'_mass'] = (self.config['particle'][i]["m0"], m_sigma)
+                    if 'g' in self.config['particle'][i]["gauss_constr"]:
+                        if g_sigma is None:
+                            raise Exception("Need sigma of width of {} when adding gaussian constraint".format(i))
+                        self.gauss_constr_dic[i+'_width'] = (self.config['particle'][i]["g0"], g_sigma)
                 if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
                     if 'm' in self.config['particle'][i]["float"]:
                         p_i.mass.freed() # set_fix(i+'_mass',unfix=True)
-                        upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
-                        lower = self.config['particle'][i]["m_min"] if "m_min" in self.config['particle'][i] else None
+                        if "m_max" in self.config['particle'][i]:
+                            upper = self.config['particle'][i]["m_max"]
+                        elif m_sigma is not None:
+                            upper = self.config['particle'][i]["m0"] + 10 * m_sigma
+                        else:
+                            upper = None
+                        if "m_min" in self.config['particle'][i]:
+                            lower = self.config['particle'][i]["m_min"]
+                        elif m_sigma is not None:
+                            lower = self.config['particle'][i]["m0"] - 10 * m_sigma
+                        else:
+                            lower = None
                         self.bound_dic[p_i.mass.name] = (lower,upper)
                     else:
                         self._neglect_when_set_params.append(p_i.mass.name)
                     if 'g' in self.config['particle'][i]["float"]:
                         p_i.width.freed() # amp.vm.set_fix(i+'_width',unfix=True)
-                        upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
-                        lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
+                        if "g_max" in self.config['particle'][i]:
+                            upper = self.config['particle'][i]["g_max"]
+                        elif g_sigma is not None:
+                            upper = self.config['particle'][i]["g0"] + 10 * g_sigma
+                        else:
+                            upper = None
+                        if "g_min" in self.config['particle'][i]:
+                            lower = self.config['particle'][i]["g_min"]
+                        elif g_sigma is not None:
+                            lower = self.config['particle'][i]["g0"] - 10 * g_sigma
+                        else:
+                            lower = None
                         self.bound_dic[p_i.width.name] = (lower,upper)
                     else:
                         self._neglect_when_set_params.append(p_i.width.name)
@@ -451,10 +489,13 @@ class ConfigLoader(object):
                 print("background weight:", w_bkg)
         return w_bkg, w_inmc
 
-    def get_fcn(self, batch=65000, vm=None, name=""):
+    def get_fcn(self, all_data=None, batch=65000, vm=None, name=""):
         model = self.get_model()
-        data, phsp, bg, inmc = self.get_all_data()
-        fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
+        if all_data is None:
+            data, phsp, bg, inmc = self.get_all_data()
+        else:
+            data, phsp, bg, inmc = all_data
+        fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc, gauss_constr=self.gauss_constr_dic)
         """model = self.get_model(vm, name="")
         for i in self.full_decay:
             print(i)
@@ -486,20 +527,20 @@ class ConfigLoader(object):
 
     @time_print
     def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False):
-        model = self.get_model()
-
-        if data is None and phsp is None:
-            data, phsp, bg, inmc = self.get_all_data()
+        #model = self.get_model()
+        fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
+        #if data is None and phsp is None:
+        #    data, phsp, bg, inmc = self.get_all_data()
         print("decay chains included: ")
         for i in self.full_decay:
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
         if reweight:
-            ConfigLoader.reweight_init_value(model.Amp, phsp, ns=data_shape(data))
-        fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
+            ConfigLoader.reweight_init_value(fcn.model.Amp, phsp, ns=data_shape(data))
+        #fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
 
         print("\n########### initial parameters")
-        print(json.dumps(model.get_params(), indent=2))
+        print(json.dumps(fcn.model.get_params(), indent=2))
         print("initial NLL: ", fcn.nll_grad()[0]) # model.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
@@ -509,11 +550,12 @@ class ConfigLoader(object):
     def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
         if params is None:
             params = {}
-        if data is None:
-            data, phsp, bg, inmc = self.get_all_data()
+        #if data is None:
+        #    data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch, inmc=inmc)
+        #fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch, inmc=inmc)
+        fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
         #print("parameters order")
         #print(fcn.model.Amp.vm.trainable_vars)
@@ -767,15 +809,16 @@ def validate_file_name(s):
 
 
 class MultiConfig(object):
-    def __init__(self, file_names, vm=None, total_same=False):
+    def __init__(self, file_names, vm=None, total_same=False, share_dict={}):
         if vm is None:
             self.vm = VarsManager()
             print(self.vm)
         else:
             self.vm = vm
         self.total_same = total_same
-        self.configs = [ConfigLoader(i, vm=self.vm) for i in file_names]
+        self.configs = [ConfigLoader(i, vm=self.vm, share_dict=share_dict) for i in file_names]
         self.bound_dic = {}
+        self.gauss_constr_dic = {}
         self._neglect_when_set_params = []
 
     def get_amplitudes(self, vm=None):
@@ -786,6 +829,7 @@ class MultiConfig(object):
             amps = [j.get_amplitude(vm=vm) for j in self.configs]
         for i in self.configs:
             self.bound_dic.update(i.bound_dic)
+            self.gauss_constr_dic.update(i.gauss_constr_dic)
             for j in i._neglect_when_set_params:
                 if j not in self._neglect_when_set_params:
                     self._neglect_when_set_params.append(j)
@@ -799,17 +843,24 @@ class MultiConfig(object):
             models = [j.get_model(vm=vm) for j in self.configs]
         return models
 
-    def get_fcns(self, vm=None, batch=65000):
-        if not self.total_same:
-            fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch)
-                    for i, j in enumerate(self.configs)]
+    def get_fcns(self, datas=None, vm=None, batch=65000):
+        if datas is not None:
+            if not self.total_same:
+                fcns = [i[1].get_fcn(name="s"+str(i[0]), all_data=j, vm=vm, batch=batch)
+                        for i, j in zip(enumerate(self.configs), datas)]
+            else:
+                fcns = [j.get_fcn(all_data=data, vm=vm, batch=batch) for data, j in zip(datas, self.configs)]
         else:
-            fcns = [j.get_fcn(vm=vm, batch=batch) for j in self.configs]
+            if not self.total_same:
+                fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch)
+                        for i, j in enumerate(self.configs)]
+            else:
+                fcns = [j.get_fcn(vm=vm, batch=batch) for j in self.configs]
         return fcns
 
-    def get_fcn(self, vm=None, batch=65000):
-        fcns = self.get_fcns(vm=vm, batch=batch)
-        return CombineFCN(fcns=fcns)
+    def get_fcn(self, datas=None, vm=None, batch=65000):
+        fcns = self.get_fcns(datas=datas, vm=vm, batch=batch)
+        return CombineFCN(fcns=fcns, gauss_constr=self.gauss_constr_dic)
 
     def get_args_value(self, bounds_dict):
         args = {}
@@ -828,8 +879,8 @@ class MultiConfig(object):
 
         return args_name, x0, args, bnds
 
-    def fit(self, batch=65000, method="BFGS"):
-        fcn = self.get_fcn()
+    def fit(self, datas=None, batch=65000, method="BFGS"):
+        fcn = self.get_fcn(datas=datas)
         #fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2))
@@ -908,7 +959,7 @@ class MultiConfig(object):
         return err
 
     def get_params(self, trainable_only=True):
-        _amps = self.get_amplitudes()
+        # _amps = self.get_fcn()
         return self.vm.get_all_dic(trainable_only)
 
     def set_params(self, params, neglect_params=None):

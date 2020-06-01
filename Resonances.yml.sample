@@ -18,13 +18,15 @@ D2_2460: {
   # parity [required]
   Par: 1, 
   # resonance mass  : m_0 [required]
-  m0: 2.4607, 
-  m_max: 2.4611, m_min: 2.4603,
+  m0: 2.4607, # m_sigma: 0.1, 
+  m_max: 2.4611, m_min: 2.4603, # if max or min is not given, it will be +- 10*sigma
   # resonance width : \Gamma_0 [required]
-  g0: 0.0475, 
-  g_max: 0.0486, g_min: 0.0464,
+  g0: 0.0475, # m_sigma: 0.01, 
+  g_max: 0.0486, g_min: 0.0464, # if max or min is not given, it will be +- 10*sigma
   # set mass and gamma as variables
   #float: mg,
+  # add gaussian constraint term (e.g. mean = m0, sigma = m_sigma)
+  #gauss_constr: mg,
   # Breit Wigner formula [option]
   bw: default,
   # order of the fixed amplitudes
