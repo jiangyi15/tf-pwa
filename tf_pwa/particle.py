@@ -61,7 +61,7 @@ class BaseParticle(object):
     :param mass: Real variable
     :param width: Real variable
     """
-    def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None, id_=None, **kwargs):
+    def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None, id_=None, disable=False, **kwargs):
         self.set_name(name, id_)
         self.decay = []  # list of Decay
         self.creators = []  # list of Decay which creates the particle
@@ -74,6 +74,7 @@ class BaseParticle(object):
         self.spins = tuple(spins)
         self.mass = mass
         self.width = width
+        self.disable = disable
         for k, v in kwargs.items():
             setattr(self, k, v)
     
@@ -169,7 +170,7 @@ def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
     """
     The :math:`L-S` coupling for the decay :math:`A\\rightarrow BC`, where :math:`L` is the orbital
     angular momentum of :math:`B` and :math:`B`, and :math:`S` is the superposition of their spins.
-    It's required that :math:`|J_B-J_C|<S<J_B+J_C` and :math:`|L-S|<J_A<L+S`. It's also required by the conservation of
+    It's required that :math:`|J_B-J_C|\leq S \leq J_B+J_C` and :math:`|L-S|\leq J_A \leq L+S`. It's also required by the conservation of
     parity that :math:`L` is even if :math:`P_A P_B P_C=1`; otherwise :math:`L` is odd.
 
     :param ja: `J` of particle `A`
@@ -234,6 +235,11 @@ class BaseDecay(object):
         self.core = core
         self.outs = tuple(outs)
         self.p_break = p_break
+        if hasattr(self.core, "disable") and self.core.disable:
+            disable = True
+        for i in self.outs:
+            if hasattr(i, "disable") and i.disable:
+                disable = True
         if not disable:
             self.core.add_decay(self)
             for i in outs:

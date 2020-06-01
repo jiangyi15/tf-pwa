@@ -7,16 +7,10 @@
 # quotation marks are option
 # head resonance will has head fixed to 1.0
 D2_2460: {
-  # id for the decay chain position
-  # A -> (BD) C : chain < 0
-  # A -> (BC) D : 0 < chain < 100
-  # A -> (CD) B : 100< chain < 200
-  # [required]
-  Chain: 21, 
   # spin [required]
   J: 2, 
   # parity [required]
-  Par: 1, 
+  P: 1, 
   # resonance mass  : m_0 [required]
   m0: 2.4607, # m_sigma: 0.1, 
   m_max: 2.4611, m_min: 2.4603, # if max or min is not given, it will be +- 10*sigma
@@ -29,10 +23,8 @@ D2_2460: {
   #gauss_constr: mg,
   # Breit Wigner formula [option]
   bw: default,
-  # order of the fixed amplitudes
-  const: [0,0],
-  # fixed total amplitude (rho,phi) [option]
-  total: 1.0,
+  # where used in decay
+  disable: False
 }
 
 #other resonance
