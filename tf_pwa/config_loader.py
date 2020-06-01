@@ -58,6 +58,7 @@ class ConfigLoader(object):
         self.cached_data = None
         self.bound_dic = {}
         self.plot_params = PlotParams(self.config["plot"], self.decay_struct)
+        self._neglect_when_set_params = []
 
     @staticmethod
     def load_config(file_name):
@@ -388,11 +389,18 @@ class ConfigLoader(object):
                         upper = self.config['particle'][i]["m_max"] if "m_max" in self.config['particle'][i] else None
                         lower = self.config['particle'][i]["m_min"] if "m_min" in self.config['particle'][i] else None
                         self.bound_dic[p_i.mass.name] = (lower,upper)
+                    else:
+                        self._neglect_when_set_params.append(p_i.mass.name)
                     if 'g' in self.config['particle'][i]["float"]:
                         p_i.width.freed() # amp.vm.set_fix(i+'_width',unfix=True)
                         upper = self.config['particle'][i]["g_max"] if "g_max" in self.config['particle'][i] else None
                         lower = self.config['particle'][i]["g_min"] if "g_min" in self.config['particle'][i] else None
                         self.bound_dic[p_i.width.name] = (lower,upper)
+                    else:
+                        self._neglect_when_set_params.append(p_i.width.name)
+                else:
+                    self._neglect_when_set_params.append(i+'_mass') #p_i.mass.name
+                    self._neglect_when_set_params.append(i+'_width') #p_i.width.name
                 # share helicity variables 
                 if "coef_head" in self.config['particle'][i]:
                     coef_head = self.config['particle'][i]["coef_head"]
@@ -479,6 +487,9 @@ class ConfigLoader(object):
     @time_print
     def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False):
         model = self.get_model()
+
+        #model.gauss_constr.update({"Ds1_2860p_mass":(2.759, 0.1)})
+
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
         print("decay chains included: ")
@@ -731,7 +742,7 @@ class ConfigLoader(object):
     def get_params(self, trainable_only=False):
         return self.get_amplitude().get_params(trainable_only)
 
-    def set_params(self, params, neglect_mg=True):
+    def set_params(self, params, neglect_params=None):
         if isinstance(params, str):
             with open(params) as f:
                 params = yaml.safe_load(f)
@@ -741,10 +752,12 @@ class ConfigLoader(object):
             if "value" in params:
                 params = params["value"]
         ret = params.copy()
-        if neglect_mg:
-            warnings.warn("Neglect parameters mass and width from input values.")
+        if neglect_params is None:
+            neglect_params = self._neglect_when_set_params
+        if neglect_params.__len__() is not 0:
+            warnings.warn("Neglect {} when setting params.".format(neglect_params))
             for v in params:
-                if v[-5:] == "_mass" or v[-6:] == "_width":
+                if v in self._neglect_when_set_params:
                     del ret[v]
         self.get_amplitude().set_params(ret)
 
@@ -765,6 +778,7 @@ class MultiConfig(object):
         self.total_same = total_same
         self.configs = [ConfigLoader(i, vm=self.vm) for i in file_names]
         self.bound_dic = {}
+        self._neglect_when_set_params = []
 
     def get_amplitudes(self, vm=None):
         if not self.total_same:
@@ -774,6 +788,9 @@ class MultiConfig(object):
             amps = [j.get_amplitude(vm=vm) for j in self.configs]
         for i in self.configs:
             self.bound_dic.update(i.bound_dic)
+            for j in i._neglect_when_set_params:
+                if j not in self._neglect_when_set_params:
+                    self._neglect_when_set_params.append(j)
         return amps
 
     def get_models(self, vm=None):
@@ -895,7 +912,7 @@ class MultiConfig(object):
         _amps = self.get_amplitudes()
         return self.vm.get_all_dic(trainable_only)
 
-    def set_params(self, params, neglect_mg=True):
+    def set_params(self, params, neglect_params=None):
         _amps = self.get_amplitudes()
         if isinstance(params, str):
             with open(params) as f:
@@ -906,10 +923,12 @@ class MultiConfig(object):
             if "value" in params:
                 params = params["value"]
         ret = params.copy()
-        if neglect_mg:
-            warnings.warn("Neglect parameters mass and width from input values.")
+        if neglect_params is None:
+            neglect_params = self._neglect_when_set_params
+        if neglect_params.__len__() is not 0:
+            warnings.warn("Neglect {} when setting params.".format(neglect_params))
             for v in params:
-                if v[-5:] == "_mass" or v[-6:] == "_width":
+                if v in self._neglect_when_set_params:
                     del ret[v]
         self.vm.set_all(ret)
 

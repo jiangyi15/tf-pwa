@@ -452,6 +452,9 @@ class GaussianConstr(object):
         self.Amp = amp
         self.constraint = constraint
     
+    def update(self, constraint={}):
+        self.constraint.update(constraint)
+
     def get_constrain_term(self):
         r"""
         constraint: Gauss(mean,sigma) 
@@ -459,7 +462,7 @@ class GaussianConstr(object):
         """
         term = 0.0
         for i in self.constraint:
-            if not i in self.Amp.trainable_vars:
+            if not i in self.Amp.vm.trainable_vars:
                 warnings.warn("Constraint {} is useless to fitting because it's not trainable".format(i))
             pi = self.constraint[i]
             assert isinstance(pi, tuple) or isinstance(pi, list)
@@ -476,7 +479,7 @@ class GaussianConstr(object):
         """
         g_dict = {}
         for i in self.constraint:
-            if not i in self.Amp.trainable_vars:
+            if not i in self.Amp.vm.trainable_vars:
                 continue
             pi = self.constraint[i]
             assert isinstance(pi, tuple) or isinstance(pi, list)
@@ -485,18 +488,18 @@ class GaussianConstr(object):
             var = self.Amp.variables[i]
             g_dict[i] = (var - mean) / (sigma ** 2)  # 1st differentiation
         grad = []
-        for i in self.Amp.trainable_vars:
+        for i in self.Amp.vm.trainable_vars:
             if i in g_dict:
                 grad.append(g_dict[i])
             else:
                 grad.append(0.0)
-        return grad
+        return np.array(grad)
 
     def get_constrain_hessian(self):
         """the constrained parameter's 2nd differentiation"""
         h_dict = {}
         for i in self.constraint:
-            if not i in self.Amp.trainable_vars:
+            if not i in self.Amp.vm.trainable_vars:
                 continue
             pi = self.constraint[i]
             assert isinstance(pi, tuple) or isinstance(pi, list)
@@ -504,12 +507,12 @@ class GaussianConstr(object):
             mean, sigma = pi
             var = self.Amp.variables[i]
             h_dict[i] = 1 / (sigma ** 2)  # 2nd differentiation
-        nv = len(self.Amp.trainable_vars)
+        nv = len(self.Amp.vm.trainable_vars)
         hessian = np.zeros([nv, nv])
-        for v, i in zip(self.Amp.trainable_vars, range(nv)):
+        for v, i in zip(self.Amp.vm.trainable_vars, range(nv)):
             if v in h_dict:
                 hessian[i, i] = h_dict[v]
-        return hessian
+        return np.array(hessian)
 
 
 class ConstrainModel(Model):
