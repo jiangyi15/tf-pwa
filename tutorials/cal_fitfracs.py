@@ -34,7 +34,7 @@ def cal_fitfractions(params_file):
             name = "{}x{}".format(*i) # interference term
         else:
             name = i # fit fraction
-        fit_frac_string += "{}: {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
+        fit_frac_string += "{} {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
     print(fit_frac_string)
     print("########## fit fractions table:")
     print_frac_table(fit_frac_string) # print the fit-fractions as a 2-D table. The codes below are just to implement the print function.
