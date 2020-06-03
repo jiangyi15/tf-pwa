@@ -190,8 +190,11 @@ class ConfigLoader(object):
 
     def get_phsp_noeff(self):
         if "phsp_noeff" in self.config["data"]:
-            return self.get_data("phsp_noeff")
-        return self.get_data("phsp")
+            phsp_noeff = self.get_data("phsp_noeff")
+            assert len(phsp_noeff) == 1
+            return phsp_noeff[0]
+        warnings.warn("No data file as 'phsp_noeff', using the first 'phsp' file instead.")
+        return self.get_data("phsp")[0]
 
     def get_phsp_plot(self):
         if "phsp_plot" in self.config["data"]:
@@ -591,20 +594,29 @@ class ConfigLoader(object):
             self.fit_params.set_error(err)
         return err
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", 
-                          plot_delta=False, plot_pull=False, save_pdf=False, save_root=False, bin_scale=3):
-        if not os.path.exists(prefix):
-            os.mkdir(prefix)
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", **kwargs):
         if params is None:
             params = {}
-        if data is None:
-            data = self.get_data("data")
-            bg = self.get_data("bg")
-            phsp = self.get_phsp_plot()
-        print("$$$$$")
-        exit()
         if hasattr(params, "params"):
             params = getattr(params, "params")
+        pathes = prefix.split('/')
+        path = ""
+        for p in pathes:
+            path += p+'/'
+            if not os.path.exists(path):
+                os.mkdir(path)
+        if data is None:
+            datas = self.get_data("data")
+            bgs = self.get_data("bg")
+            phsps = self.get_phsp_plot()
+        Ngroup_data = len(datas)
+        if Ngroup_data == 1:
+            self._plot_partial_wave(params, datas[0], phsps[0], bgs[0], path, **kwargs)
+        else:
+            for data, bg, phsp, i in zip(datas, bgs, phsps, range(Ngroup_data)):
+                self._plot_partial_wave(params, data, phsp, bg, path + 'd{}_'.format(i), **kwargs)
+    def _plot_partial_wave(self, params, data, phsp, bg, prefix, 
+                          plot_delta=False, plot_pull=False, save_pdf=False, save_root=False, bin_scale=3):
         amp = self.get_amplitude()
         w_bkg, w_inmc = self.get_bg_weight(data, bg)
         #cmap = plt.get_cmap("jet")
