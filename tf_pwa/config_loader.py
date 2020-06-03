@@ -122,18 +122,24 @@ class ConfigLoader(object):
         order = self.get_dat_order()
         center_mass = self.config["data"].get("center_mass", True)
         r_boost = self.config["data"].get("r_boost", False)
-        data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass, r_boost=r_boost)
+        if isinstance(files[0], str):
+            files = [files]
+        datas = [prepare_data_from_decay(f, self.decay_struct, order, center_mass=center_mass, r_boost=r_boost) for f in files]
         if idx == "bg":
-            return data
-        weight = self.config["data"].get(idx+"_weight", None)
-        if weight is not None:
-            if isinstance(weight, float):
-                data["weight"] = np.array([weight] * data_shape(data))
-            else:  # weight files
-                weight = self.load_weight_file(weight)
-                data["weight"] = weight[:data_shape(data)]
+            return datas
+        weights = self.config["data"].get(idx+"_weight", None)
+        if weights is not None:
+            if not isinstance(weights, list):
+                weights = [weights]
+            assert len(datas) == len(weights)
+            for data, weight in zip(datas, weights):
+                if isinstance(weight, float):
+                    data["weight"] = np.array([weight] * data_shape(data))
+                else:  # weight files
+                    weight = self.load_weight_file(weight)
+                    data["weight"] = weight[:data_shape(data)]
         # print(data.keys())
-        return data
+        return datas
 
     def load_weight_file(self, weight_files):
         ret = []
@@ -170,9 +176,17 @@ class ConfigLoader(object):
     def get_all_data(self):
         datafile = ["data", "phsp", "bg", "inmc"]
         self.load_cached_data()
-        all_data = [self.get_data(i) for i in datafile]
-        self.save_cached_data(dict(zip(datafile, all_data)))
-        return all_data
+        data, phsp, bg, inmc = [self.get_data(i) for i in datafile]
+        Ngroup_data = len(data)
+        assert len(phsp) == Ngroup_data
+        if bg is None:
+            bg = [None] * Ngroup_data
+        if inmc is None:
+            inmc = [None] * Ngroup_data
+        assert len(bg) == Ngroup_data
+        assert len(inmc) == Ngroup_data
+        self.save_cached_data(dict(zip(datafile, [data, phsp, bg, inmc])))
+        return data, phsp, bg, inmc
 
     def get_phsp_noeff(self):
         if "phsp_noeff" in self.config["data"]:
@@ -181,6 +195,7 @@ class ConfigLoader(object):
 
     def get_phsp_plot(self):
         if "phsp_plot" in self.config["data"]:
+            assert len(self.config["data"]["phsp_plot"]) == len(self.config["data"]["phsp"])
             return self.get_data("phsp_plot")
         return self.get_data("phsp")
 
@@ -480,7 +495,7 @@ class ConfigLoader(object):
     def get_bg_weight(self, data=None, bg=None, display=True):
         w_bkg = self.config["data"].get("bg_weight", 0.0)
         w_inmc = self.config["data"].get("inject_ratio", 0.0)
-        weight_scale = self.config["data"].get("weight_scale", False)
+        weight_scale = self.config["data"].get("weight_scale", False) #???
         if weight_scale:
             data = data if data is not None else self.get_data("data")
             bg = bg if bg is not None else self.get_data("bg")
@@ -495,12 +510,18 @@ class ConfigLoader(object):
             data, phsp, bg, inmc = self.get_all_data()
         else:
             data, phsp, bg, inmc = all_data
-        fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc, gauss_constr=self.gauss_constr_dic)
+        fcns = []
+        for dt, mc, sb, ij in zip(data, phsp, bg, inmc):
+            fcns.append(FCN(model, dt, mc, bg=sb, batch=batch, inmc=ij, gauss_constr=self.gauss_constr_dic))
         """model = self.get_model(vm, name="")
         for i in self.full_decay:
             print(i)
         data, phsp, bg, inmc = self.get_all_data()
         fcn = FCN(model, data, phsp, bg=bg, inmc=inmc, batch=batch)"""
+        if len(fcns) == 1:
+            fcn = fcns[0]
+        else:
+            fcn = CombineFCN(fcns=fcns, gauss_constr=self.gauss_constr_dic)
         return fcn
     
     def get_ndf(self):
@@ -530,18 +551,19 @@ class ConfigLoader(object):
         #model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
+        model = self.get_model()
         fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         print("decay chains included: ")
         for i in self.full_decay:
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
         if reweight:
-            ConfigLoader.reweight_init_value(fcn.model.Amp, phsp, ns=data_shape(data))
+            ConfigLoader.reweight_init_value(model.Amp, phsp, ns=data_shape(data))
         #fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
 
         print("\n########### initial parameters")
-        print(json.dumps(fcn.model.get_params(), indent=2))
-        print("initial NLL: ", fcn.nll_grad()[0]) # model.get_params()))
+        print(json.dumps(model.get_params(), indent=2))
+        print("initial NLL: ", fcn({})) # model.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
         self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False)
@@ -564,7 +586,7 @@ class ConfigLoader(object):
         #print("correlation matrix:")
         #print(corr_coef_matrix(self.inv_he))
         print("hesse_error:", hesse_error)
-        err = dict(zip(fcn.model.Amp.vm.trainable_vars, hesse_error))
+        err = dict(zip(fcn.vm.trainable_vars, hesse_error))
         if hasattr(self, "fit_params"):
             self.fit_params.set_error(err)
         return err
@@ -579,6 +601,8 @@ class ConfigLoader(object):
             data = self.get_data("data")
             bg = self.get_data("bg")
             phsp = self.get_phsp_plot()
+        print("$$$$$")
+        exit()
         if hasattr(params, "params"):
             params = getattr(params, "params")
         amp = self.get_amplitude()
