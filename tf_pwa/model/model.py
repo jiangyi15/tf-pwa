@@ -345,7 +345,7 @@ class Model_new(Model):
     def __init__(self, amp, w_bkg=1.0, w_inmc=0, float_wmc=False):
         super(Model_new, self).__init__(amp, w_bkg)
         #self.w_inmc = w_inmc
-        self.w_inmc = Variable("weight_injectMC", value=w_inmc, vm=self.Amp.vm)
+        self.w_inmc = Variable("weight_injectMC", value=w_inmc, vm=self.Amp.vm, overwrite=False)
         if not float_wmc:
             self.w_inmc.fixed()
 

@@ -20,7 +20,7 @@ from .significance import significance
 from .utils import error_print, std_periodic_var, check_positive_definite
 
 
-def fit_fractions(model, mcdata, inv_he=None, params=None, batch=25000):
+def fit_fractions(amp, mcdata, inv_he=None, params=None, batch=25000):
     """
     This function calculate fit fractions of the resonances as well as their coherent pairs. It imports
     ``cal_fitfractions`` and ``cal_fitfractions_no_grad`` from module **tf_pwa.fitfractions**.
@@ -35,7 +35,7 @@ def fit_fractions(model, mcdata, inv_he=None, params=None, batch=25000):
 
     .. math:: \\frac{\\partial }{\\partial \\theta_i }\\frac{f(\\theta_i)}{g(\\theta_i)} = \\frac{\\partial f(\\theta_i)}{\\partial \\theta_i} \\frac{1}{g(\\theta_i)} - \\frac{\\partial g(\\theta_i)}{\\partial \\theta_i} \\frac{f(\\theta_i)}{g^2(\\theta_i)}
 
-    :param model: Model object.
+    :param amp: Amplitude object.
     :param mcdata: MCdata array.
     :param inv_he: The inverse of Hessian matrix. If it's not given, the errors will not be calculated.
     :return frac: Dictionary of fit fractions for each resonance.
@@ -44,8 +44,8 @@ def fit_fractions(model, mcdata, inv_he=None, params=None, batch=25000):
     if params is None:
         params = {}
     err_frac = {}
-    with model.Amp.temp_params(params):
-        frac, grad = cal_fitfractions(model.Amp, mcdata, batch=batch)
+    with amp.temp_params(params):
+        frac, grad = cal_fitfractions(amp, mcdata, batch=batch)
     if inv_he is not None:
         for i in frac:
             err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))

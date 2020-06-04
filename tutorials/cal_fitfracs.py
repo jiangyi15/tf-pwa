@@ -26,7 +26,7 @@ def cal_fitfractions(params_file):
     config.get_params_error(params)
 
     mcdata = config.get_phsp_noeff() # use the file of PhaseSpace MC without efficiency indicated in config.yml
-    fit_frac, err_frac = fit_fractions(config.get_model(), mcdata, config.inv_he, params)
+    fit_frac, err_frac = fit_fractions(config.get_amplitude(), mcdata, config.inv_he, params)
     print("########## fit fractions:")
     fit_frac_string = ""
     for i in fit_frac:

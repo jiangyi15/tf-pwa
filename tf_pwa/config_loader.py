@@ -177,14 +177,14 @@ class ConfigLoader(object):
         datafile = ["data", "phsp", "bg", "inmc"]
         self.load_cached_data()
         data, phsp, bg, inmc = [self.get_data(i) for i in datafile]
-        Ngroup_data = len(data)
-        assert len(phsp) == Ngroup_data
+        self._Ngroup = len(data)
+        assert len(phsp) == self._Ngroup
         if bg is None:
-            bg = [None] * Ngroup_data
+            bg = [None] * self._Ngroup
         if inmc is None:
-            inmc = [None] * Ngroup_data
-        assert len(bg) == Ngroup_data
-        assert len(inmc) == Ngroup_data
+            inmc = [None] * self._Ngroup
+        assert len(bg) == self._Ngroup
+        assert len(inmc) == self._Ngroup
         self.save_cached_data(dict(zip(datafile, [data, phsp, bg, inmc])))
         return data, phsp, bg, inmc
 
@@ -488,21 +488,36 @@ class ConfigLoader(object):
     def get_model(self, vm=None, name=""):
         amp = self.get_amplitude(vm=vm, name=name)
         w_bkg, w_inmc = self.get_bg_weight()
+        model = []
         if "inmc" in self.config["data"]:
             float_wmc = self.config["data"].get("float_inmc_ratio_in_pdf", False)
-            model = Model_new(amp, w_bkg, w_inmc, float_wmc)
+            if not isinstance(float_wmc, list):
+                float_wmc = [float_wmc] * self._Ngroup
+            assert len(float_wmc) == self._Ngroup
+            for wb, wi, fw in zip(w_bkg, w_inmc, float_wmc):
+                model.append(Model_new(amp, wb, wi, fw))
         else:
-            model = Model(amp, w_bkg)
+            for wb in w_bkg:
+                model.append(Model(amp, wb))
         return model
     
     def get_bg_weight(self, data=None, bg=None, display=True):
         w_bkg = self.config["data"].get("bg_weight", 0.0)
+        if not isinstance(w_bkg, list):
+            w_bkg = [w_bkg] * self._Ngroup
+        assert len(w_bkg) == self._Ngroup
         w_inmc = self.config["data"].get("inject_ratio", 0.0)
+        if not isinstance(w_inmc, list):
+            w_inmc = [w_inmc] * self._Ngroup
+        assert len(w_inmc) == self._Ngroup
         weight_scale = self.config["data"].get("weight_scale", False) #???
         if weight_scale:
             data = data if data is not None else self.get_data("data")
             bg = bg if bg is not None else self.get_data("bg")
-            w_bkg = w_bkg * data_shape(data) / data_shape(bg)
+            tmp = []
+            for wb, dt, sb in zip(w_bkg, data, bg):
+                tmp.append(wb * data_shape(dt) / data_shape(sb))
+            w_bkg = tmp
             if display:
                 print("background weight:", w_bkg)
         return w_bkg, w_inmc
@@ -514,13 +529,8 @@ class ConfigLoader(object):
         else:
             data, phsp, bg, inmc = all_data
         fcns = []
-        for dt, mc, sb, ij in zip(data, phsp, bg, inmc):
-            fcns.append(FCN(model, dt, mc, bg=sb, batch=batch, inmc=ij, gauss_constr=self.gauss_constr_dic))
-        """model = self.get_model(vm, name="")
-        for i in self.full_decay:
-            print(i)
-        data, phsp, bg, inmc = self.get_all_data()
-        fcn = FCN(model, data, phsp, bg=bg, inmc=inmc, batch=batch)"""
+        for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
+            fcns.append(FCN(md, dt, mc, bg=sb, batch=batch, inmc=ij, gauss_constr=self.gauss_constr_dic))
         if len(fcns) == 1:
             fcn = fcns[0]
         else:
@@ -528,8 +538,8 @@ class ConfigLoader(object):
         return fcn
     
     def get_ndf(self):
-        model = self.get_model()
-        args_name = model.Amp.vm.trainable_vars
+        amp = self.get_amplitude()
+        args_name = amp.vm.trainable_vars
         return len(args_name)
 
     @staticmethod
@@ -551,22 +561,20 @@ class ConfigLoader(object):
 
     @time_print
     def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False):
-        #model = self.get_model()
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
-        model = self.get_model()
+        amp = self.get_amplitude()
         fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         print("decay chains included: ")
         for i in self.full_decay:
             ls_list = [getattr(j, "get_ls_list", lambda x:None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
         if reweight:
-            ConfigLoader.reweight_init_value(model.Amp, phsp, ns=data_shape(data))
-        #fcn = FCN(model, data, phsp, bg=bg, batch=batch, inmc=inmc)
+            ConfigLoader.reweight_init_value(amp, phsp, ns=data_shape(data))
 
         print("\n########### initial parameters")
-        print(json.dumps(model.get_params(), indent=2))
-        print("initial NLL: ", fcn({})) # model.get_params()))
+        print(json.dumps(amp.get_params(), indent=2))
+        print("initial NLL: ", fcn({})) # amp.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
         self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False)
@@ -579,7 +587,6 @@ class ConfigLoader(object):
             data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        #fcn = FCN(self.get_model(), data, phsp, bg=bg, batch=batch, inmc=inmc)
         fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
         #print("parameters order")
@@ -609,16 +616,16 @@ class ConfigLoader(object):
             datas = self.get_data("data")
             bgs = self.get_data("bg")
             phsps = self.get_phsp_plot()
-        Ngroup_data = len(datas)
-        if Ngroup_data == 1:
-            self._plot_partial_wave(params, datas[0], phsps[0], bgs[0], path, **kwargs)
-        else:
-            for data, bg, phsp, i in zip(datas, bgs, phsps, range(Ngroup_data)):
-                self._plot_partial_wave(params, data, phsp, bg, path + 'd{}_'.format(i), **kwargs)
-    def _plot_partial_wave(self, params, data, phsp, bg, prefix, 
-                          plot_delta=False, plot_pull=False, save_pdf=False, save_root=False, bin_scale=3):
         amp = self.get_amplitude()
-        w_bkg, w_inmc = self.get_bg_weight(data, bg)
+        ws_bkg, ws_inmc = self.get_bg_weight(datas, bgs)
+        if self._Ngroup == 1:
+            self._plot_partial_wave(amp, params, datas[0], phsps[0], bgs[0], ws_bkg[0], path, **kwargs)
+        else:
+            for data, phsp, bg, w_bkg, i in zip(datas, phsps, bgs, ws_bkg, range(self._Ngroup)):
+                data_dict, phsp_dict, bg_dict = self._plot_partial_wave(amp, params, data, phsp, bg, w_bkg, path + 'd{}_'.format(i), **kwargs)
+
+    def _plot_partial_wave(self, amp, params, data, phsp, bg, w_bkg, prefix, 
+                          plot_delta=False, plot_pull=False, save_pdf=False, save_root=False, bin_scale=3):
         #cmap = plt.get_cmap("jet")
         #N = 10
         #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
@@ -789,6 +796,8 @@ class ConfigLoader(object):
         if has_uproot and save_root:
             save_dict_to_root([data_dict, phsp_dict, bg_dict], file_name=prefix+"variables.root", tree_name=["data", "fitted", "sideband"])
             print("Save root file "+prefix+"variables.root")
+        return data_dict, phsp_dict, bg_dict
+
 
     def get_chain(self, idx):
         decay_group = self.full_decay
@@ -815,8 +824,8 @@ class ConfigLoader(object):
             params = getattr(params, "params")
         if mcdata is None:
             mcdata = self.get_phsp_noeff()
-        model = self.get_model()
-        frac, err_frac = fit_fractions(model, mcdata, self.inv_he, params, batch)
+        amp = self.get_amplitude()
+        frac, err_frac = fit_fractions(amp, mcdata, self.inv_he, params, batch)
         return frac, err_frac
 
     def get_params(self, trainable_only=False):
@@ -875,7 +884,7 @@ class MultiConfig(object):
                 if j not in self._neglect_when_set_params:
                     self._neglect_when_set_params.append(j)
         return amps
-
+    '''
     def get_models(self, vm=None):
         if not self.total_same:
             models = [j.get_model(name="s"+str(i), vm=vm)
@@ -883,7 +892,7 @@ class MultiConfig(object):
         else:
             models = [j.get_model(vm=vm) for j in self.configs]
         return models
-
+    '''
     def get_fcns(self, datas=None, vm=None, batch=65000):
         if datas is not None:
             if not self.total_same:
