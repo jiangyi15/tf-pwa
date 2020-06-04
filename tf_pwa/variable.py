@@ -754,10 +754,22 @@ class Variable(object):
         for i in self.vm.var_head:
             if i.name == self.name:
                 if not overwrite:
-                    warnings.warn("Overwrite Variable {}!".format(i.name))
-                for j in self.vm.var_head[i]:
-                    self.vm.remove_var(j)
-                del self.vm.var_head[i]
+                    ex = 1
+                    while True:
+                        ex_name = i.name+"_"+str(ex)
+                        judg = True
+                        for ii in self.vm.var_head:
+                            if ii.name == ex_name:
+                                ex += 1
+                                judg = False
+                                break
+                        if judg:
+                            break
+                    self.name = ex_name
+                else:
+                    for j in self.vm.var_head[i]:
+                        self.vm.remove_var(j)
+                    del self.vm.var_head[i]
                 break
         self.vm.var_head[self] = []
         if type(shape) == int:
