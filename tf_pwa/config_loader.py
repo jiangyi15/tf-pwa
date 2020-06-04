@@ -523,11 +523,12 @@ class ConfigLoader(object):
         return w_bkg, w_inmc
 
     def get_fcn(self, all_data=None, batch=65000, vm=None, name=""):
-        model = self.get_model()
         if all_data is None:
             data, phsp, bg, inmc = self.get_all_data()
         else:
             data, phsp, bg, inmc = all_data
+        self._Ngroup = len(data)
+        model = self.get_model()
         fcns = []
         for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
             fcns.append(FCN(md, dt, mc, bg=sb, batch=batch, inmc=ij, gauss_constr=self.gauss_constr_dic))
@@ -648,35 +649,56 @@ class ConfigLoader(object):
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             plot_var_dic = {}
+            data_weights = data.get("weight", [1.0]*data_shape(data))
+            data_dict["data_weights"] = data_weights
+            phsp_weights = total_weight*norm_frac
+            phsp_dict["MC_total_fit"] = phsp_weights # MC total weight
+            if bg is not None:
+                bg_weight = [w_bkg] * data_shape(bg)
+                bg_dict["sideband_weights"] = bg_weight # sideband weight
             for conf in self.plot_params.get_params():
                 name = conf.get("name")
                 display = conf.get("display", name)
                 upper_ylim = conf.get("upper_ylim", None)
                 idx = conf.get("idx")
                 trans = conf.get("trans", lambda x: x)
-                has_lengend = conf.get("legend", False)
+                has_legend = conf.get("legend", False)
                 xrange = conf.get("range", None)
                 bins = conf.get("bins", None)
                 units = conf.get("units", "")
-                fig = plt.figure()
-                if plot_delta or plot_pull:
-                    ax = plt.subplot2grid((4, 1), (0, 0),  rowspan=3)
-                else:
-                    ax = fig.add_subplot(1, 1, 1)
+                plot_var_dic[name] = {"display": display, "upper_ylim": upper_ylim, "lengend": has_legend,
+                    "idx": idx, "trans": trans, "range": xrange, "bins": bins, "units": units}
+
                 data_i = trans(data_index(data, idx))
+                data_dict[name] = data_i # data variable
                 if xrange is None:
                     xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
+
                 phsp_i = trans(data_index(phsp, idx))
-                data_weights = data.get("weight", [1.0]*data_shape(data))
+                phsp_dict[name+"_MC"] = phsp_i # MC
                 data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data_weights,xrange=xrange)
-                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
-                            zorder=-2, label="data", color="black")  #, capsize=2)
-                phsp_weights = total_weight*norm_frac
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
-                    bg_weight = np.ones_like(bg_i)*w_bkg
                     bg_dict[name+"_sideband"] = bg_i # sideband
-                    bg_dict[name+"_sideband_weights"] = bg_weight # sideband weight
+                chain_property = []
+                for i, j in enumerate(weights):
+                    weight_i = j * norm_frac * bin_scale * phsp.get("weight", 1.0)
+                    label, curve_style = self.get_chain_property(i)
+                    phsp_dict["MC_{0}_{1}_fit".format(i, label)] = weight_i # MC partial weight
+                    chain_property.append([i, label, curve_style])
+
+
+
+                fig = plt.figure()
+                if plot_delta or plot_pull:
+                    ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
+                else:
+                    ax = fig.add_subplot(1, 1, 1)
+
+                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
+                            zorder=-2, label="data", color="black")  #, capsize=2)
+
+                if bg is not None:
                     ax.hist(bg_i, weights=bg_weight,
                             label="back ground", bins=bins, range=xrange, histtype="stepfilled", alpha=0.5, color="grey")
                     mc_i = np.concatenate([bg_i, phsp_i])
@@ -687,26 +709,21 @@ class ConfigLoader(object):
                     mc_i = phsp_i
                     fit_y, fit_x, _ = ax.hist(phsp_i, weights=phsp_weights, range=xrange, histtype="step", 
                                               label="total fit", bins=bins, color="black")
-                phsp_dict[name+"_MC"] = phsp_i # MC
-                phsp_dict[name+"_MC_total_fit"] = phsp_weights # MC total weight
+                
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 style = itertools.product(colors, linestyles)
-                for i, j in enumerate(weights):
-                    # print(phsp.get("weight", 1.0))
-                    weight_i = j * norm_frac * bin_scale * phsp.get("weight", 1.0)
+                for i, label, curve_style in chain_property:
+                    weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, label)]
                     x, y = hist_line(phsp_i, weights=weight_i, xrange=xrange, bins=bins*bin_scale)
-                    label, curve_style = self.get_chain_property(i)
-                    phsp_dict[name+"_MC_{0}_{1}_fit".format(i, label)] = weight_i # MC partial weight
                     if curve_style is None:
                         color, ls = next(style)
                         ax.plot(x, y, label=label, color=color, linestyle=ls, linewidth=1)
                     else:
                         ax.plot(x, y, curve_style, label=label, linewidth=1)
 
-
                 ax.set_ylim((0, upper_ylim))
-                xlimin, xlimax = ax.set_xlim(xrange)
-                if has_lengend:
+                ax.set_xlim(xrange)
+                if has_legend:
                     ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
                 ax.set_title(display)
                 ax.set_xlabel(display + units)
@@ -739,9 +756,7 @@ class ConfigLoader(object):
                     fig.savefig(prefix+name+".pdf", dpi=300)
                 print("Finish plotting "+prefix+name)
                 plt.close(fig)
-                plot_var_dic[name] = {"idx": idx, "trans": trans, "range": [xlimin, xlimax]}
-                data_dict[name] = data_i # data variable
-                data_dict[name+"_weights"] = data_weights
+                
 
             twodplot = self.config["plot"].get("2Dplot", {})
             for k, i in twodplot.items():
@@ -764,6 +779,7 @@ class ConfigLoader(object):
                 range2 = plot_var_dic[var2]["range"]
                 data_2 = trans2(data_index(data, idx2))
                 phsp_2 = trans2(data_index(phsp, idx2))
+                
                 # data
                 if "data" in plot_figs:
                     plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')

@@ -122,7 +122,7 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json", meth
 
     print("########## fit fractions:")
     mcdata = config.configs[0].get_phsp_noeff()
-    fit_frac, err_frac = fit_fractions(config.configs[0].get_model(), mcdata, config.inv_he, fit_result.params)
+    fit_frac, err_frac = fit_fractions(config.configs[0].get_amplitude(), mcdata, config.inv_he, fit_result.params)
     fit_frac_string = ""
     for i in fit_frac:
         if isinstance(i, tuple):
