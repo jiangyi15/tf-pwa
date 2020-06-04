@@ -41,7 +41,7 @@ def load_Ttree(tree):
     return ret
 
 
-def save_dict_to_root(dic, file_name, tree_name="tree"):
+def save_dict_to_root(dic, file_name, tree_name=None):
     """
     This function stores data arrays in the form of a dictionary into a root file.
     It provides a convenient interface to ``uproot``.
@@ -52,13 +52,26 @@ def save_dict_to_root(dic, file_name, tree_name="tree"):
     """
     if file_name[-5:] == '.root':
         file_name = file_name[:-5]
-    branch_type = {}
-    branch_data = {}
-    for i in dic:
-        j = i.replace('(','_').replace(')','_')
-        branch_data[j] = np.array(dic[i])
-        branch_type[j] = branch_data[j].dtype.name
+    if isinstance(dic, dict):
+        dic = [dic]
+    if tree_name is None:
+        tree_name = "DataTree"
+    Ndic = len(dic)
+    if isinstance(tree_name, list):
+        assert len(tree_name) == Ndic
+    else:
+        t = []
+        for i in range(Ndic):
+            t.append(tree_name+str(i))
+        tree_name = t
 
     with uproot.recreate(file_name + ".root") as f:
-        f[tree_name] = uproot.newtree(branch_type)
-        f[tree_name].extend(branch_data)
+        for d, t in zip(dic, tree_name):
+            branch_type = {}
+            branch_data = {}
+            for i in d:
+                j = i.replace('(','_').replace(')','_').replace(' ','_')
+                branch_data[j] = np.array(d[i])
+                branch_type[j] = branch_data[j].dtype.name
+            f[t] = uproot.newtree(branch_type)
+            f[t].extend(branch_data)

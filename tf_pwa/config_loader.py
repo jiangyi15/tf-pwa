@@ -599,7 +599,7 @@ class ConfigLoader(object):
             params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        pathes = prefix.split('/')
+        pathes = prefix.rstrip('/').split('/')
         path = ""
         for p in pathes:
             path += p+'/'
@@ -624,7 +624,9 @@ class ConfigLoader(object):
         #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
         colors = ["red", "orange", "purple", "springgreen", "y", "green", "blue", "c"]
         linestyles = ['-', '--', '-.', ':']
-        root_dict = {}
+        data_dict = {}
+        phsp_dict = {}
+        bg_dict = {}
         with amp.temp_params(params):
             total_weight = amp(phsp) * phsp.get("weight", 1.0)
             data_weight = data.get("weight", None)
@@ -662,31 +664,38 @@ class ConfigLoader(object):
                 data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data_weights,xrange=xrange)
                 ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
                             zorder=-2, label="data", color="black")  #, capsize=2)
+                phsp_weights = total_weight*norm_frac
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_weight = np.ones_like(bg_i)*w_bkg
+                    bg_dict[name+"_sideband"] = bg_i # sideband
+                    bg_dict[name+"_sideband_weights"] = bg_weight # sideband weight
                     ax.hist(bg_i, weights=bg_weight,
                             label="back ground", bins=bins, range=xrange, histtype="stepfilled", alpha=0.5, color="grey")
                     mc_i = np.concatenate([bg_i, phsp_i])
-                    mc_weights = np.concatenate([bg_weight, total_weight*norm_frac])
+                    mc_weights = np.concatenate([bg_weight, phsp_weights])
                     fit_y, fit_x, _ = ax.hist(mc_i, weights=mc_weights, range=xrange,
                                               histtype="step", label="total fit", bins=bins, color="black")
                 else:
                     mc_i = phsp_i
-                    mc_weights = total_weight*norm_frac
-                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=mc_weights, range=xrange, histtype="step", 
+                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=phsp_weights, range=xrange, histtype="step", 
                                               label="total fit", bins=bins, color="black")
+                phsp_dict[name+"_MC"] = phsp_i # MC
+                phsp_dict[name+"_MC_total_fit"] = phsp_weights # MC total weight
                 # plt.hist(data_i, label="data", bins=50, histtype="step")
                 style = itertools.product(colors, linestyles)
                 for i, j in enumerate(weights):
                     # print(phsp.get("weight", 1.0))
-                    x, y = hist_line(phsp_i, weights=j * norm_frac*bin_scale*phsp.get("weight", 1.0), xrange=xrange, bins=bins*bin_scale)
+                    weight_i = j * norm_frac * bin_scale * phsp.get("weight", 1.0)
+                    x, y = hist_line(phsp_i, weights=weight_i, xrange=xrange, bins=bins*bin_scale)
                     label, curve_style = self.get_chain_property(i)
+                    phsp_dict[name+"_MC_{0}_{1}_fit".format(i, label)] = weight_i # MC partial weight
                     if curve_style is None:
                         color, ls = next(style)
                         ax.plot(x, y, label=label, color=color, linestyle=ls, linewidth=1)
                     else:
                         ax.plot(x, y, curve_style, label=label, linewidth=1)
+
 
                 ax.set_ylim((0, upper_ylim))
                 xlimin, xlimax = ax.set_xlim(xrange)
@@ -724,13 +733,8 @@ class ConfigLoader(object):
                 print("Finish plotting "+prefix+name)
                 plt.close(fig)
                 plot_var_dic[name] = {"idx": idx, "trans": trans, "range": [xlimin, xlimax]}
-                root_dict[name] = data_i
-                root_dict[name+"_weights"] = data_weights
-                #root_dict[name+"_mc"] = mc_i
-                #root_dict[name+"_mc_weight"] = mc_weights
-                #if bg is not None:
-                    #root_dict[name+"_bg"] = bg_i
-                    #root_dict[name+"_bg_weights"] = bg_weight
+                data_dict[name] = data_i # data variable
+                data_dict[name+"_weights"] = data_weights
 
             twodplot = self.config["plot"].get("2Dplot", {})
             for k, i in twodplot.items():
@@ -783,7 +787,7 @@ class ConfigLoader(object):
                     plt.clf()
                     print("Finish plotting 2D fitted "+prefix+k)
         if has_uproot and save_root:
-            save_dict_to_root(root_dict, file_name=prefix+"variables.root", tree_name="Tree")
+            save_dict_to_root([data_dict, phsp_dict, bg_dict], file_name=prefix+"variables.root", tree_name=["data", "fitted", "sideband"])
             print("Save root file "+prefix+"variables.root")
 
     def get_chain(self, idx):
