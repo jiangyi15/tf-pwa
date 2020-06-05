@@ -485,9 +485,9 @@ class ConfigLoader(object):
                         arg_i.sameas(arg)
 
     @functools.lru_cache()
-    def get_model(self, vm=None, name=""):
+    def _get_model(self, vm=None, name=""):
         amp = self.get_amplitude(vm=vm, name=name)
-        w_bkg, w_inmc = self.get_bg_weight()
+        w_bkg, w_inmc = self._get_bg_weight()
         model = []
         if "inmc" in self.config["data"]:
             float_wmc = self.config["data"].get("float_inmc_ratio_in_pdf", False)
@@ -501,7 +501,7 @@ class ConfigLoader(object):
                 model.append(Model(amp, wb))
         return model
     
-    def get_bg_weight(self, data=None, bg=None, display=True):
+    def _get_bg_weight(self, data=None, bg=None, display=True):
         w_bkg = self.config["data"].get("bg_weight", 0.0)
         if not isinstance(w_bkg, list):
             w_bkg = [w_bkg] * self._Ngroup
@@ -528,7 +528,7 @@ class ConfigLoader(object):
         else:
             data, phsp, bg, inmc = all_data
         self._Ngroup = len(data)
-        model = self.get_model()
+        model = self._get_model()
         fcns = []
         for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
             fcns.append(FCN(md, dt, mc, bg=sb, batch=batch, inmc=ij, gauss_constr=self.gauss_constr_dic))
@@ -614,24 +614,39 @@ class ConfigLoader(object):
             if not os.path.exists(path):
                 os.mkdir(path)
         if data is None:
-            datas = self.get_data("data")
-            bgs = self.get_data("bg")
-            phsps = self.get_phsp_plot()
+            data = self.get_data("data")
+            bg = self.get_data("bg")
+            phsp = self.get_phsp_plot()
         amp = self.get_amplitude()
-        ws_bkg, ws_inmc = self.get_bg_weight(datas, bgs)
+        ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
+        self._Ngroup = len(data)
+        chain_property = []
+        for i in range(len(self.full_decay.chains)):
+            label, curve_style = self.get_chain_property(i)
+            chain_property.append([i, label, curve_style])
+        plot_var_dic = {}
+        for conf in self.plot_params.get_params():
+            name = conf.get("name")
+            display = conf.get("display", name)
+            upper_ylim = conf.get("upper_ylim", None)
+            idx = conf.get("idx")
+            trans = conf.get("trans", lambda x: x)
+            has_legend = conf.get("legend", False)
+            xrange = conf.get("range", None)
+            bins = conf.get("bins", None)
+            units = conf.get("units", "")
+            plot_var_dic[name] = {"display": display, "upper_ylim": upper_ylim, "legend": has_legend,
+                "idx": idx, "trans": trans, "range": xrange, "bins": bins, "units": units}
         if self._Ngroup == 1:
-            self._plot_partial_wave(amp, params, datas[0], phsps[0], bgs[0], ws_bkg[0], path, **kwargs)
+            data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, data[0], phsp[0], bg[0], ws_bkg[0], path, plot_var_dic, chain_property, **kwargs)
+            self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path, plot_var_dic, chain_property, **kwargs)
         else:
-            for data, phsp, bg, w_bkg, i in zip(datas, phsps, bgs, ws_bkg, range(self._Ngroup)):
-                data_dict, phsp_dict, bg_dict = self._plot_partial_wave(amp, params, data, phsp, bg, w_bkg, path + 'd{}_'.format(i), **kwargs)
+            for dt, mc, sb, w_bkg, i in zip(data, phsp, bg, ws_bkg, range(self._Ngroup)):
+                data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, dt, mc, sb, w_bkg, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
+                self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
 
-    def _plot_partial_wave(self, amp, params, data, phsp, bg, w_bkg, prefix, 
-                          plot_delta=False, plot_pull=False, save_pdf=False, save_root=False, bin_scale=3):
-        #cmap = plt.get_cmap("jet")
-        #N = 10
-        #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
-        colors = ["red", "orange", "purple", "springgreen", "y", "green", "blue", "c"]
-        linestyles = ['-', '--', '-.', ':']
+    def _cal_partial_wave(self, amp, params, data, phsp, bg, w_bkg, prefix, plot_var_dic, chain_property,
+                            save_root=False, bin_scale=3, **kwargs):
         data_dict = {}
         phsp_dict = {}
         bg_dict = {}
@@ -648,7 +663,6 @@ class ConfigLoader(object):
                 norm_frac = (n_data - w_bkg *
                              data_shape(bg)) / np.sum(total_weight)
             weights = amp.partial_weight(phsp)
-            plot_var_dic = {}
             data_weights = data.get("weight", [1.0]*data_shape(data))
             data_dict["data_weights"] = data_weights
             phsp_weights = total_weight*norm_frac
@@ -656,163 +670,172 @@ class ConfigLoader(object):
             if bg is not None:
                 bg_weight = [w_bkg] * data_shape(bg)
                 bg_dict["sideband_weights"] = bg_weight # sideband weight
-            for conf in self.plot_params.get_params():
-                name = conf.get("name")
-                display = conf.get("display", name)
-                upper_ylim = conf.get("upper_ylim", None)
-                idx = conf.get("idx")
-                trans = conf.get("trans", lambda x: x)
-                has_legend = conf.get("legend", False)
-                xrange = conf.get("range", None)
-                bins = conf.get("bins", None)
-                units = conf.get("units", "")
-                plot_var_dic[name] = {"display": display, "upper_ylim": upper_ylim, "lengend": has_legend,
-                    "idx": idx, "trans": trans, "range": xrange, "bins": bins, "units": units}
+            for i, label, _ in chain_property:
+                weight_i = weights[i] * norm_frac * bin_scale * phsp.get("weight", 1.0)
+                phsp_dict["MC_{0}_{1}_fit".format(i, label)] = weight_i # MC partial weight
+            for name in plot_var_dic:
+                idx = plot_var_dic[name]["idx"]
+                trans = plot_var_dic[name]["trans"]
 
                 data_i = trans(data_index(data, idx))
                 data_dict[name] = data_i # data variable
-                if xrange is None:
-                    xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
 
                 phsp_i = trans(data_index(phsp, idx))
                 phsp_dict[name+"_MC"] = phsp_i # MC
-                data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data_weights,xrange=xrange)
+                
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_dict[name+"_sideband"] = bg_i # sideband
-                chain_property = []
-                for i, j in enumerate(weights):
-                    weight_i = j * norm_frac * bin_scale * phsp.get("weight", 1.0)
-                    label, curve_style = self.get_chain_property(i)
-                    phsp_dict["MC_{0}_{1}_fit".format(i, label)] = weight_i # MC partial weight
-                    chain_property.append([i, label, curve_style])
-
-
-
-                fig = plt.figure()
-                if plot_delta or plot_pull:
-                    ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
-                else:
-                    ax = fig.add_subplot(1, 1, 1)
-
-                ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
-                            zorder=-2, label="data", color="black")  #, capsize=2)
-
-                if bg is not None:
-                    ax.hist(bg_i, weights=bg_weight,
-                            label="back ground", bins=bins, range=xrange, histtype="stepfilled", alpha=0.5, color="grey")
-                    mc_i = np.concatenate([bg_i, phsp_i])
-                    mc_weights = np.concatenate([bg_weight, phsp_weights])
-                    fit_y, fit_x, _ = ax.hist(mc_i, weights=mc_weights, range=xrange,
-                                              histtype="step", label="total fit", bins=bins, color="black")
-                else:
-                    mc_i = phsp_i
-                    fit_y, fit_x, _ = ax.hist(phsp_i, weights=phsp_weights, range=xrange, histtype="step", 
-                                              label="total fit", bins=bins, color="black")
                 
-                # plt.hist(data_i, label="data", bins=50, histtype="step")
-                style = itertools.product(colors, linestyles)
-                for i, label, curve_style in chain_property:
-                    weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, label)]
-                    x, y = hist_line(phsp_i, weights=weight_i, xrange=xrange, bins=bins*bin_scale)
-                    if curve_style is None:
-                        color, ls = next(style)
-                        ax.plot(x, y, label=label, color=color, linestyle=ls, linewidth=1)
-                    else:
-                        ax.plot(x, y, curve_style, label=label, linewidth=1)
-
-                ax.set_ylim((0, upper_ylim))
-                ax.set_xlim(xrange)
-                if has_legend:
-                    ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
-                ax.set_title(display)
-                ax.set_xlabel(display + units)
-                ax.set_ylabel("Events/{:.3f}{}".format((max(data_x) - min(data_x))/bins, units))
-                if plot_delta or plot_pull:
-                    plt.setp(ax.get_xticklabels(), visible=False)
-                    ax2 = plt.subplot2grid((4, 1), (3, 0),  rowspan=1)
-                    y_err = fit_y - data_y
-                    if plot_pull:
-                        _epsilon = 1e-10
-                        with np.errstate(divide='ignore', invalid='ignore'):
-                            fit_err = np.sqrt(fit_y)
-                            y_err = y_err/fit_err
-                        y_err[fit_err<_epsilon] = 0.0
-                    ax2.plot(data_x, y_err, color="r")
-                    ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r")
-                    if plot_pull:
-                        ax2.set_ylabel("pull")
-                        ax2.set_ylim((-5, 5))
-                    else:
-                        ax2.set_ylabel("$\\Delta$Events")
-                        ax2.set_ylim((-max(abs(y_err)),
-                                  max(abs(y_err))))
-                    ax.set_xlabel("")
-                    ax2.set_xlabel(display + units)
-                    if xrange is not None:
-                        ax2.set_xlim(xrange)
-                fig.savefig(prefix+name, dpi=300)
-                if save_pdf:
-                    fig.savefig(prefix+name+".pdf", dpi=300)
-                print("Finish plotting "+prefix+name)
-                plt.close(fig)
-                
-
-            twodplot = self.config["plot"].get("2Dplot", {})
-            for k, i in twodplot.items():
-                var1, var2 = k.split('&')
-                var1 = var1.rstrip()
-                var2 = var2.lstrip()
-                k = var1 + "_vs_" + var2
-                display = i["display"]
-                plot_figs = i["plot_figs"]
-                name1, name2 = display.split('vs')
-                name1 = name1.rstrip()
-                name2 = name2.lstrip()
-                idx1 = plot_var_dic[var1]["idx"]
-                trans1 = plot_var_dic[var1]["trans"]
-                range1 = plot_var_dic[var1]["range"]
-                data_1 = trans1(data_index(data, idx1))
-                phsp_1 = trans1(data_index(phsp, idx1))
-                idx2 = plot_var_dic[var2]["idx"]
-                trans2 = plot_var_dic[var2]["trans"]
-                range2 = plot_var_dic[var2]["range"]
-                data_2 = trans2(data_index(data, idx2))
-                phsp_2 = trans2(data_index(phsp, idx2))
-                
-                # data
-                if "data" in plot_figs:
-                    plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')
-                    plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
-                    plt.xlim(range1); plt.ylim(range2)
-                    plt.savefig(prefix+k+'_data')
-                    plt.clf()
-                    print("Finish plotting 2D data "+prefix+k)
-                # sideband
-                if "sideband" in plot_figs:
-                    if bg is None:
-                        print("There's no bkg input")
-                    else:
-                        bg_1 = trans1(data_index(bg, idx1))
-                        bg_2 = trans2(data_index(bg, idx2))
-                        plt.scatter(bg_1,bg_2,s=1,c='g',alpha=0.8,label='sideband')
-                        plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
-                        plt.xlim(range1); plt.ylim(range2)
-                        plt.savefig(prefix+k+'_bkg')
-                        plt.clf()
-                        print("Finish plotting 2D sideband "+prefix+k)
-                # fit pdf
-                if "fitted" in plot_figs:
-                    plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
-                    plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
-                    plt.xlim(range1); plt.ylim(range2)
-                    plt.savefig(prefix+k+'_fitted')
-                    plt.clf()
-                    print("Finish plotting 2D fitted "+prefix+k)
         if has_uproot and save_root:
             save_dict_to_root([data_dict, phsp_dict, bg_dict], file_name=prefix+"variables.root", tree_name=["data", "fitted", "sideband"])
             print("Save root file "+prefix+"variables.root")
         return data_dict, phsp_dict, bg_dict
+
+    def _plot_partial_wave(self, data_dict, phsp_dict, bg_dict, prefix, plot_var_dic, chain_property,
+                        plot_delta=False, plot_pull=False, save_pdf=False, bin_scale=3, **kwargs):
+        #cmap = plt.get_cmap("jet")
+        #N = 10
+        #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
+        colors = ["red", "orange", "purple", "springgreen", "y", "green", "blue", "c"]
+        linestyles = ['-', '--', '-.', ':']
+
+        data_weights = data_dict["data_weights"]
+        if bg_dict:
+            bg_weight = bg_dict["sideband_weights"]
+        phsp_weights = phsp_dict["MC_total_fit"]
+        for name in plot_var_dic:
+            data_i = data_dict[name]
+            phsp_i = phsp_dict[name+"_MC"]
+            if bg_dict:
+                bg_i = bg_dict[name+"_sideband"]
+
+            display = plot_var_dic[name]["display"]
+            upper_ylim = plot_var_dic[name]["upper_ylim"]
+            has_legend = plot_var_dic[name]["legend"]
+            bins = plot_var_dic[name]["bins"]
+            units = plot_var_dic[name]["units"]
+            xrange = plot_var_dic[name]["range"]
+            if xrange is None:
+                xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
+            data_x, data_y, data_err = hist_error(data_i, bins=bins, weights=data_weights,xrange=xrange)
+            fig = plt.figure()
+            if plot_delta or plot_pull:
+                ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
+            else:
+                ax = fig.add_subplot(1, 1, 1)
+
+            ax.errorbar(data_x, data_y, yerr=data_err, fmt=".",
+                        zorder=-2, label="data", color="black")  #, capsize=2)
+
+            if bg_dict:
+                ax.hist(bg_i, weights=bg_weight,
+                        label="back ground", bins=bins, range=xrange, histtype="stepfilled", alpha=0.5, color="grey")
+                mc_i = np.concatenate([bg_i, phsp_i])
+                mc_weights = np.concatenate([bg_weight, phsp_weights])
+                fit_y, fit_x, _ = ax.hist(mc_i, weights=mc_weights, range=xrange,
+                                            histtype="step", label="total fit", bins=bins, color="black")
+            else:
+                mc_i = phsp_i
+                fit_y, fit_x, _ = ax.hist(phsp_i, weights=phsp_weights, range=xrange, histtype="step", 
+                                            label="total fit", bins=bins, color="black")
+            
+            # plt.hist(data_i, label="data", bins=50, histtype="step")
+            style = itertools.product(colors, linestyles)
+            for i, label, curve_style in chain_property:
+                weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, label)]
+                x, y = hist_line(phsp_i, weights=weight_i, xrange=xrange, bins=bins*bin_scale)
+                if curve_style is None:
+                    color, ls = next(style)
+                    ax.plot(x, y, label=label, color=color, linestyle=ls, linewidth=1)
+                else:
+                    ax.plot(x, y, curve_style, label=label, linewidth=1)
+
+            ax.set_ylim((0, upper_ylim))
+            ax.set_xlim(xrange)
+            if has_legend:
+                ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
+            ax.set_title(display)
+            ax.set_xlabel(display + units)
+            ax.set_ylabel("Events/{:.3f}{}".format((max(data_x) - min(data_x))/bins, units))
+            if plot_delta or plot_pull:
+                plt.setp(ax.get_xticklabels(), visible=False)
+                ax2 = plt.subplot2grid((4, 1), (3, 0),  rowspan=1)
+                y_err = fit_y - data_y
+                if plot_pull:
+                    _epsilon = 1e-10
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        fit_err = np.sqrt(fit_y)
+                        y_err = y_err/fit_err
+                    y_err[fit_err<_epsilon] = 0.0
+                ax2.plot(data_x, y_err, color="r")
+                ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r")
+                if plot_pull:
+                    ax2.set_ylabel("pull")
+                    ax2.set_ylim((-5, 5))
+                else:
+                    ax2.set_ylabel("$\\Delta$Events")
+                    ax2.set_ylim((-max(abs(y_err)),
+                                max(abs(y_err))))
+                ax.set_xlabel("")
+                ax2.set_xlabel(display + units)
+                if xrange is not None:
+                    ax2.set_xlim(xrange)
+            fig.savefig(prefix+name, dpi=300)
+            if save_pdf:
+                fig.savefig(prefix+name+".pdf", dpi=300)
+            print("Finish plotting "+prefix+name)
+            plt.close(fig)
+                
+
+        twodplot = self.config["plot"].get("2Dplot", {})
+        for k, i in twodplot.items():
+            var1, var2 = k.split('&')
+            var1 = var1.rstrip()
+            var2 = var2.lstrip()
+            k = var1 + "_vs_" + var2
+            display = i["display"]
+            plot_figs = i["plot_figs"]
+            name1, name2 = display.split('vs')
+            name1 = name1.rstrip()
+            name2 = name2.lstrip()
+            range1 = plot_var_dic[var1]["range"]
+            data_1 = data_dict[var1]
+            phsp_1 = phsp_dict[var1+"_MC"]
+            range2 = plot_var_dic[var2]["range"]
+            data_2 = data_dict[var2]
+            phsp_2 = phsp_dict[var2+"_MC"]
+
+            # data
+            if "data" in plot_figs:
+                plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                plt.xlim(range1); plt.ylim(range2)
+                plt.savefig(prefix+k+'_data')
+                plt.clf()
+                print("Finish plotting 2D data "+prefix+k)
+            # sideband
+            if "sideband" in plot_figs:
+                if bg_dict:
+                    bg_1 = bg_dict[var1+"_sideband"]
+                    bg_2 = bg_dict[var2+"_sideband"]
+                    plt.scatter(bg_1,bg_2,s=1,c='g',alpha=0.8,label='sideband')
+                    plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                    plt.xlim(range1); plt.ylim(range2)
+                    plt.savefig(prefix+k+'_bkg')
+                    plt.clf()
+                    print("Finish plotting 2D sideband "+prefix+k)
+                else:
+                    print("There's no bkg input")
+            # fit pdf
+            if "fitted" in plot_figs:
+                plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
+                plt.xlim(range1); plt.ylim(range2)
+                plt.savefig(prefix+k+'_fitted')
+                plt.clf()
+                print("Finish plotting 2D fitted "+prefix+k)
+
 
 
     def get_chain(self, idx):
@@ -901,12 +924,12 @@ class MultiConfig(object):
                     self._neglect_when_set_params.append(j)
         return amps
     '''
-    def get_models(self, vm=None):
+    def _get_models(self, vm=None): # get_model is useless to users given get_fcn and get_amplitude
         if not self.total_same:
-            models = [j.get_model(name="s"+str(i), vm=vm)
+            models = [j._get_model(name="s"+str(i), vm=vm)
                       for i, j in enumerate(self.configs)]
         else:
-            models = [j.get_model(vm=vm) for j in self.configs]
+            models = [j._get_model(vm=vm) for j in self.configs]
         return models
     '''
     def get_fcns(self, datas=None, vm=None, batch=65000):
