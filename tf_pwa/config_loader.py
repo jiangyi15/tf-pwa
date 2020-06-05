@@ -602,7 +602,7 @@ class ConfigLoader(object):
             self.fit_params.set_error(err)
         return err
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", **kwargs):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", save_root=False, **kwargs):
         if params is None:
             params = {}
         if hasattr(params, "params"):
@@ -638,12 +638,46 @@ class ConfigLoader(object):
             plot_var_dic[name] = {"display": display, "upper_ylim": upper_ylim, "legend": has_legend,
                 "idx": idx, "trans": trans, "range": xrange, "bins": bins, "units": units}
         if self._Ngroup == 1:
-            data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, data[0], phsp[0], bg[0], ws_bkg[0], path, plot_var_dic, chain_property, **kwargs)
+            data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, data[0], phsp[0], bg[0], ws_bkg[0], path, plot_var_dic, chain_property, save_root=save_root, **kwargs)
             self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path, plot_var_dic, chain_property, **kwargs)
         else:
-            for dt, mc, sb, w_bkg, i in zip(data, phsp, bg, ws_bkg, range(self._Ngroup)):
-                data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, dt, mc, sb, w_bkg, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
-                self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
+            combine_plot = self.config["plot"].get("combine_plot", True)
+            if not combine_plot:
+                for dt, mc, sb, w_bkg, i in zip(data, phsp, bg, ws_bkg, range(self._Ngroup)):
+                    data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, dt, mc, sb, w_bkg, path+'d{}_'.format(i), plot_var_dic, chain_property, save_root=save_root, **kwargs)
+                    self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
+            else:
+
+                for dt, mc, sb, w_bkg, i in zip(data, phsp, bg, ws_bkg, range(self._Ngroup)):
+                    data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, dt, mc, sb, w_bkg, path+'d{}_'.format(i), plot_var_dic, chain_property, save_root=save_root, **kwargs)
+                    self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
+                    if i == 0:
+                        datas_dict = {}
+                        for ct in data_dict:
+                            datas_dict[ct] = [data_dict[ct]]
+                        phsps_dict = {}
+                        for ct in phsp_dict:
+                            phsps_dict[ct] = [phsp_dict[ct]]
+                        bgs_dict = {}
+                        for ct in bg_dict:
+                            bgs_dict[ct] = [bg_dict[ct]]
+                    else:
+                        for ct in data_dict:
+                            datas_dict[ct].append(data_dict[ct])
+                        for ct in phsp_dict:
+                            phsps_dict[ct].append(phsp_dict[ct])
+                        for ct in bg_dict:
+                            bgs_dict[ct].append(bg_dict[ct])
+                for ct in datas_dict:
+                    datas_dict[ct] = np.concatenate(datas_dict[ct])
+                for ct in phsps_dict:
+                    phsps_dict[ct] = np.concatenate(phsps_dict[ct])
+                for ct in bgs_dict:
+                    bgs_dict[ct] = np.concatenate(bgs_dict[ct])
+                self._plot_partial_wave(datas_dict, phsps_dict, bgs_dict, path+'com_', plot_var_dic, chain_property, **kwargs)
+                if has_uproot and save_root:
+                    save_dict_to_root([datas_dict, phsps_dict, bgs_dict], file_name=path+"variables_com.root", tree_name=["data", "fitted", "sideband"])
+                    print("Save root file "+prefix+"com_variables.root")
 
     def _cal_partial_wave(self, amp, params, data, phsp, bg, w_bkg, prefix, plot_var_dic, chain_property,
                             save_root=False, bin_scale=3, **kwargs):
@@ -755,7 +789,7 @@ class ConfigLoader(object):
             ax.set_xlim(xrange)
             if has_legend:
                 ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
-            ax.set_title(display)
+            ax.set_title(display, fontsize='xx-large')
             ax.set_xlabel(display + units)
             ax.set_ylabel("Events/{:.3f}{}".format((max(data_x) - min(data_x))/bins, units))
             if plot_delta or plot_pull:
@@ -809,7 +843,7 @@ class ConfigLoader(object):
             # data
             if "data" in plot_figs:
                 plt.scatter(data_1,data_2,s=1,alpha=0.8,label='data')
-                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display, fontsize='xx-large'); plt.legend()
                 plt.xlim(range1); plt.ylim(range2)
                 plt.savefig(prefix+k+'_data')
                 plt.clf()
@@ -820,7 +854,7 @@ class ConfigLoader(object):
                     bg_1 = bg_dict[var1+"_sideband"]
                     bg_2 = bg_dict[var2+"_sideband"]
                     plt.scatter(bg_1,bg_2,s=1,c='g',alpha=0.8,label='sideband')
-                    plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.legend()
+                    plt.xlabel(name1); plt.ylabel(name2); plt.title(display, fontsize='xx-large'); plt.legend()
                     plt.xlim(range1); plt.ylim(range2)
                     plt.savefig(prefix+k+'_bkg')
                     plt.clf()
@@ -830,7 +864,7 @@ class ConfigLoader(object):
             # fit pdf
             if "fitted" in plot_figs:
                 plt.hist2d(phsp_1,phsp_2,bins=100,weights=total_weight*norm_frac)
-                plt.xlabel(name1); plt.ylabel(name2); plt.title(display); plt.colorbar()
+                plt.xlabel(name1); plt.ylabel(name2); plt.title(display, fontsize='xx-large'); plt.colorbar()
                 plt.xlim(range1); plt.ylim(range2)
                 plt.savefig(prefix+k+'_fitted')
                 plt.clf()
