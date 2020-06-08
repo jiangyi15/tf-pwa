@@ -708,6 +708,7 @@ class DecayGroup(BaseDecayGroup):
         if not isinstance(first_chain, DecayChain):
             chains = [DecayChain(i) for i in chains]
         super(DecayGroup, self).__init__(chains)
+        self.not_full = False
         # self.init_params()
 
     def init_params(self, name=""):
@@ -813,6 +814,8 @@ class DecayGroup(BaseDecayGroup):
 
     def set_used_chains(self, used_chains):
         self.chains_idx = list(used_chains)
+        if len(self.chains_idx) != len(self.chains):
+            self.not_full = True
 
     def partial_weight(self, data, combine=None):
         chains = list(self.chains)
@@ -888,7 +891,7 @@ def value_and_grad(f, var):
 
 
 class AmplitudeModel(object):
-    def __init__(self, decay_group, name="", polar=True, vm=None):
+    def __init__(self, decay_group, name="", polar=True, vm=None, use_tf_function=False):
         self.decay_group = decay_group
         self.name = name
         with variable_scope(vm) as vm:
@@ -899,7 +902,10 @@ class AmplitudeModel(object):
         self.used_res = res
         self.res = res
         self.f_data = []
-        self.cached_fun = tf.function(self.decay_group.sum_amp)
+        if use_tf_function:
+            self.cached_fun = tf.function(self.decay_group.sum_amp)
+        else:
+            self.cached_fun = self.decay_group.sum_amp
 
     def cache_data(self, data, split=None, batch=None):
         for i in self.decay_group:
@@ -952,9 +958,11 @@ class AmplitudeModel(object):
 
     def __call__(self, data, cached=False):
         if id(data) in self.f_data:
-            return self.cached_fun(data)
+            if not self.decay_group.not_full:
+                return self.cached_fun(data)
+        else:
+            self.f_data.append(id(data))
         ret = self.decay_group.sum_amp(data)
-        self.f_data.append(id(data))
         return ret
 
 

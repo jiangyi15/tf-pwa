@@ -371,12 +371,13 @@ class ConfigLoader(object):
 
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
+        use_tf_function = self.config.get("data",{}).get("use_tf_function", False)
         decay_group = self.full_decay
         if vm is None:
             vm = self.vm
         if vm in self.amps:
             return self.amps[vm]
-        amp = AmplitudeModel(decay_group, vm=vm, name=name)
+        amp = AmplitudeModel(decay_group, vm=vm, name=name, use_tf_function=use_tf_function)
         self.add_constraints(amp)
         self.amps[vm] = amp
         return amp
