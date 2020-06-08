@@ -162,6 +162,7 @@ def get_relative_p(m_0, m_1, m_2):
     """relative momentum for 0 -> 1 + 2"""
     M12S = m_1 + m_2
     M12D = m_1 - m_2
+    m_0 = tf.convert_to_tensor(m_0, dtype=M12S.dtype)
     m_eff = tf.where(m_0 > M12S, m_0, M12S)
     p = (m_eff - M12S) * (m_eff + M12S) * (m_eff - M12D) * (m_eff + M12D)
     # if p is negative, which results from bad data, the return value is 0.0
@@ -897,6 +898,8 @@ class AmplitudeModel(object):
         res = decay_group.resonances
         self.used_res = res
         self.res = res
+        self.f_data = []
+        self.cached_fun = tf.function(self.decay_group.sum_amp)
 
     def cache_data(self, data, split=None, batch=None):
         for i in self.decay_group:
@@ -948,7 +951,10 @@ class AmplitudeModel(object):
         return self.vm.trainable_variables
 
     def __call__(self, data, cached=False):
+        if id(data) in self.f_data:
+            return self.cached_fun(data)
         ret = self.decay_group.sum_amp(data)
+        self.f_data.append(id(data))
         return ret
 
 

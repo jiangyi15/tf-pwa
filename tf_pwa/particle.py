@@ -560,6 +560,12 @@ class DecayChain(object):
             return False
         return self.get_id() == other.get_id()
 
+    def __lt__(self, other):
+        if not isinstance(other, DecayChain):
+            return False
+        return self.get_id() < other.get_id()
+
+
     @simple_cache_fun
     def __hash__(self):
         return hash(self.get_id())

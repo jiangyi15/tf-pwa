@@ -177,37 +177,34 @@ def tensor_einsum_reduce_sum(expr, *args, order):
 
     # transpose
     t_args = []
-    for i, j in zip(idxs, args):
+    n_args = len(idxs)
+    def args_it(it):
+        i, j = idxs[it], args[it]
         sorted_idx = sorted(i, key=lambda x: order[x])
         if list(i) == sorted_idx:
-            t_args.append(j)
+            return j
         else:
             trans = [i.index(k) for k in sorted_idx]
-            t_args.append(tf.transpose(j, trans))
-
+            return  tf.transpose(j, trans)
+    t_args = [args_it(it) for it in range(n_args)]
     # reshape
     sum_idx = set(require_order) - set(final_index)
-    sum_idx_idx = []
-    for i, j in enumerate(require_order):
-        if j in sum_idx:
-            sum_idx_idx.append(i)
+    sum_idx_idx =[i for i, j in enumerate(require_order) if j in sum_idx]
     shapes = [i.shape for i in args]
-    expand_shapes = []
-    for idx, shape in zip(idxs, shapes):
-        ex_shape = []
-        shape_dict = dict(zip(idx, shape))
-        for i in require_order:
-            ex_shape.append(shape_dict.get(i, 1))
-        expand_shapes.append(ex_shape)
 
-    s_args = []
-    for i, j in zip(expand_shapes, t_args):
-        s_args.append(tf.reshape(j, i))
+    def expand_shape_it(idx, shape):
+        shape_dict = dict(zip(idx, shape))
+        ex_shape = [shape_dict.get(i, 1) for i in require_order]
+        return ex_shape
+
+    expand_shapes = [expand_shape_it(idx, shape) for idx, shape in zip(idxs, shapes)]
+
+    s_args = [tf.reshape(j, i) for i, j in zip(expand_shapes, t_args)]
 
     # product
-    ret_1 = s_args[0]
-    for i in s_args[1:]:
-        ret_1 = ret_1 * i
+    ret_1 = s_args.pop()
+    while len(s_args) > 0:
+        ret_1 = ret_1 * s_args.pop()
 
     # reduce_sum
     ret = tf.reduce_sum(ret_1, axis=sum_idx_idx)
