@@ -34,7 +34,7 @@ regist_config(PARTICLE_MODEL, {})
 DECAY_MODEL = "decay_model"
 regist_config(DECAY_MODEL, {})
 
-def regist_particle(name=None, f=None):
+def register_particle(name=None, f=None):
     """register a particle model 
 
     :params name: model name used in configuration
@@ -56,7 +56,7 @@ def regist_particle(name=None, f=None):
     return regist(f)
 
 
-def regist_decay(name=None, num_outs=2, f=None):
+def register_decay(name=None, num_outs=2, f=None):
     """register a decay model 
 
     :params name: model name used in configuration
@@ -79,6 +79,9 @@ def regist_decay(name=None, num_outs=2, f=None):
         return regist
     return regist(f)
 
+
+regist_particle = register_particle
+regist_decay = register_decay
 
 def get_particle(*args, model="default", **kwargs):
     """method for getting particle of model"""

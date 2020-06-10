@@ -60,7 +60,7 @@ class ConfigLoader(object):
         self.cached_data = None
         self.bound_dic = {}
         self.gauss_constr_dic = {}
-        self.plot_params = PlotParams(self.config["plot"], self.decay_struct)
+        self.plot_params = PlotParams(self.config.get("plot", {}), self.decay_struct)
         self._neglect_when_set_params = []
 
     @staticmethod
@@ -187,6 +187,9 @@ class ConfigLoader(object):
         assert len(inmc) == self._Ngroup
         self.save_cached_data(dict(zip(datafile, [data, phsp, bg, inmc])))
         return data, phsp, bg, inmc
+
+    def get_data_index(self, sub, name):
+        return self.plot_params.get_data_index(sub, name)
 
     def get_phsp_noeff(self):
         if "phsp_noeff" in self.config["data"]:
