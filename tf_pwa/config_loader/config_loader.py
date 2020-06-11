@@ -27,6 +27,8 @@ from tf_pwa.fit import FitResult
 from tf_pwa.variable import Variable
 import copy
 
+from .decay_config import DecayConfig
+
 
 class ConfigLoader(object):
     """class for loading config.yml"""
@@ -34,27 +36,12 @@ class ConfigLoader(object):
     def __init__(self, file_name, vm=None, share_dict={}):
         self.share_dict = share_dict
         self.config = self.load_config(file_name)
-        self.particle_key_map = {
-            "Par": "P",
-            "m0": "mass",
-            "g0": "width",
-            "J": "J",
-            "P": "P",
-            "spins": "spins",
-            "bw": "model",
-            "model": "model",
-            "bw_l": "bw_l",
-            "running_width": "running_width"
-        }
-        self.decay_key_map = {
-            "model": "model"
-        }
-        self.dec = self.decay_item(self.config["decay"])
-        self.particle_map, self.particle_property, self.top, self.finals = self.particle_item(
-            self.config["particle"], share_dict)
-        self.full_decay = DecayGroup(self.get_decay_struct(
-            self.dec, self.particle_map, self.particle_property, self.top, self.finals))
-        self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
+        self.decay_config = DecayConfig(self.config, share_dict)
+        self.dec = self.decay_config.dec
+        self.particle_map, self.particle_property = self.decay_config.particle_map, self.decay_config.particle_property
+        self.top, self.finals = self.decay_config.top, self.decay_config.finals
+        self.full_decay = self.decay_config.full_decay
+        self.decay_struct = self.decay_config.decay_struct
         self.vm = vm
         self.amps = {}
         self.cached_data = None
@@ -211,170 +198,9 @@ class ConfigLoader(object):
         else:
             return self.decay_struct
 
-    @staticmethod
-    def _list2decay(core, outs):
-        parts = []
-        params = {}
-        for j in outs:
-            if isinstance(j, dict):
-                for k, v in j.items():
-                    params[k] = v
-            else:
-                parts.append(j)
-        dec = {"core": core, "outs": parts, "params": params}
-        return dec
-
-    @staticmethod
-    def decay_item(decay_dict):
-        decs = []
-        for core, outs in decay_dict.items():
-            is_list = [isinstance(i, list) for i in outs]
-            if all(is_list):
-                for i in outs:
-                    dec = ConfigLoader._list2decay(core, i)
-                    decs.append(dec)
-            else:
-                dec = ConfigLoader._list2decay(core, outs)
-                decs.append(dec)
-        return decs
-
-    @staticmethod
-    def _do_include_dict(d, o, share_dict={}):
-        s = ConfigLoader.load_config(o, share_dict)
-        for i in s:
-            if i not in d:
-                d[i] = s[i]
-
-    @staticmethod
-    def particle_item_list(particle_list):
-        particle_map = {}
-        particle_property = {}
-        for particle, candidate in particle_list.items():
-            if isinstance(candidate, list):  # particle map
-                if len(candidate) == 0:
-                    particle_map[particle] = []
-                for i in candidate:
-                    if isinstance(i, str):
-                        particle_map[particle] = particle_map.get(
-                            particle, []) + [i]
-                    elif isinstance(i, dict):
-                        map_i, pro_i = ConfigLoader.particle_item_list(i)
-                        for k, v in map_i.items():
-                            particle_map[k] = particle_map.get(k, []) + v
-                        particle_property.update(pro_i)
-                    else:
-                        raise ValueError(
-                            "value of particle map {} is {}".format(i, type(i)))
-            elif isinstance(candidate, dict):
-                particle_property[particle] = candidate
-            else:
-                raise ValueError("value of particle {} is {}".format(
-                    particle, type(candidate)))
-        return particle_map, particle_property
-
-    @staticmethod
-    def particle_item(particle_list, share_dict={}):
-        top = particle_list.pop("$top", None)
-        finals = particle_list.pop("$finals", None)
-        includes = particle_list.pop("$include", None)
-        if includes:
-            if isinstance(includes, list):
-                for i in includes:
-                    ConfigLoader._do_include_dict(particle_list, i, share_dict=share_dict)
-            elif isinstance(includes, str):
-                ConfigLoader._do_include_dict(particle_list, includes, share_dict=share_dict)
-            else:
-                raise ValueError("$include must be string or list of string not {}"
-                                 .format(type(includes)))
-        particle_map, particle_property = ConfigLoader.particle_item_list(
-            particle_list)
-
-        if isinstance(top, dict):
-            particle_property.update(top)
-        if isinstance(finals, dict):
-            particle_property.update(finals)
-        return particle_map, particle_property, top, finals
-
-    def rename_params(self, params, is_particle=True):
-        ret = {}
-        if is_particle:
-            key_map = self.particle_key_map
-        else:
-            key_map = self.decay_key_map
-        for k, v in params.items():
-            ret[key_map.get(k, k)] = v
-        return ret
-
-    def get_decay_struct(self, decay, particle_map=None, particle_params=None, top=None, finals=None):
-        """  get decay structure for decay dict"""
-        particle_map = particle_map if particle_map is not None else {}
-        particle_params = particle_params if particle_params is not None else {}
-
-        particle_set = {}
-
-        def add_particle(name):
-            if name in particle_set:
-                return particle_set[name]
-            params = particle_params.get(name, {})
-            params = self.rename_params(params)
-            part = get_particle(name, **params)
-            particle_set[name] = part
-            return part
-
-        def wrap_particle(name):
-            name_list = particle_map.get(name, [name])
-            return [add_particle(i) for i in name_list]
-
-        def all_combine(out):
-            if len(out) < 1:
-                yield []
-            else:
-                for i in out[0]:
-                    for j in all_combine(out[1:]):
-                        yield [i] + j
-
-        decs = []
-        for dec in decay:
-            core = wrap_particle(dec["core"])
-            outs = [wrap_particle(j) for j in dec["outs"]]
-            for i in core:
-                for j in all_combine(outs):
-                    dec_i = get_decay(i, j, **dec["params"])
-                    decs.append(dec_i)
-
-        top_tmp, finals_tmp = set(), set()
-        if top is None or finals is None:
-            top_tmp, res, finals_tmp = split_particle_type(decs)
-        if top is None:
-            top_tmp = list(top_tmp)
-            assert len(top_tmp) == 1, "not only one top particle"
-            top = list(top_tmp)[0]
-        else:
-            if isinstance(top, str):
-                top = particle_set[top]
-            elif isinstance(top, dict):
-                keys = list(top.keys())
-                assert len(keys) == 1
-                top = particle_set[keys.pop()]
-            else:
-                return particle_set[str(top)]
-        if finals is None:
-            finals = list(finals_tmp)
-        elif isinstance(finals, (list, dict)):
-            finals = [particle_set[i] for i in finals]
-        else:
-            raise TypeError("{}: {}".format(finals, type(finals)))
-
-        dec_chain = top.chain_decay()
-        ret = []
-        for i in dec_chain:
-            if sorted(DecayChain(i).outs) == sorted(finals):
-                ret.append(i)
-        return ret
-
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
-        use_tf_function = self.config.get("data",{}).get("use_tf_function", False)
+        use_tf_function = self.config.get("data",{}).get("use_tf_function", True)
         decay_group = self.full_decay
         if vm is None:
             vm = self.vm
