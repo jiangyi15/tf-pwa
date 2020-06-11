@@ -731,7 +731,7 @@ class ConfigLoader(object):
         return data_dict, phsp_dict, bg_dict
 
     def _plot_partial_wave(self, data_dict, phsp_dict, bg_dict, prefix, plot_var_dic, chain_property,
-                        plot_delta=False, plot_pull=False, save_pdf=False, bin_scale=3, **kwargs):
+                        plot_delta=False, plot_pull=False, save_pdf=False, bin_scale=3, single_legend=False, **kwargs):
         #cmap = plt.get_cmap("jet")
         #N = 10
         #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
@@ -792,7 +792,9 @@ class ConfigLoader(object):
             ax.set_ylim((0, upper_ylim))
             ax.set_xlim(xrange)
             if has_legend:
-                ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
+                leg = ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
+                if single_legend:
+                    leg.set_visible(False)
             ax.set_title(display, fontsize='xx-large')
             ax.set_xlabel(display + units)
             ax.set_ylabel("Events/{:.3f}{}".format((max(data_x) - min(data_x))/bins, units))
@@ -820,7 +822,19 @@ class ConfigLoader(object):
                 if xrange is not None:
                     ax2.set_xlim(xrange)
             fig.savefig(prefix+name, dpi=300)
+            if has_legend:
+                if single_legend:
+                    fig_leg = plt.figure()
+                    ax_leg = fig_leg.add_subplot(111)
+                    # ... draw the legend
+                    ax_leg.legend(*ax.get_legend_handles_labels(), loc='center')
+                    # ... turn of the axis and save to file
+                    ax_leg.axis('off')
+                    fig_leg.savefig(prefix+'legend.png', dpi=300)
             if save_pdf:
+                if has_legend:
+                    if single_legend:
+                        fig_leg.savefig(prefix+'legend.pdf', dpi=300)
                 fig.savefig(prefix+name+".pdf", dpi=300)
             print("Finish plotting "+prefix+name)
             plt.close(fig)
