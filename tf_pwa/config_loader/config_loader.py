@@ -21,10 +21,10 @@ import sympy as sy
 from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
 from scipy.optimize import BFGS
-from .fit_improve import minimize as my_minimize
-from .applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
-from .fit import FitResult
-from .variable import Variable
+from tf_pwa.fit_improve import minimize as my_minimize
+from tf_pwa.applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
+from tf_pwa.fit import FitResult
+from tf_pwa.variable import Variable
 import copy
 
 
@@ -793,8 +793,6 @@ class ConfigLoader(object):
             ax.set_xlim(xrange)
             if has_legend:
                 leg = ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
-                if single_legend:
-                    leg.set_visible(False)
             ax.set_title(display, fontsize='xx-large')
             ax.set_xlabel(display + units)
             ax.set_ylabel("Events/{:.3f}{}".format((max(data_x) - min(data_x))/bins, units))
@@ -822,20 +820,12 @@ class ConfigLoader(object):
                 if xrange is not None:
                     ax2.set_xlim(xrange)
             fig.savefig(prefix+name, dpi=300)
-            if has_legend:
-                if single_legend:
-                    fig_leg = plt.figure()
-                    ax_leg = fig_leg.add_subplot(111)
-                    # ... draw the legend
-                    ax_leg.legend(*ax.get_legend_handles_labels(), loc='center')
-                    # ... turn of the axis and save to file
-                    ax_leg.axis('off')
-                    fig_leg.savefig(prefix+'legend.png', dpi=300)
+            if single_legend:
+                export_legend(ax, prefix + "legend.png")
             if save_pdf:
-                if has_legend:
-                    if single_legend:
-                        fig_leg.savefig(prefix+'legend.pdf', dpi=300)
                 fig.savefig(prefix+name+".pdf", dpi=300)
+                if single_legend:
+                    export_legend(ax, prefix + "legend.pdf")
             print("Finish plotting "+prefix+name)
             plt.close(fig)
                 
@@ -1155,10 +1145,24 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
     return x_new, y_new
 
 
+def export_legend(ax, filename="legend.pdf",ncol=1):
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot()
+    ax2.axis('off')
+    legend = ax2.legend(*ax.get_legend_handles_labels(), frameon=False, loc='lower center')
+    fig  = legend.figure
+    fig.canvas.draw()
+    bbox  = legend.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    fig.savefig(filename, dpi="figure", bbox_inches=bbox)
+    plt.close(fig2)
+    plt.close(fig)
+
+
 class PlotParams(dict):
     def __init__(self, plot_config, decay_struct):
         self.config = plot_config
-        self.defaults_config = self.config.get("config", {}) #???
+        self.defaults_config = {}
+        self.defaults_config.update(self.config.get("config", {}))
         self.decay_struct = decay_struct
         chain_map = self.decay_struct.get_chains_map()
         self.re_map = {}
@@ -1215,9 +1219,10 @@ class PlotParams(dict):
             trans = sy.sympify(trans)
             trans = sy.lambdify(x,trans)
             bins = v.get("bins", self.defaults_config.get("bins", 50))
+            legend = v.get("legend", self.defaults_config.get("legend", True))
             yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
                    "idx": ("particle", self.re_map.get(get_particle(k), get_particle(k)), "m"),
-                   "legend": True, "range": xrange, "bins": bins,
+                   "legend": legend, "range": xrange, "bins": bins,
                    "trans": trans, "units": "GeV"}
 
     def get_angle_vars(self):
@@ -1257,9 +1262,10 @@ class PlotParams(dict):
                     trans = np.cos
                 bins = v.get("bins", self.defaults_config.get("bins", 50))
                 xrange = v.get("range", None)
+                legend = v.get("legend", self.defaults_config.get("legend", False))
                 yield {"name": validate_file_name(k+"_"+j), "display": display, "upper_ylim": upper_ylim,
                        "idx": ("decay", decay_chain, decay, part, "ang", theta),
-                       "trans": trans, "bins": bins, "range": xrange}
+                       "trans": trans, "bins": bins, "range": xrange, "legend": legend}
 
     def get_params(self, params=None):
         if params is None:
