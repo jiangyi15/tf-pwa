@@ -244,11 +244,11 @@ class ConfigLoader(object):
                     if 'm' in self.config['particle'][i]["gauss_constr"]:
                         if m_sigma is None:
                             raise Exception("Need sigma of mass of {} when adding gaussian constraint".format(i))
-                        self.gauss_constr_dic[i+'_mass'] = (self.config['particle'][i]["m0"], m_sigma)
+                        self.gauss_constr_dic[p_i.mass.name] = (self.config['particle'][i]["m0"], m_sigma)
                     if 'g' in self.config['particle'][i]["gauss_constr"]:
                         if g_sigma is None:
                             raise Exception("Need sigma of width of {} when adding gaussian constraint".format(i))
-                        self.gauss_constr_dic[i+'_width'] = (self.config['particle'][i]["g0"], g_sigma)
+                        self.gauss_constr_dic[p_i.mass.width] = (self.config['particle'][i]["g0"], g_sigma)
                 if "float" in self.config['particle'][i] and self.config['particle'][i]["float"]:
                     if 'm' in self.config['particle'][i]["float"]:
                         p_i.mass.freed() # set_fix(i+'_mass',unfix=True)
@@ -285,8 +285,8 @@ class ConfigLoader(object):
                     else:
                         self._neglect_when_set_params.append(p_i.width.name)
                 else:
-                    self._neglect_when_set_params.append(i+'_mass') #p_i.mass.name
-                    self._neglect_when_set_params.append(i+'_width') #p_i.width.name
+                    self._neglect_when_set_params.append(p_i.mass.name) #p_i.mass.name
+                    self._neglect_when_set_params.append(p_i.mass.name) #p_i.width.name
                 # share helicity variables 
                 if "coef_head" in self.config['particle'][i]:
                     coef_head = self.config['particle'][i]["coef_head"]

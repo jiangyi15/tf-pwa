@@ -31,7 +31,7 @@ class NewParticle(Particle):
 def json_print(dic):
     """print parameters as json"""
     s = json.dumps(dic, indent=2)
-    print(s)
+    print(s, flush=True)
 
 
 def fit(config_file="config.yml", init_params="init_params.json", method="BFGS"):
@@ -48,7 +48,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     except Exception as e:
         if str(e) != "[Errno 2] No such file or directory: 'init_params.json'":
             print(e)
-        print("\nusing RANDOM parameters")
+        print("\nusing RANDOM parameters", flush=True)
     
     # print("\n########### initial parameters")
     # json_print(config.get_params())
@@ -156,6 +156,7 @@ def main():
                 fit_combine(config, results.init, results.method, results.total_same)
             else:
                 fit(results.config, results.init, results.method)
+            print("", flush=True)
 
 
 if __name__ == "__main__":
