@@ -52,6 +52,26 @@ def delta_D_trans(j, la, lb, lc):
     ret = _tuple_delta_D_trans(j, la, lb, lc)
     return ret
 
+def delta_D_index(j, la, lb, lc):
+    la, lb, lc = map(tuple, (la, lb, lc))
+    ret = _tuple_delta_D_index(j, la, lb, lc)
+    return ret
+
+@functools.lru_cache()
+def _tuple_delta_D_index(j, la, lb, lc):
+    ln = _spin_int(2 * j + 1)
+    ret = []
+    max_idx = _spin_int(j +j) * _spin_int(j+j)
+    for i_a, la_i in enumerate(la):
+        for i_b, lb_i in enumerate(lb):
+            for i_c, lc_i in enumerate(lc):
+                delta = lb_i - lc_i
+                if abs(delta) <= j:
+                    ret.append(_spin_int((la_i + j)*ln + delta + j))
+                else:
+                    ret.append(max_idx)
+    return ret
+
 
 def Dfun_delta(d, ja, la, lb, lc=(0,)):
     """
@@ -62,12 +82,30 @@ def Dfun_delta(d, ja, la, lb, lc=(0,)):
     t = delta_D_trans(ja, la, lb, lc)
     ln = _spin_int(2 * ja + 1)
     t_trans = tf.reshape(t, (ln * ln, len(la) * len(lb) * len(lc)))
+
     t_cast = tf.cast(t_trans, d.dtype)
     # print(d[0])
-    
+
     d = tf.reshape(d, (-1, ln * ln))
 
     ret = tf.matmul(d, t_cast)
+    return tf.reshape(ret, (-1, len(la), len(lb), len(lc)))
+
+def Dfun_delta_v2(d, ja, la, lb, lc=(0,)):
+    """
+    The decay from particle *a* to *b* and *c* requires :math:`|l_b-l_c|\\leqslant j`
+
+    :math:`D_{ma,mb-mc} = \\delta[(m1,m2)->(ma, mb,mc))] D_{m1,m2}`
+    """
+    idx = delta_D_index(ja, la, lb, lc)
+    ln = _spin_int(2 * ja + 1)
+    # print(d[0])
+
+    d = tf.reshape(d, (-1, ln * ln))
+    zeros = tf.zeros((d.shape[0], 1), dtype=d.dtype)
+
+    over_d = tf.concat([d, zeros], axis=-1)
+    ret = tf.gather(over_d, idx, axis=-1)
     return tf.reshape(ret, (-1, len(la), len(lb), len(lc)))
 
 
@@ -204,6 +242,6 @@ def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     """
     d = get_D_matrix_for_angle(angle, _spin_int(2 * ja))
     if lc is None:
-        return tf.reshape(Dfun_delta(d, ja, la, lb, (0,)), (-1, len(la), len(lb)))
+        return tf.reshape(Dfun_delta_v2(d, ja, la, lb, (0,)), (-1, len(la), len(lb)))
     else:
-        return Dfun_delta(d, ja, la, lb, lc)
+        return Dfun_delta_v2(d, ja, la, lb, lc)

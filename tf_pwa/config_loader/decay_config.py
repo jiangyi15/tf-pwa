@@ -38,6 +38,8 @@ class DecayConfig:
                 return DecayConfig.load_config(share_dict[file_name])
             with open(file_name) as f:
                 ret = yaml.safe_load(f)
+                if ret is None:
+                    ret = {}
             return ret
         raise TypeError("not support config {}".format(type(file_name)))
 
