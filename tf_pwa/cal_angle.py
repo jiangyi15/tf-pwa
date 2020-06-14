@@ -53,7 +53,7 @@ Inner nodes are named as tuple of particles.
 import numpy as np
 
 from .angle import EulerAngle, LorentzVector, Vector3, SU2M, _epsilon
-from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy, data_strip
+from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy, data_strip, data_merge
 from .tensorflow_wrapper import tf
 from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
 from .config import get_config
@@ -345,7 +345,21 @@ def prepare_data_from_dat_file(fnames):
     return data
 
 
-def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True) -> dict:
+def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True, batch=65000) -> dict:
+    """
+    Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
+
+    :param p: 4-momentum data
+    :param decs: DecayGroup
+    :return: Dictionary of data
+    """
+    ret = []
+    for i in split_generator(p, batch):
+        ret.append(cal_angle_from_momentum_single(i, decs, using_topology, center_mass, r_boost))
+    return data_merge(*ret)
+
+
+def cal_angle_from_momentum_single(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 

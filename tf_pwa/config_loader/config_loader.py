@@ -391,7 +391,7 @@ class ConfigLoader(object):
             i.set_rho(np.sqrt(ni / np.sum(weight * w) * sw))
 
     @time_print
-    def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False):
+    def fit(self, data=None, phsp=None, bg=None, inmc=None, batch=65000, method="BFGS", check_grad=False, improve=False, reweight=False, maxiter=None):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
         amp = self.get_amplitude()
@@ -408,7 +408,7 @@ class ConfigLoader(object):
         print("initial NLL: ", fcn({})) # amp.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
-        self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False)
+        self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False, maxiter=maxiter)
         return self.fit_params
 
     def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):

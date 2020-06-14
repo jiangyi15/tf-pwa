@@ -910,6 +910,10 @@ class AmplitudeModel(object):
         else:
             self.cached_fun = self.decay_group.sum_amp
 
+    def __del__(self):
+        del self.cached_fun
+        # super(AmplitudeModel, self).__del__()
+
     def cache_data(self, data, split=None, batch=None):
         for i in self.decay_group:
             for j in i.inner:

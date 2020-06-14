@@ -50,7 +50,7 @@ def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False, **kwargs):
 
 
 from scipy.optimize import minimize,BFGS,basinhopping
-def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False):
+def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False, maxiter=None):
     """
 
     :param fcn:
@@ -72,7 +72,8 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
     points = []
     nlls = []
     now = time.time()
-    maxiter = 2000
+    if maxiter is None:
+        maxiter = max(100 * len(x0), 2000)
     min_nll = 0.0
     ndf = 0
     
