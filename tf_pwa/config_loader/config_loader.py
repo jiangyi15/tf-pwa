@@ -447,6 +447,8 @@ class ConfigLoader(object):
             data = self.get_data("data")
             bg = self.get_data("bg")
             phsp = self.get_phsp_plot()
+            if bg is None:
+                bg = [bg] * len(data)
         amp = self.get_amplitude()
         ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
         self._Ngroup = len(data)
