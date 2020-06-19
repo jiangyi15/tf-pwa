@@ -121,19 +121,19 @@ class BaseParticle(object):
     def __repr__(self):
         if self._id == 0:
             return self._name
-        return "{}:{}".format(self._name, self._id)
+        return "{}:{}".format(self.name, self._id)
 
     def __hash__(self):
-        return hash((self._name, self._id))
+        return hash((self.name, self._id))
 
     def __eq__(self, other):
         if not isinstance(other, BaseParticle):
             return False
-        return (self._name, self._id) == (other._name, other._id)
+        return (self.name, self._id) == (other.name, other._id)
 
     def __lt__(self, other):
         if isinstance(other, BaseParticle):
-            return (self._name, self._id) < (other._name, other._id)
+            return (self.name, self._id) < (other.name, other._id)
         return self.__repr__() < other
 
     def __add__(self, other):
@@ -559,7 +559,7 @@ class DecayChain(object):
         """
         a = self.sorted_table()
         if identical:
-            set_a = [[j._name for j in a[i]] for i in a]
+            set_a = [[j.name for j in a[i]] for i in a]
         else:
             set_a = [list(a[i]) for i in a]
         return sorted(set_a)
