@@ -896,7 +896,7 @@ def value_and_grad(f, var):
 class AmplitudeModel(object):
     def __init__(self, decay_group, name="", polar=True, vm=None, use_tf_function=False):
         self.decay_group = decay_group
-        self.name = name
+        self._name = name
         with variable_scope(vm) as vm:
             vm.polar = polar
             decay_group.init_params(name)

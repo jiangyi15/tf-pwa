@@ -82,15 +82,20 @@ class BaseParticle(object):
         if id_ is None:
             names = name.split(":")
             if len(names) > 1:
-                self.name = ":".join(names[:-1])
+                self._name = ":".join(names[:-1])
                 try:
                     self._id = int(names[-1])
                 except ValueError:
-                    self.name, self._id = name, 0
+                    self._name, self._id = name, 0
             else:
-                self.name, self._id = name, 0
+                self._name, self._id = name, 0
         else:
-            self.name, self._id = name, id_
+            self._name, self._id = name, id_
+
+    @property
+    def name(self):
+        return self._name
+
 
     def add_decay(self, d):
         """
@@ -115,20 +120,20 @@ class BaseParticle(object):
 
     def __repr__(self):
         if self._id == 0:
-            return self.name
-        return "{}:{}".format(self.name, self._id)
+            return self._name
+        return "{}:{}".format(self._name, self._id)
 
     def __hash__(self):
-        return hash((self.name, self._id))
+        return hash((self._name, self._id))
 
     def __eq__(self, other):
         if not isinstance(other, BaseParticle):
             return False
-        return (self.name, self._id) == (other.name, other._id)
+        return (self._name, self._id) == (other._name, other._id)
 
     def __lt__(self, other):
         if isinstance(other, BaseParticle):
-            return (self.name, self._id) < (other.name, other._id)
+            return (self._name, self._id) < (other._name, other._id)
         return self.__repr__() < other
 
     def __add__(self, other):
@@ -231,7 +236,7 @@ class BaseDecay(object):
     """
 
     def __init__(self, core, outs, name=None, disable=False, p_break=False, curve_style=None):
-        self.name = name
+        self._name = name
         self.core = core
         self.outs = tuple(outs)
         self.p_break = p_break
@@ -245,6 +250,10 @@ class BaseDecay(object):
             for i in outs:
                 i.add_creator(self)
         self.curve_style = curve_style
+
+    @property
+    def name(self):
+        return self._name
 
     def __repr__(self):
         ret = str(self.core)
@@ -429,7 +438,7 @@ class DecayChain(object):
         return iter(self.chain)
 
     def __repr__(self):
-        return "{}".format(self.chain)
+        return "{}".format(list(self.chain))
 
     @functools.lru_cache()
     def sorted_table(self):
@@ -550,7 +559,7 @@ class DecayChain(object):
         """
         a = self.sorted_table()
         if identical:
-            set_a = [[j.name for j in a[i]] for i in a]
+            set_a = [[j._name for j in a[i]] for i in a]
         else:
             set_a = [list(a[i]) for i in a]
         return sorted(set_a)
@@ -564,7 +573,6 @@ class DecayChain(object):
         if not isinstance(other, DecayChain):
             return False
         return self.get_id() < other.get_id()
-
 
     @simple_cache_fun
     def __hash__(self):
@@ -798,4 +806,4 @@ class DecayGroup(object):
                     break
             else:
                 return decay_chain
-        raise ValueError("Not found such decay chain")
+        raise ValueError("Not found such decay chain: {}".format(names))

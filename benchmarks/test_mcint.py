@@ -72,6 +72,17 @@ def test_mc_int2(benchmark):
         return tf.reduce_sum(amp(dat))
     benchmark(mc_int, data)
 
+
+@pytest.mark.benchmark(group="mc_int")
+def test_mc_int2_CPU(benchmark):
+    amp, data, params = _get_decay_data(2)
+
+    def mc_int(dat):
+        return tf.reduce_sum(amp(dat))
+    with tf.device("CPU:0"):
+        benchmark(mc_int, data)
+
+
 @pytest.mark.benchmark(group="mc_int")
 def test_mc_int_grad(benchmark):
     amp, data, params = _get_decay_data(1)

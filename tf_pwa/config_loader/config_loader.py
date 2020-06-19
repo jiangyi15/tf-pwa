@@ -49,6 +49,7 @@ class ConfigLoader(object):
         self.gauss_constr_dic = {}
         self.plot_params = PlotParams(self.config.get("plot", {}), self.decay_struct)
         self._neglect_when_set_params = []
+        self.data_mode = self.get_data_mode()
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -95,6 +96,18 @@ class ConfigLoader(object):
             else:
                 new_order.append(i)
         return new_order
+
+    def get_data_mode(self):
+        data_config = self.config.get("data", {})
+        data = data_config.get("data", "")
+        if isinstance(data, str):
+            mode =  "single"
+        elif isinstance(data, list):
+            data_i = data[0]
+            if isinstance(data_i, str):
+                 return "single"
+            elif isinstance(data_i, list):
+                return "multi"
 
     @functools.lru_cache()
     def get_data(self, idx):
@@ -284,9 +297,9 @@ class ConfigLoader(object):
                         self.bound_dic[p_i.width.name] = (lower,upper)
                     else:
                         self._neglect_when_set_params.append(p_i.width.name)
-                else:
-                    self._neglect_when_set_params.append(p_i.mass.name) #p_i.mass.name
-                    self._neglect_when_set_params.append(p_i.mass.name) #p_i.width.name
+                #else:
+                    #self._neglect_when_set_params.append(p_i.mass.name) #p_i.mass.name
+                    #self._neglect_when_set_params.append(p_i.mass.name) #p_i.width.name
                 # share helicity variables 
                 if "coef_head" in self.config['particle'][i]:
                     coef_head = self.config['particle'][i]["coef_head"]
