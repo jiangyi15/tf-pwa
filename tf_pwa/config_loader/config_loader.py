@@ -148,7 +148,7 @@ class ConfigLoader(object):
                 data = np.loadtxt(i).reshape((-1,))
                 ret.append(data)
         elif isinstance(weight_files, str):
-            data = np.loadtxt(i).reshape((-1,))
+            data = np.loadtxt(weight_files).reshape((-1,))
             ret.append(data)
         else:
             raise TypeError("weight files must be string of list of strings, not {}".format(type(weight_files)))
