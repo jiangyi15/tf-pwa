@@ -15,6 +15,7 @@ A detailed configuration file sample (with all usable parameters) can be found *
    :caption: Contents:
    
    amplitude
+   custom_model
    decay_topology
    phasespace
    api/modules

@@ -12,16 +12,16 @@ import json
 
 
 # examples of custom particle model
-from tf_pwa.amp import Particle, regist_particle
+from tf_pwa.amp import Particle, register_particle
 
 
-@regist_particle("New")
+@register_particle("New")
 class NewParticle(Particle):
     """example Particle model define, can be used in config.yml as `model: New`"""
     def init_params(self):
         # self.a = self.add_var("a")
         pass
-    def get_amp(self, data, data_extra):
+    def get_amp(self, data, data_extra, **kwargs):
         # m = data["m"]
         # q = data_extra[self.outs[0]]["|q|"]
         # a = self.a()
