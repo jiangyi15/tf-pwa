@@ -213,7 +213,7 @@ class ConfigLoader(object):
 
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
-        use_tf_function = self.config.get("data",{}).get("use_tf_function", True)
+        use_tf_function = self.config.get("data",{}).get("use_tf_function", False)
         decay_group = self.full_decay
         if vm is None:
             vm = self.vm
@@ -575,7 +575,7 @@ class ConfigLoader(object):
         return data_dict, phsp_dict, bg_dict
 
     def _plot_partial_wave(self, data_dict, phsp_dict, bg_dict, prefix, plot_var_dic, chain_property,
-                        plot_delta=False, plot_pull=False, save_pdf=False, bin_scale=3, single_legend=False, **kwargs):
+                        plot_delta=False, plot_pull=False, save_pdf=False, bin_scale=3, single_legend=False, format="png", **kwargs):
         #cmap = plt.get_cmap("jet")
         #N = 10
         #colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
@@ -663,9 +663,9 @@ class ConfigLoader(object):
                 ax2.set_xlabel(display + units)
                 if xrange is not None:
                     ax2.set_xlim(xrange)
-            fig.savefig(prefix+name, dpi=300)
+            fig.savefig(prefix+name+"."+format, dpi=300)
             if single_legend:
-                export_legend(ax, prefix + "legend.png")
+                export_legend(ax, prefix + "legend.{}".format(format))
             if save_pdf:
                 fig.savefig(prefix+name+".pdf", dpi=300)
                 if single_legend:
