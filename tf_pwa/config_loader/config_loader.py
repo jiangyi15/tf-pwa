@@ -663,6 +663,8 @@ class ConfigLoader(object):
                 ax2.set_xlabel(display + units)
                 if xrange is not None:
                     ax2.set_xlim(xrange)
+            #ax.set_yscale("log")
+            #ax.set_ylim([0.1, 1e3])
             fig.savefig(prefix+name+"."+format, dpi=300)
             if single_legend:
                 export_legend(ax, prefix + "legend.{}".format(format))
@@ -1062,12 +1064,13 @@ class PlotParams(dict):
             trans = v.get("trans", 'x')
             trans = sy.sympify(trans)
             trans = sy.lambdify(x,trans)
+            units = v.get("units", "GeV")
             bins = v.get("bins", self.defaults_config.get("bins", 50))
             legend = v.get("legend", self.defaults_config.get("legend", True))
             yield {"name": "m_"+k, "display": display, "upper_ylim": upper_ylim,
                    "idx": ("particle", self.re_map.get(get_particle(k), get_particle(k)), "m"),
                    "legend": legend, "range": xrange, "bins": bins,
-                   "trans": trans, "units": "GeV"}
+                   "trans": trans, "units": units}
 
     def get_angle_vars(self):
         ang = self.config.get("angle", {})
