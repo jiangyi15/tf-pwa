@@ -4,6 +4,7 @@ import numpy as np
 
 from tf_pwa.data import data_split
 
+
 def nll_grad(f, var, args=(), kwargs=None, options=None):
     kwargs = kwargs if kwargs is not None else {}
     options = options if options is not None else {}
@@ -20,24 +21,24 @@ def nll_grad(f, var, args=(), kwargs=None, options=None):
 
 def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
     r"""
-  defination:
+    defination:
 
-  .. math::
+    .. math::
     FF_{i} = \frac{\int |A_i|^2 d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
     \approx \frac{\sum |A_i|^2 }{\sum|\sum_{i} A_{i}|^2}
 
-  gradients:
+    interference fitfraction:
 
-  .. math::
+    .. math::
     FF_{i,j} = \frac{\int 2Re(A_i A_j*) d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
     = \frac{\int |A_i +A_j|^2  d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega } - FF_{i} - FF_{j}
 
-  hessians:
+    gradients (for error transfer): 
 
-  .. math::
+    .. math::
     \frac{\partial }{\partial \theta_i }\frac{f(\theta_i)}{g(\theta_i)} =
-      \frac{\partial f(\theta_i)}{\partial \theta_i} \frac{1}{g(\theta_i)} -
-      \frac{\partial g(\theta_i)}{\partial \theta_i} \frac{f(\theta_i)}{g^2(\theta_i)}
+        \frac{\partial f(\theta_i)}{\partial \theta_i} \frac{1}{g(\theta_i)} -
+        \frac{\partial g(\theta_i)}{\partial \theta_i} \frac{f(\theta_i)}{g^2(\theta_i)}
 
   """
     kwargs = kwargs if kwargs is not None else {}
@@ -83,8 +84,8 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
 
 def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
     r"""
-  calculate fit fractions without gradients.
-  """
+    calculate fit fractions without gradients.
+    """
     kwargs = kwargs if kwargs is not None else {}
     var = amp.trainable_variables
     # allvar = [i.name for i in var]
