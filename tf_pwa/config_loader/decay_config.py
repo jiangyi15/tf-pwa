@@ -97,7 +97,7 @@ class DecayConfig:
                         particle_map[particle] = particle_map.get(
                             particle, []) + [i]
                     elif isinstance(i, dict):
-                        map_i, pro_i = ConfigLoader.particle_item_list(i)
+                        map_i, pro_i = DecayConfig.particle_item_list(i)
                         for k, v in map_i.items():
                             particle_map[k] = particle_map.get(k, []) + v
                         particle_property.update(pro_i)

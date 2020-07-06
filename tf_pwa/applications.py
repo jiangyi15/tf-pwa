@@ -520,6 +520,7 @@ def compare_result(value1, value2, error1, error2=None, figname=None, yrange=Non
                     arr.append(np.sign(diff_dict[v]) * yrange)
                 else:
                     arr.append(diff_dict[v])
+            # pylint: disable=invalid-unary-operand-type
             plt.ylim(-yrange, yrange)
         else:
             for v in diff_dict:

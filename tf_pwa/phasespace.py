@@ -167,4 +167,4 @@ class PhaseSpaceGenerator(object):
             emmax += self.m_mass[-n-1]
             p = get_p(emmax, emmin, self.m_mass[-n-1])
             wtmax *= p
-        self.m_wtMax = tf.cast(wtmax, dtype="float64")
+        self.m_wtMax = tf.convert_to_tensor(wtmax, dtype="float64")

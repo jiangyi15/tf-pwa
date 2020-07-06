@@ -17,6 +17,7 @@ pylint:
   - pip install -r requirements.txt
   - pip install pylint pytest
   - pylint tf_pwa --errors-only --exit-zero
+  - pylint tf_pwa -E --disable=all -e E0602
 
 
 build_docs:
