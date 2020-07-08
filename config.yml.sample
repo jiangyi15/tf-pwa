@@ -107,6 +107,8 @@ constrains:
         # equal:
             # mass: [[D1_2430p, D1_2430]]
     decay: {fix_chain_idx: 0, fix_chain_val: 1}
+    # fix_var:
+        # "A->R_CD.BR_CD->C.D_total_0r": 1.0
 
 
 # plot describe the configuration of plotting 1-d data distribution

@@ -230,6 +230,14 @@ class ConfigLoader(object):
             constrains = {}
         self.add_decay_constraints(amp, constrains.get("decay", {}))
         self.add_particle_constraints(amp, constrains.get("particle", {}))
+        self.add_fix_var_constraints(amp, constrains.get("fix_var", {}))
+
+    def add_fix_var_constraints(self, amp, dic=None):
+        if dic is None:
+            dic = {}
+        for k,v in dic.items():
+            print("fix var: ", k, "=", v)
+            amp.vm.set_fix(k, v)
 
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:

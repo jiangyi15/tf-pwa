@@ -2,8 +2,8 @@
 Basic Amplitude Calculations.
 A partial wave analysis process has following structure:
 
-DecayGroup: addition
-    DecayChain: multiplication
+DecayGroup: addition (+)
+    DecayChain: multiplication (x)
         Decay, Particle(Propagator)
 
 """
@@ -498,7 +498,11 @@ class ParticleDecay(HelicityDecay):
 class AngSam3Decay(AmpDecay, AmpBase):
     def init_params(self):
         a = self.core.J
-        self.gi = self.add_var("G_mu", is_complex=True, shape=(2*a+1,))
+        self.gi = self.add_var("G_mu", is_complex=True, shape=(_spin_int(2*a+1),))
+        try:
+            self.gi.set_fix_idx(fix_idx=0, fix_vals=(1.0,0.0))
+        except Exception as e:
+            print(e)
 
     def get_amp(self, data, data_extra=None, **kwargs):
         a = self.core
@@ -507,7 +511,7 @@ class AngSam3Decay(AmpDecay, AmpBase):
         d = self.outs[2]
         gi = tf.stack(self.gi())
         ang = data["ang"]
-        D_conj = get_D_matrix_lambda(ang, a.J, a.spins, range(-a.J, a.J+1))
+        D_conj = get_D_matrix_lambda(ang, a.J, a.spins, tuple(_spin_range(-a.J, a.J)))
         ret = tf.cast(gi, D_conj.dtype) * D_conj
         ret = tf.reduce_sum(ret, axis=-1)
         ret = tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
