@@ -33,7 +33,8 @@ release = ""
 extensions = [
   'sphinx.ext.autodoc',
   'sphinx.ext.mathjax',
-  'sphinx.ext.doctest'
+  'sphinx.ext.doctest',
+  'sphinx.ext.graphviz'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

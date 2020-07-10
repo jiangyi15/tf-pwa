@@ -51,10 +51,10 @@ We can also add parameters in the Model ``init_params`` using ``self.add_var(...
            super(LineModel, self).init_params()
            self.a = self.add_var("a")
        def get_amp(self, data, *args, **kwargs):
-           """ model as a * m + 1 """
+           """ model as m + a """
            m = data["m"]
            zeros = tf.zeros_like(m)
-           return tf.complex(self.a() * m + 1, zeros)
+           return tf.complex( m + self.a(), zeros)
 
 Then a parameters ``{particle_name}_a`` will appear in the parameters, we use ``self.a()`` to get the value in ``get_amp``. 
 Note, the type of return value should be ``tf.complex``. All builtin model is located in ``tf_pwa/amp.py``.

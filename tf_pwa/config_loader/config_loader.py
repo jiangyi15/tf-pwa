@@ -370,6 +370,8 @@ class ConfigLoader(object):
             bg = bg if bg is not None else self.get_data("bg")
             tmp = []
             for wb, dt, sb in zip(w_bkg, data, bg):
+                if isinstance(wb, str):
+                    wb = self.load_weight_file(wb)
                 tmp.append(wb * data_shape(dt) / data_shape(sb))
             w_bkg = tmp
             if display:

@@ -13,7 +13,7 @@ import json
 
 # examples of custom particle model
 from tf_pwa.amp import Particle, register_particle
-
+from tf_pwa.expermental import extra_amp
 
 @register_particle("New")
 class NewParticle(Particle):

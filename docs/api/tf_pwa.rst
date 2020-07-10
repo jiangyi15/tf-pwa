@@ -39,6 +39,15 @@ tf\_pwa.config\_loader module
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tf_pwa.config_loader.config_loader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tf_pwa.config_loader.decay_config
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 tf\_pwa.cg module
 -----------------
