@@ -690,7 +690,7 @@ class ConfigLoader(object):
             var1 = var1.rstrip()
             var2 = var2.lstrip()
             k = var1 + "_vs_" + var2
-            display = i["display"]
+            display = i.get("display", k)
             plot_figs = i["plot_figs"]
             name1, name2 = display.split('vs')
             name1 = name1.rstrip()
