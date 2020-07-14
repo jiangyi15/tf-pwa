@@ -118,6 +118,55 @@ def add_weight(data: dict, weight: float = 1.0) -> dict:
     return data
 
 
+def cal_chain_boost(data, decay_chain: DecayChain) -> dict:
+    """
+    calculate chain boost for a decay chain
+    """
+    part_data = {}
+    core_decay_map = {}
+
+    decay_set = list(decay_chain)
+    particle_set = set(decay_chain.inner) | set(decay_chain.outs)
+    while len(decay_set) > 0:
+        tmp_decay_set = []
+        for i in decay_set:
+            if i.core == decay_chain.top:
+                part_data[i] = {}
+                p_rest = data[i.core]["p"]
+                part_data[i]["rest_p"] = {}
+                for j in i.outs:
+                    core_decay_map[j] = i
+                    pj = data[j]["p"]
+                    p = LorentzVector.rest_vector(p_rest, pj)
+                    part_data[i]["rest_p"][j] = p
+                    particle_set.remove(j)
+                for j in particle_set:
+                    pj = data[j]["p"]
+                    p = LorentzVector.rest_vector(p_rest, pj)
+                    part_data[i]["rest_p"][j] = p
+            elif i.core in core_decay_map:
+                part_data[i] = {}
+                p_rest = part_data[core_decay_map[i.core]]["rest_p"][i.core]
+                part_data[i]["rest_p"] = {}
+                for j in i.outs:
+                    core_decay_map[j] = i
+                    pj = part_data[core_decay_map[i.core]]["rest_p"][j]
+                    p = LorentzVector.rest_vector(p_rest, pj)
+                    part_data[i]["rest_p"][j] = p
+                    particle_set.remove(j)
+                for j in particle_set:
+                    pj = part_data[core_decay_map[i.core]]["rest_p"][j]
+                    p = LorentzVector.rest_vector(p_rest, pj)
+                    part_data[i]["rest_p"][j] = p
+            else:
+                tmp_decay_set.append(i)
+        decay_set = tmp_decay_set
+    #from pprint import pprint
+    #pprint(part_data)
+    #exit()
+    return part_data
+
+
 def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                        base_z=np.array([[0.0, 0.0, 1.0]]),
                        base_x=np.array([[1.0, 0.0, 0.0]])) -> dict:
@@ -128,17 +177,9 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
 
     to   `{A->B+C:{B:{"ang":{"alpha":...,"beta":...,"gamma":...},"x":...,"z"},...}}`
     """
-    part_data = {}
     ret = {}
     # boost all in them mother rest frame
-    for i in decay_chain:
-        part_data[i] = {}
-        p_rest = data[i.core]["p"]
-        part_data[i]["rest_p"] = {}
-        for j in i.outs:
-            pj = data[j]["p"]
-            p = LorentzVector.rest_vector(p_rest, pj)
-            part_data[i]["rest_p"][j] = p
+    part_data = cal_chain_boost(data, decay_chain)
     # calculate angle and base x,z axis from mother particle rest frame momentum and base axis
     set_x = {decay_chain.top: base_x}
     set_z = {decay_chain.top: base_z}
