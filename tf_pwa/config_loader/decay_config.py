@@ -2,8 +2,10 @@ import functools
 import copy
 from tf_pwa.amp import DecayGroup, DecayChain, get_particle, get_decay, split_particle_type
 import yaml
+from .base_config import BaseConfig
 
-class DecayConfig:
+
+class DecayConfig(BaseConfig):
     def __init__(self, dic, share_dict={}):
         self.config = dic
         self.share_dict = share_dict
