@@ -13,7 +13,9 @@ class _Default:
 default_var = _Default()
 
 
-def create_config(default):
+def create_config(default=None):
+    if default is None:
+        default = {}
     _config = ConfigManager(default)
 
     def set_(name, var):

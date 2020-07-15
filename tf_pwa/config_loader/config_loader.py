@@ -28,7 +28,7 @@ from tf_pwa.variable import Variable
 import copy
 
 from .decay_config import DecayConfig
-
+from .data import load_data_mode
 
 class ConfigLoader(object):
     """class for loading config.yml"""
@@ -49,7 +49,7 @@ class ConfigLoader(object):
         self.gauss_constr_dic = {}
         self.plot_params = PlotParams(self.config.get("plot", {}), self.decay_struct)
         self._neglect_when_set_params = []
-        self.data_mode = self.get_data_mode()
+        self.data = load_data_mode(self.config.get("data", None), self.decay_struct)
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -111,6 +111,7 @@ class ConfigLoader(object):
 
     @functools.lru_cache()
     def get_data(self, idx):
+        return self.data.get_data(idx)
         if self.cached_data is not None:
             data = self.cached_data.get(idx, None)
             if data is not None:
