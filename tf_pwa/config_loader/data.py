@@ -6,6 +6,9 @@ from tf_pwa.config import create_config
 
 from tf_pwa.config import regist_config, get_config, temp_config
 import numpy as np
+import warnings
+import os
+
 
 DATA_MODE = "data_mode"
 regist_config(DATA_MODE, {})
@@ -97,9 +100,9 @@ class SimpleData():
         weight_sign = 1
         if idx == "bg":
             weight_sign = -1
-        return self._load_data(files, weights, weight_sign)
+        return self.load_data(files, weights, weight_sign)
 
-    def _load_data(self, files, weights, weights_sign = 1) -> dict:
+    def load_data(self, files, weights, weights_sign = 1) -> dict:
         # print(files, weights)
         if files is None:
             return None
@@ -116,6 +119,21 @@ class SimpleData():
             else:
                 raise TypeError("weight format error: {}".format(type(weights)))
         return data
+
+    def load_weight_file(self, weight_files):
+        ret = []
+        if isinstance(weight_files, list):
+            for i in weight_files:
+                data = np.loadtxt(i).reshape((-1,))
+                ret.append(data)
+        elif isinstance(weight_files, str):
+            data = np.loadtxt(weight_files).reshape((-1,))
+            ret.append(data)
+        else:
+            raise TypeError("weight files must be string of list of strings, not {}".format(type(weight_files)))
+        if len(ret) == 1:
+            return ret[0]
+        return np.concatenate(ret)
 
     def load_cached_data(self, file_name=None):
         if file_name is None:
@@ -173,7 +191,7 @@ class SimpleData():
         raise ValueError("unknown sub {}".format(sub))
 
     def get_phsp_noeff(self):
-        if "phsp_noeff" in dic:
+        if "phsp_noeff" in self.dic:
             phsp_noeff = self.get_data("phsp_noeff")
             return phsp_noeff
         warnings.warn("No data file as 'phsp_noeff', using the first 'phsp' file instead.")
@@ -211,7 +229,7 @@ class MultiData(SimpleData):
         weight_sign = 1
         if idx == "bg":
             weight_sign = -1
-        ret = [self._load_data(i, j, weight_sign) for i, j in zip(files, weights)]
+        ret = [self.load_data(i, j, weight_sign) for i, j in zip(files, weights)]
         if self._Ngroup == 0:
             self._Ngroup = len(ret)
         elif idx != "phsp_noeff":
