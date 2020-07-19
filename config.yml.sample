@@ -35,6 +35,7 @@ data:
     # center_mass: True
     # cached data file
     # cached_data: "data/all_data.npy"
+    # data_charge: ["data/data4600_cc.dat"] # charge conjugation condition same as weight
 
 
 # `decay` describe the decay structure, each node can be a list of particle name

@@ -1,5 +1,5 @@
 from tf_pwa.amp import get_particle
-from tf_pwa.data import data_index, data_shape, data_split, load_data, save_data
+from tf_pwa.data import data_index, data_shape, data_split, load_data, save_data, data_to_tensor
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.config import create_config
 
@@ -90,6 +90,13 @@ class SimpleData():
                 new_order.append(i)
         return new_order
 
+    def get_weight_sign(self, idx):
+        negtive_idx = self.dic.get("negtive_idx", ["bg"])
+        weight_sign = 1
+        if idx in negtive_idx:
+            weight_sign = -1
+        return weight_sign
+
     def get_data(self, idx) -> dict:
         if self.cached_data is not None:
             data = self.cached_data.get(idx, None)
@@ -97,12 +104,11 @@ class SimpleData():
                 return data
         files = self.get_data_file(idx)
         weights = self.dic.get(idx+"_weight", None)
-        weight_sign = 1
-        if idx == "bg":
-            weight_sign = -1
-        return self.load_data(files, weights, weight_sign)
+        weight_sign = self.get_weight_sign(idx)
+        charge = self.dic.get(idx+"_charge", None)
+        return self.load_data(files, weights, weight_sign, charge)
 
-    def load_data(self, files, weights, weights_sign = 1) -> dict:
+    def load_data(self, files, weights=None, weights_sign = 1, charge=None) -> dict:
         # print(files, weights)
         if files is None:
             return None
@@ -119,6 +125,11 @@ class SimpleData():
                 data["weight"] = weight[:data_shape(data)] * weights_sign
             else:
                 raise TypeError("weight format error: {}".format(type(weights)))
+        if charge is not None:
+            charges = self.load_weight_file(charge)
+            data["charge_conjugation"] = charges[:data_shape(data)]
+        else:
+            data["charge_conjugation"] = np.ones((data_shape(data),))
         return data
 
     def load_weight_file(self, weight_files):
@@ -135,6 +146,7 @@ class SimpleData():
         if len(ret) == 1:
             return ret[0]
         return np.concatenate(ret)
+
 
     def load_cached_data(self, file_name=None):
         if file_name is None:
@@ -227,10 +239,13 @@ class MultiData(SimpleData):
             weights = [weights]
         elif not isinstance(weights[0], list):
             weights = [weights]
-        weight_sign = 1
-        if idx == "bg":
-            weight_sign = -1
-        ret = [self.load_data(i, j, weight_sign) for i, j in zip(files, weights)]
+        weight_sign = self.get_weight_sign(idx)
+        charge = self.dic.get(idx+"_charge", None)
+        if charge is None:
+            charge = [None] * len(files)
+        elif not isinstance(charge[0], list):
+            charge = [charge]
+        ret = [self.load_data(i, j, weight_sign, k) for i, j, k in zip(files, weights, charge)]
         if self._Ngroup == 0:
             self._Ngroup = len(ret)
         elif idx != "phsp_noeff":

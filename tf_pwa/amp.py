@@ -317,13 +317,14 @@ class HelicityDecay(AmpDecay, AmpBase):
     """default decay model"""
     def __init__(self, *args, has_barrier_factor=True, l_list=None,
                  barrier_factor_mass=False, has_bprime=True,
-                 aligned=False, **kwargs):
+                 aligned=False, allow_cc=True, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
         self.barrier_factor_mass = barrier_factor_mass
         self.has_bprime = has_bprime
         self.aligned = aligned
+        self.allow_cc = allow_cc
 
     def init_params(self):
         self.d = 3.0
@@ -381,6 +382,13 @@ class HelicityDecay(AmpDecay, AmpBase):
         cg_trans = tf.reshape(cg_trans, (n_ls, len(
             self.outs[0].spins), len(self.outs[1].spins)))
         H = tf.reduce_sum(m_dep * cg_trans, axis=1)
+        if self.allow_cc:
+            all_data = kwargs.get("all_data", {})
+            charge = all_data.get("charge_conjugation", None)
+            if charge is not None:
+                charge = tf.expand_dims(charge, -1)
+                charge = tf.expand_dims(charge, -1)
+                H = tf.where(charge > 0, H, H[...,::-1,::-1])
         ret = tf.reshape(
             H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         return ret
@@ -480,6 +488,7 @@ class ParticleDecay(HelicityDecay):
         m = data_p[a]["m"]
         if width is None:
             ret = tf.zeros_like(m)
+            ret = tf.complex(ret, ret)
         elif not a.running_width:
             ret = tf.reshape(BW(m, mass, width),(-1,1))
         else:
