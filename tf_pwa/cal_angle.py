@@ -167,6 +167,21 @@ def cal_chain_boost(data, decay_chain: DecayChain) -> dict:
     return part_data
 
 
+def cal_single_boost(data, decay_chain: DecayChain) -> dict:
+    part_data = {}
+    # part_data = cal_chain_boost(data, decay_chain)
+    for i in decay_chain:
+        part_data[i] = {}
+        p_rest = data[i.core]["p"]
+        part_data[i]["rest_p"] = {}
+        for j in i.outs:
+            pj = data[j]["p"]
+            p = LorentzVector.rest_vector(p_rest, pj)
+            part_data[i]["rest_p"][j] = p
+    return part_data
+
+# from pysnooper import snoop
+# @snoop()
 def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                        base_z=np.array([[0.0, 0.0, 1.0]]),
                        base_x=np.array([[1.0, 0.0, 0.0]])) -> dict:
@@ -179,7 +194,10 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     """
     ret = {}
     # boost all in them mother rest frame
+
+    #print(decay_chain, part_data)
     part_data = cal_chain_boost(data, decay_chain)
+    #print(decay_chain , part_data)
     # calculate angle and base x,z axis from mother particle rest frame momentum and base axis
     set_x = {decay_chain.top: base_x}
     set_z = {decay_chain.top: base_z}
@@ -386,7 +404,7 @@ def prepare_data_from_dat_file(fnames):
     return data
 
 
-def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True, batch=65000) -> dict:
+def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True, random_z=False, batch=65000) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -396,11 +414,11 @@ def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mas
     """
     ret = []
     for i in split_generator(p, batch):
-        ret.append(cal_angle_from_momentum_single(i, decs, using_topology, center_mass, r_boost))
+        ret.append(cal_angle_from_momentum_single(i, decs, using_topology, center_mass, r_boost, random_z))
     return data_merge(*ret)
 
 
-def cal_angle_from_momentum_single(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True) -> dict:
+def cal_angle_from_momentum_single(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True, random_z=True) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -419,7 +437,7 @@ def cal_angle_from_momentum_single(p, decs: DecayGroup, using_topology=True, cen
         # print(data_p)
         # exit()
         data_p = add_mass(data_p, dec)
-    data_d = cal_angle_from_particle(data_p, decs, using_topology, r_boost=r_boost)
+    data_d = cal_angle_from_particle(data_p, decs, using_topology, r_boost=r_boost, random_z=random_z)
     data = {"particle": data_p, "decay": data_d}
     return data
 

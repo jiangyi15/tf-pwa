@@ -109,7 +109,8 @@ class SimpleData():
         order = self.get_dat_order()
         center_mass = self.dic.get("center_mass", True)
         r_boost = self.dic.get("r_boost", False)
-        data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass, r_boost=r_boost)
+        random_z = self.dic.get("random_z", False)
+        data = prepare_data_from_decay(files, self.decay_struct, order, center_mass=center_mass, r_boost=r_boost, random_z=random_z)
         if weights is not None:
             if isinstance(weights, float):
                 data["weight"] = np.array([weights * weights_sign] * data_shape(data))
