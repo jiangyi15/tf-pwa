@@ -236,9 +236,7 @@ class MultiData(SimpleData):
         if weights is None:
             weights = [None] * len(files)
         elif isinstance(weights, float):
-            weights = [weights]
-        elif not isinstance(weights[0], list):
-            weights = [weights]
+            weights = [weights] * len(files)
         weight_sign = self.get_weight_sign(idx)
         charge = self.dic.get(idx+"_charge", None)
         if charge is None:
