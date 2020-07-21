@@ -209,6 +209,7 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
         for i in set_decay:
             if i.core in set_x:
                 ret[i] = {}
+                bias = - np.pi
                 for j in i.outs:
                     ret[i][j] = {}
                     p_rest = part_data[i]["rest_p"][j]
@@ -216,6 +217,8 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                     ang, x = EulerAngle.angle_zx_z_getx(set_z[i.core], set_x[i.core], z2)
                     set_x[j] = x
                     set_z[j] = z2
+                    ang["alpha"] = (ang["alpha"] - bias) % (2*np.pi) + bias
+                    bias += np.pi
                     ret[i][j]["ang"] = ang
                     ret[i][j]["x"] = x
                     ret[i][j]["z"] = z2
