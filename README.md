@@ -7,37 +7,49 @@
 [![coverage report](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/coverage.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
 
 
-## Install 
+This is a package and application for partial wave analysis (PWA) using Tensorflow.
+By using simple configuration file (and some scripts), PWA can be done fast and automatically.
 
-Get the packages using ```git clone```.
 
-### Dependencies
+## Install
+
+Get the packages using ```git clone https://gitlab.com/jiangyi15/tf-pwa```.
 
 The dependencies can be installed by `conda` or `pip`.
 
-#### conda
+### conda (recommended)
 
-get miniconda for python3 from [minicoda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
+When using conda, you don't need to install CUDA for tensorflow.
 
-install following packages
+  1. Get miniconda for python3 from [minicoda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
 
-```
-conda install tensorflow-gpu pyyaml sympy matplotlib scipy
-```
+  2. Install following packages
 
-#### pip
+    ```
+    conda install tensorflow-gpu pyyaml sympy matplotlib scipy
+    ```
 
-```
-pip3 install -r requirements.txt
-```
+  3. The following commond can be used to set environment variables of Python.
 
-### Environment
+    ```
+    python setup.py develop
+    ```
 
-The following commond can be used to sett environment variables of Python.
+  4. (option) There are some option packages, such as `uproot` for reading root file. It can be installed as
+
+    ```
+    conda install uproot -c conda-forge
+    ```
+
+### pip
+
+When using pip, you will need to install CUDA to use GPU. Just run the following command :
+
 
 ```
 python setup.py develop
 ```
+
 
 ## Scripts
 
@@ -69,7 +81,7 @@ See [https://jiangyi15.gitlab.io/tf-pwa/](https://jiangyi15.gitlab.io/tf-pwa/) f
 Autodoc using sphinx-doc, need sphinx-doc 
 
 ```
-  python setup.py build_sphinx 
+python setup.py build_sphinx
 ```
 
 Then, the documents can be found in build/sphinx/index.html.

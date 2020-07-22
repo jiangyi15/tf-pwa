@@ -46,9 +46,9 @@ setup(
         ],
     },
     install_requires=[
+        "tensorflow>=2.0,<=2.2",
         "matplotlib",
         "sympy",
-        "tensorflow>=2.0",
         "PyYAML",
         "opt_einsum",
     ],

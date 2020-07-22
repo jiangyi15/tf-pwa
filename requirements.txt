@@ -1,3 +1,4 @@
+tensorflow-gpu>=2.0,<=2.2
 graphviz
 numpy
 scipy
@@ -6,5 +7,4 @@ iminuit
 opt_einsum
 matplotlib
 PyYAML
-tensorflow-gpu
 uproot

@@ -165,7 +165,8 @@ def get_relative_p(m_0, m_1, m_2):
     """relative momentum for 0 -> 1 + 2"""
     M12S = m_1 + m_2
     M12D = m_1 - m_2
-    m_0 = tf.convert_to_tensor(m_0, dtype=M12S.dtype)
+    if hasattr(M12S, "dtype"):
+        m_0 = tf.convert_to_tensor(m_0, dtype=M12S.dtype)
     m_eff = tf.where(m_0 > M12S, m_0, M12S)
     p = (m_eff - M12S) * (m_eff + M12S) * (m_eff - M12D) * (m_eff + M12D)
     # if p is negative, which results from bad data, the return value is 0.0
