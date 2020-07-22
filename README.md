@@ -25,21 +25,21 @@ When using conda, you don't need to install CUDA for tensorflow.
 
   2. Install following packages
 
-    ```
-    conda install tensorflow-gpu pyyaml sympy matplotlib scipy
-    ```
+```
+conda install tensorflow-gpu pyyaml sympy matplotlib scipy
+```
 
   3. The following commond can be used to set environment variables of Python.
 
-    ```
-    python setup.py develop
-    ```
+```
+python setup.py develop
+```
 
   4. (option) There are some option packages, such as `uproot` for reading root file. It can be installed as
 
-    ```
-    conda install uproot -c conda-forge
-    ```
+```
+conda install uproot -c conda-forge
+```
 
 ### pip
 
