@@ -292,7 +292,22 @@ class ParticleOne(Particle):
         pass
 
     def get_amp(self, data, _data_c=None, **kwargs):
-        return tf.ones((data_shape(data),), dtype=get_config("complex_dtype"))
+        mass = data["m"]
+        zeros = tf.zeros_like(mass)
+        ones = tf.ones_like(mass)
+        return tf.complex(ones, zeros)
+
+
+@regist_particle("exp")
+class ParticleOne(Particle):
+    def init_params(self):
+        self.a = self.add_var("a")
+
+    def get_amp(self, data, _data_c=None, **kwargs):
+        mass = data["m"]
+        zeros = tf.zeros_like(mass)
+        a = tf.abs(self.a())
+        return tf.complex(tf.exp(- a * mass), zeros)
 
 
 class AmpDecay(Decay, AmpBase):
