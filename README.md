@@ -3,8 +3,8 @@
 
 
 
-[![pipeline status](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/pipeline.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
-[![coverage report](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/coverage.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
+[![pipeline status](https://gitlab.com/jiangyi15/tf-pwa/badges/v0.0.3/pipeline.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/v0.0.3)
+[![coverage report](https://gitlab.com/jiangyi15/tf-pwa/badges/v0.0.3/coverage.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/v0.0.3)
 
 
 This is a package and application for partial wave analysis (PWA) using Tensorflow.
