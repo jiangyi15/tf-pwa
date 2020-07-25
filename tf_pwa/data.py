@@ -349,3 +349,22 @@ def data_strip(data, keys):
     if isinstance(data, tuple):
         return tuple([data_strip(data_i, keys) for data_i in data])
     return data
+
+
+def check_nan(data, no_raise=False):
+    """check if there is nan in data"""
+    head_keys = []
+    def _check_nan(dat, head):
+        if isinstance(dat, dict):
+            return {k: _check_nan(v, head + [k]) for k, v in dat.items()}
+        if isinstance(dat, list):
+            return [_check_nan(data_i, head + [i]) for i, data_i in enumerate(dat)]
+        if isinstance(dat, tuple):
+            return tuple([data_struct(data_i, head + [i]) for i, data_i in enumerate(dat)])
+        if np.any(tf.math.is_nan(dat)):
+            if no_raise:
+                return False
+            raise ValueError("nan in data[{}]".format(head))
+        return True
+    return _check_nan(data, head_keys)
+
