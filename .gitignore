@@ -2,13 +2,17 @@
 data
 
 __pycache__
+.ipynb_checkpoints
 *.pyc
 
 
 *.npy
 *.json
 *.log
+*.yml
+*.png
 
+cached_dir
 trash
 figure
 build
@@ -17,3 +21,7 @@ dist
 *.egg-info
 site
 chains
+
+coverage.xml
+.coverage
+htmlcov/

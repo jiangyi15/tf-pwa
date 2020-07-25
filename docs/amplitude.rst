@@ -6,7 +6,7 @@ Amplitude
 Helicity Formula
 ________________
 
-Each Decay has AMplitude like
+Each Decay has Amplitude like
 
 .. math::
     A^{A \rightarrow B+C}_{\lambda_{A},\lambda_{B},\lambda_{C}} = H_{\lambda_{B},\lambda_{C}}^{A \rightarrow B+C} D^{J_{A}\star}_{\lambda_{A},\lambda_{B}-\lambda_{C}}(\phi,\theta,0)

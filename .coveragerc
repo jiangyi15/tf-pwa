@@ -1,0 +1,39 @@
+# .coveragerc to control coverage.py
+[run]
+branch = True
+omit =
+    # large io files
+    #tf_pwa/config_loader.py
+    tf_pwa/applications.py
+    tf_pwa/fit.py
+    tf_pwa/root_io.py
+    # GPU required
+    tf_pwa/gpu_info.py
+    # Deprecated module
+    # test file
+	*/test_*.py
+
+
+[paths]
+source =
+    tf_pwa/
+
+[report]
+# Regexes for lines to exclude from consideration
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+
+    # Don't complain about missing debug-only code:
+    def __repr__
+    if self\.debug
+
+    # Don't complain if tests don't hit defensive assertion code:
+    raise AssertionError
+    raise NotImplementedError
+
+    # Don't complain if non-runnable code isn't run:
+    if 0:
+    if __name__ == .__main__.:
+
+ignore_errors = True

@@ -1,71 +1,107 @@
 
 # A Partial Wave Analysis program using Tensorflow
 
-## Install 
-### conda
 
-get miniconda for python3 from [minicoda](https://docs.conda.io/en/latest/miniconda.html) and install it.
 
-install following packages
+[![pipeline status](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/pipeline.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
+[![coverage report](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/coverage.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
+
+
+This is a package and application for partial wave analysis (PWA) using Tensorflow.
+By using simple configuration file (and some scripts), PWA can be done fast and automatically.
+
+
+## Install
+
+Get the packages using ```git clone https://gitlab.com/jiangyi15/tf-pwa```.
+
+The dependencies can be installed by `conda` or `pip`.
+
+### conda (recommended)
+
+When using conda, you don't need to install CUDA for tensorflow.
+
+  1. Get miniconda for python3 from [minicoda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
+
+  2. Install following packages
 
 ```
-conda install tensorflow-gpu iminuit sympy matplotlib 
+conda install tensorflow-gpu pyyaml sympy matplotlib scipy
 ```
 
-then get the packages using ```git clone```
+  3. The following commond can be used to set environment variables of Python.
+
+```
+python setup.py develop
+```
+
+  4. (option) There are some option packages, such as `uproot` for reading root file. It can be installed as
+
+```
+conda install uproot -c conda-forge
+```
+
+### pip
+
+When using pip, you will need to install CUDA to use GPU. Just run the following command :
+
+
+```
+python setup.py develop
+```
 
 
 ## Scripts
 
-### fit.py or fit_scipy.py 
+### fit.py
 
 simple fit scripts, 
-Resonances is describing in ```Resonances.yml```
+decay structure is described in ```config.yml```
 
 ```
-python fit.py
-```
-fit parameters will save in final_params.json
-
-### plot_amp.py 
-
-resonance plot scripts
-
-```
-python plot_amp.py
+python fit.py [--config config.yml]  [--init_params init_params.json]
 ```
 
-### fitfractions.py 
+fit parameters will save in final_params.json,
+figure can be found in ```figure/```
 
-calculate fitfractions with error
-
-```
-python fitfractions.py
-```
 
 ### state_cache.sh
 
-script for cache state, using the latest *_params.json file as parameters and cache newer files in ```trash/```.
+script for cache state, using the latest *_params.json file as parameters and cache newer files in ```path``` (the default is ```trash/```).
 
 ```
 ./state_cache.sh [path]
 ```
 
-## autodocs
+## Documents
 
-autodoc using sphinx, need sphinx 
+See [https://jiangyi15.gitlab.io/tf-pwa/](https://jiangyi15.gitlab.io/tf-pwa/) for more information.
+
+Autodoc using sphinx-doc, need sphinx-doc 
 
 ```
-  python setup.py build_sphinx 
+python setup.py build_sphinx
 ```
+
+Then, the documents can be found in build/sphinx/index.html.
+
+Documents cna also build with `Makefile` in `docs` as
+
+```
+cd docs && make html
+```
+Then, the documents can be found in docs/_build/html.
 
 ## Dependencies
 
 tensorflow or tensorflow-gpu >= 2.0.0 
 
-sympy 
+sympy : symbolic expression
 
-iminuit 
+PyYAML : config.yml file
 
-matplotlib : for plot_amp.py
+matplotlib : plot
+
+scipy : fit
 

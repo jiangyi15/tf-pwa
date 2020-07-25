@@ -1,0 +1,60 @@
+tf_pwa/__init__.py输入版本号
+import .version, .data
+tf_pwa/version.py版本号__version__ = "0.0.1"
+
+tf_pwa/__main__.py输入main.py
+import .main
+tf_pwa/main.py
+
+
+tf_pwa/amp.py拟合函数PDF
+import .particle, .breit_wigner, .dfun, .cg, .variable, .data, .einsum, .dec_parser, phasespace
+
+tf_pwa/angle.py角度定义
+
+tf_pwa/applications.py额外功能
+import .data, .cal_angle, .fitfractions, .phasespace, .fit, .significance
+
+tf_pwa/breit_wigner.py共振态函数BW的定义；BW以及Barrier factor
+
+tf_pwa/cal_angle.py从末态四动量计算出拟合参数
+import .angle, .data, .particle
+
+tf_pwa/cg.py计算CG系数sympy.physics.quantum.cg或cg_table.json
+
+tf_pwa/config.py¥输入管理器
+
+tf_pwa/data.py操作数据
+import .angle, .particle
+
+tf_pwa/dec_parser.py读取decay card
+
+tf_pwa/dfun.py计算D-Matrix
+
+tf_pwa/einsum.py爱因斯坦求和
+
+tf_pwa/fit.py拟合方法
+
+tf_pwa/fitfractions.py计算分支比
+
+tf_pwa/gpu_info.py显示GPU参数及使用情况get GPU info
+
+tf_pwa/model.py拟合的NLL
+import .data
+
+tf_pwa/particle.py操作粒子和衰变
+import .cg, .breit_wigner
+
+tf_pwa/phasespace.py相空间定义
+import .angle
+
+tf_pwa/significance.py计算统计显著性
+
+tf_pwa/tensorflow_wrapper.py¥设置TF的参数等使用。eager_execution模式；设置每块GPU为memory growth模式
+
+tf_pwa/utils.py¥实用工具
+
+tf_pwa/variable.py操作拟合参数
+
+tf_pwa/vis.py可视化衰变过程
+import .particle

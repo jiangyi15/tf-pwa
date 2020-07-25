@@ -5,7 +5,7 @@ time_tag=`date +%Y_%m_%d_%H_%M_%S`
 head_tag=`git rev-parse --short HEAD`
 cache_path=trash/${time_tag}_${head_tag}
 
-if [[ $# > 2 ]];
+if [[ $# > 0 ]];
 then
   cache_path=${1} 
 fi
@@ -13,11 +13,19 @@ fi
 echo "Saving state at ${cache_path}"
 
 cache_file() {
+  if [ ! -n "${1}" ];
+  then
+    return;
+  fi
   if [ ! -d `dirname ${cache_path}/${1}` ];
   then
     mkdir -p `dirname ${cache_path}/${1}`
   fi
-  cp ${1} ${cache_path}/${1}
+  
+  if [ -f ${1} ];
+  then
+    cp ${1} ${cache_path}/${1}
+  fi
 }
 
 json_file=`ls -rt *params*.json`

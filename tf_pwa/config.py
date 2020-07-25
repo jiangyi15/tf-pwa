@@ -5,7 +5,17 @@ from functools import partial
 class ConfigManager(dict):
     pass
 
-def create_config(default):
+
+class _Default:
+        pass
+
+
+default_var = _Default()
+
+
+def create_config(default=None):
+    if default is None:
+        default = {}
     _config = ConfigManager(default)
 
     def set_(name, var):
@@ -17,13 +27,15 @@ def create_config(default):
         else:
             raise Exception("No configuration named {} found.".format(name))
 
-    def get_(name):
+    def get_(name, default=default_var):
         """
         get a configuration.
         """
         if name in _config:
             return _config[name]
-        raise Exception("No configuration named {} found.".format(name))
+        if isinstance(default, _Default):
+            raise Exception("No configuration named {} found.".format(name))
+        return default
 
     def regist_(name, var=None):
         """
@@ -35,14 +47,20 @@ def create_config(default):
             def regist(f):
                 _config[name] = f
                 return f
+
             return regist
         _config[name] = var
         return var
+
     return set_, get_, regist_
 
+
 set_config, get_config, regist_config = create_config({
-    "multi_gpus": False
+    "multi_gpus": False,
+    "dtype": "float64",
+    "complex_dtype": "complex128"
 })
+
 
 @contextmanager
 def temp_config(name, var):
@@ -51,4 +69,5 @@ def temp_config(name, var):
     yield var
     set_config(name, tmp)
 
-using_amplitude = lambda var: temp_config("amp",var)
+
+using_amplitude = lambda var: temp_config("amp", var)
