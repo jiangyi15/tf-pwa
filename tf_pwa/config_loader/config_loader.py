@@ -112,67 +112,12 @@ class ConfigLoader(object):
     @functools.lru_cache()
     def get_data(self, idx):
         return self.data.get_data(idx)
-        if self.cached_data is not None:
-            data = self.cached_data.get(idx, None)
-            if data is not None:
-                # print(data.keys())
-                return data
-        files = self.get_data_file(idx)
-        if files is None:
-            return None
-        order = self.get_dat_order()
-        center_mass = self.config["data"].get("center_mass", True)
-        r_boost = self.config["data"].get("r_boost", False)
-        if isinstance(files[0], str):
-            files = [files]
-        datas = [prepare_data_from_decay(f, self.decay_struct, order, center_mass=center_mass, r_boost=r_boost) for f in files]
-        if idx == "bg":
-            return datas
-        weights = self.config["data"].get(idx+"_weight", None)
-        if weights is not None:
-            if not isinstance(weights, list):
-                weights = [weights]
-            assert len(datas) == len(weights)
-            for data, weight in zip(datas, weights):
-                if isinstance(weight, float):
-                    data["weight"] = np.array([weight] * data_shape(data))
-                else:  # weight files
-                    weight = self.load_weight_file(weight)
-                    data["weight"] = weight[:data_shape(data)]
-        # print(data.keys())
-        return datas
-
-    def load_weight_file(self, weight_files):
-        ret = []
-        if isinstance(weight_files, list):
-            for i in weight_files:
-                data = np.loadtxt(i).reshape((-1,))
-                ret.append(data)
-        elif isinstance(weight_files, str):
-            data = np.loadtxt(weight_files).reshape((-1,))
-            ret.append(data)
-        else:
-            raise TypeError("weight files must be string of list of strings, not {}".format(type(weight_files)))
-        if len(ret) == 1:
-            return ret[0]
-        return np.concatenate(ret)
 
     def load_cached_data(self, file_name=None):
-        if file_name is None:
-            file_name = self.config["data"].get("cached_data", None)
-        if file_name is not None and os.path.exists(file_name):
-            if self.cached_data is None:
-                self.cached_data = load_data(file_name)
-                print("load cached_data {}".format(file_name))
-                # print(self.cached_data["data"]["decay"].keys())
-    
+        return self.data.load_cached_data(file_name)
+
     def save_cached_data(self, data, file_name=None):
-        if file_name is None:
-            file_name = self.config["data"].get("cached_data", None)
-        if file_name is not None:
-            if not os.path.exists(file_name):
-                save_data(file_name, data)
-                print("save cached_data {}".format(file_name))
+        self.data.save_cached_data(data, file_name=file_name)
 
     def get_all_data(self):
         datafile = ["data", "phsp", "bg", "inmc"]
@@ -735,8 +680,6 @@ class ConfigLoader(object):
                 plt.clf()
                 print("Finish plotting 2D fitted "+prefix+k)
 
-
-
     def get_chain(self, idx):
         decay_group = self.full_decay
         return decay_group.get_decay_chain(idx)
@@ -765,6 +708,38 @@ class ConfigLoader(object):
         amp = self.get_amplitude()
         frac, err_frac = fit_fractions(amp, mcdata, self.inv_he, params, batch)
         return frac, err_frac
+
+    def cal_signal_yields(self, params={}, mcdata=None, batch=25000):
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
+        if mcdata is None:
+            mcdata = self.get_data("phsp")
+        amp = self.get_amplitude()
+        fracs = [fit_fractions(amp, i, self.inv_he, params, batch) for i in mcdata]
+        data = self.get_data("data")
+        bg = self.get_data("bg")
+        if bg is None:
+            N_total = [data_shape(i) for i in data]
+            for i in data:
+                N_data = data_shape(i)
+                N_total.append((N_data, np.sqrt(N_data)))
+        else:
+            bg_weight, _ = self._get_bg_weight(data, bg)
+            N_total = []
+            for i, j, w in zip(data, bg, bg_weight):
+                N_data = data_shape(i)
+                N_bg = data_shape(j)
+                N_total.append((N_data - w * N_bg, np.sqrt(N_data + w*w * N_bg)))
+
+        N_sig_s = []
+        for frac_e, N_e in zip(fracs, N_total):
+            frac, frac_err = frac_e
+            N, N_err = N_e
+            N_sig = {}
+            for i in frac:
+                N_sig[i] = (frac[i] * N, np.sqrt((N*frac_err[i])**2 + (N_err*frac[i])**2))
+            N_sig_s.append(N_sig)
+        return N_sig_s
 
     def get_params(self, trainable_only=False):
         return self.get_amplitude().get_params(trainable_only)
