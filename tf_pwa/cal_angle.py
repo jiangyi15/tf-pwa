@@ -407,6 +407,23 @@ def prepare_data_from_dat_file(fnames):
     return data
 
 
+def get_chain_data(data, decay_chain=None):
+    """
+    get all independent data for a decay chain
+    """
+    if decay_chain is None:
+        decay_chain = list(data["decay"].keys())[0]
+    chain_data = data["decay"][decay_chain]
+    ret = {"mass": {}, "costheta": {}, "phi": {}}
+    for dec in chain_data.keys():
+        ret["mass"][dec.core] = data["particle"][dec.core]["m"]
+        out1 = dec.outs[0]
+        ang = chain_data[dec][out1]["ang"]
+        ret["costheta"][dec] = tf.cos(ang["beta"])
+        ret["phi"][dec] = ang["alpha"]
+    return ret
+
+
 def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True, random_z=False, batch=65000) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
