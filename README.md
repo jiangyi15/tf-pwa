@@ -5,23 +5,30 @@
 
 [![pipeline status](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/pipeline.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
 [![coverage report](https://gitlab.com/jiangyi15/tf-pwa/badges/dev/coverage.svg)](https://gitlab.com/jiangyi15/tf-pwa/-/commits/dev)
+[![conda cloud](https://anaconda.org/jiangyi15/tf-pwa/badges/version.svg)](https://anaconda.org/jiangyi15/tf-pwa)
+[![license](https://anaconda.org/jiangyi15/tf-pwa/badges/license.svg)](https://choosealicense.com/licenses/mit/)
 
-
-This is a package and application for partial wave analysis (PWA) using Tensorflow.
+This is a package and application for partial wave analysis (PWA) using TensorFlow.
 By using simple configuration file (and some scripts), PWA can be done fast and automatically.
 
+[TOC]
 
 ## Install
 
-Get the packages using ```git clone https://gitlab.com/jiangyi15/tf-pwa```.
+Get the packages using 
+
+```
+git clone https://gitlab.com/jiangyi15/tf-pwa
+```
+
 
 The dependencies can be installed by `conda` or `pip`.
 
 ### conda (recommended)
 
-When using conda, you don't need to install CUDA for tensorflow.
+When using conda, you don't need to install CUDA for TensorFlow specially.
 
-  1. Get miniconda for python3 from [minicoda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
+  1. Get miniconda for python3 from [miniconda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
 
   2. Install following packages
 
@@ -29,16 +36,25 @@ When using conda, you don't need to install CUDA for tensorflow.
 conda install tensorflow-gpu pyyaml sympy matplotlib scipy
 ```
 
-  3. The following commond can be used to set environment variables of Python.
+  3. The following command can be used to set environment variables of Python. (Use `--no-deps` to make sure that no PyPI package will be installed)
 
 ```
-python setup.py develop
+python -m pip install -e . --no-deps
 ```
 
   4. (option) There are some option packages, such as `uproot` for reading root file. It can be installed as
 
 ```
 conda install uproot -c conda-forge
+```
+
+### conda channel
+
+A pre-built conda package is provided, run following command to install it.
+
+```
+conda config --add channel jiangyi15
+conda install tf-pwa
 ```
 
 ### pip
