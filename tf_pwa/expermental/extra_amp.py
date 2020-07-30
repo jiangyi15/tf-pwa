@@ -2,6 +2,7 @@ from tf_pwa.amp import regist_particle, Particle
 from tf_pwa.tensorflow_wrapper import tf
 import numpy as np
 
+# pylint: disable=no-member
 
 @regist_particle("interp")
 class Interp(Particle):
@@ -103,6 +104,7 @@ class Interp1DSpline(Particle):
         m2 = m * m
         m3 = m2 * m
         ret =[]
+        ai, bi, ci, di = [],[],[],[]
         for i in range(self.interp_N-1):
             ret.append(tf.where(m >= self.points[i] ,
                      tf.where(m < self.points[i+1],
