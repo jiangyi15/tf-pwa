@@ -149,7 +149,7 @@ def sum_hessian_new(amp, data, mcdata, weight, mcweight, var, trans=tf.math.log,
 def clip_log(x, _epsilon=1e-6):
     """clip log to allowed large value"""
     x_cut = tf.where(x > _epsilon, x, tf.ones_like(x) * _epsilon)
-    b_t = tf.math.log(x)
+    b_t = tf.math.log(x_cut)
     delta_x = x - _epsilon
     b_f = np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
     # print("$$$", tf.where(x < _epsilon).numpy().tolist())
@@ -217,7 +217,7 @@ class Model(object):
         """
         data, weight = self.get_weight_data(data, weight, bg=bg)
         sw = tf.reduce_sum(weight)
-        ln_data = tf.math.log(self.Amp(data))
+        ln_data = clip_log(self.Amp(data))
         if mc_weight is None:
             int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
         else:
@@ -306,7 +306,7 @@ class Model(object):
         ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
                                                     self.Amp.trainable_variables, weight=split_generator(
                 weight, batch),
-                                                    trans=tf.math.log)
+                                                    trans=clip_log)
         int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
                                                  self.Amp.trainable_variables, weight=split_generator(
                 mc_weight, batch))
