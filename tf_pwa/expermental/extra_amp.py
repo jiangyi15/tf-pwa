@@ -57,41 +57,27 @@ class Interp1D(Particle):
 
 @regist_particle("spline_c")
 class Interp1DSpline(Particle):
-    """example Particle model define, can be used in config.yml as `model: New`"""
+    """Spline interpolation function for model independent resonance"""
     def __init__(self, *args, **kwargs):
+        self.points = None
+        self.max_m = None
+        self.min_m = None
+        self.interp_N = None
         super(Interp1DSpline, self).__init__(*args, **kwargs)
-        if not hasattr(self,"points"):
+        if self.points is None:
             dx = (self.max_m - self.min_m)/(self.interp_N - 1)
             self.points = [self.min_m + dx * i for i in range(self.interp_N)]
         else:
             self.interp_N = len(self.points)
-        assert self.interp_N >=2, "points need large than 2"
-        self.hi = [self.points[i+1] - self.points[i] for i in range(self.interp_N - 1)]
-        self.h_matrix = np.zeros((self.interp_N, self.interp_N))
-        self.h_matrix[0,0] = 2 * self.hi[0]
-        self.h_matrix[0,1] = self.hi[0]
-        for i in range(1, self.interp_N-1):
-            self.h_matrix[i, i-1] = self.hi[i-1]
-            self.h_matrix[i, i-1] = 2*(self.hi[i-1] + self.hi[i])
-            self.h_matrix[i, i+1] = self.hi[i]
-        self.h_matrix[-1, -2] = self.hi[-1]
-        self.h_matrix[-1, -1] = 2*self.hi[-1]
-        self.h_matrix_inv = np.linalg.inv(self.h_matrix)
-        self.y_matrix = np.zeros((self.interp_N, self.interp_N-1))
-        self.y_matrix[0,0] = 6 / self.hi[0]
-        for i in range(1, self.interp_N-1):
-            if i-2>0:
-                self.y_matrix[i,i-2] = 6/self.hi[i-1]
-            self.y_matrix[i,i-1] = 6*(1/self.hi[i] - 1/self.hi[i-1])
-            if i < self.interp_N -2:
-                self.y_matrix[i,i] = 6 / self.hi[i]
-        self.y_matrix[-1,-1] = 6 / self.hi[-1]
-        self.hy_matrix = np.dot(self.h_matrix_inv, self.y_matrix)
+        assert self.interp_N > 2, "points need large than 2"
+        self.h_matrix = None
 
     def init_params(self):
         # self.a = self.add_var("a")
         self.point = self.add_var("point", is_complex=True, shape=(self.interp_N-2,))
         self.point.set_fix_idx(fix_idx=0, fix_vals= 1.0)
+        h_matrix = spline_xi_matrix(self.points)
+        self.h_matrix = tf.convert_to_tensor(h_matrix[...,1:-1])
 
     def get_amp(self, data, data_extra, *args, **kwargs):
         m = data["m"]
@@ -99,18 +85,83 @@ class Interp1DSpline(Particle):
         p = self.point()
         p_r = tf.math.real(p)
         p_i = tf.math.imag(p)
-        m0 = tf.ones_like(m)
-        m1 = m
-        m2 = m * m
-        m3 = m2 * m
-        ret =[]
-        ai, bi, ci, di = [],[],[],[]
-        for i in range(self.interp_N-1):
-            ret.append(tf.where(m >= self.points[i] ,
-                     tf.where(m < self.points[i+1],
-                              ai[i] + bi[i]*m +ci[i]*m2+di[i]*m3,
-                              zeros), zeros))
-        return ret
+        xi_m = self.h_matrix
+        x_m = spline_x_matrix(m, self.points)
+        x_m = tf.expand_dims(x_m, axis=-1)
+        m_xi = tf.reduce_sum(xi_m*x_m, axis=[-3, -2])
+        ret_r = tf.reduce_sum(tf.cast(m_xi, p_r.dtype) * p_r, axis=-1)
+        ret_i = tf.reduce_sum(tf.cast(m_xi, p_i.dtype) * p_i, axis=-1)
+        return tf.complex(ret_r, ret_i)
+
+
+def spline_x_matrix(x, xi):
+    """build matrix of x for spline interpolation"""
+    ones = tf.ones_like(x)
+    zeros = tf.zeros_like(x)
+    x2 = x * x
+    x3 = x2 * x
+    def poly_i(i):
+        cut = (x >= xi[i]) & (x<xi[i+1])
+        x0_c = tf.where(cut, ones, zeros)
+        x1_c = tf.where(cut, x, zeros)
+        x2_c = tf.where(cut, x2, zeros)        
+        x3_c = tf.where(cut, x3, zeros)
+        return tf.stack([x0_c, x1_c, x2_c, x3_c], axis=-1)
+    xs = [poly_i(i) for i in range(len(xi)-1)]
+    return tf.stack(xs, axis=-2)
+
+
+def spline_matrix(x, xi, yi):
+    """calculate spline interpolation"""
+    xi_m = spline_xi_matrix(xi) # (N_range, 4, N_yi)
+    x_m = spline_x_matrix(x, xi) # (..., N_range, 4) 
+    x_m = tf.expand_dims(x_m, axis=-1)
+    m = tf.reduce_sum(xi_m*x_m, axis=[-3, -2])
+    return tf.reduce_sum(tf.cast(m, yi.dtype) * yi, axis=-1)
+
+
+def spline_xi_matrix(xi):
+    """build matrix of xi for spline interpolation"""
+    N = len(xi)
+    hi = [xi[i+1] - xi[i] for i in range(N-1)]
+
+    h_matrix = np.zeros((N, N))
+    h_matrix[0,0] = 2 * hi[0]
+    h_matrix[0,1] = hi[0]
+    for i in range(1, N-1):
+        h_matrix[i, i-1] = hi[i-1]
+        h_matrix[i, i] = 2*(hi[i-1] + hi[i])
+        h_matrix[i, i+1] = hi[i]
+    h_matrix[-1, -2] = hi[-1]
+    h_matrix[-1, -1] = 2*hi[-1]
+
+    h_matrix_inv = np.linalg.inv(h_matrix)
+    y_matrix = np.zeros((N, N))
+    y_matrix[0,0] = 6 / hi[0]
+    for i in range(1, N-1):
+        y_matrix[i,i-1] = 6/hi[i-1]
+        y_matrix[i,i] = -6*(1/hi[i] + 1/hi[i-1])
+        y_matrix[i,i+1] = 6 / hi[i]
+    y_matrix[-1,-1] = -6 / hi[-1]
+
+    hy_matrix = np.dot(h_matrix_inv, y_matrix)
+
+    hi = np.array(hi)[:,np.newaxis]
+    I = np.eye(N)
+    ci = hy_matrix[:-1]/2
+    di = (hy_matrix[1:]-hy_matrix[:-1])/6/hi
+    bi = (I[1:]- I[:-1])/hi - ci * hi - di * hi * hi
+    ai = I[:-1]
+
+    x1 = np.array(xi[:-1])[:,np.newaxis]
+    x2 = x1 * x1
+    x3 = x2 * x1
+    ai_2 = ai - bi*x1 + ci * x2  - di * x3
+    bi_2 = bi - 2*ci*x1 + 3 *di* x2
+    ci_2 = ci - 3*di*x1
+    di_2 = di
+    ret= np.stack([ai_2, bi_2, ci_2, di_2], axis=-2)
+    return ret
 
 
 @regist_particle("interp1d3")

@@ -317,7 +317,7 @@ class ConfigLoader(object):
             tmp = []
             for wb, dt, sb in zip(w_bkg, data, bg):
                 if isinstance(wb, str):
-                    wb = self.load_weight_file(wb)
+                    wb = self.data.load_weight_file(wb)
                 tmp.append(wb * data_shape(dt) / data_shape(sb))
             w_bkg = tmp
             if display:
