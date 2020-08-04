@@ -807,3 +807,14 @@ class DecayGroup(object):
             else:
                 return decay_chain
         raise ValueError("Not found such decay chain: {}".format(names))
+
+    def get_particle(self, name):
+        """
+        get particle by name
+        """
+        for decay_chain in self.chains:
+            all_particles = list(decay_chain.get_all_particles())
+            for i in all_particles:
+                if str(i) == str(name):
+                    return i
+        raise ValueError("Not found such decay chain: {}".format(name))
