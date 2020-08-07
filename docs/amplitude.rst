@@ -46,3 +46,37 @@ the LS coupling formula
     H_{\lambda_{B},\lambda_{C}}^{A \rightarrow B+C} = 
     \sum_{ls} g_{ls} \sqrt{\frac{2l+1}{2 J_{A}+1}} CG_{ls\rightarrow \lambda_{B},\lambda_{C}} \color{red}{f_{l}(q,q_0)}
 
+Amplitude Combination Rules
+---------------------------
+
+For a decay process `A -> R B, R -> C D`, we can get different part of amplitude:
+
+1. Particle:
+    1. Initial state: :math:`1`
+
+    2. Final state: :math:`D(\alpha, \beta, \gamma)`
+
+    3. Propagator: :math:`R(m)`
+
+2. Decay:
+    Two body decay (`A -> R B`): :math:`H_{\lambda_R,\lambda_B} D_{\lambda_A, \lambda_R - \lambda_B} (\varphi, \theta,0)`
+
+Now we can use combination rules to build amplitude for the whole process.
+
+    Probability Density:
+        :math:`P = |\tilde{A}|^2` (modular square)
+
+        Decay Group:
+            :math:`\tilde{A} = A_{R_1} + A_{R_2} + \cdots` (addition)
+
+            Decay Chain:
+                :math:`A_{R} = A_1 \times R \times A_2 \cdots` (multiplication)
+
+                Decay:
+                :math:`A_i = HD(\varphi, \theta, 0)`
+
+                Particle:
+                :math:`R(m)`
+
+The indices part is quantum number, and it can be summed automatically.
+

@@ -11,7 +11,7 @@
 This is a package and application for partial wave analysis (PWA) using TensorFlow.
 By using simple configuration file (and some scripts), PWA can be done fast and automatically.
 
-[TOC]
+
 
 ## Install
 
