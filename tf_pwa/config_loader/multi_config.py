@@ -204,3 +204,9 @@ class MultiConfig(object):
                 if v in self._neglect_when_set_params:
                     del ret[v]
         self.vm.set_all(ret)
+
+    def save_params(self, file_name):
+        params = self.get_params()
+        val = {k: float(v) for k,v in params.items()}
+        with open(file_name, "w") as f:
+            json.dump(val, f, indent=2)

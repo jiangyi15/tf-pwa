@@ -9,11 +9,13 @@ from pprint import pprint
 from tf_pwa.utils import error_print
 import tensorflow as tf
 import json
+import time
 
 
 # examples of custom particle model
 from tf_pwa.amp import Particle, register_particle
-from tf_pwa.expermental import extra_amp
+from tf_pwa.expermental import extra_amp, extra_data
+
 
 @register_particle("New")
 class NewParticle(Particle):
@@ -49,13 +51,20 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
         if str(e) != "[Errno 2] No such file or directory: 'init_params.json'":
             print(e)
         print("\nusing RANDOM parameters", flush=True)
-    
+
     # print("\n########### initial parameters")
     # json_print(config.get_params())
 
     # fit
     data, phsp, bg, inmc = config.get_all_data()
-    fit_result = config.fit(batch=65000, method=method)
+    try:
+        fit_result = config.fit(batch=65000, method=method)
+    except KeyboardInterrupt:
+        config.save_params("break_params.json")
+        raise
+    except Exception as e:
+        config.save_params("break_params.json")
+        return
     json_print(fit_result.params)
     fit_result.save_as("final_params.json")
 
@@ -99,19 +108,25 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json", meth
         if str(e) != "[Errno 2] No such file or directory: 'init_params.json'":
             print(e)
         print("\nusing RANDOM parameters")
-    
+
     # print("\n########### initial parameters")
     # pprint = lambda dic: print(json.dumps(dic, indent=2))
     # pprint(config.get_params())
-    
-    fit_result = config.fit(method=method, batch=65000)
+    try:
+        fit_result = config.fit(batch=65000, method=method)
+    except KeyboardInterrupt:
+        config.save_params("break_params.json")
+        raise
+    except Exception as e:
+        config.save_params("break_params.json")
+        return
     pprint(fit_result.params)
 
     fit_error = config.get_params_error(fit_result, batch=13000)
     fit_result.set_error(fit_error)
     fit_result.save_as("final_params.json")
     pprint(fit_error)
-    
+
     print("\n########## fit results:")
     from tf_pwa.applications import fit_fractions
     for k, v in fit_result.params.items():
@@ -133,6 +148,14 @@ def fit_combine(config_file=["config.yml"], init_params="init_params.json", meth
     print(fit_frac_string)
     #from frac_table import frac_table
     #frac_table(fit_frac_string)
+
+
+def write_run_point():
+    """ write time as a point of fit start"""
+    with open(".run_start", "w") as f:
+        localtime = time.strftime("%Y-%m-%d %H:%M:%S",  time.localtime(time.time()) )
+        f.write(localtime)
+
 
 def main():
     """entry point of fit. add some arguments in commond line"""
@@ -160,4 +183,5 @@ def main():
 
 
 if __name__ == "__main__":
+    write_run_point()
     main()

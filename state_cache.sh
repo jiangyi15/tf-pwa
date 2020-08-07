@@ -22,9 +22,9 @@ cache_file() {
     mkdir -p `dirname ${cache_path}/${1}`
   fi
   
-  if [ -f ${1} ];
+  if [ -e ${1} ];
   then
-    cp ${1} ${cache_path}/${1}
+    cp -R ${1} ${cache_path}/${1}
   fi
 }
 
@@ -35,17 +35,19 @@ do
 done
 echo "using ${new_json_file} as params file"
 
-newer_file=`find -cnewer ${new_json_file} | grep -v trash | grep -E ".*\.(C|json|root|log|png|txt|pdf)"`
+newer_file=`find -cnewer .run_start | grep -v trash | grep -E ".*\.(C|json|root|log|png|txt|pdf)"`
 for i in ${newer_file};
 do 
   cache_file ${i}
 done
 cache_file ${new_json_file}
 
+cache_file figure
+
 npy_file=`ls -rt *.npy`
 cache_file ${npy_file}
-curve_file=`ls -rt *curve*`
-cache_file ${curve_file}
+# curve_file=`ls -rt *curve*`
+# cache_file ${curve_file}
 
 git diff ${head_tag} > ${cache_path}/git.diff
 

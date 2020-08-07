@@ -300,7 +300,7 @@ class ParticleOne(Particle):
 
 
 @regist_particle("exp")
-class ParticleOne(Particle):
+class ParticleExp(Particle):
     def init_params(self):
         self.a = self.add_var("a")
 

@@ -764,6 +764,12 @@ class ConfigLoader(object):
                     del ret[v]
         amplitude.set_params(ret)
 
+    def save_params(self, file_name):
+        params = self.get_params()
+        val = {k: float(v) for k,v in params.items()}
+        with open(file_name, "w") as f:
+            json.dump(val, f, indent=2)
+
 
 def validate_file_name(s):
     rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
