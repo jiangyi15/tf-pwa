@@ -14,7 +14,7 @@ import time
 
 # examples of custom particle model
 from tf_pwa.amp import Particle, register_particle
-from tf_pwa.expermental import extra_amp, extra_data
+from tf_pwa.experimental import extra_amp, extra_data
 
 
 @register_particle("New")

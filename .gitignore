@@ -11,10 +11,21 @@ __pycache__
 *.log
 *.yml
 *.png
+*.pdf
+*.pptx
+*.ppt
+*.csv
+*.txt
+*.lyx*
+*.docx
+*.doc
+*.gv
+
 
 cached_dir
 trash
 figure
+fig
 build
 dist
 *.egg-info

@@ -12,8 +12,8 @@ def main():
     """Take three-body decay A->BCD for example, we generate a PhaseSpace MC sample and a toy data sample."""
     import argparse
     parser = argparse.ArgumentParser(description="generate toy of a certain amplitude")
-    parser.add_argument("--Nmc", default=2000, dest="Nmc")
-    parser.add_argument("--Ndata", default=100, dest="Ndata")
+    parser.add_argument("--Nmc", default=2000, type=int, dest="Nmc")
+    parser.add_argument("--Ndata", default=100, type=int, dest="Ndata")
     results = parser.parse_args()
     
     if not os.path.exists("data"):

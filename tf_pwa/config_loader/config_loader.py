@@ -422,8 +422,8 @@ class ConfigLoader(object):
             if bg is None:
                 bg = [bg] * len(data)
         amp = self.get_amplitude()
-        ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
         self._Ngroup = len(data)
+        ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
         chain_property = []
         for i in range(len(self.full_decay.chains)):
             label, curve_style = self.get_chain_property(i)
