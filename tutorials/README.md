@@ -2,21 +2,28 @@ Tutorials
 ----------
 
 Here is some simple script for PWA.
-The model is described in `config.yml`, a simple version of the process:
-$$A \rightarrow B C D,$$
+The model is described in [config.yml](config.yml), a simple version of the process:
+```math
+A \rightarrow B C D,
+```
 including such three decay chain
-$$A \rightarrow R_{BC} D, R_{BC} \rightarrow B C;$$
-$$A \rightarrow R_{BD} C, R_{BD} \rightarrow B D;$$
-$$A \rightarrow R_{CD} B, R_{CD} \rightarrow C D.$$
-
+```math
+A \rightarrow R_{BC} D, R_{BC} \rightarrow B C;
+```
+```math
+A \rightarrow R_{BD} C, R_{BD} \rightarrow B D;
+```
+```math
+A \rightarrow R_{CD} B, R_{CD} \rightarrow C D.
+```
 
 1. [gen_toy.py](gen_toy.py)
 
-    Using `python gen_toy.py`, we can get data sample and phase space (PHSP) sample of model in `config.yml` and parameters in `gen_params.json`.
+    Using `python gen_toy.py`, we can get data sample and phase space (PHSP) sample of model in [config.yml](config.yml) and parameters in [gen_params.json](gen_params.json).
 
 2. [fit.py](fit.py)
 
-    Using `python fit.py`, we can do a simple fit for `config.yml`. The fit parameters are stored in `final_params.json`. This script also include the function of following scripts (plot_vars.py, cal_errors.py, cal_fitfracs.py). 
+    Using `python fit.py`, we can do a simple fit for [config.yml](config.yml). The fit parameters are stored in `final_params.json`. This script also include the function of following scripts (plot_vars.py, cal_errors.py, cal_fitfracs.py). 
 
 3. [plot_vars.py](plot_vars.py)
 
