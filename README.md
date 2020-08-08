@@ -48,12 +48,12 @@ python -m pip install -e . --no-deps
 conda install uproot -c conda-forge
 ```
 
-### conda channel
+### conda channel (experimental)
 
-A pre-built conda package is provided, run following command to install it.
+A pre-built conda package (Linux only) is also provided, just run following command to install it.
 
 ```
-conda config --add channel jiangyi15
+conda config --add channels jiangyi15
 conda install tf-pwa
 ```
 
