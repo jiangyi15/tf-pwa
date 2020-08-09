@@ -13,6 +13,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
+import tf_pwa
 
 
 # -- Project information -----------------------------------------------------
@@ -22,7 +23,7 @@ copyright = "2020, "
 author = ""
 
 # The full version, including alpha/beta/rc tags
-release = ""
+release = tf_pwa.version.__version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -60,3 +61,38 @@ html_static_path = ['_static']
 
 
 autodoc_mock_imports = ["tensorflow", "iminuit"]
+
+from tf_pwa.experimental import extra_amp
+from tf_pwa.amp import get_config, PARTICLE_MODEL
+
+
+def add_indent(s, number=2):
+    ret = ""
+    for i in s.split("\n"):
+        ret += " "*number + i +"\n"
+    return ret
+
+def gen_particle_model():
+    particle_model_doc = """
+------------------------
+Aviable Resonances Model
+------------------------
+
+"""
+    idx = 1
+    for k, v in get_config(PARTICLE_MODEL).items():
+        n = len(k)
+        doc_i = v.__doc__
+        if v.__doc__ is None and v.get_amp.__doc__ is None:
+            continue
+        if v.__doc__ is None:
+            doc_i = v.get_amp.__doc__
+
+        particle_model_doc +=  "\n- {}. {}\n\n".format(idx, k)
+        idx += 1
+        particle_model_doc += add_indent(doc_i) + "\n\n"
+
+    with open(os.path.dirname(os.path.abspath(__file__)) + "/particle_model.rst", "w") as f:
+        f.write(particle_model_doc)
+
+gen_particle_model()

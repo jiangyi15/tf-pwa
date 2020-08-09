@@ -45,7 +45,7 @@ class InterpolationPartilce(Particle):
 
 @regist_particle("interp")
 class Interp(InterpolationPartilce):
-    """"""
+    """linear interpolation"""
     def init_params(self):
         # self.a = self.add_var("a")
         self.point_value = self.add_var("point",shape=(self.interp_N+1,))
@@ -168,7 +168,7 @@ def spline_xi_matrix(xi):
 
 @regist_particle("interp1d3")
 class Interp1D3(InterpolationPartilce):
-    """example Particle model define, can be used in config.yml as `model: New`"""
+    """Piecewise third order interpolation"""
     def interp(self, m):
         p = self.point_value()
         ret = interp1d3(m, self.points, tf.stack(p))
@@ -206,7 +206,7 @@ def get_matrix_interp1d3(x, xi):
 
 @regist_particle("interp_lagrange")
 class Interp1DLang(InterpolationPartilce):
-    """example Particle model define, can be used in config.yml as `model: interp_lagrange`"""
+    """lagrange interpolation"""
 
     def interp(self, m):
         zeros = tf.zeros_like(m)

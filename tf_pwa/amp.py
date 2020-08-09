@@ -186,9 +186,14 @@ def _ad_hoc(m0, m_max, m_min):
     return m_eff + m_min
 
 
-@regist_particle("default")
 @regist_particle("BWR")
+@regist_particle("default")
 class Particle(BaseParticle, AmpBase):
+    """
+    .. math::
+        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \Gamma(m)}
+
+    """
     def __init__(self, *args, running_width=True, bw_l=None, **kwargs):
         super(Particle, self).__init__(*args, **kwargs)
         self.running_width = running_width
@@ -240,6 +245,11 @@ class Particle(BaseParticle, AmpBase):
 
 @regist_particle("BW")
 class ParticleBW(Particle):
+    """
+    .. math::
+        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \Gamma_0}
+
+    """
     def get_amp(self, data, _data_c=None, **kwargs):
         mass = self.get_mass()
         width = self.get_width()
@@ -289,6 +299,11 @@ class ParticleLass(Particle):
 
 @regist_particle("one")
 class ParticleOne(Particle):
+    """
+    .. math::
+        R(m) = 1
+
+    """
     def init_params(self):
         pass
 
@@ -301,6 +316,11 @@ class ParticleOne(Particle):
 
 @regist_particle("exp")
 class ParticleExp(Particle):
+    """
+    .. math::
+        R(m) = e^{-|a| m}
+
+    """
     def init_params(self):
         self.a = self.add_var("a")
 
