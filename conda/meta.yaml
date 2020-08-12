@@ -12,6 +12,8 @@ source:
    # - fix.patch
 
 build:
+  script: {{ PYTHON }} -m pip install . --no-deps
+  noarch: python
   # noarch_python: True  
   number: {{ GIT_DESCRIBE_NUMBER }}
 
@@ -36,11 +38,6 @@ requirements:
   build:
     - python
     - setuptools
-    - tensorflow-gpu>=2.0.0
-    - matplotlib
-    - scipy
-    - sympy
-    - pyyaml
 
   run:
     - python
