@@ -63,6 +63,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
         config.save_params("break_params.json")
         raise
     except Exception as e:
+        print(e)
         config.save_params("break_params.json")
         return
     json_print(fit_result.params)

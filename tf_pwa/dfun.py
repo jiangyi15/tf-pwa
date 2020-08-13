@@ -102,9 +102,11 @@ def Dfun_delta_v2(d, ja, la, lb, lc=(0,)):
     # print(d[0])
 
     d = tf.reshape(d, (-1, ln * ln))
-    zeros = tf.zeros((d.shape[0], 1), dtype=d.dtype)
+    over_d = tf.pad(d, [[0,0],[0, 1]], mode='CONSTANT')
+    # print(d.shape, over_d.shape)
+    #zeros = tf.zeros((d.shape[0], 1), dtype=d.dtype)
 
-    over_d = tf.concat([d, zeros], axis=-1)
+    #over_d = tf.concat([d, zeros], axis=-1)
     ret = tf.gather(over_d, idx, axis=-1)
     return tf.reshape(ret, (-1, len(la), len(lb), len(lc)))
 

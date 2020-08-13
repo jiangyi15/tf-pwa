@@ -48,9 +48,11 @@ def BW(m, m0, g0, *args):
     """
     m0 = tf.cast(m0, m.dtype)
     gamma = tf.cast(g0, m.dtype)
-    num = 1.0
-    denom = tf.complex((m0 + m) * (m0 - m), - (m0 * gamma))
-    return num / denom
+    x = m0*m0 - m*m
+    y = m0 * gamma
+    s = x * x + y * y
+    ret = tf.complex(x/s, y/s)
+    return ret
 
 
 @regist_lineshape("default")  # 两个名字
@@ -65,10 +67,12 @@ def BWR(m, m0, g0, q, q0, L, d):
     """
     gamma = Gamma(m, g0, q, q0, L, m0, d)
     num = 1.0
-    a = (tf.cast(m0, m.dtype) + m)
-    b = (tf.cast(m0, m.dtype) - m)
-    denom = tf.complex(a * b, - (tf.cast(m0, m.dtype) * gamma))
-    return num / denom
+    m0 = tf.cast(m0, m.dtype)
+    x = m0 * m0 - m * m
+    y = m0 * gamma
+    s = x*x + y*y
+    ret = tf.complex(x/s, y/s)
+    return ret
 
 
 def Gamma(m, gamma0, q, q0, L, m0, d):

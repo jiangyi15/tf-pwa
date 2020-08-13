@@ -55,10 +55,10 @@ class Interp(InterpolationPartilce):
         # q = data_extra[self.outs[0]]["|q|"]
         # a = self.a()
         zeros = tf.zeros_like(m)
-        p = tf.abs(self.point())
+        p = tf.abs(self.point_value())
         def add_f(x, bl, br, pl, pr):
             return tf.where((x > bl)&(x<=br), (x-bl)/(br-bl)*(pr-pl)+pl, zeros)
-        ret = [add_f(m, *self.points[i], p[i], p[i+1]) for i in range(self.interp_N)]
+        ret = [add_f(m, self.points[i], self.points[i+1], p[i], p[i+1]) for i in range(self.interp_N-1)]
         return tf.complex(tf.reduce_sum(ret, axis=0), zeros)
 
 

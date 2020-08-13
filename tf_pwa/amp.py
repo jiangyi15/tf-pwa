@@ -961,7 +961,8 @@ class AmplitudeModel(object):
         self.res = res
         self.f_data = []
         if use_tf_function:
-            self.cached_fun = tf.function(self.decay_group.sum_amp, experimental_relax_shapes=True)
+            self.cached_fun = tf.function(self.decay_group.sum_amp)
+            #, experimental_relax_shapes=True)
         else:
             self.cached_fun = self.decay_group.sum_amp
 
