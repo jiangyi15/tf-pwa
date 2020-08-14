@@ -248,14 +248,18 @@ def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
         uni_rdm = tf.random.uniform([Nsample], minval=0, maxval=ampsq_max, dtype=dtype)
         list_rdm = tf.random.uniform([Nsample], dtype=tf.int64, maxval=Nsample)
         j = 0
-        for i in list_rdm:
-            if ampsq[i] > uni_rdm[j]:
-                idx_list.append(i)
-                n += 1
-            j += 1
-            if n == Nmc:
-                break
-    idx_list = tf.stack(idx_list).numpy()
+        mask = tf.boolean_mask(list_rdm, tf.gather(ampsq, list_rdm) > uni_rdm)
+        idx_list.append(mask)
+        n += mask.shape[0]
+        #print(mask)
+        #for i in list_rdm:
+            #if ampsq[i] > uni_rdm[j]:
+                #idx_list.append(i)
+                #n += 1
+            #j += 1
+            #if n == Nmc:
+                #break
+    idx_list = tf.concat(idx_list, axis=0).numpy()[:Nmc]
 
     data_tmp = load_dat_file(mcfile, particles, dtype)
     for i in particles:

@@ -94,7 +94,14 @@ def ordered_indices(expr, shapes):
     return base_order
 
 
+def replace_none_in_shape(x, num=-1):
+    # print(x.shape)
+    shape = tuple([num if i is None else i for i in x])
+    return shape
+
+
 def remove_size1(expr, *args,extra=None):
+    """remove order independent indices (size 1)"""
     if extra is None:
         extra = []
     sub = expr.split("->")[0].split(",")
@@ -103,7 +110,7 @@ def remove_size1(expr, *args,extra=None):
     for idx, shape in zip(sub, args):
         for i, j in zip(idx, shape.shape):
             l = size_map.get(i, 1)
-            if j >= l:
+            if j is None or j >= l:
                 size_map[i] = j
 
     remove_idx = []
@@ -121,21 +128,21 @@ def remove_size1(expr, *args,extra=None):
             if i not in remove_idx:
                 shape.append(j)
                 idx2.append(i)
-        ret.append(tf.reshape(arg, shape))
+        ret.append(tf.reshape(arg, replace_none_in_shape(shape, -1)))
         idxs2.append("".join(idx2))
-    
+
     final_idx = expr.split("->")[1]
     for i in remove_idx:
         final_idx = final_idx.replace(i, "")
     expr2 = ",".join(idxs2)+"->"+final_idx
-    
+
     return expr2, ret, size_map
 
 
 def einsum(expr, *args, **kwargs):
-    path, path_info = contract_path(expr, *args, optimize="auto")
-    shapes = [i.shape for i in args]
+    shapes = [replace_none_in_shape(i.shape, 10000) for i in args]
     expr, extra = replace_ellipsis(expr, shapes)
+    path, path_info = contract_path(expr, *shapes, shapes=True, optimize="auto")
     final_idx = expr.split("->")[1]
     expr2, args, size_map = remove_size1(expr, *args, extra=extra)
     final_shape = [size_map[i] for i in final_idx]
@@ -158,7 +165,7 @@ def einsum(expr, *args, **kwargs):
         expr_i = "{}->{}".format(",".join(part_in_idx), out_idx)
         result = tensor_einsum_reduce_sum(expr_i, *part_data, order=base_order)
         data.append(result)
-    return tf.reshape(data[0], final_shape)
+    return tf.reshape(data[0], replace_none_in_shape(final_shape, -1))
 
 
 def tensor_einsum_reduce_sum(expr, *args, order):
@@ -199,7 +206,7 @@ def tensor_einsum_reduce_sum(expr, *args, order):
 
     expand_shapes = [expand_shape_it(idx, shape) for idx, shape in zip(idxs, shapes)]
 
-    s_args = [tf.reshape(j, i) for i, j in zip(expand_shapes, t_args)]
+    s_args = [tf.reshape(j, replace_none_in_shape(i, -1)) for i, j in zip(expand_shapes, t_args)]
 
     # product
     ret_1 = s_args.pop()
