@@ -4,6 +4,10 @@ import numpy as np
 from scipy.interpolate import interp1d
 import yaml
 import scipy.signal as signal
+
+
+from mpl_toolkits.mplot3d.axes3d import Axes3D
+import matplotlib.animation as animation
 # import mplhep
 # plt.style.use(mplhep.style.LHCb)
 
@@ -116,7 +120,24 @@ def plot_x_y_err(name, x, y, x_e, y_e):
     plt.savefig(name)
 
 
-def main(config_file="config.yml", params="final_params.json", res="MI(1+)S"):
+def plot3d_m_x_y(name, m, x, y):
+    fig = plt.figure()
+    axes3d = Axes3D(fig)
+    axes3d.plot(m,x,y)
+    axes3d.set_xlabel("m")
+    axes3d.set_ylabel("real R(m)")
+    axes3d.set_zlabel("imag R(m)")
+
+    def update(frame):
+        axes3d.view_init(elev=30,azim=frame)
+        return None
+
+    anim = animation.FuncAnimation(fig, update,interval=10, frames=range(0,360, 10))
+    anim.save(name, writer='imagemagick')
+
+
+def plot_all(res="MI(1+)S", config_file="config.yml", params="final_params.json", prefix="figure/"):
+    """plot all figure"""
     xi, r, phi, r_e, phi_e = load_params(config_file, params, res)
     x, y, x_e, y_e = trans_r2xy(r, phi, r_e, phi_e)
 
@@ -132,12 +153,24 @@ def main(config_file="config.yml", params="final_params.json", res="MI(1+)S"):
 
     phi = np.arctan2(y_new, x_new)
     r2 = x_new * x_new + y_new * y_new
-    
-    plot_phi("phi.png", m, phi)
-    plot_x_y("r2.png", m, r2, "mass", "$|R(m)|^2$", ylim=(0,None))
-    plot_x_y("x_y.png", x_new, y_new, "real R(m)", "imag R(m)")
-    plot_x_y_err("x_y_err.png", x[1:-1], y[1:-1], x_e[1:-1], y_e[1:-1])
-    plot_x_y("r2_pq.png", m, r2*pq, "mass", "$|R(m)|^2 p \cdot q$", ylim=(0,None))
+
+    plot_phi(f"{prefix}phi.png", m, phi)
+    plot_x_y(f"{prefix}r2.png", m, r2, "mass", "$|R(m)|^2$", ylim=(0,None))
+    plot_x_y(f"{prefix}x_y.png", x_new, y_new, "real R(m)", "imag R(m)")
+    plot_x_y_err(f"{prefix}x_y_err.png", x[1:-1], y[1:-1], x_e[1:-1], y_e[1:-1])
+    plot_x_y(f"{prefix}r2_pq.png", m, r2*pq, "mass", "$|R(m)|^2 p \cdot q$", ylim=(0,None))
+    plot3d_m_x_y(f"{prefix}m_r.gif", m, x_new, y_new)
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="plot interpolation")
+    parser.add_argument("particle", type=str)
+    parser.add_argument("-c", "--config", default="config.yml", dest="config")
+    parser.add_argument("-i", "--params", default="final_params.json", dest="params")
+    parser.add_argument("-p", "--prefix", default="figure", dest="prefix")
+    results = parser.parse_args()
+    plot_all(results.particle,results.config, results.params, results.prefix)
 
 
 if __name__=="__main__":
