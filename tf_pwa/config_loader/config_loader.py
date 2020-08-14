@@ -322,6 +322,13 @@ class ConfigLoader(object):
             w_bkg = tmp
             if display:
                 print("background weight:", w_bkg)
+        else:
+            tmp = []
+            for wb in w_bkg:
+                if isinstance(wb, str):
+                    wb = self.data.load_weight_file(wb)
+                tmp.append(wb)
+            w_bkg = tmp
         return w_bkg, w_inmc
 
     def get_fcn(self, all_data=None, batch=65000, vm=None, name=""):
@@ -498,15 +505,21 @@ class ConfigLoader(object):
             if bg is None:
                 norm_frac = n_data / np.sum(total_weight)
             else:
-                norm_frac = (n_data - w_bkg *
-                             data_shape(bg)) / np.sum(total_weight)
+                if isinstance(w_bkg, float):
+                    norm_frac = (n_data - w_bkg *
+                                data_shape(bg)) / np.sum(total_weight)
+                else:
+                    norm_frac = (n_data - np.sum(w_bkg))/np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             data_weights = data.get("weight", [1.0]*data_shape(data))
             data_dict["data_weights"] = data_weights
             phsp_weights = total_weight*norm_frac
             phsp_dict["MC_total_fit"] = phsp_weights # MC total weight
             if bg is not None:
-                bg_weight = [w_bkg] * data_shape(bg)
+                if isinstance(w_bkg, float):
+                    bg_weight = [w_bkg] * data_shape(bg)
+                else:
+                    bg_weight = w_bkg
                 bg_dict["sideband_weights"] = bg_weight # sideband weight
             for i, label, _ in chain_property:
                 weight_i = weights[i] * norm_frac * bin_scale * phsp.get("weight", 1.0)
