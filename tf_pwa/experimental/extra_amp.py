@@ -84,6 +84,7 @@ class Interp1DSpline(InterpolationPartilce):
         x_m = spline_x_matrix(m, self.points)
         x_m = tf.expand_dims(x_m, axis=-1)
         m_xi = tf.reduce_sum(xi_m*x_m, axis=[-3, -2])
+        m_xi = tf.stop_gradient(m_xi)
         ret_r = tf.reduce_sum(tf.cast(m_xi, p_r.dtype) * p_r, axis=-1)
         ret_i = tf.reduce_sum(tf.cast(m_xi, p_i.dtype) * p_i, axis=-1)
         return tf.complex(ret_r, ret_i)

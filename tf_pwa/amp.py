@@ -477,7 +477,7 @@ class HelicityDecay(AmpDecay, AmpBase):
         H = tf.reshape(
             H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         H = tf.cast(H, dtype=D_conj.dtype)
-        ret = H * D_conj
+        ret = H * tf.stop_gradient(D_conj)
         # print(self, H, D_conj)
         # exit()
         if self.aligned:
@@ -673,7 +673,7 @@ class DecayChain(BaseDecayChain, AmpBase):
                     if j.J != 0 and "aligned_angle" in data_c[i][j]:
                         ang = data_c[i][j]["aligned_angle"]
                         dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
-                        amp_d.append(dt)
+                        amp_d.append(tf.stop_gradient(dt))
                         idx = [base_map[j], base_map[j].upper()]
                         indices.append(idx)
                         final_indices = final_indices.replace(*idx)
