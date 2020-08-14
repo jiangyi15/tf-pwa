@@ -74,9 +74,9 @@ def add_indent(s, number=2):
 
 def gen_particle_model():
     particle_model_doc = """
-------------------------
-Aviable Resonances Model
-------------------------
+--------------------------
+Available Resonances Model
+--------------------------
 
 """
     idx = 1
