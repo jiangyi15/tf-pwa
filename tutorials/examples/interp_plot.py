@@ -11,6 +11,7 @@ import matplotlib.animation as animation
 # import mplhep
 # plt.style.use(mplhep.style.LHCb)
 
+from tf_pwa.experimental.extra_amp import spline_matrix
 
 def vialid_name(s):
     return s.replace("+",".")
@@ -62,11 +63,11 @@ def load_params(config_file="config.yml", params="final_params.json", res="li(1+
         xi = [m_min + dx * i for i in range(N)]
     N = len(xi)
     head = "{}_point".format(vialid_name(res))
-    r = [0] + [val["{}_{}r".format(head, i)] for i in range(N-2)] +[0]
-    phi = [0] + [val["{}_{}i".format(head, i)] for i in range(N-2)] +[0]
-    r_e = [0, 0] + [err["{}_{}r".format(head, i)] for i in range(1,N-2)] + [0]
-    phi_e = [0, 0] + [err["{}_{}i".format(head, i)] for i in range(1,N-2)] + [0]
-    return xi, r, phi, r_e, phi_e
+    r = np.array([0] + [val["{}_{}r".format(head, i)] for i in range(N-2)] +[0])
+    phi = np.array([0] + [val["{}_{}i".format(head, i)] for i in range(N-2)] +[0])
+    r_e = np.array([0, 0] + [err.get("{}_{}r".format(head, i), r[i]*0.1) for i in range(1,N-2)] + [0])
+    phi_e = np.array([0, 0] + [err.get("{}_{}i".format(head, i), phi[i]*0.1) for i in range(1,N-2)] + [0])
+    return np.array(xi), r, phi, r_e, phi_e
 
 
 def trans_r2xy(r, phi, r_e, phi_e):
@@ -77,17 +78,18 @@ def trans_r2xy(r, phi, r_e, phi_e):
     return x, y, err[:,0], err[:,1]
 
 
-def plot_x_y(name, x, y, xlabel, ylabel, ylim=(None, None)):
+def plot_x_y(name, x, y, x_i, y_i, xlabel, ylabel, ylim=(None, None)):
     """plot x vs y"""
     plt.clf()
     plt.plot(x, y)
+    plt.scatter(x_i, y_i)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.ylim(ylim)
     plt.savefig(name)
 
 
-def plot_phi(name, m, phi):
+def plot_phi(name, m, phi, m_i, phi_i):
     """ plot phi and gradient of phi"""
     grad = (phi[2:] - phi[:-2])
     mask = (phi<3)&(phi>-3)
@@ -97,13 +99,15 @@ def plot_phi(name, m, phi):
     idx, = signal.argrelextrema(grad,np.less)
 
     plt.clf()
-    
+
     #plt.plot(m, pq/np.max(pq))# np.sqrt(x_new**2+y_new**2)**2)
     plt.plot(m[1:-1], grad/grad_max, label="$\\Delta \\phi$ ")
     plt.plot(m, phi, label="$\\phi$")# np.sqrt(x_new**2+y_new**2)**2)
 
-    print("min Delta phi in mass:", m[idx+1])
-    plt.scatter(m[idx+1], phi[idx+1])
+    m_delta = m[idx+1]
+    print("min Delta phi in mass:", m_delta)
+    plt.scatter(m_delta, [-np.pi]*len(m_delta))
+    plt.scatter(m_i, phi_i, label="points")
     plt.xlabel("mass")
     plt.ylabel("$\\phi$")
     plt.ylim((-np.pi,np.pi))
@@ -138,27 +142,30 @@ def plot3d_m_x_y(name, m, x, y):
 
 def plot_all(res="MI(1+)S", config_file="config.yml", params="final_params.json", prefix="figure/"):
     """plot all figure"""
-    xi, r, phi, r_e, phi_e = load_params(config_file, params, res)
-    x, y, x_e, y_e = trans_r2xy(r, phi, r_e, phi_e)
+    mi, r, phi_i, r_e, phi_e = load_params(config_file, params, res)
+    x, y, x_e, y_e = trans_r2xy(r, phi_i, r_e, phi_e)
 
-    m = np.linspace(xi[0], xi[-1], 1000)
+    m = np.linspace(mi[0], mi[-1], 1000)
     M_Kpm = 0.49368
     M_Dpm = 1.86961
     M_Dstar0 = 2.00685
     M_Bpm = 5.27926
-    x_new = interp1d(xi, x, "cubic")(m)
-    y_new = interp1d(xi, y, "cubic")(m)
+    #x_new = interp1d(xi, x, "cubic")(m)
+    #y_new = interp1d(xi, y, "cubic")(m)
+    x_new = spline_matrix(m, mi, x)
+    y_new = spline_matrix(m, mi, y)
 
     pq = dalitz_weight(m*m, M_Bpm, M_Dstar0, M_Dpm, M_Kpm)
+    pq_i = dalitz_weight(mi*mi, M_Bpm, M_Dstar0, M_Dpm, M_Kpm)
 
     phi = np.arctan2(y_new, x_new)
     r2 = x_new * x_new + y_new * y_new
 
-    plot_phi(f"{prefix}phi.png", m, phi)
-    plot_x_y(f"{prefix}r2.png", m, r2, "mass", "$|R(m)|^2$", ylim=(0,None))
-    plot_x_y(f"{prefix}x_y.png", x_new, y_new, "real R(m)", "imag R(m)")
+    plot_phi(f"{prefix}phi.png", m, phi, mi, np.arctan2(y, x))
+    plot_x_y(f"{prefix}r2.png", m, r2, mi, r*r, "mass", "$|R(m)|^2$", ylim=(0,None))
+    plot_x_y(f"{prefix}x_y.png", x_new, y_new, x, y, "real R(m)", "imag R(m)")
     plot_x_y_err(f"{prefix}x_y_err.png", x[1:-1], y[1:-1], x_e[1:-1], y_e[1:-1])
-    plot_x_y(f"{prefix}r2_pq.png", m, r2*pq, "mass", "$|R(m)|^2 p \cdot q$", ylim=(0,None))
+    plot_x_y(f"{prefix}r2_pq.png", m, r2*pq, mi, r*r*pq_i, "mass", "$|R(m)|^2 p \cdot q$", ylim=(0,None))
     plot3d_m_x_y(f"{prefix}m_r.gif", m, x_new, y_new)
 
 
@@ -168,7 +175,7 @@ def main():
     parser.add_argument("particle", type=str)
     parser.add_argument("-c", "--config", default="config.yml", dest="config")
     parser.add_argument("-i", "--params", default="final_params.json", dest="params")
-    parser.add_argument("-p", "--prefix", default="figure", dest="prefix")
+    parser.add_argument("-p", "--prefix", default="figure/", dest="prefix")
     results = parser.parse_args()
     plot_all(results.particle,results.config, results.params, results.prefix)
 
