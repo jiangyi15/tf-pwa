@@ -45,7 +45,7 @@ class InterpolationPartilce(Particle):
 
 @register_particle("interp")
 class Interp(InterpolationPartilce):
-    """linear interpolation"""
+    """linear interpolation for real number"""
     def init_params(self):
         # self.a = self.add_var("a")
         self.point_value = self.add_var("point",shape=(self.interp_N+1,))
@@ -60,6 +60,38 @@ class Interp(InterpolationPartilce):
             return tf.where((x > bl)&(x<=br), (x-bl)/(br-bl)*(pr-pl)+pl, zeros)
         ret = [add_f(m, self.points[i], self.points[i+1], p[i], p[i+1]) for i in range(self.interp_N-1)]
         return tf.complex(tf.reduce_sum(ret, axis=0), zeros)
+
+
+@register_particle("interp_c")
+class Interp(InterpolationPartilce):
+    """linear interpolation for complex number"""
+
+    def interp(self, m):
+        # q = data_extra[self.outs[0]]["|q|"]
+        # a = self.a()
+        p = self.point_value()
+        zeros = tf.zeros_like(m)
+        ones = tf.ones_like(m)
+        def poly_i(i, xi):
+            tmp = zeros
+            for j in range(i-1, i+1):
+                if j < 0 or j > self.interp_N-1:
+                    continue
+                r = ones
+                for k in range(j, j+2):
+                    if k==i:
+                        continue
+                    r = r * (m-xi[k])/(xi[i]-xi[k])
+                r = tf.where((m >= xi[j]) & (m<xi[j+1]), r, zeros)
+                tmp = tmp + r
+            return tmp
+        h = tf.stack([poly_i(i, self.points) for i in range(1,self.interp_N-1)], axis=-1)
+        h = tf.stop_gradient(h)
+        p_r = tf.math.real(p)
+        p_i = tf.math.imag(p)
+        ret_r = tf.reduce_sum(h*p_r, axis=-1)
+        ret_i = tf.reduce_sum(h*p_i, axis=-1)
+        return tf.complex(ret_r, ret_i)
 
 
 @register_particle("spline_c")
@@ -207,7 +239,7 @@ def get_matrix_interp1d3(x, xi):
 
 @register_particle("interp_lagrange")
 class Interp1DLang(InterpolationPartilce):
-    """lagrange interpolation"""
+    """Lagrange interpolation"""
 
     def interp(self, m):
         zeros = tf.zeros_like(m)
@@ -223,13 +255,13 @@ class Interp1DLang(InterpolationPartilce):
         xs = tf.stack([poly_i(i) for i in range(self.interp_N)], axis=-1)
         zeros = tf.zeros_like(xs)
         xs = tf.complex(xs, zeros)
-        ret = tf.reduce_sum(xs * p, axis=-1)
+        ret = tf.reduce_sum(xs[:,1:-1] * p, axis=-1)
         return ret
 
 
 @register_particle("interp_hist")
 class InterpHist(InterpolationPartilce):
-    """interpolation for each bins as constant"""
+    """Interpolation for each bins as constant"""
 
     def interp(self, m):
         p = self.point_value()
@@ -245,3 +277,44 @@ class InterpHist(InterpolationPartilce):
         ret_r = tf.reduce_sum(x_bin * p_r, axis=-1)
         ret_i = tf.reduce_sum(x_bin * p_i, axis=-1)
         return tf.complex(ret_r, ret_i)
+
+
+@register_particle("interp_l3")
+class InterpHist(InterpolationPartilce):
+
+    def interp(self, m):
+        p = self.point_value()
+        ones = tf.ones_like(m)
+        zeros = tf.zeros_like(m)
+        p_r = tf.math.real(p)
+        p_i = tf.math.imag(p)
+        h, b = get_matrix_interp1d3_v2(m, self.points)
+        f = lambda x: tf.reshape(tf.matmul(tf.cast(h, x.dtype), tf.reshape(x,(-1,1))),b.shape) + tf.cast(b, x.dtype)
+        ret_r = f(p_r)
+        ret_i = f(p_i)
+        return tf.complex(ret_r, ret_i)
+
+
+def get_matrix_interp1d3_v2(x, xi):
+    N = len(xi) - 1
+    zeros = tf.zeros_like(x)
+    ones = tf.ones_like(x)
+    # @pysnooper.snoop()
+    def poly_i(i):
+        tmp = zeros
+        x_i = (xi[i] + xi[i-1])/2
+        for j in range(i-1, i+3):
+            if j < 0 or j > N-1:
+                continue
+            r = ones
+            for k in range(j-1, j+3):
+                if k==i or k < 1 or k>N:
+                    continue
+                x_k = (xi[k] + xi[k-1])/2
+                r = r * (x - x_k)/(x_i-x_k)
+            r = tf.where((x >= (xi[j] + xi[j-1])/2) & (x < (xi[j]+xi[j+1])/2), r, zeros)
+            tmp = tmp + r
+        return tmp
+    h = tf.stack([poly_i(i) for i in range(1, N)], axis=-1)
+    b = tf.zeros_like(x)
+    return h, b
