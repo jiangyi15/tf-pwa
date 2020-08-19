@@ -50,6 +50,7 @@ class ConfigLoader(object):
         self.plot_params = PlotParams(self.config.get("plot", {}), self.decay_struct)
         self._neglect_when_set_params = []
         self.data = load_data_mode(self.config.get("data", None), self.decay_struct)
+        self.inv_he = None
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -396,9 +397,11 @@ class ConfigLoader(object):
         # fit configure
         # self.bound_dic[""] = (,)
         self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False, maxiter=maxiter)
+        if self.fit_params.hess_inv is not None:
+            self.inv_he =  self.fit_params.hess_inv
         return self.fit_params
 
-    def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
+    def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000, using_cached=False):
         if params is None:
             params = {}
         if data is None:
@@ -406,7 +409,10 @@ class ConfigLoader(object):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
-        hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
+        if using_cached and self.inv_he is not None:
+            hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
+        else:
+            hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
         #print("parameters order")
         #print(fcn.model.Amp.vm.trainable_vars)
         #print("error matrix:")

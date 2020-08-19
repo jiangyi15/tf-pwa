@@ -71,6 +71,7 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
 
     points = []
     nlls = []
+    hess_inv = None
     now = time.time()
     if maxiter is None:
         maxiter = max(100 * len(x0), 2000)
@@ -145,6 +146,7 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
         ndf = s.x.shape[0]
         min_nll = s.fun
         success = s.success
+        hess_inv = s.hess_inv
         fcn.vm.remove_bound()
         xn = fcn.vm.get_all_val()
     elif method in ["L-BFGS-B"]:
@@ -181,7 +183,7 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
             print(args_name[i], gs[i], gs0[i])
     fcn.vm.set_all(xn)
     params = fcn.vm.get_all_dic()
-    return FitResult(params, fcn, min_nll, ndf = ndf, success=success)
+    return FitResult(params, fcn, min_nll, ndf = ndf, success=success, hess_inv=hess_inv)
 
 
 #import pymultinest
@@ -191,13 +193,14 @@ def fit_multinest(fcn):
 
 
 class FitResult(object):
-    def __init__(self, params, fcn, min_nll, ndf=0, success=True):
+    def __init__(self, params, fcn, min_nll, ndf=0, success=True, hess_inv=None):
         self.params = params
         self.error = {}
         self.fcn = fcn
         self.min_nll = float(min_nll)
         self.ndf = int(ndf)
         self.success = success
+        self.hess_inv = hess_inv
 
     def save_as(self, file_name):
         s = {"value": self.params, "error": self.error, "status": {"success":self.success,"NLL":self.min_nll,"Ndf":self.ndf}}
