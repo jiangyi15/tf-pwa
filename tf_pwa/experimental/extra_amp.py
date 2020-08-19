@@ -1,4 +1,4 @@
-from tf_pwa.amp import regist_particle, Particle
+from tf_pwa.amp import register_particle, Particle
 from tf_pwa.tensorflow_wrapper import tf
 import numpy as np
 
@@ -43,7 +43,7 @@ class InterpolationPartilce(Particle):
         return self.points, v_r, v_i
 
 
-@regist_particle("interp")
+@register_particle("interp")
 class Interp(InterpolationPartilce):
     """linear interpolation"""
     def init_params(self):
@@ -62,7 +62,7 @@ class Interp(InterpolationPartilce):
         return tf.complex(tf.reduce_sum(ret, axis=0), zeros)
 
 
-@regist_particle("spline_c")
+@register_particle("spline_c")
 class Interp1DSpline(InterpolationPartilce):
     """Spline interpolation function for model independent resonance"""
     def __init__(self, *args, **kwargs):
@@ -167,7 +167,7 @@ def spline_xi_matrix(xi):
     return ret
 
 
-@regist_particle("interp1d3")
+@register_particle("interp1d3")
 class Interp1D3(InterpolationPartilce):
     """Piecewise third order interpolation"""
     def interp(self, m):
@@ -205,7 +205,7 @@ def get_matrix_interp1d3(x, xi):
     return h, b
 
 
-@regist_particle("interp_lagrange")
+@register_particle("interp_lagrange")
 class Interp1DLang(InterpolationPartilce):
     """lagrange interpolation"""
 
@@ -225,3 +225,23 @@ class Interp1DLang(InterpolationPartilce):
         xs = tf.complex(xs, zeros)
         ret = tf.reduce_sum(xs * p, axis=-1)
         return ret
+
+
+@register_particle("interp_hist")
+class InterpHist(InterpolationPartilce):
+    """interpolation for each bins as constant"""
+
+    def interp(self, m):
+        p = self.point_value()
+        ones = tf.ones_like(m)
+        zeros = tf.zeros_like(m)
+        def add_f(x, bl, br):
+            return tf.where((x > bl)&(x<=br), ones, zeros)
+        x_bin = tf.stack([add_f(m, (self.points[i] + self.points[i+1])/2,
+                                   (self.points[i+1]+self.points[i+2])/2)
+                          for i in range(self.interp_N-2)], axis=-1)
+        p_r = tf.math.real(p)
+        p_i = tf.math.imag(p)
+        ret_r = tf.reduce_sum(x_bin * p_r, axis=-1)
+        ret_i = tf.reduce_sum(x_bin * p_i, axis=-1)
+        return tf.complex(ret_r, ret_i)

@@ -12,6 +12,7 @@ import matplotlib.animation as animation
 # plt.style.use(mplhep.style.LHCb)
 
 from tf_pwa.experimental.extra_amp import spline_matrix
+from tf_pwa.config_loader import ConfigLoader
 
 def vialid_name(s):
     return s.replace("+",".")
@@ -142,6 +143,10 @@ def plot3d_m_x_y(name, m, x, y):
 
 def plot_all(res="MI(1+)S", config_file="config.yml", params="final_params.json", prefix="figure/"):
     """plot all figure"""
+    config = ConfigLoader(config_file)
+    config.set_params(params)
+    particle = config.get_decay().get_particle(res)
+
     mi, r, phi_i, r_e, phi_e = load_params(config_file, params, res)
     x, y, x_e, y_e = trans_r2xy(r, phi_i, r_e, phi_e)
 
@@ -152,8 +157,8 @@ def plot_all(res="MI(1+)S", config_file="config.yml", params="final_params.json"
     M_Bpm = 5.27926
     #x_new = interp1d(xi, x, "cubic")(m)
     #y_new = interp1d(xi, y, "cubic")(m)
-    x_new = spline_matrix(m, mi, x)
-    y_new = spline_matrix(m, mi, y)
+    rm_new = particle.interp(m).numpy()
+    x_new, y_new = rm_new.real, rm_new.imag
 
     pq = dalitz_weight(m*m, M_Bpm, M_Dstar0, M_Dpm, M_Kpm)
     pq_i = dalitz_weight(mi*mi, M_Bpm, M_Dstar0, M_Dpm, M_Kpm)
