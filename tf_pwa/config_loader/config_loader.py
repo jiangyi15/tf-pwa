@@ -527,7 +527,7 @@ class ConfigLoader(object):
                 if isinstance(w_bkg, float):
                     bg_weight = [w_bkg] * data_shape(bg)
                 else:
-                    bg_weight = w_bkg
+                    bg_weight = -w_bkg
                 bg_dict["sideband_weights"] = bg_weight # sideband weight
             for i, label, _ in chain_property:
                 weight_i = weights[i] * norm_frac * bin_scale * phsp.get("weight", 1.0)
