@@ -517,7 +517,7 @@ class ConfigLoader(object):
                     norm_frac = (n_data - w_bkg *
                                 data_shape(bg)) / np.sum(total_weight)
                 else:
-                    norm_frac = (n_data - np.sum(w_bkg))/np.sum(total_weight)
+                    norm_frac = (n_data + np.sum(w_bkg))/np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             data_weights = data.get("weight", [1.0]*data_shape(data))
             data_dict["data_weights"] = data_weights
