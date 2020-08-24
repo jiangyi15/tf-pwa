@@ -65,7 +65,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     except Exception as e:
         print(e)
         config.save_params("break_params.json")
-        return
+        raise
     json_print(fit_result.params)
     fit_result.save_as("final_params.json")
 
@@ -95,7 +95,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
             name = i
         fit_frac_string += "{} {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
     print(fit_frac_string)
-    #from tf_pwa.utils import frac_table
+    #from frac_table import frac_table
     #frac_table(fit_frac_string)
 
 

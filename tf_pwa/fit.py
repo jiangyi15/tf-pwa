@@ -77,7 +77,7 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
         maxiter = max(100 * len(x0), 2000)
     min_nll = 0.0
     ndf = 0
-    
+    #maxiter = 0
     def v_g2(x0):
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         nll, gs0 = f_g(x0)
@@ -120,15 +120,15 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
         # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
         if method == "test":
             s = my_minimize(f_g, x0, method=method,
-                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter})
         else:
             s = minimize(f_g, x0, method=method,
-                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter})
         while improve and not s.success:
             min_nll = s.fun
             maxiter -= s.nit
             s = minimize(f_g, s.x, method=method,
-                     jac=True, callback=callback, options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter})
+                     jac=True, callback=callback, options={"disp": 1, "gtol": 1e-2, "maxiter": maxiter})
             if hasattr(s, "hess_inv"):
                 edm = np.dot(np.dot(s.hess_inv, s.jac), s.jac)
             else:
