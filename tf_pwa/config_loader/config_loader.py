@@ -50,6 +50,7 @@ class ConfigLoader(object):
         self.plot_params = PlotParams(self.config.get("plot", {}), self.decay_struct)
         self._neglect_when_set_params = []
         self.data = load_data_mode(self.config.get("data", None), self.decay_struct)
+        self.inv_he = None
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -177,13 +178,21 @@ class ConfigLoader(object):
         self.add_decay_constraints(amp, constrains.get("decay", {}))
         self.add_particle_constraints(amp, constrains.get("particle", {}))
         self.add_fix_var_constraints(amp, constrains.get("fix_var", {}))
+        self.add_var_range_constraints(amp, constrains.get("var_range", {}))
 
     def add_fix_var_constraints(self, amp, dic=None):
         if dic is None:
             dic = {}
-        for k,v in dic.items():
+        for k, v in dic.items():
             print("fix var: ", k, "=", v)
             amp.vm.set_fix(k, v)
+
+    def add_var_range_constraints(self, amp, dic=None):
+        if dic is None:
+            dic = {}
+        for k, v in dic.items():
+            print("variable range: ", k, " in ", v)
+            self.bound_dic[k] = v
 
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:
@@ -388,9 +397,11 @@ class ConfigLoader(object):
         # fit configure
         # self.bound_dic[""] = (,)
         self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic, check_grad=check_grad, improve=False, maxiter=maxiter)
+        if self.fit_params.hess_inv is not None:
+            self.inv_he =  self.fit_params.hess_inv
         return self.fit_params
 
-    def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000):
+    def get_params_error(self, params=None, data=None, phsp=None, bg=None, batch=10000, using_cached=False):
         if params is None:
             params = {}
         if data is None:
@@ -398,7 +409,10 @@ class ConfigLoader(object):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
-        hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
+        if using_cached and self.inv_he is not None:
+            hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
+        else:
+            hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
         #print("parameters order")
         #print(fcn.model.Amp.vm.trainable_vars)
         #print("error matrix:")
@@ -509,7 +523,7 @@ class ConfigLoader(object):
                     norm_frac = (n_data - w_bkg *
                                 data_shape(bg)) / np.sum(total_weight)
                 else:
-                    norm_frac = (n_data - np.sum(w_bkg))/np.sum(total_weight)
+                    norm_frac = (n_data + np.sum(w_bkg))/np.sum(total_weight)
             weights = amp.partial_weight(phsp)
             data_weights = data.get("weight", [1.0]*data_shape(data))
             data_dict["data_weights"] = data_weights
@@ -519,7 +533,7 @@ class ConfigLoader(object):
                 if isinstance(w_bkg, float):
                     bg_weight = [w_bkg] * data_shape(bg)
                 else:
-                    bg_weight = w_bkg
+                    bg_weight = -w_bkg
                 bg_dict["sideband_weights"] = bg_weight # sideband weight
             for i, label, _ in chain_property:
                 weight_i = weights[i] * norm_frac * bin_scale * phsp.get("weight", 1.0)
