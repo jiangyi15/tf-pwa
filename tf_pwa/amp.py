@@ -20,7 +20,7 @@ import copy
 from .particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
     DecayGroup as BaseDecayGroup, _spin_int, _spin_range, DEFAULT_DECAY
 from .tensorflow_wrapper import tf
-from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime
+from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime, Gamma
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
 from .variable import VarsManager, Variable
@@ -203,6 +203,7 @@ class Particle(BaseParticle, AmpBase):
         self.d = 3.0
         if self.mass is None:
             self.mass = self.add_var("mass", fix=True)
+            #print("$$$$$",self.mass)
         else:
             if not isinstance(self.mass, Variable):
                 self.mass = self.add_var("mass", value=self.mass, fix=True)
@@ -256,6 +257,77 @@ class ParticleBW(Particle):
         ret = BW(data["m"], mass, width)
         return ret
 
+@regist_particle("Kmatrix")
+class ParticleKmatrix(Particle):
+    def init_params(self):
+        self.d = 3.0
+        self.mass1 = self.add_var("mass1", fix=True)
+        self.mass2 = self.add_var("mass2", fix=True)
+        self.width1 = self.add_var("width1", fix=True)
+        self.width2 = self.add_var("width2", fix=True)
+        #self.beta0 = self.add_var("beta0")
+        self.beta1 = self.add_var("beta1", is_complex=True)
+        self.beta2 = self.add_var("beta2", is_complex=True)
+        if self.bw_l is None:
+            decay = self.decay[0]
+            self.bw_l = min(decay.get_l_list())
+
+    def get_amp(self, data, data_c=None, **kwargs):
+        m = data["m"]
+        mass1 = self.get_mass1()
+        mass2 = self.get_mass2()
+        width1 = self.get_width1()
+        width2 = self.get_width2()
+        q = data_c["|q|"]
+        mdaughter1 = kwargs["all_data"]["particle"][self.decay[0].outs[0]]["m"]
+        mdaughter2 = kwargs["all_data"]["particle"][self.decay[0].outs[1]]["m"]
+        q1 = get_relative_p(mass1, mdaughter1, mdaughter2)
+        q2 = get_relative_p(mass2, mdaughter1, mdaughter2)
+        mlist = tf.stack([mass1, mass2])
+        wlist = tf.stack([width1, width2])
+        qlist = tf.stack([q1, q2])
+        Klist = []
+        #print("$$$$$",mass,q,q0)
+        for mi, wi, qi in zip(mlist, wlist, qlist):
+            rw = Gamma(m, wi, q, qi, self.bw_l, mi, self.d)
+            Klist.append( mi * rw / (mi - m) )
+        KK = tf.reduce_sum(Klist, axis=0)
+        beta_term = self.get_beta(m=m, mlist=mlist, wlist=wlist, q=q, qlist=qlist, Klist=Klist, **kwargs)
+        MM = tf.complex(np.float64(1),KK)
+        MM = tf.cast(beta_term, MM.dtype) / MM
+        return MM
+
+    def get_beta(self, m, **kwargs):
+        m1, m2 = kwargs["mlist"]
+        z = kwargs["q"] * self.d
+        z1, z2 = kwargs["qlist"] * self.d
+        Klist = kwargs["Klist"]
+        beta1 = self.beta1()
+        beta1 = beta1 * tf.cast(Klist[0] * m/m1 * z1/z, beta1.dtype)
+        beta2 = self.beta2()
+        beta2 = beta2 * tf.cast(Klist[1] * m/m2 * z2/z, beta2.dtype)
+        beta0 = tf.cast(2 * z / (z + 1), beta1.dtype)
+        return beta0 + beta1 + beta2
+
+    def get_mass1(self):
+        if callable(self.mass1):
+            return self.mass1()
+        return self.mass1
+
+    def get_width1(self):
+        if callable(self.width1):
+            return self.width1()
+        return self.width1
+
+    def get_mass2(self):
+        if callable(self.mass2):
+            return self.mass2()
+        return self.mass2
+
+    def get_width2(self):
+        if callable(self.width2):
+            return self.width2()
+        return self.width2
 
 @regist_particle("LASS")
 class ParticleLass(Particle):
@@ -796,6 +868,8 @@ class DecayGroup(BaseDecayGroup):
                     raise KeyError("not found {}".format(chain_topo))
                 data_c = rename_data_dict(data_decay_i, chains[decay_chain])
                 data_p = rename_data_dict(data_particle, chains[decay_chain])
+                #print("$$$$$",data_c)
+                #print("$$$$$",data_p)
                 amp = decay_chain.get_amp(data_c, data_p, base_map=base_map, all_data=data)
                 ret.append(amp)
         ret = tf.reduce_sum(ret, axis=0)

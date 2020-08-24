@@ -1,6 +1,6 @@
 import yaml
 import json
-from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
+from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel, ParticleKmatrix
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.model import Model, Model_new, FCN, CombineFCN
@@ -216,6 +216,13 @@ class ConfigLoader(object):
                 # free mass and width and set bounds
                 m_sigma = self.config['particle'][i].get("m_sigma", None)
                 g_sigma = self.config['particle'][i].get("g_sigma", None)
+
+                if type(p_i) is ParticleKmatrix:
+                    p_i.mass1.set_value(self.config['particle'][i]["mass1"])
+                    p_i.mass2.set_value(self.config['particle'][i]["mass2"])
+                    p_i.width1.set_value(self.config['particle'][i]["width1"])
+                    p_i.width2.set_value(self.config['particle'][i]["width2"])
+
                 if "gauss_constr" in self.config['particle'][i] and self.config['particle'][i]["gauss_constr"]:
                     if 'm' in self.config['particle'][i]["gauss_constr"]:
                         if m_sigma is None:
