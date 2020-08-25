@@ -5,6 +5,9 @@ Breit-Wigner function. Users can also define new lineshape using the function wr
 
 import functools
 import warnings
+import math
+import fractions
+import sympy as sym
 from .tensorflow_wrapper import tf
 
 breit_wigner_dict = {}
@@ -159,9 +162,46 @@ def Bprime_polynomial(l, z):
         4: [1.0, 10.0, 135.0, 1575.0, 11035.0],
         5: [1.0, 15.0, 315.0, 6300.0, 99225.0, 893025.0]
     }
+    l = int(l+0.01)
     if l not in coeff:
-        raise NotImplementedError
+        coeff[l] = get_bprime_coeff(l)
+        # raise NotImplementedError
     z = tf.convert_to_tensor(z)
-    cof = [tf.convert_to_tensor(i, z.dtype) for i in coeff[int(l + 0.01)]]
+    cof = [tf.convert_to_tensor(i, z.dtype) for i in coeff[l]]
     ret = tf.math.polyval(cof, z)
+    return ret
+
+
+def reverse_bessel_polynomials(n, x):
+    """Reverse Bessel polynomials.
+
+    .. math::
+        \\theta_{n}(x) = \\sum_{k=0}^{n} \\frac{(n+k)!}{(n-k)!k!} \\frac{x^{n-k}}{2^k}
+
+    """
+    ret = 0
+    for k in range(n+1):
+        c = fractions.Fraction(
+                math.factorial(n + k),
+                math.factorial(n - k) * math.factorial(k) * 2**k
+        )
+        ret += c * x**(n-k)
+    return ret
+
+
+@functools.lru_cache()
+def get_bprime_coeff(l):
+    """The coefficients of polynomial in Bprime function.
+
+    .. math::
+        |\\theta_{l}(jw)|^2 = \\sum_{i=0}^{l} c_i w^{2 i}
+
+    """
+    x = sym.Symbol("x")
+    theta = reverse_bessel_polynomials(l, x)
+    w = sym.Symbol("w", real=True)
+    Hjw = theta.subs({"x": sym.I * w})
+    Hjw2 = sym.Poly(Hjw * Hjw.conjugate(), w)
+    coeffs = Hjw2.as_dict()
+    ret = [float(coeffs.get((2*l-2*i,), 0.)) for i in range(l+1)]
     return ret
