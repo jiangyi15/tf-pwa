@@ -265,8 +265,9 @@ class ParticleKmatrix(Particle):
         self.mass2 = self.add_var("mass2", fix=True)
         self.width1 = self.add_var("width1", fix=True)
         self.width2 = self.add_var("width2", fix=True)
-        #self.beta0 = self.add_var("beta0")
-        self.beta1 = self.add_var("beta1", is_complex=True)
+        #self.KNR = self.add_var("KNR", is_complex=True)
+        self.beta0 = self.add_var("beta0", is_complex=True)
+        self.beta1 = self.add_var("beta1", is_complex=True, fix=True)
         self.beta2 = self.add_var("beta2", is_complex=True)
         if self.bw_l is None:
             decay = self.decay[0]
@@ -274,10 +275,10 @@ class ParticleKmatrix(Particle):
 
     def get_amp(self, data, data_c=None, **kwargs):
         m = data["m"]
-        mass1 = self.get_mass1()
-        mass2 = self.get_mass2()
-        width1 = self.get_width1()
-        width2 = self.get_width2()
+        mass1 = self.mass1()
+        mass2 = self.mass2()
+        width1 = self.width1()
+        width2 = self.width2()
         q = data_c["|q|"]
         mdaughter1 = kwargs["all_data"]["particle"][self.decay[0].outs[0]]["m"]
         mdaughter2 = kwargs["all_data"]["particle"][self.decay[0].outs[1]]["m"]
@@ -287,47 +288,32 @@ class ParticleKmatrix(Particle):
         wlist = tf.stack([width1, width2])
         qlist = tf.stack([q1, q2])
         Klist = []
-        #print("$$$$$",mass,q,q0)
         for mi, wi, qi in zip(mlist, wlist, qlist):
             rw = Gamma(m, wi, q, qi, self.bw_l, mi, self.d)
-            Klist.append( mi * rw / (mi - m) )
+            Klist.append( mi * rw / (mi**2 - m**2) )
         KK = tf.reduce_sum(Klist, axis=0)
         beta_term = self.get_beta(m=m, mlist=mlist, wlist=wlist, q=q, qlist=qlist, Klist=Klist, **kwargs)
-        MM = tf.complex(np.float64(1),KK)
-        MM = tf.cast(beta_term, MM.dtype) / MM
-        return MM
+        MM = tf.complex(np.float64(1),-KK)
+        MM = beta_term / MM
+        return MM #+ self.KNR()
 
     def get_beta(self, m, **kwargs):
         m1, m2 = kwargs["mlist"]
-        z = kwargs["q"] * self.d
-        z1, z2 = kwargs["qlist"] * self.d
+        w1, w2 = kwargs["wlist"]
+        q1, q2 = kwargs["qlist"]
+        q = kwargs["q"]
+        z = (q * self.d)**2
+        z1 = (q1 * self.d)**2
+        z2 = (q2 * self.d)**2
         Klist = kwargs["Klist"]
         beta1 = self.beta1()
-        beta1 = beta1 * tf.cast(Klist[0] * m/m1 * z1/z, beta1.dtype)
+        beta1 = beta1 * tf.cast(Klist[0] * m/m1 * q1/q, beta1.dtype)
+        #beta1 = beta1 / tf.cast(z/z1 * (z1+1)/(z+1), beta1.dtype)
         beta2 = self.beta2()
-        beta2 = beta2 * tf.cast(Klist[1] * m/m2 * z2/z, beta2.dtype)
-        beta0 = tf.cast(2 * z / (z + 1), beta1.dtype)
+        beta2 = beta2 * tf.cast(Klist[1] * m/m2 * q2/q, beta2.dtype)
+        #beta2 = beta2 / tf.cast(z/z2 * (z2+1)/(z+1), beta2.dtype)
+        beta0 = self.beta0() * tf.cast(2 * z / (z + 1), beta1.dtype)
         return beta0 + beta1 + beta2
-
-    def get_mass1(self):
-        if callable(self.mass1):
-            return self.mass1()
-        return self.mass1
-
-    def get_width1(self):
-        if callable(self.width1):
-            return self.width1()
-        return self.width1
-
-    def get_mass2(self):
-        if callable(self.mass2):
-            return self.mass2()
-        return self.mass2
-
-    def get_width2(self):
-        if callable(self.width2):
-            return self.width2()
-        return self.width2
 
 @regist_particle("LASS")
 class ParticleLass(Particle):
