@@ -71,7 +71,9 @@ class BaseParticle(object):
         self.P = P
         if spins is None:
             spins = tuple(_spin_range(-J, J))
-        self.spins = tuple(spins)
+        self.spins = tuple([
+            eval(i) if isinstance(i, str) else i for i in spins
+        ])
         self.mass = mass
         self.width = width
         self.disable = disable
