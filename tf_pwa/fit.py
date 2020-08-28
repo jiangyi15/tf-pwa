@@ -202,8 +202,17 @@ class FitResult(object):
         self.success = success
         self.hess_inv = hess_inv
 
-    def save_as(self, file_name):
-        s = {"value": self.params, "error": self.error, "status": {"success":self.success,"NLL":self.min_nll,"Ndf":self.ndf}}
+    def save_as(self, file_name, save_hess=False):
+        s = {
+            "value": self.params,
+            "error": self.error,
+            "status": {"success":self.success,
+                        "NLL":self.min_nll,
+                        "Ndf":self.ndf},
+        }
+        if save_hess and self.hess_inv is not None:
+            s["free_params"] = [str(i) for i in self.error]
+            s["hess_inv"] = [[float(j) for j in i] for i in self.hess_inv]
         with open(file_name, "w") as f:
             json.dump(s, f, indent=2)
 

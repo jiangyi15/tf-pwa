@@ -23,7 +23,7 @@ class InterpolationPartilce(Particle):
     def init_params(self):
         # self.a = self.add_var("a")
         self.point_value = self.add_var("point", is_complex=True, shape=(self.interp_N-2,), polar=self.polar)
-        self.point_value.set_fix_idx(fix_idx=0, fix_vals= 1.0)
+        self.point_value.set_fix_idx(fix_idx=self.interp_N//2-1, fix_vals= 1.0)
 
     def get_amp(self, data, *args, **kwargs):
         m = data["m"]
