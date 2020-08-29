@@ -325,7 +325,7 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
                         ang = EulerAngle.angle_zx_zx(z1, x1, z2, x2)
                     #ang = AlignmentAngle.angle_px_px(z1, x1, z2, x2)
                     part_data[i]["aligned_angle"] = ang
-    ret = data_strip(decay_data, ["r_matrix", "b_matrix"])
+    ret = data_strip(decay_data, ["r_matrix", "b_matrix", "x", "z"])
     return ret
 
 
