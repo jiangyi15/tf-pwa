@@ -27,6 +27,20 @@ D2_2460: {
   disable: False
 }
 
+Ds1_2700_2860: {
+  Chain: 111, J: 1, Par: -1, 
+  params: {
+    mass1: 2.7083, mass2: 2.859,
+    width1: 0.12, width2: 0.159,
+    mass1_range: [2.7, 2.72],
+    mass1_sigma: 0.008,
+    mass1_free: True,
+    mass1_constr: False,
+  },
+  m0: 2.83, 
+  bw: Kmatrix,
+}
+
 #other resonance
 D2_2460p: {
   Chain: 121, J: 2, Par: 1,

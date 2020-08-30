@@ -1,6 +1,6 @@
 import yaml
 import json
-from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel, ParticleKmatrix
+from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.model import Model, Model_new, FCN, CombineFCN
@@ -217,11 +217,28 @@ class ConfigLoader(object):
                 m_sigma = self.config['particle'][i].get("m_sigma", None)
                 g_sigma = self.config['particle'][i].get("g_sigma", None)
 
-                if type(p_i) is ParticleKmatrix:
-                    p_i.mass1.set_value(self.config['particle'][i]["mass1"])
-                    p_i.mass2.set_value(self.config['particle'][i]["mass2"])
-                    p_i.width1.set_value(self.config['particle'][i]["width1"])
-                    p_i.width2.set_value(self.config['particle'][i]["width2"])
+                if "params" in self.config['particle'][i]:
+                    params_dic =  self.config['particle'][i]["params"]
+                    for v in params_dic:
+                        if not (v[-6:]=="_range" or v[-6:]=="_sigma" or v[-5:]=="_free" or v[-7:]=="_constr"):
+                            vv = getattr(p_i, v)
+                            assert isinstance(vv, Variable)
+                            vv.set_value(params_dic[v])
+                            p_sigma = params_dic.get(v+'_sigma', None)
+                            if v+'_range' in params_dic:
+                                lower, upper = params_dic[v+'_range']
+                                self.bound_dic[vv.name] = (lower,upper)
+                            elif p_sigma is not None:
+                                p_10sigma = 10 * p_sigma
+                                self.bound_dic[vv.name] = (params_dic[v]-p_10sigma, params_dic[v]+p_10sigma)
+                            if v+'_free' in params_dic:
+                                if params_dic[v+'_free']:
+                                    vv.freed()
+                            if v+'_constr' in params_dic:
+                                if params_dic[v+'_constr']:
+                                    if p_sigma is None:
+                                        raise Exception("Need sigma of {0} of {1} when adding gaussian constraint".format(v,i))
+                                    self.gauss_constr_dic[vv.name] = (params_dic[v], p_sigma)
 
                 if "gauss_constr" in self.config['particle'][i] and self.config['particle'][i]["gauss_constr"]:
                     if 'm' in self.config['particle'][i]["gauss_constr"]:
@@ -550,6 +567,15 @@ class ConfigLoader(object):
                 trans = plot_var_dic[name]["trans"]
 
                 data_i = trans(data_index(data, idx))
+                if idx[-1] is 'm':
+                    tmp_idx = list(idx)
+                    tmp_idx[-1] = 'p'
+                    p4 = data_index(data, tmp_idx)
+                    p4 = np.transpose(p4)
+                    data_dict[name+"_E"] = p4[0]
+                    data_dict[name+"_PX"] = p4[1]
+                    data_dict[name+"_PY"] = p4[2]
+                    data_dict[name+"_PZ"] = p4[3]
                 data_dict[name] = data_i # data variable
 
                 phsp_i = trans(data_index(phsp, idx))
