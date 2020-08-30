@@ -21,7 +21,7 @@ class InterpolationPartilce(Particle):
         else:
             self.interp_N = len(self.points)
         self.bound = [(self.points[i], self.points[i+1]) for i in range(0,self.interp_N-1)]
-        if self.fix_idx < 0:
+        if self.fix_idx is not None and self.fix_idx < 0:
             self.fix_idx = self.interp_N//2 - 1
 
     def init_params(self):
