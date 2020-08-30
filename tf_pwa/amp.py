@@ -265,7 +265,8 @@ class ParticleKmatrix(Particle):
         self.mass2 = self.add_var("mass2", fix=True)
         self.width1 = self.add_var("width1", fix=True)
         self.width2 = self.add_var("width2", fix=True)
-        #self.KNR = self.add_var("KNR", is_complex=True)
+        self.KNR = self.add_var("KNR", is_complex=True)
+        self.alpha = self.add_var("alpha")
         self.beta0 = self.add_var("beta0", is_complex=True)
         self.beta1 = self.add_var("beta1", is_complex=True, fix=True)
         self.beta2 = self.add_var("beta2", is_complex=True)
@@ -292,10 +293,11 @@ class ParticleKmatrix(Particle):
             rw = Gamma(m, wi, q, qi, self.bw_l, mi, self.d)
             Klist.append( mi * rw / (mi**2 - m**2) )
         KK = tf.reduce_sum(Klist, axis=0)
+        KK += self.alpha()
         beta_term = self.get_beta(m=m, mlist=mlist, wlist=wlist, q=q, qlist=qlist, Klist=Klist, **kwargs)
         MM = tf.complex(np.float64(1),-KK)
         MM = beta_term / MM
-        return MM #+ self.KNR()
+        return MM + self.KNR()
 
     def get_beta(self, m, **kwargs):
         m1, m2 = kwargs["mlist"]
@@ -308,11 +310,11 @@ class ParticleKmatrix(Particle):
         Klist = kwargs["Klist"]
         beta1 = self.beta1()
         beta1 = beta1 * tf.cast(Klist[0] * m/m1 * q1/q, beta1.dtype)
-        #beta1 = beta1 / tf.cast(z/z1 * (z1+1)/(z+1), beta1.dtype)
+        beta1 = beta1 / tf.cast((z/z1)**self.bw_l * Bprime(self.bw_l, q, q1, self.d)**2, beta1.dtype)
         beta2 = self.beta2()
         beta2 = beta2 * tf.cast(Klist[1] * m/m2 * q2/q, beta2.dtype)
-        #beta2 = beta2 / tf.cast(z/z2 * (z2+1)/(z+1), beta2.dtype)
-        beta0 = self.beta0() * tf.cast(2 * z / (z + 1), beta1.dtype)
+        beta2 = beta2 / tf.cast((z/z2)**self.bw_l * Bprime(self.bw_l, q, q2, self.d)**2, beta2.dtype)
+        beta0 = self.beta0() #* tf.cast(2 * z / (z + 1), beta1.dtype)
         return beta0 + beta1 + beta2
 
 @regist_particle("LASS")
