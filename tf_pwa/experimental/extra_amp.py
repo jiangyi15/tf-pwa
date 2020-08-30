@@ -12,6 +12,8 @@ class InterpolationPartilce(Particle):
         self.min_m = None
         self.interp_N = None
         self.polar = True
+        self.fix_idx = -1
+        self.with_bound = False
         super(InterpolationPartilce, self).__init__(*args, **kwargs)
         if self.points is None:
             dx = (self.max_m - self.min_m)/(self.interp_N - 1)
@@ -19,11 +21,17 @@ class InterpolationPartilce(Particle):
         else:
             self.interp_N = len(self.points)
         self.bound = [(self.points[i], self.points[i+1]) for i in range(0,self.interp_N-1)]
+        if self.fix_idx < 0:
+            self.fix_idx = self.interp_N//2 - 1
 
     def init_params(self):
         # self.a = self.add_var("a")
-        self.point_value = self.add_var("point", is_complex=True, shape=(self.interp_N-2,), polar=self.polar)
-        self.point_value.set_fix_idx(fix_idx=self.interp_N//2-1, fix_vals= 1.0)
+        if self.with_bound:
+            self.point_value = self.add_var("point", is_complex=True, shape=(self.interp_N,), polar=self.polar)
+        else:
+            self.point_value = self.add_var("point", is_complex=True, shape=(self.interp_N-2,), polar=self.polar)
+        if self.fix_idx is not None:
+            self.point_value.set_fix_idx(fix_idx=self.fix_idx, fix_vals= 1.0)
 
     def get_amp(self, data, *args, **kwargs):
         m = data["m"]
@@ -49,7 +57,7 @@ class Interp(InterpolationPartilce):
     def init_params(self):
         # self.a = self.add_var("a")
         self.point_value = self.add_var("point",shape=(self.interp_N+1,))
-        self.point_value.set_fix_idx(fix_idx=0, fix_vals= 1.0)
+        self.point_value.set_fix_idx(fix_idx=self.fix_idx, fix_vals= 1.0)
 
     def interp(self, m):
         # q = data_extra[self.outs[0]]["|q|"]
@@ -98,14 +106,18 @@ class Interp(InterpolationPartilce):
 class Interp1DSpline(InterpolationPartilce):
     """Spline interpolation function for model independent resonance"""
     def __init__(self, *args, **kwargs):
+        self.bc_type = "not-a-knot"
         super(Interp1DSpline, self).__init__(*args, **kwargs)
         assert self.interp_N > 2, "points need large than 2"
         self.h_matrix = None
 
     def init_params(self):
         super(Interp1DSpline, self).init_params()
-        h_matrix = spline_xi_matrix(self.points)
-        self.h_matrix = tf.convert_to_tensor(h_matrix[...,1:-1])
+        h_matrix = spline_xi_matrix(self.points, self.bc_type)
+        if self.with_bound:
+            self.h_matrix = tf.convert_to_tensor(h_matrix)
+        else:
+            self.h_matrix = tf.convert_to_tensor(h_matrix[...,1:-1])
 
     def interp(self, m):
         zeros = tf.zeros_like(m)
@@ -137,7 +149,7 @@ def spline_x_matrix(x, xi):
     return tf.stack(xs, axis=-2)
 
 
-def spline_matrix(x, xi, yi):
+def spline_matrix(x, xi, yi, bc_type="not-a-knot"):
     """calculate spline interpolation"""
     xi_m = spline_xi_matrix(xi) # (N_range, 4, N_yi)
     x_m = spline_x_matrix(x, xi) # (..., N_range, 4) 
@@ -146,7 +158,7 @@ def spline_matrix(x, xi, yi):
     return tf.reduce_sum(tf.cast(m, yi.dtype) * yi, axis=-1)
 
 
-def spline_xi_matrix(xi):
+def spline_xi_matrix(xi, bc_type="not-a-knot"):
     """build matrix of xi for spline interpolation
     solve equation
 
@@ -159,23 +171,48 @@ def spline_xi_matrix(xi):
     hi = [xi[i+1] - xi[i] for i in range(N-1)]
 
     h_matrix = np.zeros((N, N))
-    h_matrix[0,0] = 2 * hi[0]
-    h_matrix[0,1] = hi[0]
+    if bc_type == "not-a-knot":
+        h_matrix[0,0] = - hi[1]
+        h_matrix[0,1] = hi[0] + hi[1]
+        h_matrix[0,2] =  - hi[0]
+    elif bc_type == "clamped":
+        h_matrix[0,0] = 2 * hi[0]
+        h_matrix[0,1] = hi[0]
+    elif bc_type == "natural":
+        h_matrix[0,0] = 1
+    else:
+        raise ValueError("bc_type={} not in {not-a-knot,clamped,natural}")
     for i in range(1, N-1):
         h_matrix[i, i-1] = hi[i-1]
         h_matrix[i, i] = 2*(hi[i-1] + hi[i])
         h_matrix[i, i+1] = hi[i]
-    h_matrix[-1, -2] = hi[-1]
-    h_matrix[-1, -1] = 2*hi[-1]
-
+    if bc_type == "not-a-knot":
+        h_matrix[-1, -3] = - hi[-1]
+        h_matrix[-1, -2] = hi[-1] + hi[-2]
+        h_matrix[-1, -1] = - hi[-2]
+    elif bc_type == "clamped":
+        h_matrix[-1, -2] = hi[-1]
+        h_matrix[-1, -1] = 2*hi[-1]
+    elif bc_type == "natural":
+        h_matrix[-1, -1] = 1
     h_matrix_inv = np.linalg.inv(h_matrix)
     y_matrix = np.zeros((N, N))
-    y_matrix[0,0] = 6 / hi[0]
+    if bc_type == "not-a-knot":
+        y_matrix[0,0] = 0 # 6 / hi[0]
+    elif bc_type == "clamped":
+        y_matrix[0,0] = 6 / hi[0]
+    elif bc_type == "natural":
+        y_matrix[0,0] = 0 # 6 / hi[0]
     for i in range(1, N-1):
         y_matrix[i,i-1] = 6/hi[i-1]
         y_matrix[i,i] = -6*(1/hi[i] + 1/hi[i-1])
         y_matrix[i,i+1] = 6 / hi[i]
-    y_matrix[-1,-1] = -6 / hi[-1]
+    if bc_type == "not-a-knot":
+        y_matrix[-1,-1] = 0 # -6 / hi[-1]
+    elif bc_type == "clamped":
+        y_matrix[-1,-1] = -6 / hi[-1]
+    elif bc_type == "natural":
+        y_matrix[-1,-1] = 0 # -6 / hi[-1]
 
     hy_matrix = np.dot(h_matrix_inv, y_matrix)
 
@@ -274,6 +311,7 @@ class InterpHist(InterpolationPartilce):
                           for i in range(self.interp_N-2)], axis=-1)
         p_r = tf.math.real(p)
         p_i = tf.math.imag(p)
+        x_bin = tf.stop_gradient(x_bin)
         ret_r = tf.reduce_sum(x_bin * p_r, axis=-1)
         ret_i = tf.reduce_sum(x_bin * p_i, axis=-1)
         return tf.complex(ret_r, ret_i)
@@ -289,6 +327,7 @@ class InterpHist(InterpolationPartilce):
         p_r = tf.math.real(p)
         p_i = tf.math.imag(p)
         h, b = get_matrix_interp1d3_v2(m, self.points)
+        h = tf.stop_gradient(h)
         f = lambda x: tf.reshape(tf.matmul(tf.cast(h, x.dtype), tf.reshape(x,(-1,1))),b.shape) + tf.cast(b, x.dtype)
         ret_r = f(p_r)
         ret_i = f(p_i)
