@@ -219,26 +219,44 @@ class ConfigLoader(object):
 
                 if "params" in self.config['particle'][i]:
                     params_dic =  self.config['particle'][i]["params"]
+                    p_list = []
                     for v in params_dic:
-                        if not (v[-6:]=="_range" or v[-6:]=="_sigma" or v[-5:]=="_free" or v[-7:]=="_constr"):
-                            vv = getattr(p_i, v)
+                        if v[-6:] == "_range" or v[-6:] == "_sigma":
+                            vname = v[:-6]
+                        elif v[-5:] == "_free":
+                            vname = v[:-5]
+                        elif v[-7:] == "_constr":
+                            vname = v[:-7]
+                        else:
+                            vname = v
+                        if vname not in p_list:
+                            p_list.append(vname)
+                            vv = getattr(p_i, vname)
                             assert isinstance(vv, Variable)
-                            vv.set_value(params_dic[v])
-                            p_sigma = params_dic.get(v+'_sigma', None)
-                            if v+'_range' in params_dic:
-                                lower, upper = params_dic[v+'_range']
+                            if vname in params_dic:
+                                p_value = params_dic[vname]
+                                vv.set_value(p_value)
+                            else:
+                                p_value = None
+                            p_free = params_dic.get(vname+'_free', None)
+                            if p_free:
+                                vv.freed()
+                            elif p_free is False:
+                                vv.fixed()
+                            p_sigma = params_dic.get(vname+'_sigma', None)
+                            if vname+'_range' in params_dic:
+                                lower, upper = params_dic[vname+'_range']
                                 self.bound_dic[vv.name] = (lower,upper)
-                            elif p_sigma is not None:
+                            elif p_sigma is not None and p_value is not None:
                                 p_10sigma = 10 * p_sigma
-                                self.bound_dic[vv.name] = (params_dic[v]-p_10sigma, params_dic[v]+p_10sigma)
-                            if v+'_free' in params_dic:
-                                if params_dic[v+'_free']:
-                                    vv.freed()
-                            if v+'_constr' in params_dic:
-                                if params_dic[v+'_constr']:
+                                self.bound_dic[vv.name] = (p_value-p_10sigma, p_value+p_10sigma)
+                            if vname+'_constr' in params_dic:
+                                if params_dic[vname+'_constr']:
+                                    if p_value is None:
+                                        raise Exception("Need central value of {0} of {1} when adding gaussian constraint".format(vname,i))
                                     if p_sigma is None:
-                                        raise Exception("Need sigma of {0} of {1} when adding gaussian constraint".format(v,i))
-                                    self.gauss_constr_dic[vv.name] = (params_dic[v], p_sigma)
+                                        raise Exception("Need sigma of {0} of {1} when adding gaussian constraint".format(vname,i))
+                                    self.gauss_constr_dic[vv.name] = (params_dic[vname], p_sigma)
 
                 if "gauss_constr" in self.config['particle'][i] and self.config['particle'][i]["gauss_constr"]:
                     if 'm' in self.config['particle'][i]["gauss_constr"]:
