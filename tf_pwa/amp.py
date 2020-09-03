@@ -13,6 +13,7 @@ import numpy as np
 import contextlib
 from pprint import pprint
 from itertools import combinations
+import inspect
 import warnings
 import copy
 # from pysnooper import snoop
@@ -242,6 +243,73 @@ class Particle(BaseParticle, AmpBase):
         if callable(self.width):
             return self.width()
         return self.width
+
+
+class SimpleResonances(Particle):
+    def __call__(self, m, m0=None, g0=None, q=None, q0=None, **kwargs):
+        raise NotImplementedError
+
+    def get_amp(self, *args, **kwargs):
+        m = args[0]["m"]
+        q, q0 = None, None
+        if len(args) >= 2:
+            q = args[1].get("|q|", 1.0)
+            q0 = args[1].get("|q0|", 1.0)
+        m0 = self.get_mass()
+        g0 = self.get_width()
+        return self(m, m0=m0, g0=g0, q=q, q0=q0)
+
+
+class FloatParams(float):
+    pass
+
+
+def simple_resonance(name, fun=None):
+    """ convert simple fun f(m) into a resonances model"""
+
+    def _wrapper(f):
+        argspec = inspect.getfullargspec(f)
+        args = argspec.args
+        if argspec.defaults is None:
+            defaults = {}
+        else:
+            defaults = dict(zip(argspec.args[::-1], argspec.defaults[::-1]))
+
+        @register_particle(name)
+        class _R(SimpleResonances):
+            def init_params(self):
+                if "m0" in argspec.args and "g0" in argspec.args:
+                    super(_R, self).init_params()
+                self.params = {}
+                for i in argspec.args:
+                    tp = argspec.annotations.get(i, None)
+                    if tp is FloatParams:
+                        val = getattr(self, i, defaults.get(i, None))
+                        if val is None:
+                            self.params[i] = self.add_var(i)
+                        else:
+                            self.params[i] = self.add_var(i, value=val, fix=True)
+
+            def __call__(self, m, **kwargs):
+                my_kwargs = {}
+                for i in argspec.args:
+                    if i in kwargs:
+                        my_kwargs[i] = kwargs[i]
+                    elif i in self.params:
+                        my_kwargs[i] = self.params[i]()
+                    elif hasattr(self, i):
+                        my_kwargs[i] = getattr(self, i)
+                ret = f(m, **my_kwargs)
+                return tf.cast(ret, tf.complex128)
+
+            __call__.__doc__ = f.__doc__
+
+        _R.get_amp.__doc__ = f.__doc__
+        return _R
+
+    if fun is None:
+        return _wrapper
+    return _wrapper(fun)
 
 
 @regist_particle("BW")
