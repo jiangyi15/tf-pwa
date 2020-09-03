@@ -77,6 +77,30 @@ def test_amp():
         amp(data)
 
 
+def test_simple_resonances():
+
+    @simple_resonance("xxx")
+    def f(m, s=3.0):
+        return m + s
+
+    b = get_particle("ss:2", model="xxx")
+    b.init_params()
+    b(1.0, s=2.0)
+    b(2.0)
+
+    a = b.get_amp({"m": 1.0}, {"|q|": 1.0}, {})
+    assert np.allclose(np.array(4.0+0.j), a.numpy())
+
+    @simple_resonance("xxx2")
+    def g(m, m0, g0, q, q0, a: FloatParams =2.0):
+        return m + a + q + q0
+
+    b = get_particle("ss:2", a=3.0, model="xxx2")
+    b.init_params()
+    a = b.get_amp({"m": 1.0}, {"|q|": 1.0, "|q0|": 1.0}, {})
+    assert np.allclose(np.array(6.0+0.j), a.numpy())
+
+
 def test_model_new():
     decs, particle = get_test_decay()
     amp = AmplitudeModel(decs)

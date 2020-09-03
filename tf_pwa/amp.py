@@ -50,6 +50,7 @@ def register_particle(name=None, f=None):
         if my_name in config:
             warnings.warn("Override model {}", my_name)
         config[my_name] = g
+        g.model_name = my_name
         return g
 
     if f is None:
@@ -74,6 +75,7 @@ def register_decay(name=None, num_outs=2, f=None):
         if id_ in config:
             warnings.warn("Override deccay model {}", my_name)
         config[id_] = g
+        g.model_name = my_name
         return g
 
     if f is None:
@@ -192,7 +194,7 @@ def _ad_hoc(m0, m_max, m_min):
 class Particle(BaseParticle, AmpBase):
     """
     .. math::
-        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \Gamma(m)}
+        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
 
     """
     def __init__(self, *args, running_width=True, bw_l=None, **kwargs):
@@ -246,6 +248,10 @@ class Particle(BaseParticle, AmpBase):
 
 
 class SimpleResonances(Particle):
+    def __init__(self, *args, **kwargs):
+        self.params = {}
+        super(SimpleResonances, self).__init__(*args, **kwargs)
+
     def __call__(self, m, m0=None, g0=None, q=None, q0=None, **kwargs):
         raise NotImplementedError
 
@@ -316,7 +322,7 @@ def simple_resonance(name, fun=None):
 class ParticleBW(Particle):
     """
     .. math::
-        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \Gamma_0}
+        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma_0}
 
     """
     def get_amp(self, data, _data_c=None, **kwargs):
