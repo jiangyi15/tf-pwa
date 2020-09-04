@@ -318,7 +318,7 @@ class InterpHist(InterpolationPartilce):
 
 
 @register_particle("interp_l3")
-class InterpHist(InterpolationPartilce):
+class InterpL3(InterpolationPartilce):
 
     def interp(self, m):
         p = self.point_value()

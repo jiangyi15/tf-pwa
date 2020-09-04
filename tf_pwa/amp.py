@@ -270,8 +270,17 @@ class FloatParams(float):
     pass
 
 
-def simple_resonance(name, fun=None):
-    """ convert simple fun f(m) into a resonances model"""
+def simple_resonance(name, fun=None, params=None):
+    """ convert simple fun f(m) into a resonances model
+
+    :params name: model name used in configuration
+    :params fun: Model function
+    :params params: arguments name list for parameters
+
+    """
+
+    if params is None:
+        params = {}
 
     def _wrapper(f):
         argspec = inspect.getfullargspec(f)
@@ -289,7 +298,7 @@ def simple_resonance(name, fun=None):
                 self.params = {}
                 for i in argspec.args:
                     tp = argspec.annotations.get(i, None)
-                    if tp is FloatParams:
+                    if i in params or tp is FloatParams:
                         val = getattr(self, i, defaults.get(i, None))
                         if val is None:
                             self.params[i] = self.add_var(i)
