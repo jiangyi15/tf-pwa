@@ -139,3 +139,20 @@ class AdaptiveBound(object):
         lb = np.min(data, axis=-1) - 1e-6
         rb = np.max(data, axis=-1) + 1e-6
         return (lb, rb)
+
+
+def cal_chi2(numbers, n_fp):
+    weights = []
+    print(numbers)
+    # chi21 = []
+    for ndata, nmc in numbers:
+        weight = (ndata - nmc) / np.sqrt(np.abs(ndata))
+        weights.append(weight**2)
+        # chi21.append(ndata * np.log(nmc))
+    max_weight = np.max(weights)
+    chi2 = np.sum(weights)
+    print("bins: ", len(weights))
+    print("number of free parameters: ", n_fp)
+    ndf = len(weights) - 1 - n_fp
+    print("chi2/ndf: ", np.sum(weights), "/", ndf) # ,"another", np.sum(chi21))
+    return chi2, ndf

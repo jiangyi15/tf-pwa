@@ -7,7 +7,7 @@ sys.path.insert(0, this_dir + '/..')
 
 from tf_pwa.config_loader import ConfigLoader
 
-from tf_pwa.adaptive_bins import AdaptiveBound
+from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
 from tf_pwa.data import data_to_numpy, data_index
 from tf_pwa.angle import kine_min, kine_max
 
@@ -27,15 +27,14 @@ def cal_chi2(config, adapter, data, phsp, data_idx, bg=None, data_cut=None):
     datas = adapter.split_data(data_cut**2)
     bound = adapter.get_bounds()
     if bg is not None:
-        bg_weight = config.get_bg_weight(display=False)[0]
+        bg_weight = config._get_bg_weight(display=False)[0][0]
         bg_cut = np.array([data_index(bg, idx) for idx in data_idx])
         bgs = adapter.split_data(bg_cut**2)
         int_norm = (data_cut.shape[-1] - bg_cut.shape[-1] * bg_weight)/ np.sum(amp_weight)
     else:
         int_norm = data_cut.shape[-1] / np.sum(amp_weight)
     print("int norm:", int_norm)
-    weights = []
-    chi21 = []
+    numbers = []
     for i, bnd in enumerate(bound):
         min_x, min_y = bnd[0]
         max_x, max_y = bnd[1]
@@ -43,17 +42,8 @@ def cal_chi2(config, adapter, data, phsp, data_idx, bg=None, data_cut=None):
         nmc = np.sum(phsps[i][2]) * int_norm
         if bg is not None:
             nmc += bgs[i].shape[-1] * bg_weight
-        weight = (ndata - nmc) / np.sqrt(ndata)
-        weights.append(weight**2)
-        chi21.append(ndata * np.log(nmc))
-    max_weight = np.max(weights)
-    chi2 = np.sum(weights)
-    n_fp = config.get_ndf()
-    print("bins: ", len(bound))
-    print("number of free parameters: ", n_fp)
-    ndf = len(bound) - 1 - n_fp
-    print("chi2/ndf: ", np.sum(weights), "/", ndf) # ,"another", np.sum(chi21))
-    return chi2, ndf
+        numbers.append((ndata, nmc))
+    return cal_chi2(numbers, config.get_ndf())
 
 
 def draw_dalitz(data_cut, bound):
@@ -61,14 +51,14 @@ def draw_dalitz(data_cut, bound):
     my_cmap = plt.get_cmap("jet")
     # my_cmap.set_under('w', 1)
 
-    
     for i, bnd in enumerate(bound):
         min_x, min_y = bnd[0]
         max_x, max_y = bnd[1]
         rect = mpathes.Rectangle((min_x, min_y), max_x-min_x, max_y-min_y, linewidth=1, facecolor="none", edgecolor="black") #cmap(weights[i]/max_weight))
         ax.add_patch(rect)
-    
-    ah =  ax.hist2d(data_cut[0]**2, data_cut[1]**2, bins=50, norm=mcolors.LogNorm())
+
+    ah = ax.hist2d(data_cut[0]**2, data_cut[1]**2, bins=50, norm=mcolors.LogNorm())
+    ## using your own mass
     m0, m1, m2, m3 = 5.27926, 2.01026, 1.86961, 0.49368
     # print(ah)
     s12_min, s12_max = (m1 + m2)**2, (m0 - m3)**2
@@ -87,19 +77,19 @@ def draw_dalitz(data_cut, bound):
 
 def main():
     config = ConfigLoader("config.yml")
-    data = config.get_data("data")
-    phsp = config.get_data("phsp")
-    bg = config.get_data("bg")
+    data = config.get_data("data")[0]
+    phsp = config.get_data("phsp")[0]
+    bg = config.get_data("bg")[0]
     config.set_params("final_params.json")
-    
-    m12_idx = ("particle", "(D, D0, pi)", "m")
-    m13_idx = ("particle", "(D0, K, pi)", "m")
+
+    m12_idx = config.get_data_index("mass", "R_BC")  # ("particle", "(D, K)", "m")
+    m13_idx = config.get_data_index("mass", "R_BD")  # ("particle", "(D0, K, pi)", "m")
     data_idx = [m12_idx, m13_idx]
 
     data_cut = np.array([data_index(data, idx) for idx in data_idx])
-    adapter = AdaptiveBound(data_cut**2, [[2,2]]*4)
+    adapter = AdaptiveBound(data_cut**2, [[2,2], [3,3], [2,2]])
     bound = adapter.get_bounds()
-    
+
     cal_chi2(config, adapter, data, phsp, data_idx, bg=bg, data_cut=data_cut)
     draw_dalitz(data_cut, bound)
 
