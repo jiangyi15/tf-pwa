@@ -17,7 +17,7 @@ import matplotlib.patches as mpathes
 import matplotlib.colors as mcolors
 
 
-def cal_chi2(config, adapter, data, phsp, data_idx, bg=None, data_cut=None):
+def cal_chi2_config(config, adapter, data, phsp, data_idx, bg=None, data_cut=None):
     if data_cut is None:
         data_cut = np.array([data_index(data, idx) for idx in data_idx])
     amp_weight = config.get_amplitude()(phsp).numpy()
@@ -58,21 +58,22 @@ def draw_dalitz(data_cut, bound):
         ax.add_patch(rect)
 
     ah = ax.hist2d(data_cut[0]**2, data_cut[1]**2, bins=50, norm=mcolors.LogNorm())
+    # ax.scatter(data_cut[0]**2, data_cut[1]**2, s=1, c="red")
     ## using your own mass
-    m0, m1, m2, m3 = 5.27926, 2.01026, 1.86961, 0.49368
+    m0, mb, mc, md = 5.27926, 2.01026, 1.86961, 0.49368
     # print(ah)
-    s12_min, s12_max = (m1 + m2)**2, (m0 - m3)**2
-    s13_min, s13_max = (m1 + m3)**2, (m0 - m2)**2
-    s12 = np.linspace(s12_min, s12_max, 1000)
-    ax.plot(s12, kine_max(s12, m0, m2, m1, m3), color="grey")
-    ax.plot(s12, kine_min(s12, m0, m2, m1, m3), color="grey")
+    sbc_min, sbc_max = (mb + mc)**2, (m0 - md)**2
+    sbd_min, sbd_max = (mb + md)**2, (m0 - mc)**2
+    sbc = np.linspace(sbc_min, sbc_max, 1000)
+    ax.plot(sbc, kine_max(sbc, m0, mc, mb, md), color="grey")
+    ax.plot(sbc, kine_min(sbc, m0, mc, mb, md), color="grey")
     
-    ax.set_xlim((s12_min, s12_max))
-    ax.set_ylim((s13_min, s13_max))
-    ax.set_xlabel("$M_{12}$")
-    ax.set_ylabel("$M_{13}$")
+    ax.set_xlim((sbc_min, sbc_max))
+    ax.set_ylim((sbd_min, sbd_max))
+    ax.set_xlabel("$M_{BC}$")
+    ax.set_ylabel("$M_{BD}$")
     fig.colorbar(ah[-1])
-    plt.savefig("figure/m_12_m13_adaptive.png", dpi=200)
+    plt.savefig("figure/mbc_mbd_adaptive.png", dpi=200)
 
 
 def main():
@@ -82,15 +83,15 @@ def main():
     bg = config.get_data("bg")[0]
     config.set_params("final_params.json")
 
-    m12_idx = config.get_data_index("mass", "R_BC")  # ("particle", "(D, K)", "m")
-    m13_idx = config.get_data_index("mass", "R_BD")  # ("particle", "(D0, K, pi)", "m")
-    data_idx = [m12_idx, m13_idx]
+    mbc_idx = config.get_data_index("mass", "R_BC")  # ("particle", "(D, K)", "m")
+    mbd_idx = config.get_data_index("mass", "R_BD")  # ("particle", "(D0, K, pi)", "m")
+    data_idx = [mbc_idx, mbd_idx]
 
     data_cut = np.array([data_index(data, idx) for idx in data_idx])
     adapter = AdaptiveBound(data_cut**2, [[2,2], [3,3], [2,2]])
     bound = adapter.get_bounds()
 
-    cal_chi2(config, adapter, data, phsp, data_idx, bg=bg, data_cut=data_cut)
+    cal_chi2_config(config, adapter, data, phsp, data_idx, bg=bg, data_cut=data_cut)
     draw_dalitz(data_cut, bound)
 
 

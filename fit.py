@@ -97,6 +97,7 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     print(fit_frac_string)
     #from frac_table import frac_table
     #frac_table(fit_frac_string)
+    # chi2, ndf = config.cal_chi2(mass=["R_BC", "R_CD"], bins=[[2,2]]*4)
 
 
 def fit_combine(config_file=["config.yml"], init_params="init_params.json", method="BFGS", total_same=False):

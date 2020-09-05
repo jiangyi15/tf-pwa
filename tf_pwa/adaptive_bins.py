@@ -143,7 +143,7 @@ class AdaptiveBound(object):
 
 def cal_chi2(numbers, n_fp):
     weights = []
-    print(numbers)
+    # print(numbers)
     # chi21 = []
     for ndata, nmc in numbers:
         weight = (ndata - nmc) / np.sqrt(np.abs(ndata))
