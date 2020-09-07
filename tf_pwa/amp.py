@@ -21,7 +21,7 @@ import copy
 from .particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
     DecayGroup as BaseDecayGroup, _spin_int, _spin_range, DEFAULT_DECAY
 from .tensorflow_wrapper import tf
-from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime, Gamma
+from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime, Gamma, BWR2
 from .dfun import get_D_matrix_lambda
 from .cg import cg_coef
 from .variable import VarsManager, Variable
@@ -177,6 +177,19 @@ def get_relative_p(m_0, m_1, m_2):
     return tf.sqrt(p) / (2 * m_eff)
 
 
+def get_relative_p2(m_0, m_1, m_2):
+    """relative momentum for 0 -> 1 + 2"""
+    M12S = m_1 + m_2
+    M12D = m_1 - m_2
+    if hasattr(M12S, "dtype"):
+        m_0 = tf.convert_to_tensor(m_0, dtype=M12S.dtype)
+    # m_eff = tf.where(m_0 > M12S, m_0, M12S)
+    p = (m_0 - M12S) * (m_0 + M12S) * (m_0 - M12D) * (m_0 + M12D)
+    # if p is negative, which results from bad data, the return value is 0.0
+    # print("p", tf.where(p==0), m_0, m_1, m_2)
+    return p / (2 * m_0)**2
+
+
 def _ad_hoc(m0, m_max, m_min):
     r"""ad-hoc formula
 
@@ -245,6 +258,31 @@ class Particle(BaseParticle, AmpBase):
         if callable(self.width):
             return self.width()
         return self.width
+
+
+@regist_particle("BWR2")
+class ParticleBWR2(Particle):
+    """
+    .. math::
+        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+
+    """
+    def get_amp(self, data, data_c, **kwargs):
+        mass = self.get_mass()
+        width = self.get_width()
+        if width is None:
+            return tf.ones_like(data["m"])
+        if not self.running_width:
+            ret = BW(data["m"], mass, width)
+        else:
+            q2 = data_c["|q|2"]
+            q02 = data_c["|q0|2"]
+            if self.bw_l is None:
+                decay = self.decay[0]
+                self.bw_l = min(decay.get_l_list())
+            ret = BWR2(data["m"], mass, width, q2, q02,
+                    self.bw_l, self.d)
+        return ret
 
 
 class SimpleResonances(Particle):
@@ -339,6 +377,7 @@ class ParticleBW(Particle):
         width = self.get_width()
         ret = BW(data["m"], mass, width)
         return ret
+
 
 @regist_particle("Kmatrix")
 class ParticleKmatrix(Particle):
@@ -526,6 +565,19 @@ class HelicityDecay(AmpDecay, AmpBase):
         m1 = _get_mass(self.outs[0])
         m2 = _get_mass(self.outs[1])
         return get_relative_p(m0, m1, m2)
+
+    def get_relative_momentum2(self, data, from_data=False):
+        """"""
+
+        def _get_mass(p):
+            if from_data or p.mass is None:
+                return data[p]["m"]
+            return p.get_mass()
+
+        m0 = _get_mass(self.core)
+        m1 = _get_mass(self.outs[0])
+        m2 = _get_mass(self.outs[1])
+        return get_relative_p2(m0, m1, m2)
 
     @functools.lru_cache()
     def get_cg_matrix(self):  # CG factor inside H
@@ -853,6 +905,12 @@ class DecayChain(BaseDecayChain, AmpBase):
                         data_p, True)
                 if "|q0|" not in data_c_i:
                     data_c_i["|q0|"] = decay_i.get_relative_momentum(
+                        data_p, False)
+                if "|q|2" not in data_c_i:
+                    data_c_i["|q|2"] = decay_i.get_relative_momentum2(
+                        data_p, True)
+                if "|q0|2" not in data_c_i:
+                    data_c_i["|q0|2"] = decay_i.get_relative_momentum2(
                         data_p, False)
                 amp_p.append(i.get_amp(data_p[i], data_c_i, all_data=all_data))
             else:

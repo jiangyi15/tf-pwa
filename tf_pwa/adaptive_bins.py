@@ -4,7 +4,15 @@ adaptive split data into bins.
 
 import numpy as np
 import functools
+
+try:
+    import matplotlib.patches as mpathes
+except ImportError:
+    pass
+
 from .data import data_index, data_mask
+
+
 
 class AdaptiveBound(object):
     """adaptive bound cut for data value"""
@@ -139,6 +147,19 @@ class AdaptiveBound(object):
         lb = np.min(data, axis=-1) - 1e-6
         rb = np.max(data, axis=-1) + 1e-6
         return (lb, rb)
+
+    def get_bound_patch(self, **kwargs):
+        ret = []
+        for i, bnd in enumerate(self.get_bounds()):
+            min_x, min_y = bnd[0]
+            max_x, max_y = bnd[1]
+            rect = mpathes.Rectangle((min_x, min_y), max_x-min_x, max_y-min_y, **kwargs) #cmap(weights[i]/max_weight))
+            ret.append(rect)
+        return ret
+
+    def plot_bound(self, ax, **kwargs):
+        for i in self.get_bound_patch(**kwargs):
+            ax.add_patch(i)
 
 
 def cal_chi2(numbers, n_fp):
