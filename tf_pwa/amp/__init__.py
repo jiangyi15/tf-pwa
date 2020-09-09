@@ -18,18 +18,18 @@ import warnings
 import copy
 # from pysnooper import snoop
 
-from .particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
+from tf_pwa.particle import split_particle_type, Decay, BaseParticle, DecayChain as BaseDecayChain, \
     DecayGroup as BaseDecayGroup, _spin_int, _spin_range, DEFAULT_DECAY
-from .tensorflow_wrapper import tf
-from .breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime, Gamma, BWR2
-from .dfun import get_D_matrix_lambda
-from .cg import cg_coef
-from .variable import VarsManager, Variable
-from .data import data_shape, split_generator, data_map
+from tf_pwa.tensorflow_wrapper import tf
+from tf_pwa.breit_wigner import barrier_factor2 as barrier_factor, BWR, BW, Bprime, Gamma, BWR2
+from tf_pwa.dfun import get_D_matrix_lambda
+from tf_pwa.cg import cg_coef
+from tf_pwa.variable import VarsManager, Variable
+from tf_pwa.data import data_shape, split_generator, data_map
 
-from .config import regist_config, get_config, temp_config
-from .einsum import einsum
-from .dec_parser import load_dec_file
+from tf_pwa.config import regist_config, get_config, temp_config
+from tf_pwa.einsum import einsum
+from tf_pwa.dec_parser import load_dec_file
 PARTICLE_MODEL = "particle_model"
 regist_config(PARTICLE_MODEL, {})
 DECAY_MODEL = "decay_model"
