@@ -439,6 +439,7 @@ class ParticleKmatrix(Particle):
         beta0 = self.beta0() #* tf.cast(2 * z / (z + 1), beta1.dtype)
         return beta0 + beta1 + beta2
 
+
 @regist_particle("LASS")
 class ParticleLass(Particle):
     def init_params(self):
