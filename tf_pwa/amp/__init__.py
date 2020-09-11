@@ -550,10 +550,11 @@ class HelicityDecay(AmpDecay, AmpBase):
         self.total_ls = None
 
     def set_ls(self, ls):
+        if self.total_ls is None:
+            self.total_ls = self.get_ls_list()
         self.ls_list = tuple([tuple(i) for i in ls])
         self.single_gls = (len(ls) == 1)
-        if self.total_ls is None:
-            self.get_ls_list()
+        # print(self, "total_ls: ", self.total_ls)
         total_ls = self.total_ls
         if len(total_ls) == len(ls):
             self.ls_index = None
@@ -634,13 +635,12 @@ class HelicityDecay(AmpDecay, AmpBase):
         cg_trans = tf.reshape(cg_trans, (n_ls, len(
             self.outs[0].spins), len(self.outs[1].spins)))
         H = tf.reduce_sum(m_dep * cg_trans, axis=1)
+        # print(n_ls, cg_trans, self, data_p)
         if self.allow_cc:
             all_data = kwargs.get("all_data", {})
             charge = all_data.get("charge_conjugation", None)
             if charge is not None:
-                charge = tf.expand_dims(charge, -1)
-                charge = tf.expand_dims(charge, -1)
-                H = tf.where(charge > 0, H, H[...,::-1,::-1])
+                H = tf.where(charge[:, None, None] > 0, H, H[...,::-1,::-1])
         ret = tf.reshape(
             H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         return ret
@@ -649,6 +649,7 @@ class HelicityDecay(AmpDecay, AmpBase):
         gls = self.g_ls()
         if self.ls_index is None:
             return tf.stack(gls)
+        # print(self, gls, self.ls_index)
         return tf.stack([gls[k] for k in self.ls_index])
 
     def get_ls_amp(self, data, data_p, **kwargs):
@@ -724,8 +725,7 @@ class HelicityDecay(AmpDecay, AmpBase):
 
     def get_ls_list(self):
         """get possible ls for decay, with l_list filter possible l"""
-        self.total_ls = super(HelicityDecay, self).get_ls_list()
-        ls_list = self.total_ls
+        ls_list = super(HelicityDecay, self).get_ls_list()
         if self.ls_list is not None:
             return self.ls_list
         if self.l_list is None:
@@ -734,8 +734,7 @@ class HelicityDecay(AmpDecay, AmpBase):
         for l, s in ls_list:
             if l in self.l_list:
                 ret.append((l, s))
-        self.total_ls = tuple(ret)
-        return self.total_ls
+        return tuple(ret)
 
 
 @regist_decay("particle-decay")
@@ -874,10 +873,14 @@ class DecayChain(BaseDecayChain, AmpBase):
         return tf.stack(self.total())
 
     def product_gls(self):
+        ret = self.get_all_factor()
+        return tf.reduce_prod(ret)
+
+    def get_all_factor(self):
         ret = [self.get_amp_total()]
         for i in self:
             ret.append(i.get_g_ls())
-        return tf.reduce_prod(ret)
+        return ret
 
     def get_amp(self, data_c, data_p, all_data=None, base_map=None):
         base_map = self.get_base_map(base_map)

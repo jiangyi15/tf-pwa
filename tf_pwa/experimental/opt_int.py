@@ -28,10 +28,12 @@ def build_sum_amplitude(dg, dec_chain, data):
 
 def build_int_matrix(dec, data):
     hij = {}
+    used_chains = dec.chains_idx
     for k, i in enumerate(dec):
         dec.set_used_chains([k])
         for j, amp in enumerate(build_sum_amplitude(dec, i, data)):
             hij[(i, j)] = amp
+    dec.set_used_chains(used_chains)
     ret = []
     index = list(hij.keys())
     for i in index:
@@ -51,5 +53,34 @@ def build_int_matrix_batch(dec, data, batch=65000):
     return index, tf.reduce_sum(ret, axis=0)
 
 
-def gls_combine():
-    return None
+def build_params_vector(dec):
+    ret = []
+    for i in dec:
+        factor = i.get_all_factor()
+        a = gls_combine(factor)
+        ret.append(a)
+    return tf.concat(ret, axis=0)
+
+
+def build_params_matrix(dec):
+    pv = build_params_vector(dec)
+    return tf.einsum("i,j->ij", pv, tf.math.conj(pv))
+
+
+def gls_combine(fs):
+    ret = fs[0]
+    for i in fs[1:]:
+        ret = tf.reshape(tf.einsum("i,j->ij", ret, i),(-1,))
+    return ret
+
+
+def cached_int_mc(dec, data, batch=65000):
+    a, int_matrix = build_int_matrix_batch(dec, data, batch)
+
+    def int_mc():
+        pm = build_params_matrix(dec)
+        ret = tf.reduce_sum(pm * int_matrix)
+        return tf.math.real(ret)
+
+    return int_mc
+
