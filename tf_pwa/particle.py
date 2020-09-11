@@ -98,7 +98,6 @@ class BaseParticle(object):
     def name(self):
         return self._name
 
-
     def add_decay(self, d):
         """
         :param d: BaseDecay object

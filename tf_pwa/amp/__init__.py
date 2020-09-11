@@ -536,7 +536,7 @@ class HelicityDecay(AmpDecay, AmpBase):
     """default decay model"""
     def __init__(self, *args, has_barrier_factor=True, l_list=None,
                  barrier_factor_mass=False, has_bprime=True,
-                 aligned=False, allow_cc=True, **kwargs):
+                 aligned=False, allow_cc=True, ls_list=None, **kwargs):
         super(HelicityDecay, self).__init__(*args, **kwargs)
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
@@ -544,6 +544,23 @@ class HelicityDecay(AmpDecay, AmpBase):
         self.has_bprime = has_bprime
         self.aligned = aligned
         self.allow_cc = allow_cc
+        self.ls_list = ls_list
+        self.single_gls = False
+        self.ls_index = None
+        self.total_ls = None
+
+    def set_ls(self, ls):
+        self.ls_list = tuple([tuple(i) for i in ls])
+        self.single_gls = (len(ls) == 1)
+        if self.total_ls is None:
+            self.get_ls_list()
+        total_ls = self.total_ls
+        if len(total_ls) == len(ls):
+            self.ls_index = None
+            return
+        self.ls_index = []
+        for i in self.ls_list:
+            self.ls_index.append(total_ls.index(i))
 
     def init_params(self):
         self.d = 3.0
@@ -580,8 +597,12 @@ class HelicityDecay(AmpDecay, AmpBase):
         m2 = _get_mass(self.outs[1])
         return get_relative_p2(m0, m1, m2)
 
+    def get_cg_matrix(self):
+        ls = self.get_ls_list()
+        return self._get_cg_matrix(ls)
+
     @functools.lru_cache()
-    def get_cg_matrix(self):  # CG factor inside H
+    def _get_cg_matrix(self, ls):  # CG factor inside H
         """
         [(l,s),(lambda_b,lambda_c)]
 
@@ -590,7 +611,6 @@ class HelicityDecay(AmpDecay, AmpBase):
           \\langle j_b, j_c, \\lambda_b, - \\lambda_c | s, \\lambda_b - \\lambda_c \\rangle
           \\langle l, s, 0, \\lambda_b - \\lambda_c | j_a, \\lambda_b - \\lambda_c \\rangle
         """
-        ls = self.get_ls_list()
         m = len(ls)
         ja = self.core.J
         jb = self.outs[0].J
@@ -625,8 +645,14 @@ class HelicityDecay(AmpDecay, AmpBase):
             H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         return ret
 
+    def get_g_ls(self):
+        gls = self.g_ls()
+        if self.ls_index is None:
+            return tf.stack(gls)
+        return tf.stack([gls[k] for k in self.ls_index])
+
     def get_ls_amp(self, data, data_p, **kwargs):
-        g_ls = tf.stack(self.g_ls())
+        g_ls = self.get_g_ls()
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
         if "|q|" in data:
@@ -695,17 +721,21 @@ class HelicityDecay(AmpDecay, AmpBase):
                     ret = dt * ret
                     ret = tf.reduce_sum(ret, axis=j + 2)
         return ret
-        
+
     def get_ls_list(self):
         """get possible ls for decay, with l_list filter possible l"""
-        ls_list = super(HelicityDecay, self).get_ls_list()
+        self.total_ls = super(HelicityDecay, self).get_ls_list()
+        ls_list = self.total_ls
+        if self.ls_list is not None:
+            return self.ls_list
         if self.l_list is None:
             return ls_list
         ret = []
         for l, s in ls_list:
             if l in self.l_list:
                 ret.append((l, s))
-        return tuple(ret)
+        self.total_ls = tuple(ret)
+        return self.total_ls
 
 
 @regist_decay("particle-decay")
@@ -842,6 +872,12 @@ class DecayChain(BaseDecayChain, AmpBase):
 
     def get_amp_total(self):
         return tf.stack(self.total())
+
+    def product_gls(self):
+        ret = [self.get_amp_total()]
+        for i in self:
+            ret.append(i.get_g_ls())
+        return tf.reduce_prod(ret)
 
     def get_amp(self, data_c, data_p, all_data=None, base_map=None):
         base_map = self.get_base_map(base_map)
