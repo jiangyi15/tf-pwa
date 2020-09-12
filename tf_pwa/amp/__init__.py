@@ -635,12 +635,12 @@ class HelicityDecay(AmpDecay, AmpBase):
         cg_trans = tf.reshape(cg_trans, (n_ls, len(
             self.outs[0].spins), len(self.outs[1].spins)))
         H = tf.reduce_sum(m_dep * cg_trans, axis=1)
-        # print(n_ls, cg_trans, self, data_p)
+        # print(n_ls, cg_trans, self, m_dep.shape) # )data_p)
         if self.allow_cc:
             all_data = kwargs.get("all_data", {})
             charge = all_data.get("charge_conjugation", None)
             if charge is not None:
-                H = tf.where(charge[:, None, None] > 0, H, H[...,::-1,::-1])
+                H = tf.where(charge[..., None, None] > 0, H, H[...,::-1,::-1])
         ret = tf.reshape(
             H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins)))
         return ret
@@ -654,6 +654,7 @@ class HelicityDecay(AmpDecay, AmpBase):
 
     def get_ls_amp(self, data, data_p, **kwargs):
         g_ls = self.get_g_ls()
+        # print(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
         if "|q|" in data:

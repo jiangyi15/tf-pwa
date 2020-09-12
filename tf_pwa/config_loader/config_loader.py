@@ -5,6 +5,7 @@ from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.model import Model, Model_new, FCN, CombineFCN
 from tf_pwa.model.cfit import Model_cfit
+from tf_pwa.model.opt_int import ModelCachedInt
 import re
 import functools
 import time
@@ -31,6 +32,7 @@ import copy
 
 from .decay_config import DecayConfig
 from .data import load_data_mode
+
 
 class ConfigLoader(object):
     """class for loading config.yml"""
@@ -350,6 +352,9 @@ class ConfigLoader(object):
             assert len(float_wmc) == self._Ngroup
             for wb, wi, fw in zip(w_bkg, w_inmc, float_wmc):
                 model.append(Model_new(amp, wb, wi, fw))
+        elif self.config["data"].get("cached_int", False):
+            for wb in w_bkg:
+                model.append(ModelCachedInt(amp, wb))
         else:
             for wb in w_bkg:
                 model.append(Model(amp, wb))
@@ -810,7 +815,6 @@ class ConfigLoader(object):
         numbers = np.array(numbers)
         numbers = np.sum(numbers, axis=0)
         return cal_chi2(numbers, self.get_ndf())
-
 
     def get_chain(self, idx):
         decay_group = self.full_decay

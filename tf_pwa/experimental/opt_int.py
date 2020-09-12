@@ -17,16 +17,15 @@ def split_gls(dec_chain):
 
 def build_sum_amplitude(dg, dec_chain, data):
     cached = []
-    weight = data.get("weight", 1.0)
     for i, dc in split_gls(dec_chain):
         amp = dg.get_amp(data)
-        int_mc = amp * tf.cast(weight, amp.dtype)
+        int_mc = amp
         gls = dc.product_gls()
         cached.append(amp / gls)
     return cached
 
 
-def build_int_matrix(dec, data):
+def build_int_matrix(dec, data, weight=None):
     hij = {}
     used_chains = dec.chains_idx
     for k, i in enumerate(dec):
@@ -35,11 +34,17 @@ def build_int_matrix(dec, data):
             hij[(i, j)] = amp
     dec.set_used_chains(used_chains)
     ret = []
+    if weight is None:
+        weight = data.get("weight", 1.0)
     index = list(hij.keys())
+    weight = tf.cast(weight, hij[index[0]].dtype)
+    n_lambda = len(hij[index[0]].shape) - 1
+    weight = tf.reshape(weight, [-1]+[1]*n_lambda)
     for i in index:
         tmp = []
         for j in index:
-            xij = tf.reduce_sum(hij[i] * tf.math.conj(hij[j]))
+            xij = hij[i] * tf.math.conj(hij[j])
+            xij = tf.reduce_sum(weight * xij)
             tmp.append(xij)
         ret.append(tmp)
     return index, ret
@@ -64,13 +69,13 @@ def build_params_vector(dec):
 
 def build_params_matrix(dec):
     pv = build_params_vector(dec)
-    return tf.einsum("i,j->ij", pv, tf.math.conj(pv))
+    return pv[:,None] * tf.math.conj(pv)[None, :]
 
 
 def gls_combine(fs):
     ret = fs[0]
     for i in fs[1:]:
-        ret = tf.reshape(tf.einsum("i,j->ij", ret, i),(-1,))
+        ret = tf.reshape(ret[:,None] * i[None, :],(-1,))
     return ret
 
 

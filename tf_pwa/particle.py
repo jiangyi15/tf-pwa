@@ -299,7 +299,7 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         pc = self.outs[1].P
         return tuple(GetA2BC_LS_list(ja, jb, jc, pa, pb, pc, p_break=self.p_break))
 
-    @functools.lru_cache()
+    # @functools.lru_cache()
     def get_l_list(self):
         """
         List of l in ``self.get_ls_list()``

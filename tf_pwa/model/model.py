@@ -645,7 +645,9 @@ class FCN(object):
         else:
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64")
+        self.batch_mc_weight = list(data_split(self.mc_weight, self.batch))
         self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
+        self.cached_mc = {}
 
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)
@@ -685,7 +687,7 @@ class FCN(object):
         self.model.set_params(x)
         nll, g = self.model.nll_grad_batch(self.batch_data, self.batch_mcdata,
                                            weight=list(data_split(self.weight, self.batch)),
-                                           mc_weight=data_split(self.mc_weight, self.batch))
+                                           mc_weight=self.batch_mc_weight)
         self.n_call += 1
         return nll, g
     @time_print
