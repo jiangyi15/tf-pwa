@@ -1160,7 +1160,7 @@ class DecayGroup(BaseDecayGroup):
 
         top_mass = get_mass(self.top)
         final_mass = [get_mass(i) for i in self.outs]
-        from .phasespace import PhaseSpaceGenerator
+        from tf_pwa.phasespace import PhaseSpaceGenerator
         a = PhaseSpaceGenerator(top_mass, final_mass)
         data = a.generate(num)
         return dict(zip(self.outs, data))

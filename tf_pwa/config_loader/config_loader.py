@@ -475,7 +475,7 @@ class ConfigLoader(object):
             self.fit_params.set_error(err)
         return err
 
-    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", save_root=False, **kwargs):
+    def plot_partial_wave(self, params=None, data=None, phsp=None, bg=None, prefix="figure/", res=None, save_root=False, **kwargs):
         if params is None:
             params = {}
         if hasattr(params, "params"):
@@ -496,9 +496,16 @@ class ConfigLoader(object):
         self._Ngroup = len(data)
         ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
         chain_property = []
-        for i in range(len(self.full_decay.chains)):
-            label, curve_style = self.get_chain_property(i)
-            chain_property.append([i, label, curve_style])
+        if res is None:
+            for i in range(len(self.full_decay.chains)):
+                label, curve_style = self.get_chain_property(i)
+                chain_property.append([i, label, curve_style])
+        else:
+            for i, name in enumerate(res):
+                if not isinstance(name, list):
+                    name = [name]
+                name = "+".join([str(i) for i in name])
+                chain_property.append([i, name, None])
         plot_var_dic = {}
         for conf in self.plot_params.get_params():
             name = conf.get("name")
@@ -513,7 +520,7 @@ class ConfigLoader(object):
             plot_var_dic[name] = {"display": display, "upper_ylim": upper_ylim, "legend": has_legend,
                 "idx": idx, "trans": trans, "range": xrange, "bins": bins, "units": units}
         if self._Ngroup == 1:
-            data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, data[0], phsp[0], bg[0], ws_bkg[0], path, plot_var_dic, chain_property, save_root=save_root, **kwargs)
+            data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, data[0], phsp[0], bg[0], ws_bkg[0], path, plot_var_dic, chain_property, save_root=save_root, res=res, **kwargs)
             self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path, plot_var_dic, chain_property, **kwargs)
         else:
             combine_plot = self.config["plot"].get("combine_plot", True)
@@ -524,7 +531,7 @@ class ConfigLoader(object):
             else:
 
                 for dt, mc, sb, w_bkg, i in zip(data, phsp, bg, ws_bkg, range(self._Ngroup)):
-                    data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, dt, mc, sb, w_bkg, path+'d{}_'.format(i), plot_var_dic, chain_property, save_root=save_root, **kwargs)
+                    data_dict, phsp_dict, bg_dict = self._cal_partial_wave(amp, params, dt, mc, sb, w_bkg, path+'d{}_'.format(i), plot_var_dic, chain_property, save_root=save_root, res=res, **kwargs)
                     #self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
                     if i == 0:
                         datas_dict = {}
@@ -555,7 +562,7 @@ class ConfigLoader(object):
                     print("Save root file "+prefix+"com_variables.root")
 
     def _cal_partial_wave(self, amp, params, data, phsp, bg, w_bkg, prefix, plot_var_dic, chain_property,
-                            save_root=False, bin_scale=3, **kwargs):
+                            save_root=False, bin_scale=3, res=None, **kwargs):
         data_dict = {}
         phsp_dict = {}
         bg_dict = {}
@@ -574,7 +581,19 @@ class ConfigLoader(object):
                                 data_shape(bg)) / np.sum(total_weight)
                 else:
                     norm_frac = (n_data + np.sum(w_bkg))/np.sum(total_weight)
-            weights = amp.partial_weight(phsp)
+            if res is None:
+                weights = amp.partial_weight(phsp)
+            else:
+                weights = []
+                used_res = amp.used_res
+                for i in res:
+                    if not isinstance(i, list):
+                        i = [i]
+                    amp.set_used_res(i)
+                    weights.append(amp(phsp))
+                # print(weights, amp.decay_group.chains_idx)
+                amp.set_used_res(used_res)
+
             data_weights = data.get("weight", [1.0]*data_shape(data))
             data_dict["data_weights"] = data_weights
             phsp_weights = total_weight*norm_frac

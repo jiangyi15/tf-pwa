@@ -1,5 +1,6 @@
 from .model import Model, sum_gradient, clip_log, sum_hessian, split_generator
 from tf_pwa.experimental import opt_int
+from tf_pwa.data import data_shape
 import tensorflow as tf
 
 
