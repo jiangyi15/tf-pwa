@@ -1,4 +1,4 @@
-from .model import Model, sum_gradient, clip_log
+from .model import Model, sum_gradient, clip_log, sum_hessian, split_generator
 from tf_pwa.experimental import opt_int
 import tensorflow as tf
 
@@ -18,8 +18,12 @@ class ModelCachedInt(Model):
         self.w_bkg = w_bkg
         self.vm = amp.vm
         self.cached_int = {}
-    
-    def build_cached_int(self, mcdata, mc_weight):
+
+    def build_cached_int(self, mcdata, mc_weight, batch=65000):
+        mc_id = id(mcdata)
+        if isinstance(mcdata, dict):
+            mcdata = split_generator(mcdata, batch)
+            mc_weight = split_generator(mc_weight, batch)
         dec = self.Amp.decay_group
         index, ret = None, []
         sum_weight = 1.0
@@ -30,13 +34,14 @@ class ModelCachedInt(Model):
 
         int_matrix = tf.reduce_sum(ret, axis=0)
 
+        @tf.function
         def int_mc():
             pm = opt_int.build_params_matrix(dec)
             ret = tf.reduce_sum(pm * int_matrix)
             return tf.math.real(ret)
 
-        self.cached_int[id(mcdata)] = int_mc
-        
+        self.cached_int[mc_id] = int_mc
+
         # print(int_mc())
         # a = 0.0
         # for mc, w in zip(mcdata, mc_weight):
@@ -84,3 +89,52 @@ class ModelCachedInt(Model):
                                int_mc, zip(g_ln_data, g_int_mc)))
         nll = - ln_data + sw * tf.math.log(int_mc)
         return nll, g
+
+    def nll_grad_hessian(self, data, mcdata, weight=1.0, batch=24000, bg=None, mc_weight=1.0):
+        """
+        The parameters are the same with ``self.nll()``, but it will return Hessian as well.
+
+        :return NLL: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        :return Hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
+        """
+        data, weight = self.get_weight_data(data, weight, bg=bg)
+        if isinstance(mc_weight, float):
+            mc_weight = tf.convert_to_tensor([mc_weight] * data_shape(mcdata), dtype="float64")
+        n_mc = tf.reduce_sum(mc_weight)
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data, h_ln_data = sum_hessian(self.Amp, split_generator(data, batch),
+                                                    self.Amp.trainable_variables,
+                                                    weight=split_generator(weight, batch), trans=clip_log)
+
+        #int_mc, g_int_mc, h_int_mc = sum_hessian(self.Amp, split_generator(mcdata, batch),
+        #                                         self.Amp.trainable_variables, weight=split_generator(
+        #        mc_weight, batch))
+        if isinstance(mc_weight, float):
+            mc_weight = tf.convert_to_tensor([mc_weight] * data_shape(mcdata), dtype="float64")
+            mc_weight = mc_weight / tf.reduce_sum(mc_weight)
+        mc_id = id(mcdata)
+        if mc_id not in self.cached_int:
+            self.build_cached_int(mcdata, mc_weight)
+        with tf.GradientTape(persistent=True) as tape0:
+            with tf.GradientTape() as tape:
+                y_i = self.get_cached_int(mc_id)
+            g_i = tape.gradient(y_i, self.Amp.trainable_variables, unconnected_gradients="zero")
+        h_s_i = []
+        for gi in g_i:
+            # 2nd order derivative
+            h_s_i.append(tape0.gradient(gi, self.Amp.trainable_variables, unconnected_gradients="zero"))
+        del tape0
+        int_mc = y_i
+        g_int_mc = tf.convert_to_tensor(g_i)
+        h_int_mc = tf.convert_to_tensor(h_s_i)
+
+        n_var = len(g_ln_data)
+        nll = - ln_data + sw * tf.math.log(int_mc/n_mc)
+        g = - g_ln_data + sw * g_int_mc / int_mc
+
+        g_int_mc = g_int_mc / int_mc
+        g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
+
+        h = - h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
+        return nll, g, h
