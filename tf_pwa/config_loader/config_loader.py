@@ -836,13 +836,15 @@ class ConfigLoader(object):
             names.append(pro.get("display", str(i)))
         return " ".join(names), curve_style
 
-    def cal_fitfractions(self, params={}, mcdata=None, batch=25000):
+    def cal_fitfractions(self, params={}, mcdata=None, res=None, exclude_res=[], batch=25000):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         if mcdata is None:
             mcdata = self.get_phsp_noeff()
         amp = self.get_amplitude()
-        frac, err_frac = fit_fractions(amp, mcdata, self.inv_he, params, batch)
+        if res is None:
+            res = sorted(list(set([str(i) for i in amp.res]) - set(exclude_res)))
+        frac, err_frac = fit_fractions(amp, mcdata, self.inv_he, params, batch, res)
         return frac, err_frac
 
     def cal_signal_yields(self, params={}, mcdata=None, batch=25000):
@@ -911,8 +913,6 @@ def validate_file_name(s):
     rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
     name = re.sub(rstr, "_", s)
     return name
-
-
 
 
 def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):

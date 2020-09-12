@@ -20,7 +20,7 @@ from .significance import significance
 from .utils import error_print, std_periodic_var, check_positive_definite
 
 
-def fit_fractions(amp, mcdata, inv_he=None, params=None, batch=25000):
+def fit_fractions(amp, mcdata, inv_he=None, params=None, batch=25000, res=None):
     """
     This function calculate fit fractions of the resonances as well as their coherent pairs. It imports
     ``cal_fitfractions`` and ``cal_fitfractions_no_grad`` from module **tf_pwa.fitfractions**.
@@ -45,7 +45,7 @@ def fit_fractions(amp, mcdata, inv_he=None, params=None, batch=25000):
         params = {}
     err_frac = {}
     with amp.temp_params(params):
-        frac, grad = cal_fitfractions(amp, mcdata, batch=batch)
+        frac, grad = cal_fitfractions(amp, mcdata, res=res, batch=batch)
     if inv_he is not None:
         for i in frac:
             err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
