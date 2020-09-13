@@ -609,7 +609,7 @@ class ConfigLoader(object):
                 phsp_dict["MC_{0}_{1}_fit".format(i, label)] = weight_i # MC partial weight
             for name in plot_var_dic:
                 idx = plot_var_dic[name]["idx"]
-                trans = plot_var_dic[name]["trans"]
+                trans = lambda x: np.reshape(plot_var_dic[name]["trans"](x), (-1, 1))
 
                 data_i = trans(data_index(data, idx))
                 if idx[-1] is 'm':
