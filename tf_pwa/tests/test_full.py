@@ -2,6 +2,9 @@ import pytest
 import os
 import numpy as np
 
+import matplotlib
+matplotlib.use("agg")
+
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader
 

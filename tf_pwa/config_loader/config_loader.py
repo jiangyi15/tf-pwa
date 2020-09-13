@@ -1035,9 +1035,12 @@ class PlotParams(dict):
             display = v.get("display", "M({})".format(k))
             upper_ylim = v.get("upper_ylim", None)
             xrange = v.get("range", None)
-            trans = v.get("trans", 'x')
-            trans = sy.sympify(trans)
-            trans = sy.lambdify(x,trans)
+            trans = v.get("trans", None)
+            if trans is None:
+                trans = lambda x: x
+            else:
+                trans = sy.sympify(trans)
+                trans = sy.lambdify(x, trans, modules='numpy')
             units = v.get("units", "GeV")
             bins = v.get("bins", self.defaults_config.get("bins", 50))
             legend = v.get("legend", self.defaults_config.get("legend", True))
