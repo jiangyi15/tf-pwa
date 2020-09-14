@@ -657,7 +657,7 @@ class VarsManager(object):
         """
         xvals = np.array(xvals)
         dydxs = []
-        for name in self.trainable_vars:
+        for i, name in enumerate(self.trainable_vars):
             if name in self.bnd_dic:
                 dydxs.append(self.bnd_dic[name].get_dydx(xvals[i]))
             else:
