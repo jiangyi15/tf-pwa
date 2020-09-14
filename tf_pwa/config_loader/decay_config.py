@@ -1,8 +1,20 @@
 import functools
 import copy
-from tf_pwa.amp import DecayGroup, DecayChain, get_particle, get_decay, split_particle_type
+import random
+from tf_pwa.amp import (
+    DecayGroup,
+    DecayChain,
+    get_particle,
+    get_decay,
+    split_particle_type,
+)
 import yaml
 from .base_config import BaseConfig
+
+
+def set_min_max(dic, name, name_min, name_max):
+    if name not in dic and name_min in dic and name_max in dic:
+        dic[name] = random.random() * (dic[name_max] - dic[name_min]) + dic[name_min]
 
 
 class DecayConfig(BaseConfig):
@@ -19,18 +31,27 @@ class DecayConfig(BaseConfig):
             "bw": "model",
             "model": "model",
             "bw_l": "bw_l",
-            "running_width": "running_width"
+            "running_width": "running_width",
         }
-        self.decay_key_map = {
-            "model": "model"
-        }
+        self.decay_key_map = {"model": "model"}
         self.dec = self.decay_item(self.config["decay"])
-        self.particle_map, self.particle_property, self.top, self.finals = self.particle_item(
-            self.config["particle"], share_dict)
-        self.full_decay = DecayGroup(self.get_decay_struct(
-            self.dec, self.particle_map, self.particle_property, self.top, self.finals))
+        (
+            self.particle_map,
+            self.particle_property,
+            self.top,
+            self.finals,
+        ) = self.particle_item(self.config["particle"], share_dict)
+        self.full_decay = DecayGroup(
+            self.get_decay_struct(
+                self.dec,
+                self.particle_map,
+                self.particle_property,
+                self.top,
+                self.finals,
+            )
+        )
         self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
-    
+
     @staticmethod
     def load_config(file_name, share_dict={}):
         if isinstance(file_name, dict):
@@ -44,7 +65,6 @@ class DecayConfig(BaseConfig):
                     ret = {}
             return ret
         raise TypeError("not support config {}".format(type(file_name)))
-
 
     def get_decay(self, full=True):
         if full:
@@ -96,8 +116,7 @@ class DecayConfig(BaseConfig):
                     particle_map[particle] = []
                 for i in candidate:
                     if isinstance(i, str):
-                        particle_map[particle] = particle_map.get(
-                            particle, []) + [i]
+                        particle_map[particle] = particle_map.get(particle, []) + [i]
                     elif isinstance(i, dict):
                         map_i, pro_i = DecayConfig.particle_item_list(i)
                         for k, v in map_i.items():
@@ -105,12 +124,14 @@ class DecayConfig(BaseConfig):
                         particle_property.update(pro_i)
                     else:
                         raise ValueError(
-                            "value of particle map {} is {}".format(i, type(i)))
+                            "value of particle map {} is {}".format(i, type(i))
+                        )
             elif isinstance(candidate, dict):
                 particle_property[particle] = candidate
             else:
-                raise ValueError("value of particle {} is {}".format(
-                    particle, type(candidate)))
+                raise ValueError(
+                    "value of particle {} is {}".format(particle, type(candidate))
+                )
         return particle_map, particle_property
 
     @staticmethod
@@ -121,14 +142,20 @@ class DecayConfig(BaseConfig):
         if includes:
             if isinstance(includes, list):
                 for i in includes:
-                    DecayConfig._do_include_dict(particle_list, i, share_dict=share_dict)
+                    DecayConfig._do_include_dict(
+                        particle_list, i, share_dict=share_dict
+                    )
             elif isinstance(includes, str):
-                DecayConfig._do_include_dict(particle_list, includes, share_dict=share_dict)
+                DecayConfig._do_include_dict(
+                    particle_list, includes, share_dict=share_dict
+                )
             else:
-                raise ValueError("$include must be string or list of string not {}"
-                                 .format(type(includes)))
-        particle_map, particle_property = DecayConfig.particle_item_list(
-            particle_list)
+                raise ValueError(
+                    "$include must be string or list of string not {}".format(
+                        type(includes)
+                    )
+                )
+        particle_map, particle_property = DecayConfig.particle_item_list(particle_list)
 
         if isinstance(top, dict):
             particle_property.update(top)
@@ -146,7 +173,9 @@ class DecayConfig(BaseConfig):
             ret[key_map.get(k, k)] = v
         return ret
 
-    def get_decay_struct(self, decay, particle_map=None, particle_params=None, top=None, finals=None):
+    def get_decay_struct(
+        self, decay, particle_map=None, particle_params=None, top=None, finals=None
+    ):
         """  get decay structure for decay dict"""
         particle_map = particle_map if particle_map is not None else {}
         particle_params = particle_params if particle_params is not None else {}
@@ -158,6 +187,8 @@ class DecayConfig(BaseConfig):
                 return particle_set[name]
             params = particle_params.get(name, {})
             params = self.rename_params(params)
+            set_min_max(params, "mass", "m_min", "m_max")
+            set_min_max(params, "width", "g_min", "g_max")
             part = get_particle(name, **params)
             particle_set[name] = part
             return part
@@ -212,4 +243,3 @@ class DecayConfig(BaseConfig):
             if sorted(DecayChain(i).outs) == sorted(finals):
                 ret.append(i)
         return ret
-
