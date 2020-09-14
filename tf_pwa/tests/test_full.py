@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 import matplotlib
+
 matplotlib.use("agg")
 
 from tf_pwa.applications import gen_data, gen_mc
@@ -15,20 +16,22 @@ import tensorflow as tf
 
 def generate_phspMC(Nmc):
     """Generate PhaseSpace MC of size Nmc and save it as txt file"""
-    mA = 4.6 # masses of mother particle A and daughters BCD
+    # masses of mother particle A and daughters BCD
+    mA = 4.6
     mB = 2.00698
     mC = 2.01028
     mD = 0.13957
-    a2bcd = gen_mc(mA, [mB, mC, mD], Nmc) # a2bcd is a [3*Nmc, 4] array, which are the momenta of BCD in the rest frame of A
+    # a2bcd is a [3*Nmc, 4] array, which are the momenta of BCD in the rest frame of A
+    a2bcd = gen_mc(mA, [mB, mC, mD], Nmc)
     return a2bcd
 
 
 def generate_toy_from_phspMC(Ndata, mc_file, data_file):
     """Generate toy using PhaseSpace MC from mc_file"""
-    config = ConfigLoader(f"{this_dir}/config_toy.yml") # We use ConfigLoader to read the information in the configuration file
-    config.set_params(f"{this_dir}/gen_params.json") # Set the parameters in the amplitude model
+    config = ConfigLoader(f"{this_dir}/config_toy.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
     amp = config.get_amplitude()
-    data = gen_data(amp, Ndata=Ndata, mcfile=mc_file, genfile=data_file) # data is saved in data_file
+    data = gen_data(amp, Ndata=Ndata, mcfile=mc_file, genfile=data_file)
     return data
 
 
@@ -64,6 +67,9 @@ def test_fit(toy_config, fit_result):
     toy_config.cal_fitfractions()
 
 
-def test_cal_chi2(toy_config):
-    toy_config.cal_chi2(bins=[[2,2]]*2, mass=["R_BD", "R_CD"])
+def test_cal_chi2(toy_config, fit_result):
+    toy_config.cal_chi2(bins=[[2, 2]] * 2, mass=["R_BD", "R_CD"])
 
+
+def test_cal_signal_yields(toy_config, fit_result):
+    toy_config.cal_signal_yields()
