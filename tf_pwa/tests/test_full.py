@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use("agg")
 
 from tf_pwa.applications import gen_data, gen_mc
-from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.config_loader import ConfigLoader, MultiConfig
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -56,6 +56,13 @@ def toy_config(gen_toy):
 
 
 @pytest.fixture
+def toy_config2(gen_toy, fit_result):
+    config = MultiConfig([f"{this_dir}/config_toy.yml", f"{this_dir}/config_toy2.yml"])
+    config.set_params("toy_data/final_params.json")
+    return config
+
+
+@pytest.fixture
 def fit_result(toy_config):
     return toy_config.fit()
 
@@ -73,3 +80,8 @@ def test_cal_chi2(toy_config, fit_result):
 
 def test_cal_signal_yields(toy_config, fit_result):
     toy_config.cal_signal_yields()
+
+
+def test_fit_combine(toy_config2):
+    toy_config2.fit()
+    toy_config2.get_params_error()
