@@ -31,7 +31,7 @@ def build_amp_matrix(dec, data, weight=None):
         hij.append(tmp)
     dec.set_used_chains(used_chains)
     # print([i.shape for i in hij.values()])
-    print([[j.shape for j in i] for i in hij])
+    # print([[j.shape for j in i] for i in hij])
     return index, hij
 
 
@@ -63,7 +63,7 @@ def cached_amp(dg, data):
         for i, j in zip(pv, c_amp):
             a = tf.reshape(i, [n_data, -1] + [1] * (len(j[0].shape) - 1))
             ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
-        print(ret)
+        # print(ret)
         amp = tf.reduce_sum(ret, axis=0)
         return amp
 
@@ -91,10 +91,10 @@ def build_amp2s(dg):
         pv = build_params_vector(dg, data)
         ret = []
         for i, j in zip(pv, cached_data):
-            print(j)
+            # print(j)
             a = tf.reshape(i, [n_data, -1] + [1] * (len(j[0].shape) - 1))
             ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
-        print(ret)
+        # print(ret)
         amp = tf.reduce_sum(ret, axis=0)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))

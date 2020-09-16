@@ -82,7 +82,6 @@ def gls_combine(fs):
 def cached_int_mc(dec, data, batch=65000):
     a, int_matrix = build_int_matrix_batch(dec, data, batch)
 
-    @time_print
     @tf.function
     def int_mc():
         pm = build_params_matrix(dec)
