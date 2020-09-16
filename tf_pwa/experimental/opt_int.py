@@ -39,7 +39,7 @@ def build_int_matrix(dec, data, weight=None):
     index = list(hij.keys())
     weight = tf.cast(weight, hij[index[0]].dtype)
     n_lambda = len(hij[index[0]].shape) - 1
-    weight = tf.reshape(weight, [-1]+[1]*n_lambda)
+    weight = tf.reshape(weight, [-1] + [1] * n_lambda)
     for i in index:
         tmp = []
         for j in index:
@@ -69,19 +69,20 @@ def build_params_vector(dec):
 
 def build_params_matrix(dec):
     pv = build_params_vector(dec)
-    return pv[:,None] * tf.math.conj(pv)[None, :]
+    return pv[:, None] * tf.math.conj(pv)[None, :]
 
 
 def gls_combine(fs):
     ret = fs[0]
     for i in fs[1:]:
-        ret = tf.reshape(ret[:,None] * i[None, :],(-1,))
+        ret = tf.reshape(ret[:, None] * i[None, :], (-1,))
     return ret
 
 
 def cached_int_mc(dec, data, batch=65000):
     a, int_matrix = build_int_matrix_batch(dec, data, batch)
 
+    @time_print
     @tf.function
     def int_mc():
         pm = build_params_matrix(dec)
@@ -89,4 +90,3 @@ def cached_int_mc(dec, data, batch=65000):
         return tf.math.real(ret)
 
     return int_mc
-

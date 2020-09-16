@@ -5,7 +5,7 @@ from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.model import Model, Model_new, FCN, CombineFCN
 from tf_pwa.model.cfit import Model_cfit
-from tf_pwa.model.opt_int import ModelCachedInt
+from tf_pwa.model.opt_int import ModelCachedInt, ModelCachedAmp
 import re
 import functools
 import time
@@ -405,6 +405,9 @@ class ConfigLoader(object):
         elif self.config["data"].get("cached_int", False):
             for wb in w_bkg:
                 model.append(ModelCachedInt(amp, wb))
+        elif self.config["data"].get("cached_amp", False):
+            for wb in w_bkg:
+                model.append(ModelCachedAmp(amp, wb))
         else:
             for wb in w_bkg:
                 model.append(Model(amp, wb))
