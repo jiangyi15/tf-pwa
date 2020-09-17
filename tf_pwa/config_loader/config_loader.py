@@ -600,14 +600,16 @@ class ConfigLoader(object):
         chain_property = []
         if res is None:
             for i in range(len(self.full_decay.chains)):
-                label, curve_style = self.get_chain_property(i)
-                chain_property.append([i, label, curve_style])
+                name, curve_style = self.get_chain_property(i, False)
+                label, curve_style = self.get_chain_property(i, True)
+                chain_property.append([i, name, label, curve_style])
         else:
             for i, name in enumerate(res):
                 if not isinstance(name, list):
                     name = [name]
-                name = "+".join([str(i) for i in name])
-                chain_property.append([i, name, None])
+                display = "+".join([str(i) for i in name])
+                name = "_".join([str(i) for i in name])
+                chain_property.append([i, name, display, None])
         plot_var_dic = {}
         for conf in self.plot_params.get_params():
             name = conf.get("name")
@@ -797,10 +799,10 @@ class ConfigLoader(object):
                 else:
                     bg_weight = -w_bkg
                 bg_dict["sideband_weights"] = bg_weight  # sideband weight
-            for i, label, _ in chain_property:
+            for i, name, label, _ in chain_property:
                 weight_i = weights[i] * norm_frac * bin_scale * phsp.get("weight", 1.0)
                 phsp_dict[
-                    "MC_{0}_{1}_fit".format(i, label)
+                    "MC_{0}_{1}_fit".format(i, name)
                 ] = weight_i  # MC partial weight
             for name in plot_var_dic:
                 idx = plot_var_dic[name]["idx"]
@@ -929,8 +931,8 @@ class ConfigLoader(object):
 
             # plt.hist(data_i, label="data", bins=50, histtype="step")
             style = itertools.product(colors, linestyles)
-            for i, label, curve_style in chain_property:
-                weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, label)]
+            for i, name, label, curve_style in chain_property:
+                weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name)]
                 x, y = hist_line(
                     phsp_i, weights=weight_i, xrange=xrange, bins=bins * bin_scale
                 )
@@ -1107,7 +1109,7 @@ class ConfigLoader(object):
         decay_group = self.full_decay
         return decay_group.get_decay_chain(idx)
 
-    def get_chain_property(self, idx):
+    def get_chain_property(self, idx, display=True):
         """Get chain name and curve style in plot"""
         chain = self.get_chain(idx)
         for i in chain:
@@ -1118,10 +1120,14 @@ class ConfigLoader(object):
             if i.core == chain.top:
                 combine = list(i.outs)
         names = []
+        displays = []
         for i in combine:
             pro = self.particle_property[str(i)]
-            names.append(pro.get("display", str(i)))
-        return " ".join(names), curve_style
+            names.append(str(i))
+            displays.append(pro.get("display", str(i)))
+        if display:
+            return " ".join(displays), curve_style
+        return "_".join(names), curve_style
 
     def cal_fitfractions(
         self, params={}, mcdata=None, res=None, exclude_res=[], batch=25000
