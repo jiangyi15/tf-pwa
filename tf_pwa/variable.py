@@ -251,12 +251,14 @@ class VarsManager(object):
             self.variables[new_name] = self.variables[name]
             del self.variables[name]
 
-    def refresh_vars(self, name):
+    def refresh_vars(self, bound_dic=None):
         """
-        Refresh all trainable variables (WIP)
+        Refresh all trainable variables
         """
+        if bound_dic is None:
+            bound_dic = self.bnd_dic
         cplx_vars = []
-        for name in self.complex_vars:
+        for name in self.complex_vars: # complex vars
             name_r = name + "r"
             name_i = name + "i"
             if self.complex_vars[name] == False:  # xy coordinate
@@ -289,10 +291,17 @@ class VarsManager(object):
                             shape=[], minval=-np.pi, maxval=np.pi, dtype=self.dtype
                         )
                     )
-        real_vars = self.trainable_vars.copy()  # 实变量还没refresh
-        for i in real_vars:
-            if i in cplx_vars:
-                real_vars.remove(i)
+        all_vars = set(self.trainable_vars) # real vars
+        real_vars = all_vars - set(cplx_vars)
+        for name in real_vars:
+            if name not in bound_dic:
+                raise Exception("The range of {} is not provided for initialization.".format(name))
+            range_ = bound_dic[name]
+            self.variables[name].assign(
+                tf.random.uniform(
+                    shape=[], minval=range_[0], maxval=range_[1], dtype=self.dtype
+                )
+            )
 
     def set_fix(self, name, value=None, unfix=False):
         """

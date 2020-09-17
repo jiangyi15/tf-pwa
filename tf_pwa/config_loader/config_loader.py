@@ -533,6 +533,13 @@ class ConfigLoader(object):
             self.inv_he = self.fit_params.hess_inv
         return self.fit_params
 
+    def fitNtimes(self, N, *args, **kwargs):
+        for i in range(N):
+            self.get_amplitude().vm.refresh_vars(self.bound_dic)
+            fit_result = self.fit(*args, **kwargs)
+            fit_pars = json.dumps(fit_result.params, indent=2)
+            print(fit_pars, flush=True)
+
     def get_params_error(
         self,
         params=None,
