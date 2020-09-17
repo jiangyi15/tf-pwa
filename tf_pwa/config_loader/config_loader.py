@@ -600,16 +600,16 @@ class ConfigLoader(object):
         chain_property = []
         if res is None:
             for i in range(len(self.full_decay.chains)):
-                name, curve_style = self.get_chain_property(i, False)
+                name_i, curve_style = self.get_chain_property(i, False)
                 label, curve_style = self.get_chain_property(i, True)
-                chain_property.append([i, name, label, curve_style])
+                chain_property.append([i, name_i, label, curve_style])
         else:
             for i, name in enumerate(res):
                 if not isinstance(name, list):
                     name = [name]
                 display = "+".join([str(i) for i in name])
-                name = "_".join([str(i) for i in name])
-                chain_property.append([i, name, display, None])
+                name_i = "_".join([str(i) for i in name])
+                chain_property.append([i, name_i, display, None])
         plot_var_dic = {}
         for conf in self.plot_params.get_params():
             name = conf.get("name")
@@ -799,10 +799,10 @@ class ConfigLoader(object):
                 else:
                     bg_weight = -w_bkg
                 bg_dict["sideband_weights"] = bg_weight  # sideband weight
-            for i, name, label, _ in chain_property:
+            for i, name_i, label, _ in chain_property:
                 weight_i = weights[i] * norm_frac * bin_scale * phsp.get("weight", 1.0)
                 phsp_dict[
-                    "MC_{0}_{1}_fit".format(i, name)
+                    "MC_{0}_{1}_fit".format(i, name_i)
                 ] = weight_i  # MC partial weight
             for name in plot_var_dic:
                 idx = plot_var_dic[name]["idx"]
@@ -931,8 +931,8 @@ class ConfigLoader(object):
 
             # plt.hist(data_i, label="data", bins=50, histtype="step")
             style = itertools.product(colors, linestyles)
-            for i, name, label, curve_style in chain_property:
-                weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name)]
+            for i, name_i, label, curve_style in chain_property:
+                weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name_i)]
                 x, y = hist_line(
                     phsp_i, weights=weight_i, xrange=xrange, bins=bins * bin_scale
                 )
