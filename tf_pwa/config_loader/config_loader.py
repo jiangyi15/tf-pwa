@@ -66,6 +66,7 @@ class ConfigLoader(object):
         self.data = load_data_mode(self.config.get("data", None), self.decay_struct)
         self.inv_he = None
         self._Ngroup = 1
+        self.cached_fcn = {}
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -445,11 +446,13 @@ class ConfigLoader(object):
 
     def get_fcn(self, all_data=None, batch=65000, vm=None, name=""):
         if all_data is None:
+            if vm in self.cached_fcn:
+                return self.cached_fcn[vm]
             data, phsp, bg, inmc = self.get_all_data()
         else:
             data, phsp, bg, inmc = all_data
         self._Ngroup = len(data)
-        model = self._get_model()
+        model = self._get_model(vm=vm, name=name)
         fcns = []
         for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
             fcns.append(
@@ -467,6 +470,8 @@ class ConfigLoader(object):
             fcn = fcns[0]
         else:
             fcn = CombineFCN(fcns=fcns, gauss_constr=self.gauss_constr_dic)
+        if all_data is None:
+            self.cached_fcn[vm] = fcn
         return fcn
 
     def get_ndf(self):
@@ -507,14 +512,16 @@ class ConfigLoader(object):
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
+            fcn = self.get_fcn()
+        else:
+            fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         amp = self.get_amplitude()
-        fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         print("decay chains included: ")
         for i in self.full_decay:
             ls_list = [getattr(j, "get_ls_list", lambda x: None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
         if reweight:
-            ConfigLoader.reweight_init_value(amp, phsp, ns=data_shape(data))
+            ConfigLoader.reweight_init_value(amp, phsp[0], ns=data_shape(data[0]))
 
         print("\n########### initial parameters")
         print(json.dumps(amp.get_params(), indent=2))
@@ -1192,8 +1199,14 @@ class ConfigLoader(object):
 
     def set_params(self, params, neglect_params=None):
         if isinstance(params, str):
-            with open(params) as f:
-                params = yaml.safe_load(f)
+            if params == "":
+                return False
+            try:
+                with open(params) as f:
+                    params = yaml.safe_load(f)
+            except Exception as e:
+                print(e)
+                return False
         if hasattr(params, "params"):
             params = params.params
         if isinstance(params, dict):
@@ -1209,6 +1222,7 @@ class ConfigLoader(object):
                 if v in self._neglect_when_set_params:
                     del ret[v]
         amplitude.set_params(ret)
+        return True
 
     def save_params(self, file_name):
         params = self.get_params()

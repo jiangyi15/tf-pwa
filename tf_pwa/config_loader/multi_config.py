@@ -1,4 +1,3 @@
-
 import yaml
 import json
 from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
@@ -31,23 +30,32 @@ import copy
 from .decay_config import DecayConfig
 from .config_loader import ConfigLoader
 
+
 class MultiConfig(object):
     def __init__(self, file_names, vm=None, total_same=False, share_dict={}):
         if vm is None:
             self.vm = VarsManager()
-            print(self.vm)
+            # print(self.vm)
         else:
             self.vm = vm
         self.total_same = total_same
-        self.configs = [ConfigLoader(i, vm=self.vm, share_dict=share_dict) for i in file_names]
+        self.configs = [
+            ConfigLoader(i, vm=self.vm, share_dict=share_dict) for i in file_names
+        ]
         self.bound_dic = {}
         self.gauss_constr_dic = {}
         self._neglect_when_set_params = []
+        self.cached_fcn = {}
+
+    def get_all_data(self):
+        return [i.get_all_data() for i in self.configs]
 
     def get_amplitudes(self, vm=None):
         if not self.total_same:
-            amps = [j.get_amplitude(name="s"+str(i), vm=vm)
-                    for i, j in enumerate(self.configs)]
+            amps = [
+                j.get_amplitude(name="s" + str(i), vm=vm)
+                for i, j in enumerate(self.configs)
+            ]
         else:
             amps = [j.get_amplitude(vm=vm) for j in self.configs]
         for i in self.configs:
@@ -57,7 +65,8 @@ class MultiConfig(object):
                 if j not in self._neglect_when_set_params:
                     self._neglect_when_set_params.append(j)
         return amps
-    '''
+
+    """
     def _get_models(self, vm=None): # get_model is useless to users given get_fcn and get_amplitude
         if not self.total_same:
             models = [j._get_model(name="s"+str(i), vm=vm)
@@ -65,25 +74,39 @@ class MultiConfig(object):
         else:
             models = [j._get_model(vm=vm) for j in self.configs]
         return models
-    '''
+    """
+
     def get_fcns(self, datas=None, vm=None, batch=65000):
         if datas is not None:
             if not self.total_same:
-                fcns = [i[1].get_fcn(name="s"+str(i[0]), all_data=j, vm=vm, batch=batch)
-                        for i, j in zip(enumerate(self.configs), datas)]
+                fcns = [
+                    i[1].get_fcn(name="s" + str(i[0]), all_data=j, vm=vm, batch=batch)
+                    for i, j in zip(enumerate(self.configs), datas)
+                ]
             else:
-                fcns = [j.get_fcn(all_data=data, vm=vm, batch=batch) for data, j in zip(datas, self.configs)]
+                fcns = [
+                    j.get_fcn(all_data=data, vm=vm, batch=batch)
+                    for data, j in zip(datas, self.configs)
+                ]
         else:
             if not self.total_same:
-                fcns = [j.get_fcn(name="s"+str(i), vm=vm, batch=batch)
-                        for i, j in enumerate(self.configs)]
+                fcns = [
+                    j.get_fcn(name="s" + str(i), vm=vm, batch=batch)
+                    for i, j in enumerate(self.configs)
+                ]
             else:
                 fcns = [j.get_fcn(vm=vm, batch=batch) for j in self.configs]
         return fcns
 
     def get_fcn(self, datas=None, vm=None, batch=65000):
+        if datas is None:
+            if vm in self.cached_fcn:
+                return self.cached_fcn[vm]
         fcns = self.get_fcns(datas=datas, vm=vm, batch=batch)
-        return CombineFCN(fcns=fcns, gauss_constr=self.gauss_constr_dic)
+        fcn = CombineFCN(fcns=fcns, gauss_constr=self.gauss_constr_dic)
+        if datas is None:
+            self.cached_fcn[vm] = fcn
+        return fcn
 
     def get_args_value(self, bounds_dict):
         args = {}
@@ -104,12 +127,12 @@ class MultiConfig(object):
 
     def fit(self, datas=None, batch=65000, method="BFGS"):
         fcn = self.get_fcn(datas=datas)
-        #fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
+        # fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2))
         print("initial NLL: ", fcn({}))
         self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic)
-        '''# fit configure
+        """# fit configure
         bounds_dict = {}
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
 
@@ -165,8 +188,11 @@ class MultiConfig(object):
             raise Exception("unknown method")
         self.vm.set_all(xn)
         params = self.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)'''
+        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)"""
         return self.fit_params
+
+    def reinit_params(self):
+        self.get_fcn().vm.refresh_vars(self.bound_dic)
 
     def get_params_error(self, params=None, batch=10000):
         if params is None:
@@ -174,7 +200,9 @@ class MultiConfig(object):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         fcn = self.get_fcn(batch=batch)
-        hesse_error, self.inv_he = cal_hesse_error(fcn, params, check_posi_def=True, save_npy=True)
+        hesse_error, self.inv_he = cal_hesse_error(
+            fcn, params, check_posi_def=True, save_npy=True
+        )
         print("hesse_error:", hesse_error)
         err = dict(zip(self.vm.trainable_vars, hesse_error))
         if hasattr(self, "fit_params"):
@@ -188,8 +216,14 @@ class MultiConfig(object):
     def set_params(self, params, neglect_params=None):
         _amps = self.get_amplitudes()
         if isinstance(params, str):
-            with open(params) as f:
-                params = yaml.safe_load(f)
+            if params == "":
+                return False
+            try:
+                with open(params) as f:
+                    params = yaml.safe_load(f)
+            except Exception as e:
+                print(e)
+                return False
         if hasattr(params, "params"):
             params = params.params
         if isinstance(params, dict):
@@ -204,9 +238,10 @@ class MultiConfig(object):
                 if v in self._neglect_when_set_params:
                     del ret[v]
         self.vm.set_all(ret)
+        return True
 
     def save_params(self, file_name):
         params = self.get_params()
-        val = {k: float(v) for k,v in params.items()}
+        val = {k: float(v) for k, v in params.items()}
         with open(file_name, "w") as f:
             json.dump(val, f, indent=2)
