@@ -358,9 +358,6 @@ class ConfigLoader(object):
                         self.bound_dic[p_i.width.name] = (lower, upper)
                     else:
                         self._neglect_when_set_params.append(p_i.width.name)
-                # else:
-                # self._neglect_when_set_params.append(p_i.mass.name) #p_i.mass.name
-                # self._neglect_when_set_params.append(p_i.mass.name) #p_i.width.name
                 else:
                     self._neglect_when_set_params.append(i + "_mass")  # p_i.mass.name
                     self._neglect_when_set_params.append(i + "_width")  # p_i.width.name
@@ -1217,7 +1214,7 @@ class ConfigLoader(object):
         if neglect_params is None:
             neglect_params = self._neglect_when_set_params
         if neglect_params.__len__() is not 0:
-            warnings.warn("Neglect {} when setting params.".format(neglect_params))
+            #warnings.warn("Neglect {} when setting params.".format(neglect_params))
             for v in params:
                 if v in self._neglect_when_set_params:
                     del ret[v]
