@@ -52,7 +52,6 @@ def fit(config, init_params="", method="BFGS", loop=1):
     fit_results = []
     for i in range(loop):
         # set initial parameters if have
-        config.reinit_params()
         if config.set_params(init_params):
             print("using {}".format(init_params))
         else:
@@ -68,12 +67,16 @@ def fit(config, init_params="", method="BFGS", loop=1):
             config.save_params("break_params.json")
             raise
         fit_results.append(fit_result)
+        # reset parameters
+        config.reinit_params()
+
     fit_result = fit_results.pop()
     for i in fit_results:
         if i.success:
             if not fit_result.success or fit_result.min_nll > i.min_nll:
                 fit_result = i
 
+    config.set_params(fit_result.params)
     json_print(fit_result.params)
     fit_result.save_as("final_params.json")
 

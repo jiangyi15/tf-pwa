@@ -103,8 +103,9 @@ class DecayConfig(BaseConfig):
     def _do_include_dict(d, o, share_dict={}):
         s = DecayConfig.load_config(o, share_dict)
         for i in s:
-            if i not in d:
-                d[i] = s[i]
+            if i in d:
+                s[i].update(d[i])
+            d[i] = s[i]
 
     @staticmethod
     def particle_item_list(particle_list):

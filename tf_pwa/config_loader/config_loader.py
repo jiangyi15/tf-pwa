@@ -449,6 +449,10 @@ class ConfigLoader(object):
         else:
             data, phsp, bg, inmc = all_data
         self._Ngroup = len(data)
+        if inmc is None:
+            inmc = [None] * self._Ngroup
+        if bg is None:
+            bg = [None] * self._Ngroup
         model = self._get_model(vm=vm, name=name)
         fcns = []
         for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
@@ -1214,7 +1218,7 @@ class ConfigLoader(object):
         if neglect_params is None:
             neglect_params = self._neglect_when_set_params
         if neglect_params.__len__() is not 0:
-            #warnings.warn("Neglect {} when setting params.".format(neglect_params))
+            # warnings.warn("Neglect {} when setting params.".format(neglect_params))
             for v in params:
                 if v in self._neglect_when_set_params:
                     del ret[v]

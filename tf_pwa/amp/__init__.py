@@ -975,7 +975,10 @@ class DecayChain(BaseDecayChain, AmpBase):
         idx_s = "{}->{}".format(idx, final_indices)
         # ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
         # print(idx_s)#, amp_d)
-        ret = einsum(idx_s, *amp_d)
+        try:
+            ret = einsum(idx_s, *amp_d)
+        except:
+            ret = tf.einsum(idx_s, *amp_d)
         # print(self, ret[0])
         # exit()
         # ret = einsum(idx_s, *amp_d)
