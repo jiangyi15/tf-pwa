@@ -295,13 +295,20 @@ class VarsManager(object):
         real_vars = all_vars - set(cplx_vars)
         for name in real_vars:
             if name not in bound_dic:
-                raise Exception("The range of {} is not provided for initialization.".format(name))
-            range_ = bound_dic[name]
-            self.variables[name].assign(
-                tf.random.uniform(
-                    shape=[], minval=range_[0], maxval=range_[1], dtype=self.dtype
+                self.variables[name].assign(
+                    tf.random.uniform(
+                        shape=[], minval=-1, maxval=1, dtype=self.dtype
+                    )
+                ) # by default
+            else:
+                range_ = bound_dic[name]
+                mu = np.mean(range_)
+                sigma = (mu - range_[0])/3
+                self.variables[name].assign(
+                    tf.random.normal(
+                        shape=[], mean=mu, stddev=sigma, dtype=self.dtype
+                    )
                 )
-            )
 
     def set_fix(self, name, value=None, unfix=False):
         """
