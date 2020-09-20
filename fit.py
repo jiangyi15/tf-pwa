@@ -172,7 +172,7 @@ def main():
         devices = "/device:CPU:0"
     with tf.device(devices):
         config = load_config(results.config, results.total_same)
-        fit_result = fit(config, results.init, results.method)
+        fit_result = fit(config, results.init, results.method, results.loop)
         if isinstance(config, ConfigLoader):
             write_some_results(config, fit_result)
         else:

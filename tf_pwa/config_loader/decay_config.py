@@ -104,8 +104,11 @@ class DecayConfig(BaseConfig):
         s = DecayConfig.load_config(o, share_dict)
         for i in s:
             if i in d:
-                s[i].update(d[i])
-            d[i] = s[i]
+                if isinstance(d[i], dict):
+                    s[i].update(d[i])
+                    d[i] = s[i]
+            else:
+                d[i] = s[i]
 
     @staticmethod
     def particle_item_list(particle_list):
