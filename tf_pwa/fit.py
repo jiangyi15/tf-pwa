@@ -5,6 +5,10 @@ import json
 from .fit_improve import minimize as my_minimize, Cached_FG
 
 
+class LargeNumberError(ValueError):
+    pass
+
+
 def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     try:
         from iminuit import Minuit
@@ -117,7 +121,7 @@ def fit_scipy(
         def callback(x):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
-                raise Exception("x too large: {}".format(x_p))
+                raise LargeNumberError("x too large: {}".format(x_p))
             points.append(fcn.vm.get_all_val())
             nlls.append(float(fcn.cached_nll))
             # if len(nlls) > maxiter:
@@ -133,23 +137,30 @@ def fit_scipy(
         x0 = np.array(fcn.vm.get_all_val(True))
         # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
         if method == "test":
-            s = my_minimize(
-                f_g,
-                x0,
-                method=method,
-                jac=True,
-                callback=callback,
-                options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
-            )
+            try:
+                s = my_minimize(
+                    f_g,
+                    x0,
+                    method=method,
+                    jac=True,
+                    callback=callback,
+                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                )
+            except LargeNumberError:
+                return except_result(fcn, x0.shape[0])
         else:
-            s = minimize(
-                f_g,
-                x0,
-                method=method,
-                jac=True,
-                callback=callback,
-                options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
-            )
+            try:
+                s = minimize(
+                    f_g,
+                    x0,
+                    method=method,
+                    jac=True,
+                    callback=callback,
+                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                )
+            except LargeNumberError:
+                return except_result(fcn, x0.shape[0])
+
         while improve and not s.success:
             min_nll = s.fun
             maxiter -= s.nit
@@ -186,19 +197,23 @@ def fit_scipy(
         def callback(x):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
-                raise Exception("x too large: {}".format(x_p))
+                raise LargeNumberError("x too large: {}".format(x_p))
             points.append([float(i) for i in x])
             nlls.append(float(fcn.cached_nll))
 
-        s = minimize(
-            fcn.nll_grad,
-            np.array(x0),
-            method=method,
-            jac=True,
-            bounds=bnds,
-            callback=callback,
-            options={"disp": 1, "maxcor": 50, "ftol": 1e-15, "maxiter": maxiter},
-        )
+        try:
+
+            s = minimize(
+                fcn.nll_grad,
+                np.array(x0),
+                method=method,
+                jac=True,
+                bounds=bnds,
+                callback=callback,
+                options={"disp": 1, "maxcor": 50, "ftol": 1e-15, "maxiter": maxiter},
+            )
+        except LargeNumberError:
+            return except_result(fcn, len(x0))
         xn = s.x
         ndf = s.x.shape[0]
         min_nll = s.fun
@@ -224,6 +239,11 @@ def fit_scipy(
     fcn.vm.set_all(xn)
     params = fcn.vm.get_all_dic()
     return FitResult(params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv)
+
+
+def except_result(fcn, ndf):
+    params = fcn.vm.get_all_dic()
+    return FitResult(params, fcn, float(fcn.cached_nll), ndf=ndf, success=False)
 
 
 # import pymultinest
