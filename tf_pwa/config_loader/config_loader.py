@@ -1195,6 +1195,34 @@ class ConfigLoader(object):
             N_sig_s.append(N_sig)
         return N_sig_s
 
+    def likelihood_profile(self, var, var_min, var_max, N=100):
+        params = self.get_params()
+        var0 = params[var]
+        delta_var = (var_max - var_min) / N
+        vm = self.get_amplitude().vm
+        unfix = var in vm.get_all_dic(True)
+        nlls_up = []
+        vars_up = []
+        while var0 <= var_max:
+            vm.set_fix(var, var0)
+            fit_result = self.fit()
+            vars_up.append(var0)
+            nlls_up.append(fit_result.min_nll)
+            var0 += delta_var
+        self.set_params(params)
+        var0 = params[var] - delta_var
+        vars_down = []
+        nlls_down = []
+        while var0 >= var_min:
+            vm.set_fix(var, var0)
+            fit_result = self.fit()
+            vars_down.append(var0)
+            nlls_down.append(fit_result.min_nll)
+            var0 -= delta_var
+        self.set_params(params)
+        vm.set_fix(var, params[var], unfix=unfix)
+        return vars_down[::-1] + vars_up, nlls_down[::-1] + nlls_up
+
     def get_params(self, trainable_only=False):
         return self.get_amplitude().get_params(trainable_only)
 
