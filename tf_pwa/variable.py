@@ -304,11 +304,13 @@ class VarsManager(object):
                 range_ = bound_dic[name]
                 mu = np.mean(range_)
                 sigma = (mu - range_[0])/3
-                self.variables[name].assign(
-                    tf.random.normal(
+                while True:
+                    val = tf.random.normal(
                         shape=[], mean=mu, stddev=sigma, dtype=self.dtype
                     )
-                )
+                    if val < range_[1] and val > range_[0]:
+                        break
+                self.variables[name].assign(val)
 
     def set_fix(self, name, value=None, unfix=False):
         """
