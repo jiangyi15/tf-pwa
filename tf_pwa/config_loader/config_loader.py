@@ -237,16 +237,28 @@ class ConfigLoader(object):
                 i = str(p_i)
                 res_dec[i] = d
                 # free mass and width and set bounds
+                if "m0" in self.config["particle"][i]:
+                    m0 = self.config["particle"][i]["m0"]
+                elif "mass" in self.config["particle"][i]:
+                    m0 = self.config["particle"][i]["mass"]
+                else:
+                    m0 = None # the following doesn't consider this case, which means m0 must be provided, and the same to g0
+                if "g0" in self.config["particle"][i]:
+                    g0 = self.config["particle"][i]["g0"]
+                elif "width" in self.config["particle"][i]:
+                    g0 = self.config["particle"][i]["width"]
+                else:
+                    g0 = None
                 m_sigma = self.config["particle"][i].get("m_sigma", None)
                 g_sigma = self.config["particle"][i].get("g_sigma", None)
                 if m_sigma is None:
-                    self.init_value[p_i.mass.name] = self.config["particle"][i]["m0"]
+                    self.init_value[p_i.mass.name] = m0
                 else:
-                    self.init_value[p_i.mass.name] = [self.config["particle"][i]["m0"], m_sigma]
+                    self.init_value[p_i.mass.name] = [m0, m_sigma]
                 if g_sigma is None:
-                    self.init_value[p_i.width.name] = self.config["particle"][i]["g0"]
+                    self.init_value[p_i.width.name] = g0
                 else:
-                    self.init_value[p_i.width.name] = [self.config["particle"][i]["g0"], g_sigma]
+                    self.init_value[p_i.width.name] = [g0, g_sigma]
                 if "params" in self.config["particle"][i]:
                     params_dic = self.config["particle"][i]["params"]
                     p_list = []
@@ -319,10 +331,7 @@ class ConfigLoader(object):
                                     i
                                 )
                             )
-                        self.gauss_constr_dic[p_i.mass.name] = (
-                            self.config["particle"][i]["m0"],
-                            m_sigma,
-                        )
+                        self.gauss_constr_dic[p_i.mass.name] = (m0, m_sigma)
                     if "g" in self.config["particle"][i]["gauss_constr"]:
                         if g_sigma is None:
                             raise Exception(
@@ -330,10 +339,7 @@ class ConfigLoader(object):
                                     i
                                 )
                             )
-                        self.gauss_constr_dic[p_i.width.name] = (
-                            self.config["particle"][i]["g0"],
-                            g_sigma,
-                        )
+                        self.gauss_constr_dic[p_i.width.name] = (g0, g_sigma)
                 if (
                     "float" in self.config["particle"][i]
                     and self.config["particle"][i]["float"]
