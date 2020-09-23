@@ -61,6 +61,7 @@ class ConfigLoader(object):
         self.cached_data = None
         self.bound_dic = {}
         self.gauss_constr_dic = {}
+        self.init_value = {}
         self.plot_params = PlotParams(self.config.get("plot", {}), self.decay_struct)
         self._neglect_when_set_params = []
         self.data = load_data_mode(self.config.get("data", None), self.decay_struct)
@@ -235,10 +236,93 @@ class ConfigLoader(object):
             for p_i in d.inner:
                 i = str(p_i)
                 res_dec[i] = d
-                # free mass and width and set bounds
-                m_sigma = self.config["particle"][i].get("m_sigma", None)
-                g_sigma = self.config["particle"][i].get("g_sigma", None)
+                if isinstance(p_i.mass, Variable) or isinstance(p_i.width, Variable):
+                    # free mass and width and set bounds
+                    if "m0" in self.config["particle"][i]:
+                        m0 = self.config["particle"][i]["m0"]
+                    elif "mass" in self.config["particle"][i]:
+                        m0 = self.config["particle"][i]["mass"]
+                    else:
+                        m0 = None # the following doesn't consider this case, which means m0 must be provided, and the same to g0
+                    if "g0" in self.config["particle"][i]:
+                        g0 = self.config["particle"][i]["g0"]
+                    elif "width" in self.config["particle"][i]:
+                        g0 = self.config["particle"][i]["width"]
+                    else:
+                        g0 = None
+                    m_sigma = self.config["particle"][i].get("m_sigma", None)
+                    g_sigma = self.config["particle"][i].get("g_sigma", None)
+                    if m_sigma is None:
+                        self.init_value[p_i.mass.name] = m0
+                    else:
+                        self.init_value[p_i.mass.name] = [m0, m_sigma]
+                    if g_sigma is None:
+                        self.init_value[p_i.width.name] = g0
+                    else:
+                        self.init_value[p_i.width.name] = [g0, g_sigma]
 
+                    if (
+                        "gauss_constr" in self.config["particle"][i]
+                        and self.config["particle"][i]["gauss_constr"]
+                    ):
+                        if "m" in self.config["particle"][i]["gauss_constr"]:
+                            if m_sigma is None:
+                                raise Exception(
+                                    "Need sigma of mass of {} when adding gaussian constraint".format(
+                                        i
+                                    )
+                                )
+                            self.gauss_constr_dic[p_i.mass.name] = (m0, m_sigma)
+                        if "g" in self.config["particle"][i]["gauss_constr"]:
+                            if g_sigma is None:
+                                raise Exception(
+                                    "Need sigma of width of {} when adding gaussian constraint".format(
+                                        i
+                                    )
+                                )
+                            self.gauss_constr_dic[p_i.width.name] = (g0, g_sigma)
+                    if (
+                        "float" in self.config["particle"][i]
+                        and self.config["particle"][i]["float"]
+                    ):
+                        if "m" in self.config["particle"][i]["float"]:
+                            p_i.mass.freed()  # set_fix(i+'_mass',unfix=True)
+                            if "m_max" in self.config["particle"][i]:
+                                upper = self.config["particle"][i]["m_max"]
+                            #elif m_sigma is not None:
+                            #    upper = self.config["particle"][i]["m0"] + 10 * m_sigma
+                            else:
+                                upper = None
+                            if "m_min" in self.config["particle"][i]:
+                                lower = self.config["particle"][i]["m_min"]
+                            #elif m_sigma is not None:
+                            #    lower = self.config["particle"][i]["m0"] - 10 * m_sigma
+                            else:
+                                lower = None
+                            self.bound_dic[p_i.mass.name] = (lower, upper)
+                        else:
+                            self._neglect_when_set_params.append(p_i.mass.name)
+                        if "g" in self.config["particle"][i]["float"]:
+                            p_i.width.freed()  # amp.vm.set_fix(i+'_width',unfix=True)
+                            if "g_max" in self.config["particle"][i]:
+                                upper = self.config["particle"][i]["g_max"]
+                            #elif g_sigma is not None:
+                            #    upper = self.config["particle"][i]["g0"] + 10 * g_sigma
+                            else:
+                                upper = None
+                            if "g_min" in self.config["particle"][i]:
+                                lower = self.config["particle"][i]["g_min"]
+                            #elif g_sigma is not None:
+                            #    lower = self.config["particle"][i]["g0"] - 10 * g_sigma
+                            else:
+                                lower = None
+                            self.bound_dic[p_i.width.name] = (lower, upper)
+                        else:
+                            self._neglect_when_set_params.append(p_i.width.name)
+                    else:
+                        self._neglect_when_set_params.append(i + "_mass")  # p_i.mass.name
+                        self._neglect_when_set_params.append(i + "_width")  # p_i.width.name
+                    
                 if "params" in self.config["particle"][i]:
                     params_dic = self.config["particle"][i]["params"]
                     p_list = []
@@ -255,9 +339,14 @@ class ConfigLoader(object):
                             p_list.append(vname)
                             vv = getattr(p_i, vname)
                             assert isinstance(vv, Variable)
-                            if vname in params_dic:
+                            p_sigma = params_dic.get(vname + "_sigma", None)
+                            if vname in params_dic and params_dic[vname] is not None:
                                 p_value = params_dic[vname]
                                 vv.set_value(p_value)
+                                if p_sigma is None:
+                                    self.init_value[vname] = p_value
+                                else:
+                                    self.init_value[vname] = [p_value, p_sigma]
                             else:
                                 p_value = None
                             p_free = params_dic.get(vname + "_free", None)
@@ -265,18 +354,19 @@ class ConfigLoader(object):
                                 vv.freed()
                             elif p_free is False:
                                 vv.fixed()
-                            p_sigma = params_dic.get(vname + "_sigma", None)
-                            if vname + "_range" in params_dic:
-                                lower, upper = params_dic[vname + "_range"]
+                            p_range = vname + "_range"
+                            if p_range in params_dic and params_dic[p_range] is not None:
+                                lower, upper = params_dic[p_range]
                                 self.bound_dic[vv.name] = (lower, upper)
-                            elif p_sigma is not None and p_value is not None:
-                                p_10sigma = 10 * p_sigma
-                                self.bound_dic[vv.name] = (
-                                    p_value - p_10sigma,
-                                    p_value + p_10sigma,
-                                )
-                            if vname + "_constr" in params_dic:
-                                if params_dic[vname + "_constr"]:
+                            #elif p_sigma is not None and p_value is not None:
+                            #    p_10sigma = 10 * p_sigma
+                            #    self.bound_dic[vv.name] = (
+                            #        p_value - p_10sigma,
+                            #        p_value + p_10sigma,
+                            #    )
+                            p_constr = vname + "_constr"
+                            if p_constr in params_dic and params_dic[p_constr] is not None:
+                                if params_dic[p_constr]:
                                     if p_value is None:
                                         raise Exception(
                                             "Need central value of {0} of {1} when adding gaussian constraint".format(
@@ -294,73 +384,6 @@ class ConfigLoader(object):
                                         p_sigma,
                                     )
 
-                if (
-                    "gauss_constr" in self.config["particle"][i]
-                    and self.config["particle"][i]["gauss_constr"]
-                ):
-                    if "m" in self.config["particle"][i]["gauss_constr"]:
-                        if m_sigma is None:
-                            raise Exception(
-                                "Need sigma of mass of {} when adding gaussian constraint".format(
-                                    i
-                                )
-                            )
-                        self.gauss_constr_dic[p_i.mass.name] = (
-                            self.config["particle"][i]["m0"],
-                            m_sigma,
-                        )
-                    if "g" in self.config["particle"][i]["gauss_constr"]:
-                        if g_sigma is None:
-                            raise Exception(
-                                "Need sigma of width of {} when adding gaussian constraint".format(
-                                    i
-                                )
-                            )
-                        self.gauss_constr_dic[p_i.width.name] = (
-                            self.config["particle"][i]["g0"],
-                            g_sigma,
-                        )
-                if (
-                    "float" in self.config["particle"][i]
-                    and self.config["particle"][i]["float"]
-                ):
-                    if "m" in self.config["particle"][i]["float"]:
-                        p_i.mass.freed()  # set_fix(i+'_mass',unfix=True)
-                        if "m_max" in self.config["particle"][i]:
-                            upper = self.config["particle"][i]["m_max"]
-                        elif m_sigma is not None:
-                            upper = self.config["particle"][i]["m0"] + 10 * m_sigma
-                        else:
-                            upper = None
-                        if "m_min" in self.config["particle"][i]:
-                            lower = self.config["particle"][i]["m_min"]
-                        elif m_sigma is not None:
-                            lower = self.config["particle"][i]["m0"] - 10 * m_sigma
-                        else:
-                            lower = None
-                        self.bound_dic[p_i.mass.name] = (lower, upper)
-                    else:
-                        self._neglect_when_set_params.append(p_i.mass.name)
-                    if "g" in self.config["particle"][i]["float"]:
-                        p_i.width.freed()  # amp.vm.set_fix(i+'_width',unfix=True)
-                        if "g_max" in self.config["particle"][i]:
-                            upper = self.config["particle"][i]["g_max"]
-                        elif g_sigma is not None:
-                            upper = self.config["particle"][i]["g0"] + 10 * g_sigma
-                        else:
-                            upper = None
-                        if "g_min" in self.config["particle"][i]:
-                            lower = self.config["particle"][i]["g_min"]
-                        elif g_sigma is not None:
-                            lower = self.config["particle"][i]["g0"] - 10 * g_sigma
-                        else:
-                            lower = None
-                        self.bound_dic[p_i.width.name] = (lower, upper)
-                    else:
-                        self._neglect_when_set_params.append(p_i.width.name)
-                else:
-                    self._neglect_when_set_params.append(i + "_mass")  # p_i.mass.name
-                    self._neglect_when_set_params.append(i + "_width")  # p_i.width.name
                 # share helicity variables
                 if "coef_head" in self.config["particle"][i]:
                     coef_head = self.config["particle"][i]["coef_head"]
@@ -542,7 +565,8 @@ class ConfigLoader(object):
         return self.fit_params
 
     def reinit_params(self):
-        self.get_amplitude().vm.refresh_vars(self.bound_dic)
+        vm = self.get_amplitude().vm
+        vm.refresh_vars(init_val=self.init_value, bound_dic=self.bound_dic)
 
     def fitNtimes(self, N, *args, **kwargs):
         for i in range(N):
@@ -937,6 +961,8 @@ class ConfigLoader(object):
                 )
             else:
                 mc_i = phsp_i
+                print("$$$",len(mc_i))
+                print("$$$",len(phsp_weights))
                 fit_y, fit_x, _ = ax.hist(
                     phsp_i,
                     weights=phsp_weights,

@@ -93,6 +93,8 @@ class VarsManager(object):
             {}
         )  # {head:[name1,name2],...} It's operated directly by Variable objects
 
+        self.init_val = {}
+
     def add_real_var(self, name, value=None, range_=None, trainable=True):
         """
         Add a real variable named **name** into **self.variables**. If **value** and **range_** are not provided, the initial value
@@ -251,12 +253,14 @@ class VarsManager(object):
             self.variables[new_name] = self.variables[name]
             del self.variables[name]
 
-    def refresh_vars(self, bound_dic=None):
+    def refresh_vars(self, init_val=None, bound_dic=None):
         """
         Refresh all trainable variables
         """
         if bound_dic is None:
             bound_dic = self.bnd_dic
+        if init_val is None:
+            init_val = self.init_val
         cplx_vars = []
         for name in self.complex_vars: # complex vars
             name_r = name + "r"
@@ -291,24 +295,41 @@ class VarsManager(object):
                             shape=[], minval=-np.pi, maxval=np.pi, dtype=self.dtype
                         )
                     )
-        all_vars = set(self.trainable_vars) # real vars
-        real_vars = all_vars - set(cplx_vars)
-        for name in real_vars:
-            if name not in bound_dic:
-                self.variables[name].assign(
-                    tf.random.uniform(
-                        shape=[], minval=-1, maxval=1, dtype=self.dtype
-                    )
-                ) # by default
-            else:
-                range_ = bound_dic[name]
-                mu = np.mean(range_)
-                sigma = (mu - range_[0])/3
-                self.variables[name].assign(
-                    tf.random.normal(
+        #all_vars = set(self.trainable_vars) # real vars
+        #real_vars = all_vars - set(cplx_vars)
+        for name in set(init_val) & set(self.trainable_vars):
+            if hasattr(init_val[name], '__len__'):
+                mu = init_val[name][0]
+                sigma = init_val[name][1]
+                if name not in bound_dic:
+                    val = tf.random.normal(
                         shape=[], mean=mu, stddev=sigma, dtype=self.dtype
                     )
-                )
+                else:
+                    range_ = bound_dic[name]
+                    while True:
+                        val = tf.random.normal(
+                            shape=[], mean=mu, stddev=sigma, dtype=self.dtype
+                        )
+                        if val < range_[1] and val > range_[0]:
+                            break
+                self.variables[name].assign(val)
+            else:
+                self.variables[name].assign(init_val[name])
+            
+        for name in (set(bound_dic) - set(init_val)):
+            _min, _max = bound_dic
+            if _min is not None:
+                if _max is not None:
+                    val = tf.random.uniform(
+                            shape=[], minval=_min, maxval=_max, dtype=self.dtype
+                        )
+                else:
+                    val = _min + np.random.chisquare(df=1)
+            else:
+                if _max is not None:
+                    val = _max - np.random.chisquare(df=1)
+            self.variables[name].assign(val)
 
     def set_fix(self, name, value=None, unfix=False):
         """
