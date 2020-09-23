@@ -37,6 +37,7 @@ from tf_pwa.breit_wigner import (
     Bprime,
     Gamma,
     BWR2,
+    Bprime_q2,
 )
 from tf_pwa.dfun import get_D_matrix_lambda
 from tf_pwa.cg import cg_coef
@@ -703,7 +704,7 @@ class HelicityDecay(AmpDecay, AmpBase):
         # print(self, gls, self.ls_index)
         return tf.stack([gls[k] for k in self.ls_index])
 
-    def get_ls_amp(self, data, data_p, **kwargs):
+    def get_ls_amp_org(self, data, data_p, **kwargs):
         g_ls = self.get_g_ls()
         # print(g_ls)
         q0 = self.get_relative_momentum(data_p, False)
@@ -721,6 +722,24 @@ class HelicityDecay(AmpDecay, AmpBase):
             m_dep = g_ls
         return m_dep
 
+    def get_ls_amp(self, data, data_p, **kwargs):
+        g_ls = self.get_g_ls()
+        # print(g_ls)
+        q0 = self.get_relative_momentum2(data_p, False)
+        data["|q0|2"] = q0
+        if "|q|2" in data:
+            q = data["|q|2"]
+        else:
+            q = self.get_relative_momentum2(data_p, True)
+            data["|q|2"] = q
+        if self.has_barrier_factor:
+            bf = self.get_barrier_factor2(data_p[self.core]["m"], q, q0, self.d)
+            mag = g_ls
+            m_dep = mag * tf.cast(bf, mag.dtype)
+        else:
+            m_dep = g_ls
+        return m_dep
+
     def get_barrier_factor(self, mass, q, q0, d):
         ls = self.get_l_list()
         ret = []
@@ -729,6 +748,21 @@ class HelicityDecay(AmpDecay, AmpBase):
                 tmp = q ** l * tf.cast(Bprime(l, q, q0, d), dtype=q.dtype)
             else:
                 tmp = q ** l
+            # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
+            ret.append(tf.reshape(tmp, (-1, 1)))
+        ret = tf.concat(ret, axis=-1)
+        mass_dep = self.get_barrier_factor_mass(mass)
+        return ret * mass_dep
+
+    def get_barrier_factor2(self, mass, q2, q02, d):
+        ls = self.get_l_list()
+        ret = []
+        for l in ls:
+            if self.has_bprime:
+                bp = Bprime_q2(l, q2, q02, d)
+                tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
+            else:
+                tmp = q2 ** (l / 2)
             # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
             ret.append(tf.reshape(tmp, (-1, 1)))
         ret = tf.concat(ret, axis=-1)
