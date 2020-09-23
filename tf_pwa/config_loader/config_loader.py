@@ -961,6 +961,8 @@ class ConfigLoader(object):
                 )
             else:
                 mc_i = phsp_i
+                print("$$$",len(mc_i))
+                print("$$$",len(phsp_weights))
                 fit_y, fit_x, _ = ax.hist(
                     phsp_i,
                     weights=phsp_weights,
