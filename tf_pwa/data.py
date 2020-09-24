@@ -9,6 +9,7 @@ Data cache can be implemented based on the dynamic features of ``list`` and ``di
 
 from pprint import pprint
 import numpy as np
+
 # import tensorflow as tf
 # from pysnooper import  snoop
 
@@ -21,7 +22,9 @@ except ImportError:  # python version < 3.7
     from collections import Iterable
 
 
-def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_list=False):
+def load_dat_file(
+    fnames, particles, dtype=None, split=None, order=None, _force_list=False
+):
     """
     Load ``*.dat`` file(s) of 4-momenta of the final particles.
 
@@ -47,7 +50,12 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     datas = []
     sizes = []
     for fname in fnames:
-        data = np.loadtxt(fname, dtype=dtype)
+        if fname.endswith(".npz"):
+            data = np.load(fname)["arr_0"]
+        elif fname.endswith(".npy"):
+            data = np.load(fname)
+        else:
+            data = np.loadtxt(fname, dtype=dtype)
         data = np.reshape(data, (-1, 4))
         sizes.append(data.shape[0])
         datas.append(data)
@@ -103,10 +111,10 @@ def _data_split(dat, batch_size, axis=0):
     data_size = dat.shape[axis]
     if axis == 0:
         for i in range(0, data_size, batch_size):
-            yield dat[i:min(i + batch_size, data_size)]
+            yield dat[i : min(i + batch_size, data_size)]
     elif axis == -1:
         for i in range(0, data_size, batch_size):
-            yield dat[..., i:min(i + batch_size, data_size)]
+            yield dat[..., i : min(i + batch_size, data_size)]
     else:
         raise Exception("unsupported axis: {}".format(axis))
 
@@ -159,7 +167,9 @@ def data_split(data, batch_size, axis=0):
     1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}}
 
     """
-    return data_generator(data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis})
+    return data_generator(
+        data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis}
+    )
 
 
 split_generator = data_split
@@ -190,7 +200,6 @@ def data_struct(data):
     return data
 
 
-
 def data_mask(data, select):
     """
     This function using boolean mask to select data.
@@ -214,6 +223,7 @@ def data_cut(data, expr, var_map=None):
     """
     var_map = var_map if isinstance(var_map, dict) else {}
     import sympy as sym
+
     expr_s = sym.sympify(expr)
     params = tuple(expr_s.free_symbols)
     args = [data_index(data, var_map.get(i.name, i.name)) for i in params]
@@ -354,17 +364,20 @@ def data_strip(data, keys):
 def check_nan(data, no_raise=False):
     """check if there is nan in data"""
     head_keys = []
+
     def _check_nan(dat, head):
         if isinstance(dat, dict):
             return {k: _check_nan(v, head + [k]) for k, v in dat.items()}
         if isinstance(dat, list):
             return [_check_nan(data_i, head + [i]) for i, data_i in enumerate(dat)]
         if isinstance(dat, tuple):
-            return tuple([data_struct(data_i, head + [i]) for i, data_i in enumerate(dat)])
+            return tuple(
+                [data_struct(data_i, head + [i]) for i, data_i in enumerate(dat)]
+            )
         if np.any(tf.math.is_nan(dat)):
             if no_raise:
                 return False
             raise ValueError("nan in data[{}]".format(head))
         return True
-    return _check_nan(data, head_keys)
 
+    return _check_nan(data, head_keys)

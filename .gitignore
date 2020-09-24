@@ -35,6 +35,7 @@ chains
 
 coverage.xml
 .coverage
+.vs
 htmlcov/
 
 docs/particle_model.rst
