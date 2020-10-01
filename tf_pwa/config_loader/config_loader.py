@@ -851,7 +851,7 @@ class ConfigLoader(object):
                 trans = lambda x: np.reshape(plot_var_dic[name]["trans"](x), (-1,))
 
                 data_i = trans(data_index(data, idx))
-                if idx[-1] is "m":
+                if idx.endswith("m"):
                     tmp_idx = list(idx)
                     tmp_idx[-1] = "p"
                     p4 = data_index(data, tmp_idx)
@@ -1271,7 +1271,7 @@ class ConfigLoader(object):
         ret = params.copy()
         if neglect_params is None:
             neglect_params = self._neglect_when_set_params
-        if neglect_params.__len__() is not 0:
+        if len(neglect_params) != 0:
             # warnings.warn("Neglect {} when setting params.".format(neglect_params))
             for v in params:
                 if v in self._neglect_when_set_params:

@@ -191,7 +191,8 @@ class VarsManager(object):
             del self.variables[name_i]
         else:
             if self.variables[name].trainable:
-                self.trainable_vars.remove(name)
+                if name_i in self.trainable_vars:
+                    self.trainable_vars.remove(name)
             for l in self.same_list:
                 if name in l:
                     l.remove(name)
