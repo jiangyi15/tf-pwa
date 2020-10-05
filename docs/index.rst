@@ -10,17 +10,21 @@ It is developed using TensorFlow2 and the calculation is accelerated by GPU.
 Users may modify the configuration file (in YML format) and write simple scripts to complete the whole analysis.
 A detailed configuration file sample (with all usable parameters) can be found **here**.
 
+
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-   
+
    amplitude
    custom_model
    decay_topology
    phasespace
+   resolution
    api/modules
    particle_model
    FAQ
+
 
 For starters
 ============
@@ -88,6 +92,10 @@ The figures will be saved under path `figure`. Here are the three invariant mass
 (three pictures here)
 
 We can do a lot more using ``tf_pwa``. For more examples, please see path `tutorials`.
+
+
+
+
 
 Indices and tables
 ==================

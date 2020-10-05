@@ -68,7 +68,7 @@ def register_particle(name=None, f=None):
             my_name = name
         config = get_config(PARTICLE_MODEL)
         if my_name in config:
-            warnings.warn("Override model {}", my_name)
+            warnings.warn("Override model {}".format(my_name))
         config[my_name] = g
         g.model_name = my_name
         return g

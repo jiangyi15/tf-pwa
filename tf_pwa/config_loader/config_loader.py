@@ -1088,7 +1088,7 @@ class ConfigLoader(object):
                     print("There's no bkg input")
             # fit pdf
             if "fitted" in plot_figs:
-                plt.hist2d(phsp_1, phsp_2, bins=100, weights=phsp_weights)
+                plt.hist2d(phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12)
                 plt.xlabel(name1)
                 plt.ylabel(name2)
                 plt.title(display, fontsize="xx-large")

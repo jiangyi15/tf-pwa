@@ -62,7 +62,7 @@ Note, the type of return value should be ``tf.complex``. All builtin model is lo
 
 
 Simple Resonance (experimental)
--------------
+-------------------------------
 
 
 There is a simple method to define Resonance model, like
@@ -78,4 +78,6 @@ There is a simple method to define Resonance model, like
 Those code will build a class similar as Line model define before.
 By using `inspect` module, we can get the `FullArgSpec` of a function.
 For a keyword arguments with type annotation as `FloatParams`, it will be treated as a fit paraments.
-Note, the first arguments have to be the invariant mass `m` of the resonance.
+
+.. note::
+    the first arguments have to be the invariant mass `m` of the resonance.
