@@ -68,7 +68,10 @@ def fit(config, init_params="", method="BFGS", loop=1):
             raise
         fit_results.append(fit_result)
         # reset parameters
-        config.reinit_params()
+        try:
+            config.reinit_params()
+        except Exception as e:
+            print(e)
 
     fit_result = fit_results.pop()
     for i in fit_results:
