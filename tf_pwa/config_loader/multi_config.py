@@ -46,6 +46,7 @@ class MultiConfig(object):
         self.gauss_constr_dic = {}
         self._neglect_when_set_params = []
         self.cached_fcn = {}
+        self.inv_he = None
 
     def get_all_data(self):
         return [i.get_all_data() for i in self.configs]
@@ -129,9 +130,11 @@ class MultiConfig(object):
         fcn = self.get_fcn(datas=datas)
         # fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
         print("\n########### initial parameters")
-        print(json.dumps(fcn.get_params(), indent=2))
+        print(json.dumps(fcn.get_params(), indent=2), flush=True)
         print("initial NLL: ", fcn({}))
         self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic)
+        if self.fit_params.hess_inv is not None:
+            self.inv_he = self.fit_params.hess_inv
         """# fit configure
         bounds_dict = {}
         args_name, x0, args, bnds = self.get_args_value(bounds_dict)
@@ -194,15 +197,21 @@ class MultiConfig(object):
     def reinit_params(self):
         self.get_fcn().vm.refresh_vars(self.bound_dic)
 
-    def get_params_error(self, params=None, batch=10000):
+    def get_params_error(self, params=None, batch=10000, using_cached=False):
         if params is None:
             params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
         fcn = self.get_fcn(batch=batch)
-        hesse_error, self.inv_he = cal_hesse_error(
-            fcn, params, check_posi_def=True, save_npy=True
-        )
+        if using_cached and self.inv_he is not None:
+            hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
+        else:
+            hesse_error, self.inv_he = cal_hesse_error(
+                fcn, params, check_posi_def=True, save_npy=True
+            )
+        # hesse_error, self.inv_he = cal_hesse_error(
+        # fcn, params, check_posi_def=True, save_npy=True
+        # )
         print("hesse_error:", hesse_error)
         err = dict(zip(self.vm.trainable_vars, hesse_error))
         if hasattr(self, "fit_params"):

@@ -558,7 +558,7 @@ class ConfigLoader(object):
             ConfigLoader.reweight_init_value(amp, phsp[0], ns=data_shape(data[0]))
 
         print("\n########### initial parameters")
-        print(json.dumps(amp.get_params(), indent=2))
+        print(json.dumps(amp.get_params(), indent=2), flush=True)
         print("initial NLL: ", fcn({}))  # amp.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
