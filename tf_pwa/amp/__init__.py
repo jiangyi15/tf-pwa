@@ -37,6 +37,7 @@ from tf_pwa.breit_wigner import (
     Bprime,
     Gamma,
     BWR2,
+    BWR_normal,
     Bprime_q2,
 )
 from tf_pwa.dfun import get_D_matrix_lambda
@@ -310,6 +311,31 @@ class ParticleBWR2(Particle):
                 decay = self.decay[0]
                 self.bw_l = min(decay.get_l_list())
             ret = BWR2(data["m"], mass, width, q2, q02, self.bw_l, self.d)
+        return ret
+
+
+@regist_particle("BWR_normal")
+class ParticleBWR_normal(Particle):
+    """
+    .. math::
+        R(m) = \\frac{\\sqrt{m_0 \\Gamma(m)}}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+
+    """
+
+    def get_amp(self, data, data_c, **kwargs):
+        mass = self.get_mass()
+        width = self.get_width()
+        if width is None:
+            return tf.ones_like(data["m"])
+        if not self.running_width:
+            ret = BW(data["m"], mass, width)
+        else:
+            q2 = data_c["|q|2"]
+            q02 = data_c["|q0|2"]
+            if self.bw_l is None:
+                decay = self.decay[0]
+                self.bw_l = min(decay.get_l_list())
+            ret = BWR_normal(data["m"], mass, width, q2, q02, self.bw_l, self.d)
         return ret
 
 

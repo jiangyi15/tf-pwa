@@ -96,6 +96,23 @@ def BWR2(m, m0, g0, q2, q02, L, d):
     return ret
 
 
+def BWR_normal(m, m0, g0, q2, q02, L, d):
+    """
+    Relativistic Breit-Wigner function (with running width). It's also set as the default lineshape.
+
+    .. math::
+        BW(m) = \\frac{\\sqrt{m_0 \\Gamma(m)}}{m_0^2 - m^2 -  i m_0 \\Gamma(m)}
+
+    """
+    gamma = Gamma2(m, g0, q2, q02, L, m0, d)
+    num = 1.0
+    m0 = tf.cast(m0, m.dtype)
+    x = tf.cast(m0 * m0 - m * m, gamma.dtype)
+    y = tf.cast(m0, gamma.dtype) * gamma
+    ret = tf.sqrt(tf.cast(m0, gamma.dtype) * gamma) / (x - 1j * y)
+    return ret
+
+
 def Gamma(m, gamma0, q, q0, L, m0, d):
     """
     Running width in the RBW
