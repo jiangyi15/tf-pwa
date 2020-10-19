@@ -316,7 +316,8 @@ class VarsManager(object):
                             break
                 self.variables[name].assign(val)
             else:
-                self.variables[name].assign(init_val[name])
+                if init_val[name] is not None:
+                    self.variables[name].assign(init_val[name])
             
         for name in (set(bound_dic) - set(init_val)):
             _min, _max = bound_dic[name]
