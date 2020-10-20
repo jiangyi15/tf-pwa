@@ -3,7 +3,7 @@ from jinja2 import Template
 import os
 
 
-def load_config(input_file, variable_file):
+def load_config(input_file, variable_file=""):
     """
     read input_file and render it with variable file
     """
@@ -11,7 +11,7 @@ def load_config(input_file, variable_file):
         template = Template(f.read())
 
     variable = os.environ.copy()
-    if args.variable != "":
+    if variable_file != "":
         with open(variable_file) as f:
             exec(f.read(), variable)
 
