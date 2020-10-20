@@ -632,11 +632,12 @@ class ConfigLoader(object):
     ):
         if params is None:
             params = {}
-        if hasattr(params, "params"):
-            params = getattr(params, "params")
         nll = None
         if hasattr(params, "min_nll"):
             nll = float(getattr(params, "min_nll"))
+        if hasattr(params, "params"):
+            params = getattr(params, "params")
+        print(nll, params)
         pathes = prefix.rstrip("/").split("/")
         path = ""
         for p in pathes:
