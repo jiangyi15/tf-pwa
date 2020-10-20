@@ -634,6 +634,9 @@ class ConfigLoader(object):
             params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
+        nll = None
+        if hasattr(params, "min_nll"):
+            nll = float(getattr(params, "min_nll"))
         pathes = prefix.rstrip("/").split("/")
         path = ""
         for p in pathes:
@@ -705,6 +708,7 @@ class ConfigLoader(object):
                 path,
                 plot_var_dic,
                 chain_property,
+                nll=nll,
                 **kwargs
             )
         else:
@@ -733,6 +737,7 @@ class ConfigLoader(object):
                         path + "d{}_".format(i),
                         plot_var_dic,
                         chain_property,
+                        nll=nll,
                         **kwargs
                     )
             else:
@@ -785,6 +790,7 @@ class ConfigLoader(object):
                     path + "com_",
                     plot_var_dic,
                     chain_property,
+                    nll=nll,
                     **kwargs
                 )
                 if has_uproot and save_root:
@@ -902,6 +908,7 @@ class ConfigLoader(object):
         bin_scale=3,
         single_legend=False,
         format="png",
+        nll=None,
         **kwargs
     ):
         # cmap = plt.get_cmap("jet")
@@ -1000,7 +1007,12 @@ class ConfigLoader(object):
             ax.set_xlim(xrange)
             if has_legend:
                 leg = ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
-            ax.set_title(display, fontsize="xx-large")
+            if nll is None:
+                ax.set_title(display, fontsize="xx-large")
+            else:
+                ax.set_title(
+                    "{}: -lnL= {:.5}".format(display, nll), fontsize="xx-large"
+                )
             ax.set_xlabel(display + units)
             ax.set_ylabel(
                 "Events/{:.3f}{}".format((max(data_x) - min(data_x)) / bins, units)
