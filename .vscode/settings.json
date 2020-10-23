@@ -1,0 +1,25 @@
+{
+  "coverage-gutters.coverageFileNames": ["coverage.xml"],
+  "coverage-gutters.coverageReportFileName": "**/htmlcov/index.html",
+  "coverage-gutters.showGutterCoverage": false,
+  "coverage-gutters.showLineCoverage": true,
+  "editor.formatOnSave": true,
+  "editor.rulers": [80],
+  "files.associations": {
+    "*.inc": "restructuredtext"
+  },
+  "githubPullRequests.telemetry.enabled": false,
+  "gitlens.advanced.telemetry.enabled": false,
+  "python.analysis.autoImportCompletions": false,
+  "python.formatting.provider": "black",
+  "python.languageServer": "Pylance",
+  "python.linting.pylintEnabled": true,
+  "python.linting.pylintUseMinimalCheckers": false,
+  "python.testing.pytestArgs": ["--no-cov"],
+  "python.testing.pytestEnabled": true,
+  "restructuredtext.builtDocumentationPath": "${workspaceFolder}/docs/_build/html",
+  "restructuredtext.confPath": "${workspaceFolder}/docs",
+  "rewrap.wrappingColumn": 79,
+  "telemetry.enableCrashReporter": false,
+  "telemetry.enableTelemetry": false
+}
