@@ -22,9 +22,6 @@ project = 'TFPWA'
 copyright = "2020, "
 author = ""
 
-# The full version, including alpha/beta/rc tags
-release = tf_pwa.version.__version__
-
 
 # -- General configuration ---------------------------------------------------
 
