@@ -22,6 +22,7 @@ tf_pwa/version.py
 *.doc
 *.gv
 *.root
+!environment.yml
 
 .run_start
 
