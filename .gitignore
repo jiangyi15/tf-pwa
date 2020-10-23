@@ -22,6 +22,7 @@ __pycache__
 *.gv
 *.root
 
+.run_start
 
 cached_dir
 trash
@@ -29,6 +30,7 @@ figure
 fig
 build
 dist
+.eggs
 *.egg-info
 site
 chains
