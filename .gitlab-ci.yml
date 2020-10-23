@@ -6,16 +6,16 @@ pytest:
   stage: build_test
   image: tensorflow/tensorflow:2.0.1-py3
   script:
-  - pip install -r requirements.txt
-  - pip install pysnooper pytest pytest-cov pytest-benchmark
+  - python3 -m pip install --upgrade pip
+  - python3 -m pip install .[test]
   - py.test --benchmark-disable --cov=tf_pwa --doctest-modules tf_pwa
 
 pylint:
   stage: build_test
   image: tensorflow/tensorflow:2.0.1-py3
   script:
-  - pip install -r requirements.txt
-  - pip install pylint pytest
+  - python3 -m pip install --upgrade pip
+  - python3 -m pip install .[dev]
   - pylint tf_pwa --errors-only --exit-zero
   - pylint tf_pwa -E --disable=all -e E0602
 
@@ -29,7 +29,8 @@ build_docs:
   script:
     - apt-get update -qy
     - apt-get install -y python3 python3-dev python3-pip make texlive-full
-    - pip3 install setuptools sphinx numpy scipy matplotlib pyyaml opt_einsum sympy sphinx_rtd_theme tensorflow
+    - python3 -m pip install --upgrade pip
+    - python3 -m pip install .[doc]
     - cd docs && make latexpdf
   allow_failure: true
   artifacts:
@@ -42,7 +43,8 @@ pages:
   script:
     - apt-get update -qy
     - apt-get install -y python3 python3-dev python3-pip
-    - pip3 install setuptools sphinx numpy scipy matplotlib pyyaml opt_einsum sympy sphinx_rtd_theme tensorflow
+    - python3 -m pip install --upgrade pip
+    - python3 -m pip install .[doc]
     - python3 setup.py build_sphinx
     - cp build/sphinx/html public -R
     - python3 setup.py bdist_wheel
