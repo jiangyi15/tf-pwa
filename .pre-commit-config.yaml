@@ -32,6 +32,11 @@ repos:
       - id: nbstripout
         files: ".ipynb"
 
+  - repo: https://github.com/prettier/prettier
+    rev: 2.1.2
+    hooks:
+      - id: prettier
+
   - repo: local
     hooks:
       - id: isort

@@ -4,6 +4,7 @@
     "christian-kohler.path-intellisense",
     "eamodio.gitlens",
     "editorconfig.editorconfig",
+    "esbenp.prettier-vscode",
     "joaompinto.vscode-graphviz",
     "lextudio.restructuredtext",
     "ms-python.python",
@@ -16,5 +17,6 @@
     "trentrand.git-commit-helper-vscode",
     "tyriar.sort-lines",
     "yzhang.markdown-all-in-one"
-  ]
+  ],
+  "unwantedRecommendations": ["dbaeumer.vscode-eslint"]
 }
