@@ -14,7 +14,9 @@ def main():
     """Take three-body decay A->BCD for example, we generate a PhaseSpace MC sample and a toy data sample."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="generate toy of a certain amplitude")
+    parser = argparse.ArgumentParser(
+        description="generate toy of a certain amplitude"
+    )
     parser.add_argument("--Nmc", default=2000, type=int, dest="Nmc")
     parser.add_argument("--Ndata", default=100, type=int, dest="Ndata")
     results = parser.parse_args()
@@ -44,7 +46,9 @@ def generate_toy_from_phspMC(Ndata, mc_file, data_file):
     config = ConfigLoader(
         "config.yml"
     )  # We use ConfigLoader to read the information in the configuration file
-    config.set_params("gen_params.json")  # Set the parameters in the amplitude model
+    config.set_params(
+        "gen_params.json"
+    )  # Set the parameters in the amplitude model
     amp = config.get_amplitude()
     data = gen_data(
         amp, Ndata=Ndata, mcfile=mc_file, genfile=data_file

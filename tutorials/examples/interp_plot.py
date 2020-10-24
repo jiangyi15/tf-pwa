@@ -50,7 +50,9 @@ def dalitz_weight(s12, m0, m1, m2, m3):
     return p2st * p3st
 
 
-def load_params(config_file="config.yml", params="final_params.json", res="li(1+)S"):
+def load_params(
+    config_file="config.yml", params="final_params.json", res="li(1+)S"
+):
     with open(params) as f:
         final_params = json.load(f)
     val = final_params["value"]
@@ -66,16 +68,26 @@ def load_params(config_file="config.yml", params="final_params.json", res="li(1+
         xi = [m_min + dx * i for i in range(N)]
     N = len(xi)
     head = "{}_point".format(vialid_name(res))
-    r = np.array([0] + [val["{}_{}r".format(head, i)] for i in range(N - 2)] + [0])
-    phi = np.array([0] + [val["{}_{}i".format(head, i)] for i in range(N - 2)] + [0])
+    r = np.array(
+        [0] + [val["{}_{}r".format(head, i)] for i in range(N - 2)] + [0]
+    )
+    phi = np.array(
+        [0] + [val["{}_{}i".format(head, i)] for i in range(N - 2)] + [0]
+    )
     r_e = np.array(
         [0, 0]
-        + [err.get("{}_{}r".format(head, i), r[i] * 0.1) for i in range(1, N - 2)]
+        + [
+            err.get("{}_{}r".format(head, i), r[i] * 0.1)
+            for i in range(1, N - 2)
+        ]
         + [0]
     )
     phi_e = np.array(
         [0, 0]
-        + [err.get("{}_{}i".format(head, i), phi[i] * 0.1) for i in range(1, N - 2)]
+        + [
+            err.get("{}_{}i".format(head, i), phi[i] * 0.1)
+            for i in range(1, N - 2)
+        ]
         + [0]
     )
     return np.array(xi), r, phi, r_e, phi_e
@@ -85,7 +97,9 @@ def trans_r2xy(r, phi, r_e, phi_e):
     """r,phi -> x,y """
     x = np.array(r) * np.cos(phi)
     y = np.array(r) * np.sin(phi)
-    err = np.array([polar_err(i, j, k, l) for i, j, k, l in zip(r, phi, r_e, phi_e)])
+    err = np.array(
+        [polar_err(i, j, k, l) for i, j, k, l in zip(r, phi, r_e, phi_e)]
+    )
     return x, y, err[:, 0], err[:, 1]
 
 
@@ -147,7 +161,9 @@ def plot3d_m_x_y(name, m, x, y):
         axes3d.view_init(elev=30, azim=frame)
         return None
 
-    anim = animation.FuncAnimation(fig, update, interval=10, frames=range(0, 360, 10))
+    anim = animation.FuncAnimation(
+        fig, update, interval=10, frames=range(0, 360, 10)
+    )
     anim.save(name, writer="imagemagick")
 
 
@@ -182,9 +198,20 @@ def plot_all(
     r2 = x_new * x_new + y_new * y_new
 
     plot_phi(f"{prefix}phi.png", m, phi, mi, np.arctan2(y, x))
-    plot_x_y(f"{prefix}r2.png", m, r2, mi, r * r, "mass", "$|R(m)|^2$", ylim=(0, None))
+    plot_x_y(
+        f"{prefix}r2.png",
+        m,
+        r2,
+        mi,
+        r * r,
+        "mass",
+        "$|R(m)|^2$",
+        ylim=(0, None),
+    )
     plot_x_y(f"{prefix}x_y.png", x_new, y_new, x, y, "real R(m)", "imag R(m)")
-    plot_x_y_err(f"{prefix}x_y_err.png", x[1:-1], y[1:-1], x_e[1:-1], y_e[1:-1])
+    plot_x_y_err(
+        f"{prefix}x_y_err.png", x[1:-1], y[1:-1], x_e[1:-1], y_e[1:-1]
+    )
     plot_x_y(
         f"{prefix}r2_pq.png",
         m,
@@ -204,7 +231,9 @@ def main():
     parser = argparse.ArgumentParser(description="plot interpolation")
     parser.add_argument("particle", type=str)
     parser.add_argument("-c", "--config", default="config.yml", dest="config")
-    parser.add_argument("-i", "--params", default="final_params.json", dest="params")
+    parser.add_argument(
+        "-i", "--params", default="final_params.json", dest="params"
+    )
     parser.add_argument("-p", "--prefix", default="figure/", dest="prefix")
     results = parser.parse_args()
     plot_all(results.particle, results.config, results.params, results.prefix)

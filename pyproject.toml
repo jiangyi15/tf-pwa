@@ -7,3 +7,26 @@ requires = [
 
 [tool.setuptools_scm]
 write_to = "tf_pwa/version.py"
+
+[tool.black]
+line-length = 79
+target-version = [
+    'py35',
+    'py36',
+    'py37',
+    'py38',
+]
+include = '\.pyi?$'
+exclude = '''
+/(
+    .*\.egg-info
+  | .*build
+  | \.eggs
+  | \.git
+  | \.pytest_cache
+  | \.tox
+  | \.venv
+  | \.vscode
+  | dist
+)/
+'''

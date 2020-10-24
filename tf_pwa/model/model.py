@@ -13,7 +13,9 @@ from ..config import get_config
 from ..variable import Variable
 
 
-def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
+def sum_gradient(
+    f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None
+):
     """
     NLL is the sum of trans(f(data)):math:`*`weight; gradient is the derivatives for each variable in ``var``.
 
@@ -42,7 +44,9 @@ def sum_gradient(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=No
     return nll, g
 
 
-def sum_hessian(f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
+def sum_hessian(
+    f, data, var, weight=1.0, trans=tf.identity, args=(), kwargs=None
+):
     """
     The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
     which is the matrix of the second-order derivative.
@@ -154,7 +158,9 @@ def sum_hessian_new(
             int_dt = tf.reduce_sum(ymc)
             for data_i, weight_i in zip(data, weight):
                 wmc = w_flatmc()
-                part_y = (amp(data_i, *args, **kwargs) / int_dt + wmc) / (1 + wmc)
+                part_y = (amp(data_i, *args, **kwargs) / int_dt + wmc) / (
+                    1 + wmc
+                )
                 part_y = trans(part_y)
                 y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
                 ys.append(y_i)
@@ -173,7 +179,9 @@ def clip_log(x, _epsilon=1e-6):
     x_cut = tf.where(x > _epsilon, x, tf.ones_like(x) * _epsilon)
     b_t = tf.math.log(x_cut)
     delta_x = x - _epsilon
-    b_f = np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
+    b_f = (
+        np.log(_epsilon) + delta_x / _epsilon - (delta_x / _epsilon) ** 2 / 2.0
+    )
     # print("$$$", tf.where(x < _epsilon).numpy().tolist())
     return tf.where(x > _epsilon, b_t, b_f)
 
@@ -206,7 +214,9 @@ class Model(object):
             weight = data.get("weight", 1.0)
         if isinstance(weight, float):
             n_data = data_shape(data)
-            weight = tf.convert_to_tensor([weight] * n_data, dtype=get_config("dtype"))
+            weight = tf.convert_to_tensor(
+                [weight] * n_data, dtype=get_config("dtype")
+            )
         if bg is not None:
             n_bg = data_shape(bg)
             data = data_merge(data, bg)
@@ -216,7 +226,9 @@ class Model(object):
                     [-self.w_bkg] * n_bg, dtype=get_config("dtype")
                 )
             else:
-                bg_weight = tf.convert_to_tensor(bg_weight, dtype=get_config("dtype"))
+                bg_weight = tf.convert_to_tensor(
+                    bg_weight, dtype=get_config("dtype")
+                )
             weight = tf.concat([weight, bg_weight], axis=0)
         if alpha:
             alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
@@ -224,7 +236,13 @@ class Model(object):
         return data, weight
 
     def nll(
-        self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None, mc_weight=None
+        self,
+        data,
+        mcdata,
+        weight: tf.Tensor = 1.0,
+        batch=None,
+        bg=None,
+        mc_weight=None,
     ):
         """
         Calculate NLL.
@@ -249,7 +267,9 @@ class Model(object):
         nll_0 = -tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
         return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
 
-    def nll_grad(self, data, mcdata, weight=1.0, batch=65000, bg=None, mc_weight=1.0):
+    def nll_grad(
+        self, data, mcdata, weight=1.0, batch=65000, bg=None, mc_weight=1.0
+    ):
         """
         Calculate NLL and its gradients.
 
@@ -288,7 +308,9 @@ class Model(object):
 
         sw = tf.cast(sw, ln_data.dtype)
 
-        g = list(map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
         nll = -ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
@@ -311,7 +333,11 @@ class Model(object):
         """
         sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
         ln_data, g_ln_data = sum_gradient(
-            self.Amp, data, self.Amp.trainable_variables, weight=weight, trans=clip_log
+            self.Amp,
+            data,
+            self.Amp.trainable_variables,
+            weight=weight,
+            trans=clip_log,
         )
         int_mc, g_int_mc = sum_gradient(
             self.Amp, mcdata, self.Amp.trainable_variables, weight=mc_weight
@@ -319,7 +345,9 @@ class Model(object):
 
         sw = tf.cast(sw, ln_data.dtype)
 
-        g = list(map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
         nll = -ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
@@ -395,7 +423,9 @@ class Model_new(Model):
         if not float_wmc:
             self.w_inmc.fixed()
 
-    def get_weight_data(self, data, weight=1.0, bg=None, inmc=None, alpha=True):
+    def get_weight_data(
+        self, data, weight=1.0, bg=None, inmc=None, alpha=True
+    ):
         """
         Blend data and background data together multiplied by their weights.
 
@@ -407,7 +437,9 @@ class Model_new(Model):
         """
         n_data = data_shape(data)
         if isinstance(weight, float):
-            weight = tf.convert_to_tensor([weight] * n_data, dtype=get_config("dtype"))
+            weight = tf.convert_to_tensor(
+                [weight] * n_data, dtype=get_config("dtype")
+            )
         if bg is not None:
             n_bg = data_shape(bg)
             data = data_merge(data, bg)
@@ -576,7 +608,9 @@ class ConstrainModel(Model):
 
     def __init__(self, amp, w_bkg=1.0, constrain={}):
         super(ConstrainModel, self).__init__(amp, w_bkg)
-        self.constrain = constrain  # priori gauss constrain for the fitting parameters
+        self.constrain = (
+            constrain  # priori gauss constrain for the fitting parameters
+        )
 
     def get_constrain_term(self):  # the priori constrain term added to NLL
         r"""
@@ -598,7 +632,9 @@ class ConstrainModel(Model):
                 nll += (var - mean) ** 2 / (sigma ** 2) / 2
         return nll
 
-    def get_constrain_grad(self):  # the constrained parameter's 1st differentiation
+    def get_constrain_grad(
+        self,
+    ):  # the constrained parameter's 1st differentiation
         r"""
         constrain: Gauss(mean,sigma)
           by add a term :math:`\frac{d}{d\theta_i}\frac{(\theta_i-\bar{\theta_i})^2}{2\sigma^2} = \frac{\theta_i-\bar{\theta_i}}{\sigma^2}`
@@ -691,7 +727,14 @@ class FCN(object):
     """
 
     def __init__(
-        self, model, data, mcdata, bg=None, batch=65000, inmc=None, gauss_constr={}
+        self,
+        model,
+        data,
+        mcdata,
+        bg=None,
+        batch=65000,
+        inmc=None,
+        gauss_constr={},
     ):
         self.model = model
         self.vm = model.vm
@@ -736,13 +779,18 @@ class FCN(object):
             nll, g = self.get_nll_grad(x)
         else:
             nll = self.model.nll(
-                self.data, self.mcdata, weight=self.weight, mc_weight=self.mc_weight
+                self.data,
+                self.mcdata,
+                weight=self.weight,
+                mc_weight=self.mc_weight,
             )
             self.n_call += 1
         return nll
 
     def __call__(self, x={}):
-        self.cached_nll = self.get_nll(x) + self.gauss_constr.get_constrain_term()
+        self.cached_nll = (
+            self.get_nll(x) + self.gauss_constr.get_constrain_term()
+        )
         return self.cached_nll
 
     def get_grad(self, x={}):
@@ -844,7 +892,9 @@ class CombineFCN(object):
             self.cached_nll = 0.0
             if bg is None:
                 bg = _loop_generator(None)
-            for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
+            for model_i, data_i, mcdata_i, bg_i in zip(
+                model, data, mcdata, bg
+            ):
                 self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
         else:
             self.fcns = list(fcns)
@@ -865,7 +915,9 @@ class CombineFCN(object):
         return sum(nlls)
 
     def __call__(self, x={}):
-        self.cached_nll = self.get_nll(x) + self.gauss_constr.get_constrain_term()
+        self.cached_nll = (
+            self.get_nll(x) + self.gauss_constr.get_constrain_term()
+        )
         return self.cached_nll
 
     def get_grad(self, x={}):

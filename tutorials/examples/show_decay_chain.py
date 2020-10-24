@@ -13,7 +13,9 @@ from tf_pwa.vis import draw_decay_struct
 def main():
     config = ConfigLoader("config.yml")
     for i, dec in enumerate(config.get_decay()):
-        draw_decay_struct(dec, filename="figure/fig_{}".format(i), format="png")
+        draw_decay_struct(
+            dec, filename="figure/fig_{}".format(i), format="png"
+        )
 
 
 if __name__ == "__main__":

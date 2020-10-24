@@ -1,6 +1,12 @@
 import yaml
 import json
-from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
+from tf_pwa.amp import (
+    get_particle,
+    get_decay,
+    DecayChain,
+    DecayGroup,
+    AmplitudeModel,
+)
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.model import Model, Model_new, FCN, CombineFCN
@@ -30,7 +36,12 @@ from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
 from scipy.optimize import BFGS
 from tf_pwa.fit_improve import minimize as my_minimize
-from tf_pwa.applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
+from tf_pwa.applications import (
+    fit,
+    cal_hesse_error,
+    corr_coef_matrix,
+    fit_fractions,
+)
 from tf_pwa.fit import FitResult
 from tf_pwa.variable import Variable
 
@@ -62,9 +73,13 @@ class ConfigLoader(object):
         self.bound_dic = {}
         self.gauss_constr_dic = {}
         self.init_value = {}
-        self.plot_params = PlotParams(self.config.get("plot", {}), self.decay_struct)
+        self.plot_params = PlotParams(
+            self.config.get("plot", {}), self.decay_struct
+        )
         self._neglect_when_set_params = []
-        self.data = load_data_mode(self.config.get("data", None), self.decay_struct)
+        self.data = load_data_mode(
+            self.config.get("data", None), self.decay_struct
+        )
         self.inv_he = None
         self._Ngroup = 1
         self.cached_fcn = {}
@@ -181,7 +196,9 @@ class ConfigLoader(object):
 
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
-        use_tf_function = self.config.get("data", {}).get("use_tf_function", False)
+        use_tf_function = self.config.get("data", {}).get(
+            "use_tf_function", False
+        )
         decay_group = self.full_decay
         if vm is None:
             vm = self.vm
@@ -236,7 +253,9 @@ class ConfigLoader(object):
             for p_i in d.inner:
                 i = str(p_i)
                 res_dec[i] = d
-                if isinstance(p_i.mass, Variable) or isinstance(p_i.width, Variable):
+                if isinstance(p_i.mass, Variable) or isinstance(
+                    p_i.width, Variable
+                ):
                     # free mass and width and set bounds
                     if "m0" in self.config["particle"][i]:
                         m0 = self.config["particle"][i]["m0"]
@@ -272,7 +291,10 @@ class ConfigLoader(object):
                                         i
                                     )
                                 )
-                            self.gauss_constr_dic[p_i.mass.name] = (m0, m_sigma)
+                            self.gauss_constr_dic[p_i.mass.name] = (
+                                m0,
+                                m_sigma,
+                            )
                         if "g" in self.config["particle"][i]["gauss_constr"]:
                             if g_sigma is None:
                                 raise Exception(
@@ -280,7 +302,10 @@ class ConfigLoader(object):
                                         i
                                     )
                                 )
-                            self.gauss_constr_dic[p_i.width.name] = (g0, g_sigma)
+                            self.gauss_constr_dic[p_i.width.name] = (
+                                g0,
+                                g_sigma,
+                            )
                     if (
                         "float" in self.config["particle"][i]
                         and self.config["particle"][i]["float"]
@@ -318,7 +343,9 @@ class ConfigLoader(object):
                                 lower = None
                             self.bound_dic[p_i.width.name] = (lower, upper)
                         else:
-                            self._neglect_when_set_params.append(p_i.width.name)
+                            self._neglect_when_set_params.append(
+                                p_i.width.name
+                            )
                     else:
                         self._neglect_when_set_params.append(
                             i + "_mass"
@@ -344,7 +371,10 @@ class ConfigLoader(object):
                             vv = getattr(p_i, vname)
                             assert isinstance(vv, Variable)
                             p_sigma = params_dic.get(vname + "_sigma", None)
-                            if vname in params_dic and params_dic[vname] is not None:
+                            if (
+                                vname in params_dic
+                                and params_dic[vname] is not None
+                            ):
                                 p_value = params_dic[vname]
                                 vv.set_value(p_value)
                                 if p_sigma is None:
@@ -400,7 +430,9 @@ class ConfigLoader(object):
                     if coef_head in res_dec:
                         d_coef_head = res_dec[coef_head]
                         for j, h in zip(d, d_coef_head):
-                            if i in [str(jj) for jj in j.outs] or i is str(j.core):
+                            if i in [str(jj) for jj in j.outs] or i is str(
+                                j.core
+                            ):
                                 h.g_ls.sameas(j.g_ls)
                         # share total radium
                         d_coef_head.total.r_shareto(d.total)
@@ -427,7 +459,9 @@ class ConfigLoader(object):
         w_bkg, w_inmc = self._get_bg_weight()
         model = []
         if "inmc" in self.config["data"]:
-            float_wmc = self.config["data"].get("float_inmc_ratio_in_pdf", False)
+            float_wmc = self.config["data"].get(
+                "float_inmc_ratio_in_pdf", False
+            )
             if not isinstance(float_wmc, list):
                 float_wmc = [float_wmc] * self._Ngroup
             assert len(float_wmc) == self._Ngroup
@@ -555,7 +589,9 @@ class ConfigLoader(object):
             ls_list = [getattr(j, "get_ls_list", lambda x: None)() for j in i]
             print("  ", i, " ls: ", *ls_list)
         if reweight:
-            ConfigLoader.reweight_init_value(amp, phsp[0], ns=data_shape(data[0]))
+            ConfigLoader.reweight_init_value(
+                amp, phsp[0], ns=data_shape(data[0])
+            )
 
         print("\n########### initial parameters")
         print(json.dumps(amp.get_params(), indent=2), flush=True)
@@ -700,7 +736,7 @@ class ConfigLoader(object):
                 chain_property,
                 save_root=save_root,
                 res=res,
-                **kwargs
+                **kwargs,
             )
             self._plot_partial_wave(
                 data_dict,
@@ -710,7 +746,7 @@ class ConfigLoader(object):
                 plot_var_dic,
                 chain_property,
                 nll=nll,
-                **kwargs
+                **kwargs,
             )
         else:
             combine_plot = self.config["plot"].get("combine_plot", True)
@@ -729,7 +765,7 @@ class ConfigLoader(object):
                         plot_var_dic,
                         chain_property,
                         save_root=save_root,
-                        **kwargs
+                        **kwargs,
                     )
                     self._plot_partial_wave(
                         data_dict,
@@ -739,7 +775,7 @@ class ConfigLoader(object):
                         plot_var_dic,
                         chain_property,
                         nll=nll,
-                        **kwargs
+                        **kwargs,
                     )
             else:
 
@@ -758,7 +794,7 @@ class ConfigLoader(object):
                         chain_property,
                         save_root=save_root,
                         res=res,
-                        **kwargs
+                        **kwargs,
                     )
                     # self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
                     if i == 0:
@@ -792,7 +828,7 @@ class ConfigLoader(object):
                     plot_var_dic,
                     chain_property,
                     nll=nll,
-                    **kwargs
+                    **kwargs,
                 )
                 if has_uproot and save_root:
                     save_dict_to_root(
@@ -832,7 +868,9 @@ class ConfigLoader(object):
                 norm_frac = n_data / np.sum(total_weight)
             else:
                 if isinstance(w_bkg, float):
-                    norm_frac = (n_data - w_bkg * data_shape(bg)) / np.sum(total_weight)
+                    norm_frac = (n_data - w_bkg * data_shape(bg)) / np.sum(
+                        total_weight
+                    )
                 else:
                     norm_frac = (n_data + np.sum(w_bkg)) / np.sum(total_weight)
             if res is None:
@@ -859,13 +897,20 @@ class ConfigLoader(object):
                     bg_weight = -w_bkg
                 bg_dict["sideband_weights"] = bg_weight  # sideband weight
             for i, name_i, label, _ in chain_property:
-                weight_i = weights[i] * norm_frac * bin_scale * phsp.get("weight", 1.0)
+                weight_i = (
+                    weights[i]
+                    * norm_frac
+                    * bin_scale
+                    * phsp.get("weight", 1.0)
+                )
                 phsp_dict[
                     "MC_{0}_{1}_fit".format(i, name_i)
                 ] = weight_i  # MC partial weight
             for name in plot_var_dic:
                 idx = plot_var_dic[name]["idx"]
-                trans = lambda x: np.reshape(plot_var_dic[name]["trans"](x), (-1,))
+                trans = lambda x: np.reshape(
+                    plot_var_dic[name]["trans"](x), (-1,)
+                )
 
                 data_i = trans(data_index(data, idx))
                 if idx[-1] == "m":
@@ -915,7 +960,16 @@ class ConfigLoader(object):
         # cmap = plt.get_cmap("jet")
         # N = 10
         # colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
-        colors = ["red", "orange", "purple", "springgreen", "y", "green", "blue", "c"]
+        colors = [
+            "red",
+            "orange",
+            "purple",
+            "springgreen",
+            "y",
+            "green",
+            "blue",
+            "c",
+        ]
         linestyles = ["-", "--", "-.", ":"]
 
         data_weights = data_dict["data_weights"]
@@ -996,11 +1050,21 @@ class ConfigLoader(object):
             for i, name_i, label, curve_style in chain_property:
                 weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name_i)]
                 x, y = hist_line(
-                    phsp_i, weights=weight_i, xrange=xrange, bins=bins * bin_scale
+                    phsp_i,
+                    weights=weight_i,
+                    xrange=xrange,
+                    bins=bins * bin_scale,
                 )
                 if curve_style is None:
                     color, ls = next(style)
-                    ax.plot(x, y, label=label, color=color, linestyle=ls, linewidth=1)
+                    ax.plot(
+                        x,
+                        y,
+                        label=label,
+                        color=color,
+                        linestyle=ls,
+                        linewidth=1,
+                    )
                 else:
                     ax.plot(x, y, curve_style, label=label, linewidth=1)
 
@@ -1016,7 +1080,9 @@ class ConfigLoader(object):
                 )
             ax.set_xlabel(display + units)
             ax.set_ylabel(
-                "Events/{:.3f}{}".format((max(data_x) - min(data_x)) / bins, units)
+                "Events/{:.3f}{}".format(
+                    (max(data_x) - min(data_x)) / bins, units
+                )
             )
             if plot_delta or plot_pull:
                 plt.setp(ax.get_xticklabels(), visible=False)
@@ -1087,7 +1153,9 @@ class ConfigLoader(object):
                 if bg_dict:
                     bg_1 = bg_dict[var1 + "_sideband"]
                     bg_2 = bg_dict[var2 + "_sideband"]
-                    plt.scatter(bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband")
+                    plt.scatter(
+                        bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband"
+                    )
                     plt.xlabel(name1)
                     plt.ylabel(name2)
                     plt.title(display, fontsize="xx-large")
@@ -1101,7 +1169,9 @@ class ConfigLoader(object):
                     print("There's no bkg input")
             # fit pdf
             if "fitted" in plot_figs:
-                plt.hist2d(phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12)
+                plt.hist2d(
+                    phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12
+                )
                 plt.xlabel(name1)
                 plt.ylabel(name2)
                 plt.title(display, fontsize="xx-large")
@@ -1112,7 +1182,9 @@ class ConfigLoader(object):
                 plt.clf()
                 print("Finish plotting 2D fitted " + prefix + k)
 
-    def cal_bins_numbers(self, adapter, data, phsp, read_data, bg=None, bg_weight=None):
+    def cal_bins_numbers(
+        self, adapter, data, phsp, read_data, bg=None, bg_weight=None
+    ):
         data_cut = read_data(data)
         # print(data_cut)
         amp_weight = self.get_amplitude()(phsp).numpy()
@@ -1130,11 +1202,13 @@ class ConfigLoader(object):
             )  # np.array([data_index(bg, idx) for idx in data_idx])
             bgs = adapter.split_data(bg_cut)
             if weight_scale:
-                int_norm = data_cut.shape[-1] * (1 - bg_weight) / np.sum(amp_weight)
-            else:
-                int_norm = (data_cut.shape[-1] - bg_cut.shape[-1] * bg_weight) / np.sum(
-                    amp_weight
+                int_norm = (
+                    data_cut.shape[-1] * (1 - bg_weight) / np.sum(amp_weight)
                 )
+            else:
+                int_norm = (
+                    data_cut.shape[-1] - bg_cut.shape[-1] * bg_weight
+                ) / np.sum(amp_weight)
         else:
             int_norm = data_cut.shape[-1] / np.sum(amp_weight)
         # print("int norm:", int_norm)
@@ -1151,7 +1225,9 @@ class ConfigLoader(object):
             ret.append((ndata, nmc))
         return ret
 
-    def cal_chi2(self, read_data=None, bins=[[2, 2]] * 3, mass=["R_BD", "R_CD"]):
+    def cal_chi2(
+        self, read_data=None, bins=[[2, 2]] * 3, mass=["R_BD", "R_CD"]
+    ):
         if read_data is None:
             data_idx = [self.get_data_index("mass", i) for i in mass]
             read_data = lambda a: np.array(
@@ -1205,8 +1281,12 @@ class ConfigLoader(object):
             mcdata = self.get_phsp_noeff()
         amp = self.get_amplitude()
         if res is None:
-            res = sorted(list(set([str(i) for i in amp.res]) - set(exclude_res)))
-        frac, err_frac = fit_fractions(amp, mcdata, self.inv_he, params, batch, res)
+            res = sorted(
+                list(set([str(i) for i in amp.res]) - set(exclude_res))
+            )
+        frac, err_frac = fit_fractions(
+            amp, mcdata, self.inv_he, params, batch, res
+        )
         return frac, err_frac
 
     def cal_signal_yields(self, params={}, mcdata=None, batch=25000):
@@ -1215,7 +1295,9 @@ class ConfigLoader(object):
         if mcdata is None:
             mcdata = self.get_data("phsp")
         amp = self.get_amplitude()
-        fracs = [fit_fractions(amp, i, self.inv_he, params, batch) for i in mcdata]
+        fracs = [
+            fit_fractions(amp, i, self.inv_he, params, batch) for i in mcdata
+        ]
         data = self.get_data("data")
         bg = self.get_data("bg")
         if bg is None:
@@ -1229,7 +1311,9 @@ class ConfigLoader(object):
             for i, j, w in zip(data, bg, bg_weight):
                 N_data = data_shape(i)
                 N_bg = data_shape(j)
-                N_total.append((N_data - w * N_bg, np.sqrt(N_data + w * w * N_bg)))
+                N_total.append(
+                    (N_data - w * N_bg, np.sqrt(N_data + w * w * N_bg))
+                )
 
         N_sig_s = []
         for frac_e, N_e in zip(fracs, N_total):
@@ -1239,7 +1323,10 @@ class ConfigLoader(object):
             for i in frac:
                 N_sig[i] = (
                     frac[i] * N,
-                    np.sqrt((N * frac_err.get(i, 0.0)) ** 2 + (N_err * frac[i]) ** 2),
+                    np.sqrt(
+                        (N * frac_err.get(i, 0.0)) ** 2
+                        + (N_err * frac[i]) ** 2
+                    ),
                 )
             N_sig_s.append(N_sig)
         return N_sig_s
@@ -1355,7 +1442,9 @@ def export_legend(ax, filename="legend.pdf", ncol=1):
     )
     fig = legend.figure
     fig.canvas.draw()
-    bbox = legend.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    bbox = legend.get_window_extent().transformed(
+        fig.dpi_scale_trans.inverted()
+    )
     fig.savefig(filename, dpi="figure", bbox_inches=bbox)
     plt.close(fig2)
     plt.close(fig)
@@ -1481,7 +1570,9 @@ class PlotParams(dict):
                             decay = self.re_map.get(decay, decay)
                 part = decay.outs[0]
             else:
-                _, decay_chain, decay, part, _ = self.get_data_index("angle", k)
+                _, decay_chain, decay, part, _ = self.get_data_index(
+                    "angle", k
+                )
             for j, v in i.items():
                 display = v.get("display", j)
                 upper_ylim = v.get("upper_ylim", None)
@@ -1492,7 +1583,9 @@ class PlotParams(dict):
                     trans = np.cos
                 bins = v.get("bins", self.defaults_config.get("bins", 50))
                 xrange = v.get("range", None)
-                legend = v.get("legend", self.defaults_config.get("legend", False))
+                legend = v.get(
+                    "legend", self.defaults_config.get("legend", False)
+                )
                 yield {
                     "name": validate_file_name(k + "_" + j),
                     "display": display,

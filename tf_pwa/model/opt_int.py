@@ -1,4 +1,10 @@
-from .model import Model, clip_log, sum_hessian, split_generator, _loop_generator
+from .model import (
+    Model,
+    clip_log,
+    sum_hessian,
+    split_generator,
+    _loop_generator,
+)
 from tf_pwa.experimental import opt_int, build_amp
 from tf_pwa.data import data_shape
 import tensorflow as tf
@@ -34,7 +40,14 @@ def sum_gradient(fs, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):
 
 
 def sum_gradient_data2(
-    f, var, data, cached_data, weight=1.0, trans=tf.identity, args=(), kwargs=None
+    f,
+    var,
+    data,
+    cached_data,
+    weight=1.0,
+    trans=tf.identity,
+    args=(),
+    kwargs=None,
 ):
     """
     NLL is the sum of trans(f(data)):math:`*`weight; gradient is the derivatives for each variable in ``var``.
@@ -160,7 +173,9 @@ class ModelCachedInt(Model):
         # print("now", int_mc2, g_int_mc2)
         sw = tf.cast(sw, ln_data.dtype)
 
-        g = list(map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
         nll = -ln_data + sw * tf.math.log(int_mc)
 
         return nll, g
@@ -212,7 +227,9 @@ class ModelCachedInt(Model):
             # 2nd order derivative
             h_s_i.append(
                 tape0.gradient(
-                    gi, self.Amp.trainable_variables, unconnected_gradients="zero"
+                    gi,
+                    self.Amp.trainable_variables,
+                    unconnected_gradients="zero",
                 )
             )
         del tape0
@@ -271,7 +288,8 @@ class ModelCachedAmp(Model):
         weight = list(weight)
         if data_id not in self.cached_data:
             self.cached_data[data_id] = [
-                build_amp.build_amp_matrix(self.Amp.decay_group, i)[1] for i in data
+                build_amp.build_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in data
             ]
         ln_data, g_ln_data = sum_gradient_data2(
             self.cached_amp,
@@ -286,7 +304,8 @@ class ModelCachedAmp(Model):
         mcdata = list(mcdata)
         if mc_id not in self.cached_data:
             self.cached_data[mc_id] = [
-                build_amp.build_amp_matrix(self.Amp.decay_group, i)[1] for i in mcdata
+                build_amp.build_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in mcdata
             ]
         int_mc, g_int_mc = sum_gradient_data2(
             self.cached_amp,
@@ -303,7 +322,9 @@ class ModelCachedAmp(Model):
         # print("now", int_mc2, g_int_mc2)
         sw = tf.cast(sw, ln_data.dtype)
 
-        g = list(map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc)))
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
         nll = -ln_data + sw * tf.math.log(int_mc)
 
         return nll, g

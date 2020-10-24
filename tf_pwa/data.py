@@ -369,10 +369,15 @@ def check_nan(data, no_raise=False):
         if isinstance(dat, dict):
             return {k: _check_nan(v, head + [k]) for k, v in dat.items()}
         if isinstance(dat, list):
-            return [_check_nan(data_i, head + [i]) for i, data_i in enumerate(dat)]
+            return [
+                _check_nan(data_i, head + [i]) for i, data_i in enumerate(dat)
+            ]
         if isinstance(dat, tuple):
             return tuple(
-                [data_struct(data_i, head + [i]) for i, data_i in enumerate(dat)]
+                [
+                    data_struct(data_i, head + [i])
+                    for i, data_i in enumerate(dat)
+                ]
             )
         if np.any(tf.math.is_nan(dat)):
             if no_raise:

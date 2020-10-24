@@ -121,7 +121,11 @@ def main():
     try:
         Vij = np.load("error_matrix.npy")
     except:
-        nll, g, h = a.cal_nll_hessian()  # data_w,mcdata,weight=weights,batch=50000)
+        (
+            nll,
+            g,
+            h,
+        ) = a.cal_nll_hessian()  # data_w,mcdata,weight=weights,batch=50000)
         inv_he = np.linalg.inv(h.numpy())
         Vij = inv_he
     mcdata_cached = a.Amp.cache_data(*mcdata, batch=65000)
@@ -129,7 +133,9 @@ def main():
     allvar = [i.name for i in a.Amp.trainable_variables]
     print(dict(zip(allvar, np.sqrt(np.diag(Vij).tolist()))))
 
-    fitFrac, g_fitFrac = cal_fitfractions(a.Amp, mcdata_cached, kwargs={"cached": True})
+    fitFrac, g_fitFrac = cal_fitfractions(
+        a.Amp, mcdata_cached, kwargs={"cached": True}
+    )
     # fitFrac_f,g_fitFrac_f = cal_fitfractions(a.Amp,flat_mc_data_cached,kwargs={"cached":True})
     print("check sum:", np.sum([fitFrac[i] for i in fitFrac]))
     print("fitfractions:")

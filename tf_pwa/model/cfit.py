@@ -15,7 +15,13 @@ class Model_cfit(Model):
         self.w_bkg = w_bkg
 
     def nll(
-        self, data, mcdata, weight: tf.Tensor = 1.0, batch=None, bg=None, mc_weight=None
+        self,
+        data,
+        mcdata,
+        weight: tf.Tensor = 1.0,
+        batch=None,
+        bg=None,
+        mc_weight=None,
     ):
         """
         Calculate NLL.
@@ -42,7 +48,8 @@ class Model_cfit(Model):
             int_mc = tf.math.log(tf.reduce_sum(mc_weight * self.Amp(mcdata)))
             int_bg = tf.math.log(tf.reduce_sum(mc_weight * self.bg(mcdata)))
         ln_data = tf.math.log(
-            (1 - self.w_bkg) * sig_data / int_mc + self.w_bkg * bg_data / int_bg
+            (1 - self.w_bkg) * sig_data / int_mc
+            + self.w_bkg * bg_data / int_bg
         )
         nll_0 = -tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
         return nll_0
@@ -67,14 +74,15 @@ class Model_cfit(Model):
         mc_weight = list(mc_weight)
         int_sig, g_int_sig = sum_gradient(self.Amp, mcdata, var, mc_weight)
         int_bg, g_int_bg = sum_gradient(self.bg, mcdata, var, mc_weight)
-        v_int_sig, v_int_bg = tf.Variable(int_sig, dtype="float64"), tf.Variable(
-            int_bg, dtype="float64"
+        v_int_sig, v_int_bg = (
+            tf.Variable(int_sig, dtype="float64"),
+            tf.Variable(int_bg, dtype="float64"),
         )
 
         def prob(x):
-            return (1 - self.w_bkg) * self.Amp(x) / v_int_sig + self.w_bkg * self.bg(
+            return (1 - self.w_bkg) * self.Amp(
                 x
-            ) / v_int_bg
+            ) / v_int_sig + self.w_bkg * self.bg(x) / v_int_bg
 
         ll, g_ll = sum_gradient(
             prob, data, var + [v_int_sig, v_int_bg], weight, trans=clip_log
@@ -131,14 +139,15 @@ class Model_cfit(Model):
             weight=split_generator(mc_weight, batch),
         )
 
-        v_int_sig, v_int_bg = tf.Variable(int_sig, dtype="float64"), tf.Variable(
-            int_bg, dtype="float64"
+        v_int_sig, v_int_bg = (
+            tf.Variable(int_sig, dtype="float64"),
+            tf.Variable(int_bg, dtype="float64"),
         )
 
         def prob(x):
-            return (1 - self.w_bkg) * self.Amp(x) / v_int_sig + self.w_bkg * self.bg(
+            return (1 - self.w_bkg) * self.Amp(
                 x
-            ) / v_int_bg
+            ) / v_int_sig + self.w_bkg * self.bg(x) / v_int_bg
 
         ll, g_ll, h_ll = sum_hessian(
             self.Amp,
@@ -155,5 +164,9 @@ class Model_cfit(Model):
             for i in range(len(var))
         ]
         jac = np.concatenate([np.eye(n_var), [g_int_sig, g_int_bg]], axis=0)
-        h = np.dot(jac.T, np.dot(h_ll, jac)) + g_ll_sig * h_int_sig + g_ll_bg * h_int_bg
+        h = (
+            np.dot(jac.T, np.dot(h_ll, jac))
+            + g_ll_sig * h_int_sig
+            + g_ll_bg * h_int_bg
+        )
         return -ll, g, -h

@@ -84,7 +84,9 @@ def cal_significance(config_files, res_file_name, base_res, test_res, loop=5):
         nlls[i] = nll_i
         ndfs[i] = ndf_i
         signi[i] = significance(nll, nll_i, abs(ndf - ndf_i))
-        print("nll: {}, ndf: {}, significane: {}".format(nll_i, ndf_i, signi[i]))
+        print(
+            "nll: {}, ndf: {}, significane: {}".format(nll_i, ndf_i, signi[i])
+        )
     return signi, nlls, ndfs
 
 
@@ -105,7 +107,13 @@ def main():
     ]
     res_files = "Resonances_B.yml"
 
-    base_res = ["Psi(4660)", "Psi(4230)", "Psi(4390)", "Psi(4260)", "Psi(4360)"]
+    base_res = [
+        "Psi(4660)",
+        "Psi(4230)",
+        "Psi(4390)",
+        "Psi(4260)",
+        "Psi(4360)",
+    ]
 
     test_res = base_res  # [""]
 

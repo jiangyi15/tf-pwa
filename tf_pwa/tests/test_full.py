@@ -57,7 +57,9 @@ def toy_config(gen_toy):
 
 @pytest.fixture
 def toy_config2(gen_toy, fit_result):
-    config = MultiConfig([f"{this_dir}/config_toy.yml", f"{this_dir}/config_toy2.yml"])
+    config = MultiConfig(
+        [f"{this_dir}/config_toy.yml", f"{this_dir}/config_toy2.yml"]
+    )
     config.set_params("toy_data/final_params.json")
     return config
 

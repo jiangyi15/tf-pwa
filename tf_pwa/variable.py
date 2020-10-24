@@ -17,7 +17,9 @@ def combineVM(vm1, vm2, name="", same_list=None):
     if same_list is None:
         same_list = []
     if vm1.name == vm2.name:
-        raise Exception("The two VarsManager to be combined have the same name.")
+        raise Exception(
+            "The two VarsManager to be combined have the same name."
+        )
     vm = VarsManager(name, vm1.dtype)
 
     for i in vm1.variables:
@@ -121,7 +123,10 @@ class VarsManager(object):
             else:  # random [a,b]
                 self.variables[name] = tf.Variable(
                     tf.random.uniform(
-                        shape=[], minval=range_[0], maxval=range_[1], dtype=self.dtype
+                        shape=[],
+                        minval=range_[0],
+                        maxval=range_[1],
+                        dtype=self.dtype,
                     ),
                     trainable=trainable,
                 )
@@ -135,7 +140,9 @@ class VarsManager(object):
         if trainable:
             self.trainable_vars.append(name)
 
-    def add_complex_var(self, name, polar=None, trainable=True, fix_vals=(1.0, 0.0)):
+    def add_complex_var(
+        self, name, polar=None, trainable=True, fix_vals=(1.0, 0.0)
+    ):
         """
         Add a complex variable. Two real variables named **name+'r'** and **name+'i'** will be added into
         **self.variables**. The initial values will be given automatically according to its form of coordinate.
@@ -293,7 +300,10 @@ class VarsManager(object):
                     cplx_vars.append(name_i)
                     self.variables[name_i].assign(
                         tf.random.uniform(
-                            shape=[], minval=-np.pi, maxval=np.pi, dtype=self.dtype
+                            shape=[],
+                            minval=-np.pi,
+                            maxval=np.pi,
+                            dtype=self.dtype,
                         )
                     )
         # all_vars = set(self.trainable_vars) # real vars
@@ -830,7 +840,9 @@ class Variable(object):
     :param kwargs: Other arguments that may be used when calling **self.real_var()** or **self.cplx_var()**
     """
 
-    def __init__(self, name, shape=None, cplx=False, vm=None, overwrite=True, **kwargs):
+    def __init__(
+        self, name, shape=None, cplx=False, vm=None, overwrite=True, **kwargs
+    ):
         if shape is None:
             shape = []
         if vm is None:
@@ -883,7 +895,12 @@ class Variable(object):
             self.vm.var_head[self].append(name)
 
         _shape_func(
-            func, self.shape, self.name, value=value, range_=range_, trainable=trainable
+            func,
+            self.shape,
+            self.name,
+            value=value,
+            range_=range_,
+            trainable=trainable,
         )
 
     def cplx_var(self, polar=True, fix=False, fix_vals=(1.0, 0.0)):
@@ -902,7 +919,9 @@ class Variable(object):
             self.vm.add_complex_var(name, polar, trainable, fix_vals)
             self.vm.var_head[self].append(name)
 
-        _shape_func(func, self.shape, self.name, polar=polar, fix_vals=fix_vals)
+        _shape_func(
+            func, self.shape, self.name, polar=polar, fix_vals=fix_vals
+        )
 
     def __repr__(self):
         return self.name
@@ -943,11 +962,17 @@ class Variable(object):
                 elif value.shape[:-1] == tuple(self.shape):
 
                     def func(name, idx, **kwargs):
-                        self.vm.set(name + "r", _get_val_from_index(value, idx)[0])
-                        self.vm.set(name + "i", _get_val_from_index(value, idx)[1])
+                        self.vm.set(
+                            name + "r", _get_val_from_index(value, idx)[0]
+                        )
+                        self.vm.set(
+                            name + "i", _get_val_from_index(value, idx)[1]
+                        )
 
                 else:
-                    raise Exception("The shape of value should be ", self.shape)
+                    raise Exception(
+                        "The shape of value should be ", self.shape
+                    )
             else:
                 if value.shape == ():
 
@@ -960,7 +985,9 @@ class Variable(object):
                         self.vm.set(name, _get_val_from_index(value, idx))
 
                 else:
-                    raise Exception("The shape of value should be ", self.shape)
+                    raise Exception(
+                        "The shape of value should be ", self.shape
+                    )
 
             _shape_func(func, self.shape, self.name, idx=[])
 
@@ -1132,7 +1159,9 @@ class Variable(object):
             self.vm.set_bound({self.name: bound}, func, overwrite=overwrite)
             self.bound = self.vm.bnd_dic[self.name]
         else:
-            raise Exception("Only shape==() real var supports 'set_bound' method.")
+            raise Exception(
+                "Only shape==() real var supports 'set_bound' method."
+            )
 
     def r_shareto(self, Var):
         """
@@ -1162,7 +1191,9 @@ class Variable(object):
             raise Exception("Types (real or complex) are not the same.")
 
         def func(name, idx, **kwargs):
-            self.vm.set_same([self.name + name, Var.name + name], cplx=self.cplx)
+            self.vm.set_same(
+                [self.name + name, Var.name + name], cplx=self.cplx
+            )
 
         _shape_func(func, self.shape, "")
 
@@ -1176,7 +1207,9 @@ class Variable(object):
                 for i in idx_str[:-1]:
                     tmp = tmp[int(i)]
                 if self.cplx:
-                    if (name in self.vm.complex_vars) and self.vm.complex_vars[name]:
+                    if (name in self.vm.complex_vars) and self.vm.complex_vars[
+                        name
+                    ]:
                         real = self.vm.variables[name + "r"] * tf.cos(
                             self.vm.variables[name + "i"]
                         )
@@ -1188,7 +1221,8 @@ class Variable(object):
                     else:
                         # print("$$$$$xg",name)
                         tmp[int(idx_str[-1])] = tf.complex(
-                            self.vm.variables[name + "r"], self.vm.variables[name + "i"]
+                            self.vm.variables[name + "r"],
+                            self.vm.variables[name + "i"],
                         )
                     # print(tmp[int(idx_str[-1])])
                 else:
@@ -1198,7 +1232,9 @@ class Variable(object):
         else:
             if self.cplx:
                 name = self.name
-                if (name in self.vm.complex_vars) and self.vm.complex_vars[name]:
+                if (name in self.vm.complex_vars) and self.vm.complex_vars[
+                    name
+                ]:
                     real = self.vm.variables[name + "r"] * tf.cos(
                         self.vm.variables[name + "i"]
                     )

@@ -22,6 +22,7 @@ tf_pwa/version.py
 *.gv
 *.root
 !.github/**/*.yml
+!.vscode/*.json
 !environment.yml
 
 .run_start

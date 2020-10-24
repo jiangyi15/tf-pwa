@@ -74,7 +74,13 @@ def test_basedecay():
 
 
 def test_sorted_table():
-    a = {"a": ["b", "c", "d"], "r": ["c", "d"], "b": ["b"], "c": ["c"], "d": ["d"]}
+    a = {
+        "a": ["b", "c", "d"],
+        "r": ["c", "d"],
+        "b": ["b"],
+        "c": ["c"],
+        "d": ["d"],
+    }
     de = DecayChain.from_sorted_table(a)
     print(de.sorted_table_layers())
     b = {"a": ["b", "c", "d"], "b": ["b"], "c": ["c"], "d": ["d"]}

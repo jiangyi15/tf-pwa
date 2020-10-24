@@ -42,7 +42,9 @@ def create_config(default=None):
         regist a configuration.
         """
         if name in _config:
-            raise Exception("Configuration named {} already exists.".format(name))
+            raise Exception(
+                "Configuration named {} already exists.".format(name)
+            )
         if var is None:
 
             def regist(f):

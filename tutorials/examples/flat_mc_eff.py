@@ -64,7 +64,9 @@ def generate_mc_eff(num, eff_file):
     mask = weight > rnd
     # plt.hist(cos_theta.numpy()[mask], bins=100)
     # plt.savefig("cos_theta.png")
-    p_D1, p_D2, p_K, p_D, p_pi = [i[mask] for i in [p_D1, p_D2, p_K, p_D, p_pi]]
+    p_D1, p_D2, p_K, p_D, p_pi = [
+        i[mask] for i in [p_D1, p_D2, p_K, p_D, p_pi]
+    ]
     return p_D1, p_D2, p_K, p_D, p_pi
 
 
@@ -81,7 +83,7 @@ def main(num, eff_file):
     plt.clf()
     plt.contourf(
         *np.meshgrid(x[1:] / 2 + x[:-1] / 2, y[1:] / 2 + y[:-1] / 2),
-        bins.astype("float")
+        bins.astype("float"),
     )
     plt.colorbar()
     print(lv.M(p_D1 + p_D2 + p_K))

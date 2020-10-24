@@ -14,7 +14,9 @@ from .base_config import BaseConfig
 
 def set_min_max(dic, name, name_min, name_max):
     if name not in dic and name_min in dic and name_max in dic:
-        dic[name] = random.random() * (dic[name_max] - dic[name_min]) + dic[name_min]
+        dic[name] = (
+            random.random() * (dic[name_max] - dic[name_min]) + dic[name_min]
+        )
 
 
 class DecayConfig(BaseConfig):
@@ -120,7 +122,9 @@ class DecayConfig(BaseConfig):
                     particle_map[particle] = []
                 for i in candidate:
                     if isinstance(i, str):
-                        particle_map[particle] = particle_map.get(particle, []) + [i]
+                        particle_map[particle] = particle_map.get(
+                            particle, []
+                        ) + [i]
                     elif isinstance(i, dict):
                         map_i, pro_i = DecayConfig.particle_item_list(i)
                         for k, v in map_i.items():
@@ -134,7 +138,9 @@ class DecayConfig(BaseConfig):
                 particle_property[particle] = candidate
             else:
                 raise ValueError(
-                    "value of particle {} is {}".format(particle, type(candidate))
+                    "value of particle {} is {}".format(
+                        particle, type(candidate)
+                    )
                 )
         return particle_map, particle_property
 
@@ -159,7 +165,9 @@ class DecayConfig(BaseConfig):
                         type(includes)
                     )
                 )
-        particle_map, particle_property = DecayConfig.particle_item_list(particle_list)
+        particle_map, particle_property = DecayConfig.particle_item_list(
+            particle_list
+        )
 
         if isinstance(top, dict):
             particle_property.update(top)
@@ -178,11 +186,18 @@ class DecayConfig(BaseConfig):
         return ret
 
     def get_decay_struct(
-        self, decay, particle_map=None, particle_params=None, top=None, finals=None
+        self,
+        decay,
+        particle_map=None,
+        particle_params=None,
+        top=None,
+        finals=None,
     ):
         """  get decay structure for decay dict"""
         particle_map = particle_map if particle_map is not None else {}
-        particle_params = particle_params if particle_params is not None else {}
+        particle_params = (
+            particle_params if particle_params is not None else {}
+        )
 
         particle_set = {}
 

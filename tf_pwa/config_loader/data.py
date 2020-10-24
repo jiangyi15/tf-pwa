@@ -116,7 +116,9 @@ class SimpleData:
         charge = self.dic.get(idx + "_charge", None)
         return self.load_data(files, weights, weight_sign, charge)
 
-    def load_data(self, files, weights=None, weights_sign=1, charge=None) -> dict:
+    def load_data(
+        self, files, weights=None, weights_sign=1, charge=None
+    ) -> dict:
         # print(files, weights)
         if files is None:
             return None
@@ -134,12 +136,16 @@ class SimpleData:
         )
         if weights is not None:
             if isinstance(weights, float):
-                data["weight"] = np.array([weights * weights_sign] * data_shape(data))
+                data["weight"] = np.array(
+                    [weights * weights_sign] * data_shape(data)
+                )
             elif isinstance(weights, str):  # weight files
                 weight = self.load_weight_file(weights)
                 data["weight"] = weight[: data_shape(data)] * weights_sign
             else:
-                raise TypeError("weight format error: {}".format(type(weights)))
+                raise TypeError(
+                    "weight format error: {}".format(type(weights))
+                )
         if charge is not None:
             charges = self.load_weight_file(charge)
             data["charge_conjugation"] = charges[: data_shape(data)]

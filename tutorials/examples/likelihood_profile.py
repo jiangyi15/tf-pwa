@@ -67,7 +67,7 @@ def main(param_name, x, method):
             grad=fcn.grad,
             print_level=2,
             use_array_call=True,
-            **args
+            **args,
         )
         now = time.time()
         with tf.device("/device:GPU:0"):
@@ -137,7 +137,9 @@ def lklpf(param_name):
     method = "scipy"  ###
     mode = "bothsides"  # "back&forth"
     if mode == "back&forth":
-        x1 = np.arange(x_mean - 5 * x_sigma, x_mean + 5 * x_sigma, x_sigma / 2)  ###
+        x1 = np.arange(
+            x_mean - 5 * x_sigma, x_mean + 5 * x_sigma, x_sigma / 2
+        )  ###
         x2 = x1[::-1]
         t1 = time.time()
         y1 = main(param_name, x1, method)
@@ -156,7 +158,10 @@ def lklpf(param_name):
         y2 = main(param_name, x2, method)
         t3 = time.time()
         print(
-            mode, list(np.append(x1[::-1], x2)), list(np.append(y1[::-1], y2)), sep="\n"
+            mode,
+            list(np.append(x1[::-1], x2)),
+            list(np.append(y1[::-1], y2)),
+            sep="\n",
         )
     print(param_name, x_mean)
     print("#" * 10, t2 - t1, "#" * 10, t3 - t2)

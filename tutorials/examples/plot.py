@@ -13,7 +13,12 @@ import os.path
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
-from fit_scipy_new import prepare_data, get_decay_chains, get_amplitude, load_params
+from fit_scipy_new import (
+    prepare_data,
+    get_decay_chains,
+    get_amplitude,
+    load_params,
+)
 
 import tf_pwa
 from tf_pwa.amp import *
@@ -262,7 +267,9 @@ def map_idx_for_params():
 map_idx_for_params()
 
 
-def get_weight(amp, config_list, mcdata, norm_int=1.0, res_list=None, pm_combine=None):
+def get_weight(
+    amp, config_list, mcdata, norm_int=1.0, res_list=None, pm_combine=None
+):
     a_weight = {}
     if res_list is None:
         if pm_combine:
@@ -296,7 +303,9 @@ def plot(params="final_params.json", res_list=None, pm_combine=True):
     config_list = load_config_file("Resonances")
 
     decs, final_particles, decay = get_decay_chains(config_list)
-    data, bg, mcdata = prepare_data(decs, particles=final_particles, dtype=dtype)
+    data, bg, mcdata = prepare_data(
+        decs, particles=final_particles, dtype=dtype
+    )
     amp = get_amplitude(decs, config_list, decay)
     load_params(amp, params)
 
@@ -328,7 +337,14 @@ def plot(params="final_params.json", res_list=None, pm_combine=True):
     ] + colors
 
     def plot_params(
-        ax, name, bins=None, xrange=None, idx=0, display=None, units="GeV", legend=True
+        ax,
+        name,
+        bins=None,
+        xrange=None,
+        idx=0,
+        display=None,
+        units="GeV",
+        legend=True,
     ):
         fd = lambda x: x
         if name.startswith("cos"):
@@ -337,13 +353,20 @@ def plot(params="final_params.json", res_list=None, pm_combine=True):
         color = iter(colors)
         if display is None:
             display = name
-        data_hist = np.histogram(fd(get_idx_data(data, idx)), range=xrange, bins=bins)
+        data_hist = np.histogram(
+            fd(get_idx_data(data, idx)), range=xrange, bins=bins
+        )
         # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
         data_y, data_x = data_hist[0:2]
         data_x = (data_x[:-1] + data_x[1:]) / 2
         data_err = np.sqrt(data_y)
         ax.errorbar(
-            data_x, data_y, yerr=data_err, fmt=".", color=next(color), zorder=-2
+            data_x,
+            data_y,
+            yerr=data_err,
+            fmt=".",
+            color=next(color),
+            zorder=-2,
         )
         if bg is not None:
             ax.hist(
@@ -357,7 +380,9 @@ def plot(params="final_params.json", res_list=None, pm_combine=True):
                 label="bg",
                 zorder=-1,
             )
-            mc_bg = fd(np.append(get_idx_data(bg, idx), get_idx_data(mcdata, idx)))
+            mc_bg = fd(
+                np.append(get_idx_data(bg, idx), get_idx_data(mcdata, idx))
+            )
             mc_bg_w = np.append([w_bkg] * n_bg, total.numpy() * norm_int)
         else:
             mc_bg = fd(get_idx_data(mcdata, idx))

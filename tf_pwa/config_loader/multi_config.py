@@ -1,6 +1,12 @@
 import yaml
 import json
-from tf_pwa.amp import get_particle, get_decay, DecayChain, DecayGroup, AmplitudeModel
+from tf_pwa.amp import (
+    get_particle,
+    get_decay,
+    DecayChain,
+    DecayGroup,
+    AmplitudeModel,
+)
 from tf_pwa.particle import split_particle_type
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.model import Model, Model_new, FCN, CombineFCN
@@ -12,7 +18,13 @@ from scipy.interpolate import interp1d
 from scipy.optimize import minimize, BFGS, basinhopping
 import numpy as np
 import matplotlib.pyplot as plt
-from tf_pwa.data import data_index, data_shape, data_split, load_data, save_data
+from tf_pwa.data import (
+    data_index,
+    data_shape,
+    data_split,
+    load_data,
+    save_data,
+)
 from tf_pwa.variable import VarsManager
 from tf_pwa.utils import time_print
 import itertools
@@ -22,7 +34,12 @@ from tf_pwa.root_io import save_dict_to_root, has_uproot
 import warnings
 from scipy.optimize import BFGS
 from tf_pwa.fit_improve import minimize as my_minimize
-from tf_pwa.applications import fit, cal_hesse_error, corr_coef_matrix, fit_fractions
+from tf_pwa.applications import (
+    fit,
+    cal_hesse_error,
+    corr_coef_matrix,
+    fit_fractions,
+)
 from tf_pwa.fit import FitResult
 from tf_pwa.variable import Variable
 import copy
@@ -40,7 +57,8 @@ class MultiConfig(object):
             self.vm = vm
         self.total_same = total_same
         self.configs = [
-            ConfigLoader(i, vm=self.vm, share_dict=share_dict) for i in file_names
+            ConfigLoader(i, vm=self.vm, share_dict=share_dict)
+            for i in file_names
         ]
         self.bound_dic = {}
         self.gauss_constr_dic = {}
@@ -81,7 +99,9 @@ class MultiConfig(object):
         if datas is not None:
             if not self.total_same:
                 fcns = [
-                    i[1].get_fcn(name="s" + str(i[0]), all_data=j, vm=vm, batch=batch)
+                    i[1].get_fcn(
+                        name="s" + str(i[0]), all_data=j, vm=vm, batch=batch
+                    )
                     for i, j in zip(enumerate(self.configs), datas)
                 ]
             else:
@@ -132,7 +152,9 @@ class MultiConfig(object):
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2), flush=True)
         print("initial NLL: ", fcn({}))
-        self.fit_params = fit(fcn=fcn, method=method, bounds_dict=self.bound_dic)
+        self.fit_params = fit(
+            fcn=fcn, method=method, bounds_dict=self.bound_dic
+        )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
         """# fit configure
@@ -242,7 +264,9 @@ class MultiConfig(object):
         if neglect_params is None:
             neglect_params = self._neglect_when_set_params
         if len(neglect_params) != 0:
-            warnings.warn("Neglect {} when setting params.".format(neglect_params))
+            warnings.warn(
+                "Neglect {} when setting params.".format(neglect_params)
+            )
             for v in params:
                 if v in self._neglect_when_set_params:
                     del ret[v]

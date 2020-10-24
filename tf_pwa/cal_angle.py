@@ -238,7 +238,9 @@ def cal_helicity_angle(
                     ret[i][j]["z"] = z2
                     Bp = SU2M.Boost_z_from_p(p_rest)
                     b_matrix[j] = Bp
-                    r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
+                    r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(
+                        ang["alpha"]
+                    )
                     if i.core in r_matrix:
                         r_matrix[j] = r * r_matrix[i.core] * b_matrix[i.core]
                     else:
@@ -256,9 +258,13 @@ def cal_helicity_angle(
                         ret[i][j]["z"] = z
                         Bp = SU2M.Boost_z_from_p(p_rest_i)
                         b_matrix[j] = Bp
-                        r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
+                        r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(
+                            ang["alpha"]
+                        )
                         if i.core in r_matrix:
-                            r_matrix[j] = r * b_matrix[i.core] * r_matrix[i.core]
+                            r_matrix[j] = (
+                                r * b_matrix[i.core] * r_matrix[i.core]
+                            )
                         else:
                             r_matrix[j] = r
             else:
@@ -338,7 +344,11 @@ def cal_angle_from_particle(
                         R = SU2M(r_matrix_ref["x"]) * SU2M.inv(r_matrix)
                         # print(R)
                         if final_rest:
-                            R = SU2M(b_matrix_ref["x"]) * R * SU2M.inv(b_matrix)
+                            R = (
+                                SU2M(b_matrix_ref["x"])
+                                * R
+                                * SU2M.inv(b_matrix)
+                            )
                         ang = R.get_euler_angle()
                     else:
                         x1 = part_data[i]["x"]
@@ -393,7 +403,9 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
     return ret
 
 
-def prepare_data_from_decay(fnames, decs, particles=None, dtype=None, **kwargs):
+def prepare_data_from_decay(
+    fnames, decs, particles=None, dtype=None, **kwargs
+):
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
