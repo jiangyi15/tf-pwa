@@ -20,7 +20,7 @@ By using simple configuration file (and some scripts), PWA can be done fast and 
 Get the packages using
 
 ```
-git clone https://gitlab.com/jiangyi15/tf-pwa
+git clone https://github.com/jiangyi15/tf-pwa
 ```
 
 
@@ -99,7 +99,7 @@ script for cache state, using the latest *_params.json file as parameters and ca
 
 ## Documents
 
-See [https://jiangyi15.gitlab.io/tf-pwa/](https://jiangyi15.gitlab.io/tf-pwa/) for more information.
+See [tf-pwa.rtfd.io](http://tf-pwa.readthedocs.io) for more information.
 
 Autodoc using sphinx-doc, need sphinx-doc
 
