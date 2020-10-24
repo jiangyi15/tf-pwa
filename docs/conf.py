@@ -101,7 +101,8 @@ Available Resonances Model
             doc_i = v.get_amp.__doc__
 
         particle_model_doc += (
-            f"\n{idx}. {k} (`~{v.__module__}.{v.__qualname__}`)\n\n"
+            f'\n{idx}. :code:`"{k}"`'
+            f" (`~{v.__module__}.{v.__qualname__}`)\n\n"
         )
         idx += 1
         particle_model_doc += add_indent(doc_i) + "\n\n"
