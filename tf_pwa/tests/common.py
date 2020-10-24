@@ -2,6 +2,7 @@ import tempfile
 import contextlib
 import os
 
+
 @contextlib.contextmanager
 def write_temp_file(s, filename=None):
     if filename is None:

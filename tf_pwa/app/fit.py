@@ -17,11 +17,11 @@ def json_print(dic):
 @regist_subcommand(name="fit")
 def fit(config="config.yml", init_params="init_params.json", method="BFGS"):
     """
-    simple fit script 
+    simple fit script
     """
     # load config.yml
     config = ConfigLoader(config)
-    
+
     # set initial parameters if have
     try:
         config.set_params(init_params)
@@ -72,5 +72,7 @@ def fit(config="config.yml", init_params="init_params.json", method="BFGS"):
             name = "{}x{}".format(*i)
         else:
             name = i
-        fit_frac_string += "{} {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
+        fit_frac_string += "{} {}\n".format(
+            name, error_print(fit_frac[i], err_frac.get(i, None))
+        )
     print(fit_frac_string)

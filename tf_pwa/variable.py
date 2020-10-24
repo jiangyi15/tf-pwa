@@ -263,7 +263,7 @@ class VarsManager(object):
         if init_val is None:
             init_val = self.init_val
         cplx_vars = []
-        for name in self.complex_vars: # complex vars
+        for name in self.complex_vars:  # complex vars
             name_r = name + "r"
             name_i = name + "i"
             if self.complex_vars[name] == False:  # xy coordinate
@@ -296,10 +296,10 @@ class VarsManager(object):
                             shape=[], minval=-np.pi, maxval=np.pi, dtype=self.dtype
                         )
                     )
-        #all_vars = set(self.trainable_vars) # real vars
-        #real_vars = all_vars - set(cplx_vars)
+        # all_vars = set(self.trainable_vars) # real vars
+        # real_vars = all_vars - set(cplx_vars)
         for name in set(init_val) & set(self.trainable_vars):
-            if hasattr(init_val[name], '__len__'):
+            if hasattr(init_val[name], "__len__"):
                 mu = init_val[name][0]
                 sigma = init_val[name][1]
                 if name not in bound_dic:
@@ -318,14 +318,14 @@ class VarsManager(object):
             else:
                 if init_val[name] is not None:
                     self.variables[name].assign(init_val[name])
-            
-        for name in (set(bound_dic) - set(init_val)):
+
+        for name in set(bound_dic) - set(init_val):
             _min, _max = bound_dic[name]
             if _min is not None:
                 if _max is not None:
                     val = tf.random.uniform(
-                            shape=[], minval=_min, maxval=_max, dtype=self.dtype
-                        )
+                        shape=[], minval=_min, maxval=_max, dtype=self.dtype
+                    )
                 else:
                     val = _min + np.random.chisquare(df=1)
             else:

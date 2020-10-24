@@ -2,7 +2,7 @@ from tf_pwa.vis import *
 from tf_pwa.particle import BaseParticle, BaseDecay, DecayChain
 
 
-ex_result = '''
+ex_result = """
 digraph {
     rankdir=LR;
     node [shape=point];
@@ -25,10 +25,11 @@ digraph {
     "chain0_node_3->C+E" -> "C";
     "chain0_node_3->C+E" -> "E";
 }
-'''
+"""
+
 
 def test_dot():
-    
+
     a = BaseParticle("A")
     c = BaseParticle("C")
     b = BaseParticle("B")

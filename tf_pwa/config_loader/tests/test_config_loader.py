@@ -47,7 +47,7 @@ R1_b: {J: 1, P: -1, mass: 2.3, width: 0.03}
 
 def test_load():
     with write_temp_file(resonancs_str) as f:
-        cs = config_str.format(file_name = f)
+        cs = config_str.format(file_name=f)
         print(cs)
         with write_temp_file(cs) as g:
             config = ConfigLoader(g)

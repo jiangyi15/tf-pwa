@@ -23,7 +23,7 @@ class NpzData(SimpleData):
         weight_sign = self.get_weight_sign(idx)
         return self.load_data(files, weight_sign)
 
-    def load_data(self, files, weights=None, weights_sign = 1, charge=None) -> dict:
+    def load_data(self, files, weights=None, weights_sign=1, charge=None) -> dict:
         # print(files, weights)
         if files is None:
             return None
@@ -34,7 +34,13 @@ class NpzData(SimpleData):
         random_z = self.dic.get("random_z", False)
         npz_data = np.load(files)
         p = {get_particle(str(v)): npz_data[str(k)] for k, v in zip(p_list, order)}
-        data = cal_angle_from_momentum(p, self.decay_struct, center_mass=center_mass, r_boost=r_boost, random_z=random_z)
+        data = cal_angle_from_momentum(
+            p,
+            self.decay_struct,
+            center_mass=center_mass,
+            r_boost=r_boost,
+            random_z=random_z,
+        )
         if "weight" in npz_data:
             data["weight"] = npz_data["weight"]
         if "charge_conjugation" in npz_data:
@@ -43,8 +49,9 @@ class NpzData(SimpleData):
             data["charge_conjugation"] = np.ones((data_shape(data),))
         return data
 
+
 @register_data_mode("multi_npz")
-class MultiNpzData(NpzData):    
+class MultiNpzData(NpzData):
     def __init__(self, *args, **kwargs):
         super(MultiNpzData, self).__init__(*args, **kwargs)
         self._Ngroup = 0
@@ -72,5 +79,7 @@ class MultiNpzData(NpzData):
             phsp_noeff = self.get_data("phsp_noeff")
             assert len(phsp_noeff) == 1
             return phsp_noeff[0]
-        warnings.warn("No data file as 'phsp_noeff', using the first 'phsp' file instead.")
+        warnings.warn(
+            "No data file as 'phsp_noeff', using the first 'phsp' file instead."
+        )
         return self.get_data("phsp")[0]

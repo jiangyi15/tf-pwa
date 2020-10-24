@@ -58,13 +58,13 @@ test_data = [
     [
         np.array([[2.0, 0.1, 0.2, 0.3]]),
         np.array([[3.0, 0.2, 0.3, 0.4]]),
-        np.array([[4.0, 0.3, 0.4, 0.5]])
+        np.array([[4.0, 0.3, 0.4, 0.5]]),
     ],
     [
         np.array([[2.0, 0.1, 0.2, 0.3], [2.0, 0.3, 0.2, 0.1]]),
         np.array([[3.0, 0.2, 0.3, 0.4], [3.0, 0.4, 0.3, 0.2]]),
-        np.array([[4.0, 0.3, 0.4, 0.5], [4.0, 0.5, 0.4, 0.3]])
-    ]
+        np.array([[4.0, 0.3, 0.4, 0.5], [4.0, 0.5, 0.4, 0.3]]),
+    ],
 ]
 
 
@@ -78,7 +78,6 @@ def test_amp():
 
 
 def test_simple_resonances():
-
     @simple_resonance("xxx")
     def f(m, s=3.0):
         return m + s
@@ -89,16 +88,16 @@ def test_simple_resonances():
     b(2.0)
 
     a = b.get_amp({"m": 1.0}, {"|q|": 1.0}, {})
-    assert np.allclose(np.array(4.0+0.j), a.numpy())
+    assert np.allclose(np.array(4.0 + 0.0j), a.numpy())
 
     @simple_resonance("xxx2")
-    def g(m, m0, g0, q, q0, a: FloatParams =2.0):
+    def g(m, m0, g0, q, q0, a: FloatParams = 2.0):
         return m + a + q + q0
 
     b = get_particle("ss:2", a=3.0, model="xxx2")
     b.init_params()
     a = b.get_amp({"m": 1.0}, {"|q|": 1.0, "|q0|": 1.0}, {})
-    assert np.allclose(np.array(6.0+0.j), a.numpy())
+    assert np.allclose(np.array(6.0 + 0.0j), a.numpy())
 
 
 def test_model_new():

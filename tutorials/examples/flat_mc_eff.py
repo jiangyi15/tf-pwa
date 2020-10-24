@@ -2,7 +2,7 @@ import sys
 import os.path
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, this_dir + '/..')
+sys.path.insert(0, this_dir + "/..")
 
 import uproot
 import numpy as np
@@ -39,7 +39,9 @@ def index_bin(x, xi):
 class EffWeight:
     def __init__(self, root_file):
         self.f = uproot.open(root_file)
-        self.eff_bin = [self.f.get("RegDalitzEfficiency_bin{}".format(i)) for i in range(5)]
+        self.eff_bin = [
+            self.f.get("RegDalitzEfficiency_bin{}".format(i)) for i in range(5)
+        ]
         self.x_bins, self.y_bins = self.eff_bin[0].bins  # assert all bins same
         self.values = np.array([i.values for i in self.eff_bin])
 
@@ -54,7 +56,7 @@ def generate_mc_eff(num, eff_file):
     p_D1, p_D2, p_K, p_D, p_pi = generate_mc(num)
     m2_13 = lv.M2(p_D1 + p_K)
     m2_23 = lv.M2(p_D2 + p_K)
-    p_D1_r = lv.rest_vector(p_D1+p_D2, p_D1)
+    p_D1_r = lv.rest_vector(p_D1 + p_D2, p_D1)
     cos_theta = v3.cos_theta(lv.vect(p_D1_r), lv.vect(p_D))
     eff = EffWeight(eff_file)
     weight = eff.eff_weight(cos_theta, m2_13, m2_23)
@@ -77,7 +79,10 @@ def main(num, eff_file):
     np.savetxt("data/gen_mc_Dstar.dat", data2.reshape(-1, 4))
     bins, x, y, _ = plt.hist2d(lv.M2(p_D1 + p_K), lv.M2(p_D2 + p_K), bins=50)
     plt.clf()
-    plt.contourf(*np.meshgrid(x[1:]/2+x[:-1]/2, y[1:]/2+y[:-1]/2), bins.astype("float"))
+    plt.contourf(
+        *np.meshgrid(x[1:] / 2 + x[:-1] / 2, y[1:] / 2 + y[:-1] / 2),
+        bins.astype("float")
+    )
     plt.colorbar()
     print(lv.M(p_D1 + p_D2 + p_K))
     plt.savefig("m13_m23.png")
@@ -85,4 +90,3 @@ def main(num, eff_file):
 
 if __name__ == "__main__":
     main(1000000, "data/eff/Efficiency_BmDstpDmKm_run2.root")
-

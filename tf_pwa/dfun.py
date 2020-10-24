@@ -25,7 +25,7 @@ from .tensorflow_wrapper import tf
 def _spin_int(x):
     if isinstance(x, int):
         return x
-    return int(x+0.1)
+    return int(x + 0.1)
 
 
 @functools.lru_cache()
@@ -52,22 +52,24 @@ def delta_D_trans(j, la, lb, lc):
     ret = _tuple_delta_D_trans(j, la, lb, lc)
     return ret
 
+
 def delta_D_index(j, la, lb, lc):
     la, lb, lc = map(tuple, (la, lb, lc))
     ret = _tuple_delta_D_index(j, la, lb, lc)
     return ret
 
+
 @functools.lru_cache()
 def _tuple_delta_D_index(j, la, lb, lc):
     ln = _spin_int(2 * j + 1)
     ret = []
-    max_idx = _spin_int(j +j) * _spin_int(j+j)
+    max_idx = _spin_int(j + j) * _spin_int(j + j)
     for i_a, la_i in enumerate(la):
         for i_b, lb_i in enumerate(lb):
             for i_c, lc_i in enumerate(lc):
                 delta = lb_i - lc_i
                 if abs(delta) <= j:
-                    ret.append(_spin_int((la_i + j)*ln + delta + j))
+                    ret.append(_spin_int((la_i + j) * ln + delta + j))
                 else:
                     ret.append(max_idx)
     return ret
@@ -91,6 +93,7 @@ def Dfun_delta(d, ja, la, lb, lc=(0,)):
     ret = tf.matmul(d, t_cast)
     return tf.reshape(ret, (-1, len(la), len(lb), len(lc)))
 
+
 def Dfun_delta_v2(d, ja, la, lb, lc=(0,)):
     """
     The decay from particle *a* to *b* and *c* requires :math:`|l_b-l_c|\\leqslant j`
@@ -102,11 +105,11 @@ def Dfun_delta_v2(d, ja, la, lb, lc=(0,)):
     # print(d[0])
 
     d = tf.reshape(d, (-1, ln * ln))
-    over_d = tf.pad(d, [[0,0],[0, 1]], mode='CONSTANT')
+    over_d = tf.pad(d, [[0, 0], [0, 1]], mode="CONSTANT")
     # print(d.shape, over_d.shape)
-    #zeros = tf.zeros((d.shape[0], 1), dtype=d.dtype)
+    # zeros = tf.zeros((d.shape[0], 1), dtype=d.dtype)
 
-    #over_d = tf.concat([d, zeros], axis=-1)
+    # over_d = tf.concat([d, zeros], axis=-1)
     ret = tf.gather(over_d, idx, axis=-1)
     return tf.reshape(ret, (-1, len(la), len(lb), len(lc)))
 
@@ -187,7 +190,7 @@ def exp_i(theta, mi):
 
 def D_matrix_conj(alpha, beta, gamma, j):
     """
-    The conjugated D-matrix element with indices (:math:`m_1,m_2`) is 
+    The conjugated D-matrix element with indices (:math:`m_1,m_2`) is
 
     .. math::
         D^{j}_{m_1,m_2}(\\alpha, \\beta, \\gamma)^\\star =

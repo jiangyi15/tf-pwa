@@ -13,9 +13,9 @@ except ImportError:
 from .data import data_index, data_mask
 
 
-
 class AdaptiveBound(object):
     """adaptive bound cut for data value"""
+
     def __init__(self, base_data, bins):
         if isinstance(bins, int):
             self._base_data = np.array([base_data])
@@ -24,8 +24,10 @@ class AdaptiveBound(object):
             self._base_data = np.array(base_data)
             self.bins = bins
         else:
-            raise TypeError("bins should be int or list of int, "\
-                            +"insteading of {}".format(type(bins)))
+            raise TypeError(
+                "bins should be int or list of int, "
+                + "insteading of {}".format(type(bins))
+            )
 
     @functools.lru_cache()
     def get_bounds_data(self):
@@ -42,10 +44,12 @@ class AdaptiveBound(object):
     def get_bool_mask(self, data):
         """bool mask for splitting data"""
         bounds = self.get_bounds()
-        idx_data = data[:bounds[0][0].shape[0]]
+        idx_data = data[: bounds[0][0].shape[0]]
         ret = []
         for lb, rb in bounds:
-            mask = np.logical_and(idx_data >= lb[..., np.newaxis], idx_data < rb[..., np.newaxis])
+            mask = np.logical_and(
+                idx_data >= lb[..., np.newaxis], idx_data < rb[..., np.newaxis]
+            )
             mask = np.all(mask, axis=0)
             ret.append(mask)
         return ret
@@ -70,7 +74,7 @@ class AdaptiveBound(object):
     @staticmethod
     def single_split_bound(data, n=2, base_bound=None):
         """split data in the order of data value
-        
+
         >>> data = np.array([1.0, 2.0, 1.4, 3.1])
         >>> AdaptiveBound.single_split_bound(data)
         [(1.0, 1.7...), (1.7..., 3.1...)]
@@ -81,7 +85,7 @@ class AdaptiveBound(object):
         num_lb = base_bound[0]
         bounds = []
         for j in range(1, n):
-            num_rb = np.percentile(data, j/n*100, axis=0) + 1e-6
+            num_rb = np.percentile(data, j / n * 100, axis=0) + 1e-6
             bounds.append((num_lb, num_rb))
             num_lb = num_rb
         bounds.append((num_lb, base_bound[1]))
@@ -95,7 +99,7 @@ class AdaptiveBound(object):
         >>> bound, _ = AdaptiveBound.multi_split_bound(data, [2, 1])
         >>> [(i[0][0]+1e-6, i[1][0]+1e-6) for i in bound]
         [(1.0..., 1.7...), (1.7..., 3.1...)]
-        
+
         """
         datas = np.array(datas)
         if base_bound is None:
@@ -107,7 +111,9 @@ class AdaptiveBound(object):
             new_data_chain = []
             for bnd, data in zip(bound_chain, data_chain):
                 idx_data = data[idx]
-                bounds = AdaptiveBound.single_split_bound(idx_data, size, base_bound=(bnd[0][idx], bnd[1][idx]))
+                bounds = AdaptiveBound.single_split_bound(
+                    idx_data, size, base_bound=(bnd[0][idx], bnd[1][idx])
+                )
                 for i in bounds:
                     lb, rb = i
                     l_bnd, r_bnd = bnd
@@ -134,7 +140,9 @@ class AdaptiveBound(object):
             new_bound_chain = []
             new_data_chain = []
             for bnd, data in zip(bound_chain, data_chain):
-                bound, data_i = AdaptiveBound.multi_split_bound(data, size, base_bound=bnd)
+                bound, data_i = AdaptiveBound.multi_split_bound(
+                    data, size, base_bound=bnd
+                )
                 new_bound_chain += bound
                 new_data_chain += data_i
             bound_chain = new_bound_chain
@@ -153,7 +161,9 @@ class AdaptiveBound(object):
         for i, bnd in enumerate(self.get_bounds()):
             min_x, min_y = bnd[0]
             max_x, max_y = bnd[1]
-            rect = mpathes.Rectangle((min_x, min_y), max_x-min_x, max_y-min_y, **kwargs) #cmap(weights[i]/max_weight))
+            rect = mpathes.Rectangle(
+                (min_x, min_y), max_x - min_x, max_y - min_y, **kwargs
+            )  # cmap(weights[i]/max_weight))
             ret.append(rect)
         return ret
 
@@ -168,12 +178,12 @@ def cal_chi2(numbers, n_fp):
     # chi21 = []
     for ndata, nmc in numbers:
         weight = (ndata - nmc) / np.sqrt(np.abs(ndata))
-        weights.append(weight**2)
+        weights.append(weight ** 2)
         # chi21.append(ndata * np.log(nmc))
     max_weight = np.max(weights)
     chi2 = np.sum(weights)
     print("bins: ", len(weights))
     print("number of free parameters: ", n_fp)
     ndf = len(weights) - 1 - n_fp
-    print("chi2/ndf: ", np.sum(weights), "/", ndf) # ,"another", np.sum(chi21))
+    print("chi2/ndf: ", np.sum(weights), "/", ndf)  # ,"another", np.sum(chi21))
     return chi2, ndf

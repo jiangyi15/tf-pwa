@@ -7,7 +7,7 @@ def test_process():
     p = {
         b: np.array([[1.0, 0.2, 0.3, 0.2]]),
         c: np.array([[2.0, 0.1, 0.3, 0.4]]),
-        d: np.array([[3.0, 0.2, 0.5, 0.7]])
+        d: np.array([[3.0, 0.2, 0.5, 0.7]]),
     }
     # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
     decs = DecayGroup(DecayChain.from_particles(a, [b, c, d]))

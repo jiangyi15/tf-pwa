@@ -2,14 +2,16 @@
 
 import sys
 import os.path
+
 this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
+sys.path.insert(0, this_dir + "/..")
 
 from tf_pwa.model import Model, FCN, CombineFCN
 from tf_pwa.tensorflow_wrapper import tf
 import time
 import numpy as np
-#from pprint import pprint
+
+# from pprint import pprint
 import json
 import datetime
 from scipy.optimize import minimize
@@ -22,21 +24,20 @@ from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle
 from tf_pwa.data import data_to_tensor, split_generator
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.variable import VarsManager
+
 # log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
-
-
 data_file_name = [
-        ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
-        ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
-        ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
+    ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
+    ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
+    ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"],
 ]
 
 data_file_name2 = [
-        ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
-        ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
-        ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
+    ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
+    ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
+    ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"],
 ]
 
 
@@ -44,7 +45,9 @@ def prepare_data(fnames, decs, particles=None, dtype="float64"):
     tname = ["data", "bg", "PHSP"]
     data_np = {}
     for i, name in enumerate(fnames):
-        data_np[tname[i]] = prepare_data_from_decay(name[0], decs, particles=particles, dtype=dtype)
+        data_np[tname[i]] = prepare_data_from_decay(
+            name[0], decs, particles=particles, dtype=dtype
+        )
     data, bg, mcdata = data_to_tensor([data_np[i] for i in tname])
     return data, bg, mcdata
 
@@ -67,7 +70,9 @@ def get_decay_chains(config_list):
     decay = {}
     for i in config_list:
         config = config_list[i]
-        res = Particle(i, config["J"], config["Par"], mass=config["m0"], width=config["g0"])
+        res = Particle(
+            i, config["J"], config["Par"], mass=config["m0"], width=config["g0"]
+        )
         chain = config["Chain"]
         if chain < 0:
             dec1 = HelicityDecay(a, [res, c])
@@ -87,7 +92,7 @@ def get_decay_chains(config_list):
 
 
 def get_amplitude(decs, config_list, decay, polar=True, vm=None):
-    amp = AmplitudeModel(decs,polar,vm=vm)
+    amp = AmplitudeModel(decs, polar, vm=vm)
     for i in config_list:
         if "coef_head" in config_list[i]:
             coef_head = config_list[i]["coef_head"]
@@ -103,9 +108,9 @@ def get_amplitude(decs, config_list, decay, polar=True, vm=None):
                 if decay[i][0] in j:
                     j.total.fixed(config_list[i]["total"])
         if ("float" in config_list[i]) and config_list[i]["float"]:
-            if 'm' in config_list[i]["float"]:
+            if "m" in config_list[i]["float"]:
                 decay[i][1].core.mass.freed()
-            if 'g' in config_list[i]["float"]:
+            if "g" in config_list[i]["float"]:
                 decay[i][1].core.width.freed()
     return amp
 
@@ -145,9 +150,13 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     vm = VarsManager()
 
     decs, final_particles, decay = get_decay_chains(config_list)
-    data, bg, mcdata = prepare_data(data_file_name, decs, particles=final_particles, dtype=dtype)
+    data, bg, mcdata = prepare_data(
+        data_file_name, decs, particles=final_particles, dtype=dtype
+    )
     decs2, final_particles2, decay2 = get_decay_chains(config_list)
-    data2, bg2, mcdata2 = prepare_data(data_file_name2, decs2, particles=final_particles2, dtype=dtype)
+    data2, bg2, mcdata2 = prepare_data(
+        data_file_name2, decs2, particles=final_particles2, dtype=dtype
+    )
 
     amp = get_amplitude(decs, config_list, decay, polar=POLAR, vm=vm)
     amp2 = get_amplitude(decs2, config_list2, decay2, polar=POLAR, vm=vm)
@@ -159,7 +168,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     model2 = Model(amp2, w_bkg=w_bkg)
     pprint(model.get_params())
 
-    fcn = CombineFCN([model, model2], [data, data2], [mcdata, mcdata2], bg=[bg, bg2], batch=65000)
+    fcn = CombineFCN(
+        [model, model2], [data, data2], [mcdata, mcdata2], bg=[bg, bg2], batch=65000
+    )
 
     # fit configure
     args = {}
@@ -197,7 +208,14 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
 
     vm.set_bound(bounds_dict)
     f_g = vm.trans_fcn_grad(fcn.nll_grad)
-    s = minimize(f_g, np.array(vm.get_all_val(True)), method=method, jac=True, callback=callback, options={"disp": 1,"gtol":1e-4,"maxiter":maxiter})
+    s = minimize(
+        f_g,
+        np.array(vm.get_all_val(True)),
+        method=method,
+        jac=True,
+        callback=callback,
+        options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter},
+    )
     xn = vm.get_all_val()
     print("########## fit state:")
     print(s)
@@ -208,7 +226,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         json.dump({"value": val}, f, indent=2)
 
     err = {}
-    inv_he = cal_hesse_error(model.Amp, val, w_bkg, data, mcdata, bg, args_name, batch=20000)
+    inv_he = cal_hesse_error(
+        model.Amp, val, w_bkg, data, mcdata, bg, args_name, batch=20000
+    )
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
     print(hesse_error)
@@ -232,14 +252,15 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     for i in frac:
         print(i, ":", error_print(frac[i], err_frac.get(i, None)))
     print("\nEND\n")
-    '''outdic = {"value": val, "error": err, "frac": frac, "err_frac": err_frac}
+    """outdic = {"value": val, "error": err, "frac": frac, "err_frac": err_frac}
     with open("glbmin_params.json", "w") as f:
         json.dump(outdic, f, indent=2)
-    '''
+    """
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="simple fit scripts")
     parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
     parser.add_argument("--method", default="BFGS", dest="method")
@@ -253,7 +274,7 @@ def main():
 
 
 if __name__ == "__main__":
-    
+
     # summary_writer = tf.summary.create_file_writer(log_dir)
     # with summary_writer.as_default():
     main()

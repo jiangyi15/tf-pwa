@@ -3,7 +3,7 @@ import sys
 import os.path
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, this_dir + '/..')
+sys.path.insert(0, this_dir + "/..")
 
 from tf_pwa.config_loader import ConfigLoader
 
@@ -22,15 +22,17 @@ def cal_chi2_config(config, adapter, data, phsp, data_idx, bg=None, data_cut=Non
         data_cut = np.array([data_index(data, idx) for idx in data_idx])
     amp_weight = config.get_amplitude()(phsp).numpy()
     phsp_cut = np.array([data_index(phsp, idx) for idx in data_idx])
-    phsp_slice = np.concatenate([np.array(phsp_cut**2), [amp_weight]], axis=0)
+    phsp_slice = np.concatenate([np.array(phsp_cut ** 2), [amp_weight]], axis=0)
     phsps = adapter.split_data(phsp_slice)
-    datas = adapter.split_data(data_cut**2)
+    datas = adapter.split_data(data_cut ** 2)
     bound = adapter.get_bounds()
     if bg is not None:
         bg_weight = config._get_bg_weight(display=False)[0][0]
         bg_cut = np.array([data_index(bg, idx) for idx in data_idx])
-        bgs = adapter.split_data(bg_cut**2)
-        int_norm = (data_cut.shape[-1] - bg_cut.shape[-1] * bg_weight)/ np.sum(amp_weight)
+        bgs = adapter.split_data(bg_cut ** 2)
+        int_norm = (data_cut.shape[-1] - bg_cut.shape[-1] * bg_weight) / np.sum(
+            amp_weight
+        )
     else:
         int_norm = data_cut.shape[-1] / np.sum(amp_weight)
     print("int norm:", int_norm)
@@ -54,20 +56,27 @@ def draw_dalitz(data_cut, bound):
     for i, bnd in enumerate(bound):
         min_x, min_y = bnd[0]
         max_x, max_y = bnd[1]
-        rect = mpathes.Rectangle((min_x, min_y), max_x-min_x, max_y-min_y, linewidth=1, facecolor="none", edgecolor="black") #cmap(weights[i]/max_weight))
+        rect = mpathes.Rectangle(
+            (min_x, min_y),
+            max_x - min_x,
+            max_y - min_y,
+            linewidth=1,
+            facecolor="none",
+            edgecolor="black",
+        )  # cmap(weights[i]/max_weight))
         ax.add_patch(rect)
 
-    ah = ax.hist2d(data_cut[0]**2, data_cut[1]**2, bins=50, norm=mcolors.LogNorm())
+    ah = ax.hist2d(data_cut[0] ** 2, data_cut[1] ** 2, bins=50, norm=mcolors.LogNorm())
     # ax.scatter(data_cut[0]**2, data_cut[1]**2, s=1, c="red")
     ## using your own mass
     m0, mb, mc, md = 5.27926, 2.01026, 1.86961, 0.49368
     # print(ah)
-    sbc_min, sbc_max = (mb + mc)**2, (m0 - md)**2
-    sbd_min, sbd_max = (mb + md)**2, (m0 - mc)**2
+    sbc_min, sbc_max = (mb + mc) ** 2, (m0 - md) ** 2
+    sbd_min, sbd_max = (mb + md) ** 2, (m0 - mc) ** 2
     sbc = np.linspace(sbc_min, sbc_max, 1000)
     ax.plot(sbc, kine_max(sbc, m0, mc, mb, md), color="grey")
     ax.plot(sbc, kine_min(sbc, m0, mc, mb, md), color="grey")
-    
+
     ax.set_xlim((sbc_min, sbc_max))
     ax.set_ylim((sbd_min, sbd_max))
     ax.set_xlabel("$M_{BC}$")
@@ -88,7 +97,7 @@ def main():
     data_idx = [mbc_idx, mbd_idx]
 
     data_cut = np.array([data_index(data, idx) for idx in data_idx])
-    adapter = AdaptiveBound(data_cut**2, [[2,2], [3,3], [2,2]])
+    adapter = AdaptiveBound(data_cut ** 2, [[2, 2], [3, 3], [2, 2]])
     bound = adapter.get_bounds()
 
     cal_chi2_config(config, adapter, data, phsp, data_idx, bg=bg, data_cut=data_cut)

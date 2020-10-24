@@ -11,7 +11,7 @@ def test_add():
     d = b - a
     assert d.value == 1.0
     assert d.error == 0.5
-    e = - a
+    e = -a
     assert e.value == -1.0
     assert e.error == 0.3
     f = a - 1.0
@@ -47,12 +47,11 @@ def test_exp():
 def test_cal_err():
     a = NumberError(3.0, 0.3)
     b = NumberError(2.0, 0.3)
-    f = lambda x: x*3.0 + x**2*2.0+1.0
+    f = lambda x: x * 3.0 + x ** 2 * 2.0 + 1.0
     c = cal_err(f, a)
-    g = lambda x,y: x + y + (x-y)*(x+y)
+    g = lambda x, y: x + y + (x - y) * (x + y)
     d = cal_err(g, a, b)
     e = cal_err(g, 3.0, b)
     h = cal_err(g, a, 2.0)
     assert d.value == e.value
     assert e.value == h.value
-

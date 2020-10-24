@@ -44,7 +44,7 @@ class Vector3(tf.Tensor):
         """
         Cross product with another Vector3 instance
         """
-        p =  numpy_cross(self, other)
+        p = numpy_cross(self, other)
         return p
 
     def unit(self):
@@ -58,11 +58,11 @@ class Vector3(tf.Tensor):
         """
         The unit vector of the cross product with another Vector3 object. It has interface to *tf.linalg.normalize()*.
         """
-        cro =  numpy_cross(self, other)
+        cro = numpy_cross(self, other)
         norm_cro = tf.expand_dims(tf.norm(cro, axis=-1), -1)
         mask = norm_cro < _epsilon
         bias_other = tf.ones_like(norm_cro) + other
-        cro = tf.where(mask,  numpy_cross(self, bias_other), cro)
+        cro = tf.where(mask, numpy_cross(self, bias_other), cro)
         p, _n = tf.linalg.normalize(cro, axis=-1)
         return p
 
@@ -153,7 +153,7 @@ class LorentzVector(tf.Tensor):
     def gamma(self):
         pb = LorentzVector.boost_vector(self)
         beta2 = Vector3.norm2(pb)
-        beta2 = tf.where(beta2<1,beta2, tf.zeros_like(beta2))
+        beta2 = tf.where(beta2 < 1, beta2, tf.zeros_like(beta2))
         gamma = 1.0 / tf.sqrt(1 - beta2)
         return gamma
 
@@ -262,7 +262,7 @@ class EulerAngle(dict):
     @staticmethod
     def angle_zx_zzz_getx(z, x, zi):
         """
-        The Eular angle from coordinate 1 to coordinate 2. 
+        The Eular angle from coordinate 1 to coordinate 2.
         Z-axis of coordinate 2 is the normal vector of a plane.
 
         :param z1: Vector3 z-axis of the initial coordinate
@@ -281,12 +281,13 @@ class EulerAngle(dict):
 class SU2M(dict):
     def __init__(self, x):
         self["x"] = x
+
     @staticmethod
     def Boost_z(omega):
         zeros = tf.zeros_like(omega)
-        a = tf.complex(tf.exp(omega/2), zeros)
+        a = tf.complex(tf.exp(omega / 2), zeros)
         zeros_c = tf.complex(zeros, zeros)
-        ret = SU2M([[1/a, zeros_c], [zeros_c,a]])
+        ret = SU2M([[1 / a, zeros_c], [zeros_c, a]])
         return ret
 
     @staticmethod
@@ -298,15 +299,15 @@ class SU2M(dict):
     def Rotation_z(alpha):
         zeros = tf.zeros_like(alpha)
         zeros_c = tf.complex(zeros, zeros)
-        a = tf.exp(tf.complex(zeros, alpha/2))
-        return SU2M([[1/a, zeros_c], [zeros_c,a]])
+        a = tf.exp(tf.complex(zeros, alpha / 2))
+        return SU2M([[1 / a, zeros_c], [zeros_c, a]])
 
     @staticmethod
     def Rotation_y(beta):
         zeros = tf.zeros_like(beta)
-        s = tf.complex(tf.sin(beta/2), zeros)
-        c = tf.complex(tf.cos(beta/2), zeros)
-        return SU2M([[c, -s], [s,c]])
+        s = tf.complex(tf.sin(beta / 2), zeros)
+        c = tf.complex(tf.cos(beta / 2), zeros)
+        return SU2M([[c, -s], [s, c]])
 
     def __mul__(self, other):
         x = self["x"]
@@ -320,7 +321,7 @@ class SU2M(dict):
     def inv(self):
         aa, ab = self["x"][0]
         ba, bb = self["x"][1]
-        return SU2M([[bb, -ab],[-ba, aa]])
+        return SU2M([[bb, -ab], [-ba, aa]])
 
     def get_euler_angle(self):
         x = self["x"]
@@ -331,7 +332,7 @@ class SU2M(dict):
         m_1 = tf.abs(x[0][0])
         m_2 = tf.abs(x[1][0])
         alpha_p_gamma = tf.math.imag(tf.math.log(x[1][1] / tf.complex(m_1, zeros)))
-        alpha_m_gamma = - tf.math.imag(tf.math.log(x[1][0] / tf.complex(m_2, zeros)))
+        alpha_m_gamma = -tf.math.imag(tf.math.log(x[1][0] / tf.complex(m_2, zeros)))
         alpha = alpha_p_gamma + alpha_m_gamma
         gamma = alpha_p_gamma - alpha_m_gamma
         return EulerAngle(alpha, beta, gamma)
@@ -352,11 +353,17 @@ class AlignmentAngle(EulerAngle):
         p3_2 = Vector3.norm(LorentzVector.vect(p2))
         zeros = tf.zeros_like(p3_1)
         delta_p = p3_2 - p3_1
-        p4_2 = LorentzVector.from_p4(tf.sqrt(m_p*m_p + delta_p * delta_p), zeros,zeros, delta_p)
+        p4_2 = LorentzVector.from_p4(
+            tf.sqrt(m_p * m_p + delta_p * delta_p), zeros, zeros, delta_p
+        )
         b1 = SU2M.Boost_z_from_p(p4_2)
         r2 = EulerAngle.angle_zx_zx(zr, xr, z2, x2)
         r_1 = b1 * SU2M.Rotation_y(r1["beta"]) * SU2M.Rotation_z(r1["alpha"])
-        r_2 = SU2M.Rotation_z(r2["gamma"]) * SU2M.Rotation_y(r2["beta"]) * SU2M.Rotation_z(r2["alpha"])
+        r_2 = (
+            SU2M.Rotation_z(r2["gamma"])
+            * SU2M.Rotation_y(r2["beta"])
+            * SU2M.Rotation_z(r2["alpha"])
+        )
         r = r_2 * r_1
         return r.get_eular_angle()
 
@@ -364,16 +371,16 @@ class AlignmentAngle(EulerAngle):
 def kine_min_max(s12, m0, m1, m2, m3):
     """ min max s23 for s12 in p0 -> p1 p2 p3"""
     m12 = tf.sqrt(s12)
-    m12 = tf.where(m12 > (m1 + m2), m12,  m1 + m2)
-    m12 = tf.where(m12 < (m0 - m3), m12,  m0 - m3)
+    m12 = tf.where(m12 > (m1 + m2), m12, m1 + m2)
+    m12 = tf.where(m12 < (m0 - m3), m12, m0 - m3)
     # if(mz < (m_d+m_pi)) return 0;
     # if(mz > (m_b-m_pi)) return 0;
-    E2st = 0.5*(m12*m12-m1*m1+m2*m2)/m12
-    E3st = 0.5*(m0*m0-m12*m12-m3*m3)/m12
-    p2st = tf.sqrt(E2st*E2st - m2*m2)
-    p3st = tf.sqrt(E3st*E3st - m3*m3)
-    s_min = (E2st + E3st)**2 - (p2st + p3st)**2
-    s_max = (E2st + E3st)**2 - (p2st - p3st)**2
+    E2st = 0.5 * (m12 * m12 - m1 * m1 + m2 * m2) / m12
+    E3st = 0.5 * (m0 * m0 - m12 * m12 - m3 * m3) / m12
+    p2st = tf.sqrt(E2st * E2st - m2 * m2)
+    p3st = tf.sqrt(E3st * E3st - m3 * m3)
+    s_min = (E2st + E3st) ** 2 - (p2st + p3st) ** 2
+    s_max = (E2st + E3st) ** 2 - (p2st - p3st) ** 2
     return s_min, s_max
 
 

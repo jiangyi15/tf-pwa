@@ -3,7 +3,7 @@ import os.path
 
 
 this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
+sys.path.insert(0, this_dir + "/..")
 
 
 from tf_pwa.config_loader import ConfigLoader

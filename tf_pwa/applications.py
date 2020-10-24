@@ -198,7 +198,9 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     :return inv_he: The inverse Hessian matrix.
     """
     t = time.time()
-    nll, g, h = fcn.nll_grad_hessian(params)  # data_w,mcdata,weight=weights,batch=50000)
+    nll, g, h = fcn.nll_grad_hessian(
+        params
+    )  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     if check_positive_definite(h.numpy()):
         inv_he = np.linalg.inv(h.numpy())
@@ -211,8 +213,9 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     return hesse_error, inv_he
 
 
-def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
-             bgfile=None, genfile=None):
+def gen_data(
+    amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False, bgfile=None, genfile=None
+):
     """
     This function is used to generate toy data according to an amplitude model.
 
@@ -251,14 +254,14 @@ def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
         mask = tf.boolean_mask(list_rdm, tf.gather(ampsq, list_rdm) > uni_rdm)
         idx_list.append(mask)
         n += mask.shape[0]
-        #print(mask)
-        #for i in list_rdm:
-            #if ampsq[i] > uni_rdm[j]:
-                #idx_list.append(i)
-                #n += 1
-            #j += 1
-            #if n == Nmc:
-                #break
+        # print(mask)
+        # for i in list_rdm:
+        # if ampsq[i] > uni_rdm[j]:
+        # idx_list.append(i)
+        # n += 1
+        # j += 1
+        # if n == Nmc:
+        # break
     idx_list = tf.concat(idx_list, axis=0).numpy()[:Nmc]
 
     data_tmp = load_dat_file(mcfile, particles, dtype)
@@ -268,8 +271,9 @@ def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
 
     if Nbg:
         bg_tmp = load_dat_file(bgfile, particles, dtype)
-        bg_idx = tf.random.uniform([Nbg], dtype=tf.int64,
-                                   maxval=len(bg_tmp[particles[0]]))  # np.random.randint(len(bg),size=Nbg)
+        bg_idx = tf.random.uniform(
+            [Nbg], dtype=tf.int64, maxval=len(bg_tmp[particles[0]])
+        )  # np.random.randint(len(bg),size=Nbg)
         bg_idx = tf.stack(bg_idx).numpy()
         for i in particles:
             tmp = bg_tmp[i][bg_idx]
@@ -396,11 +400,17 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 
     try:
         from iminuit import Minuit
+
         print("Using Minuit to fit the histogram")
+
         def fitNormHist(data):
             def nll(mu, sigma):
                 def normpdf(x, mu, sigma):
-                    return np.exp(-(x - mu) * (x - mu) / 2 / sigma / sigma) / np.sqrt(2 * np.pi) / sigma
+                    return (
+                        np.exp(-(x - mu) * (x - mu) / 2 / sigma / sigma)
+                        / np.sqrt(2 * np.pi)
+                        / sigma
+                    )
 
                 return -np.sum(np.log(normpdf(data, mu, sigma)))
 
@@ -417,14 +427,25 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
         if type(e) is ModuleNotFoundError:
             print("No Minuit installed. Using scipy.optimize to fit the histogram")
             from scipy.optimize import minimize
+
             def fitNormHist(data):
                 def nll(mu_sigma):
                     def normpdf(x, mu_sigma):
-                        return np.exp(-(x - mu_sigma[0]) * (x - mu_sigma[0]) / 2 / mu_sigma[1] / mu_sigma[1]) / np.sqrt(2 * np.pi) / mu_sigma[1]
+                        return (
+                            np.exp(
+                                -(x - mu_sigma[0])
+                                * (x - mu_sigma[0])
+                                / 2
+                                / mu_sigma[1]
+                                / mu_sigma[1]
+                            )
+                            / np.sqrt(2 * np.pi)
+                            / mu_sigma[1]
+                        )
 
                     return -np.sum(np.log(normpdf(data, mu_sigma)))
 
-                s = minimize(nll, [0,1])
+                s = minimize(nll, [0, 1])
                 return s
 
             s = fitNormHist(data)
@@ -436,7 +457,9 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     y = Norm.pdf(bins, mu, sigma)
     plt.plot(bins, y, "r-")
     plt.xlabel(name)
-    plt.title("mu = " + error_print(mu, err_mu) + '; sigma = ' + error_print(sigma, err_sigma))
+    plt.title(
+        "mu = " + error_print(mu, err_mu) + "; sigma = " + error_print(sigma, err_sigma)
+    )
     plt.savefig("fig/" + name + "_pull.png")
     plt.clf()
     return mu, sigma, err_mu, err_sigma
@@ -458,6 +481,7 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 # elif mode == "back&forth":
 #    x1 = np.arange(start, end, step)
 #    x2 = x1[::-1]
+
 
 def likelihood_profile(m, var_names, bins=20, minos=True):
     """
@@ -482,7 +506,9 @@ def likelihood_profile(m, var_names, bins=20, minos=True):
     return lklpf
 
 
-def compare_result(value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=None):
+def compare_result(
+    value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=None
+):
     """
     Compare two groups of fitting results. If only one error is provided,
     the figure is :math:`\\frac{\\mu_1-\\mu_2}{\\sigma_1}`;

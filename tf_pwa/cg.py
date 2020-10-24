@@ -42,10 +42,10 @@ def get_cg_coef(j1, j2, m1, m2, j, m):
 
     .. note:: **tf_pwa/cg_table.json** only contains the cases where :math:`j_1,j_2\\leqslant4`, but this should be enough for most cases in PWA.
     """
-    assert (m1 + m2 == m)
-    assert (j1 >= 0)
-    assert (j2 >= 0)
-    assert (j >= 0)
+    assert m1 + m2 == m
+    assert j1 >= 0
+    assert j2 >= 0
+    assert j >= 0
     if j1 == 0 or j2 == 0:
         return 1.0
     sign = 1
@@ -60,4 +60,5 @@ def get_cg_coef(j1, j2, m1, m2, j, m):
             return cg_table[str(j1)][str(j2)][str(m1)][str(m2)][str(j)][str(m)]
         except:
             return 0.0
+
     return sign * find_cg_table(j1, j2, m1, m2, j, m)

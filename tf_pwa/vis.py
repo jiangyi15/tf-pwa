@@ -1,7 +1,7 @@
 from .particle import split_particle_type
 
 
-class DotGenerator():
+class DotGenerator:
     dot_head = """
 digraph {
     rankdir=LR;
@@ -9,7 +9,7 @@ digraph {
     edge [arrowhead=none, labelfloat=true];
 """
     dot_tail = "}\n"
-    dot_ranksame = '    {{ rank=same {} }};\n'
+    dot_ranksame = "    {{ rank=same {} }};\n"
     dot_default_node = '    "{}" [shape=none];\n'
     dot_default_edge = '    "{}" -> "{}";\n'
     dot_label_edge = '    "{}" -> "{}" [label="{}"];\n'
@@ -65,6 +65,7 @@ digraph {
 
 def draw_decay_struct(decay_chain, show=False, **kwargs):
     from graphviz import Source
+
     a = DotGenerator.dot_chain(decay_chain)
     g = Source(a, **kwargs)
     if show:

@@ -4,8 +4,9 @@ import os.path
 import copy
 from pprint import pprint
 import yaml
+
 this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
+sys.path.insert(0, this_dir + "/..")
 
 
 from tf_pwa.significance import significance
@@ -14,7 +15,7 @@ from tf_pwa.config_loader import ConfigLoader
 
 def single_fit(config_dict, data, phsp, bg):
     config = ConfigLoader(config_dict)
-    
+
     print("\n########### initial parameters")
     pprint(config.get_params())
     print(config.full_decay)
@@ -26,7 +27,7 @@ def single_fit(config_dict, data, phsp, bg):
 
 def multi_fit(config, data, phsp, bg, num=5):
     nll, ndf = single_fit(config, data, phsp, bg)
-    for i in range(num-1):
+    for i in range(num - 1):
         nll_i, ndf_i = single_fit(config, data, phsp, bg)
         assert ndf_i == ndf
         if nll > nll_i:
@@ -62,7 +63,7 @@ def cal_significance(config_name, res, model="-"):
     with open(config_name) as f:
         config = yaml.safe_load(f)
     data, phsp, bg = cached_data(config)
-    
+
     def get_config(extra=[]):
         base_conf = copy.deepcopy(config)
         if model == "+":
@@ -75,7 +76,7 @@ def cal_significance(config_name, res, model="-"):
         for i in veto_res:
             base_conf = veto_resonance(base_conf, i)
         return base_conf
-    
+
     base_config = get_config([])
     nll, ndf = multi_fit(base_config, data, phsp, bg)
     nlls = {"base": nll}
@@ -94,9 +95,20 @@ def cal_significance(config_name, res, model="-"):
 
 
 def main():
-    res = ["X(3940)(1+)", "X(3940)(1-)", "X(3940)(0-)", "X(3940)(2+)", 
-           "X(3940)(2-)", "Psi(4660)", "Psi(4230)", "Psi(4390)", "Psi(4260)", "Psi(4360)"]
+    res = [
+        "X(3940)(1+)",
+        "X(3940)(1-)",
+        "X(3940)(0-)",
+        "X(3940)(2+)",
+        "X(3940)(2-)",
+        "Psi(4660)",
+        "Psi(4230)",
+        "Psi(4390)",
+        "Psi(4260)",
+        "Psi(4360)",
+    ]
     import argparse
+
     parser = argparse.ArgumentParser(description="calculate significance")
     parser.add_argument("--config", default="config.yml", dest="config")
     results = parser.parse_args()

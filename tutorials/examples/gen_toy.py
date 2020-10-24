@@ -4,11 +4,12 @@ import os.path
 import copy
 from pprint import pprint
 import yaml
+
 this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
+sys.path.insert(0, this_dir + "/..")
 
 from tf_pwa.config_loader import ConfigLoader
-from tf_pwa.phasespace import  PhaseSpaceGenerator
+from tf_pwa.phasespace import PhaseSpaceGenerator
 from tf_pwa.data import data_mask, data_index, data_to_numpy
 import numpy as np
 import json
@@ -17,13 +18,13 @@ import json
 def gen_phasespace(top, finals, number):
     a = PhaseSpaceGenerator(top, finals)
     flat_mc_data = a.generate(number)
-    return flat_mc_data    
+    return flat_mc_data
 
 
 def simple_select(phsp, amp):
     weights = amp(phsp)
     max_weights = np.max(weights) * 1.01
-    
+
     rnd = np.random.random(weights.shape)
     select_index = weights / max_weights > rnd
     select_data = data_mask(phsp, select_index)
@@ -46,7 +47,7 @@ def gen_toy(config, params, file_name):
         config.set_params(params)
     except Exception as e:
         print(e)
-    
+
     print("using params")
     print(json.dumps(config.get_params(), indent=2))
     amp = config.get_amplitude()
@@ -59,6 +60,7 @@ def gen_toy(config, params, file_name):
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="calculate significance")
     parser.add_argument("--config", default="config.yml", dest="config")
     parser.add_argument("--params", default="final_params.json", dest="params")

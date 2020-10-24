@@ -1,8 +1,8 @@
-
 import sys
 import os.path
+
 this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
+sys.path.insert(0, this_dir + "/..")
 
 
 import tensorflow as tf
@@ -36,8 +36,14 @@ def gen_data_from_mc():
     amp = get_amplitude(decs, config_list, decay)
     load_params(amp, "gen_params.json")
     gen_mc(4.59925172, [2.00698, 2.01028, 0.13957], 10000, "data/flat_mc.dat")
-    gen_data(amp, final_particles, Ndata=10000, mcfile="data/flat_mc.dat", genfile="data/gen_data.dat",
-             Poisson_fluc=True)
+    gen_data(
+        amp,
+        final_particles,
+        Ndata=10000,
+        mcfile="data/flat_mc.dat",
+        genfile="data/gen_data.dat",
+        Poisson_fluc=True,
+    )
 
 
 def fit():
@@ -47,9 +53,15 @@ def fit():
     decs, final_particles, decay = get_decay_chains(config_list)
     amp = get_amplitude(decs, config_list, decay)
     # data/pure1w.dat  data/flat_mc30w.dat
-    data = prepare_data("data/data4600_new.dat", decs, particles=final_particles, dtype=dtype)
-    mcdata = prepare_data("data/PHSP4600_new.dat", decs, particles=final_particles, dtype=dtype)
-    bg = prepare_data("data/bg4600_new.dat", decs, particles=final_particles, dtype=dtype)
+    data = prepare_data(
+        "data/data4600_new.dat", decs, particles=final_particles, dtype=dtype
+    )
+    mcdata = prepare_data(
+        "data/PHSP4600_new.dat", decs, particles=final_particles, dtype=dtype
+    )
+    bg = prepare_data(
+        "data/bg4600_new.dat", decs, particles=final_particles, dtype=dtype
+    )
     w_bkg = 0.768331
 
     model = Model(amp, w_bkg=w_bkg)
@@ -61,13 +73,20 @@ def fit():
     SCIPY = False
     hesse = True
     if SCIPY:
+
         def callback(x):
             print(fcn.cached_nll)
 
         f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
         now = time.time()
-        s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method="BFGS", jac=True, callback=callback,
-                     options={"disp": 1, "gtol": 1e-4, "maxiter": 1000})
+        s = minimize(
+            f_g,
+            np.array(fcn.model.Amp.vm.get_all_val(True)),
+            method="BFGS",
+            jac=True,
+            callback=callback,
+            options={"disp": 1, "gtol": 1e-4, "maxiter": 1000},
+        )
         model.Amp.vm.trans_params(True)
         xn = fcn.model.Amp.vm.get_all_val()
         print("########## fit state:")
@@ -76,7 +95,9 @@ def fit():
         val = {k: v.numpy() for k, v in model.Amp.variables.items()}
         err = {}
         if hesse:
-            inv_he = cal_hesse_error(model.Amp, val, w_bkg, data, mcdata, bg, args_name, batch=20000)
+            inv_he = cal_hesse_error(
+                model.Amp, val, w_bkg, data, mcdata, bg, args_name, batch=20000
+            )
             diag_he = inv_he.diagonal()
             hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
             print(hesse_error)
@@ -84,6 +105,7 @@ def fit():
 
     else:
         from tf_pwa.fit import fit_minuit
+
         m = fit_minuit(fcn, hesse=False)
         model.Amp.vm.trans_params(True)
         err_mtrx = m.np_covariance()
@@ -100,9 +122,13 @@ def fit():
     if frac:
         err_frac = {}
         if hesse:
-            frac, grad = cal_fitfractions(model.Amp, list(split_generator(mcdata, 25000)))
+            frac, grad = cal_fitfractions(
+                model.Amp, list(split_generator(mcdata, 25000))
+            )
         else:
-            frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
+            frac = cal_fitfractions_no_grad(
+                model.Amp, list(split_generator(mcdata, 45000))
+            )
         for i in frac:
             if hesse:
                 err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
@@ -110,13 +136,21 @@ def fit():
         for i in frac:
             print(i, ":", error_print(frac[i], err_frac.get(i, None)))
 
-    outdic = {"value": val, "error": err, "config": config_list,
-              "frac": frac, "err_frac": err_frac, "NLL": fcn.cached_nll.numpy()}
+    outdic = {
+        "value": val,
+        "error": err,
+        "config": config_list,
+        "frac": frac,
+        "err_frac": err_frac,
+        "NLL": fcn.cached_nll.numpy(),
+    }
     with open("glb_params_rp.json", "w") as f:
         json.dump(outdic, f, indent=2)
 
 
 from tf_pwa.applications import fit_fractions
+
+
 def gen_toy_sample():
     Ndata = 10000  # 8065
     Nbg = 0  # 3445
@@ -149,8 +183,16 @@ def gen_toy_sample():
         load_params(model.Amp, params_file)
         # model.Amp.vm.trans_params(True)
         # gen_mc(4.59925172,[2.00698,2.01028,0.13957],60000,"data/flat_mc.dat")
-        data = gen_data(model.Amp, final_particles, Ndata, mcfile=mcfile,
-                        Poisson_fluc=True, Nbg=Nbg, wbg=w_bkg, bgfile=bgfile)
+        data = gen_data(
+            model.Amp,
+            final_particles,
+            Ndata,
+            mcfile=mcfile,
+            Poisson_fluc=True,
+            Nbg=Nbg,
+            wbg=w_bkg,
+            bgfile=bgfile,
+        )
 
         fcn = FCN(model, data, mcdata, bg=bg, batch=65000)
 
@@ -160,8 +202,14 @@ def gen_toy_sample():
         # fcn.model.Amp.vm.set_bound(bounds_dict)
         f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
         now = time.time()
-        s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method="BFGS", jac=True, callback=callback,
-                     options={"disp": 1, "gtol": 1e-4, "maxiter": 1000})
+        s = minimize(
+            f_g,
+            np.array(fcn.model.Amp.vm.get_all_val(True)),
+            method="BFGS",
+            jac=True,
+            callback=callback,
+            options={"disp": 1, "gtol": 1e-4, "maxiter": 1000},
+        )
         fcn.model.Amp.vm.set_all(s.x)
         model.Amp.vm.trans_params(False)  # switch to xy
         var = fcn.model.Amp.vm.get_all_dic(trainable_only=True)
@@ -170,7 +218,9 @@ def gen_toy_sample():
         print("fitting parameters:\n", var)
 
         err = {}
-        inv_he = cal_hesse_error(model.Amp, var_all, w_bkg, data, mcdata, bg, args_name, batch=20000)
+        inv_he = cal_hesse_error(
+            model.Amp, var_all, w_bkg, data, mcdata, bg, args_name, batch=20000
+        )
         diag_he = inv_he.diagonal()
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         err = dict(zip(model.Amp.vm.trainable_vars, hesse_error))
@@ -193,8 +243,12 @@ def gen_toy_sample():
     print("$$$$$ frac\n", frac_arr)
     print("$$$$$ err_frac\n", err_frac_arr)
 
-    output = open('toyMar9.pkl', 'wb')
-    pickle.dump({"var": var_arr, "err": err_arr, "frac": frac_arr, "err_frac": err_frac_arr}, output, -1)
+    output = open("toyMar9.pkl", "wb")
+    pickle.dump(
+        {"var": var_arr, "err": err_arr, "frac": frac_arr, "err_frac": err_frac_arr},
+        output,
+        -1,
+    )
     output.close()
 
 
@@ -218,14 +272,24 @@ def compare_toy():
             if v[-1] == "i":
                 periodic_vars.append(v)
     else:
-        periodic_vars = ["A->D2_2460p.BD2_2460p->D.C_totali", "A->D1_2420.DD1_2420->B.C_totali",
-                         "A->D1_2420p.BD1_2420p->D.C_totali", "A->D1_2430.DD1_2430->B.C_totali",
-                         "A->D1_2430p.BD1_2430p->D.C_totali"]
+        periodic_vars = [
+            "A->D2_2460p.BD2_2460p->D.C_totali",
+            "A->D1_2420.DD1_2420->B.C_totali",
+            "A->D1_2420p.BD1_2420p->D.C_totali",
+            "A->D1_2430.DD1_2430->B.C_totali",
+            "A->D1_2430p.BD1_2430p->D.C_totali",
+        ]
 
     for i in range(var.__len__()):
         print("##### Pull", i)
-        compare_result(var[i], result["value"], err[i],  # result["error"],
-                       figname="fig/tmp/var_pull_{}".format(i), yrange=8, periodic_vars=periodic_vars)
+        compare_result(
+            var[i],
+            result["value"],
+            err[i],  # result["error"],
+            figname="fig/tmp/var_pull_{}".format(i),
+            yrange=8,
+            periodic_vars=periodic_vars,
+        )
         """compare_result(result["frac"], frac[i], result["err_frac"], err_frac[i],
                        figname="fig/tmp/frac_pull_{}".format(i), yrange=5)"""
 
@@ -279,7 +343,9 @@ def toy_pull():
     e_m = []
     e_s = []
     for i in var:
-        mean, sigma, err_m, err_s = plot_pull(var[i], "var" + i, norm=True, value=result["value"][i], error=err[i])
+        mean, sigma, err_m, err_s = plot_pull(
+            var[i], "var" + i, norm=True, value=result["value"][i], error=err[i]
+        )
         m.append(mean)
         s.append(sigma)
         e_m.append(err_m)
@@ -295,7 +361,9 @@ def toy_pull():
     e_m = []
     e_s = []
     for i in frac:
-        mean, sigma, err_m, err_s = plot_pull(frac[i], "frac" + i, norm=True, value=result["frac"][i], error=err_frac[i])
+        mean, sigma, err_m, err_s = plot_pull(
+            frac[i], "frac" + i, norm=True, value=result["frac"][i], error=err_frac[i]
+        )
         m.append(mean)
         s.append(sigma)
         e_m.append(err_m)
@@ -310,25 +378,35 @@ def toy_pull():
 def draw_errorbar():
     mu = []
     err_mu = []
-    plt.errorbar(range(len(mu)),mu,yerr=err_mu,fmt="oy",ecolor='r',elinewidth=1,capsize=3)
-    plt.errorbar(range(len(mu)),0,fmt='g')
+    plt.errorbar(
+        range(len(mu)), mu, yerr=err_mu, fmt="oy", ecolor="r", elinewidth=1, capsize=3
+    )
+    plt.errorbar(range(len(mu)), 0, fmt="g")
     plt.xlabel("var index")
     plt.ylabel("value")
     plt.title("mu")
     plt.show()
-    #plt.savefig("errbar_mu")
-    #plt.clf()
+    # plt.savefig("errbar_mu")
+    # plt.clf()
 
     sigma = []
     err_sigma = []
-    plt.errorbar(range(len(sigma)),sigma,yerr=err_sigma,fmt="oy",ecolor='r',elinewidth=1,capsize=3)
-    plt.errorbar(range(len(sigma)),1,fmt='g')
+    plt.errorbar(
+        range(len(sigma)),
+        sigma,
+        yerr=err_sigma,
+        fmt="oy",
+        ecolor="r",
+        elinewidth=1,
+        capsize=3,
+    )
+    plt.errorbar(range(len(sigma)), 1, fmt="g")
     plt.xlabel("var index")
     plt.ylabel("value")
     plt.title("sigma")
     plt.show()
-    #plt.savefig("errbar_sigma")
-    #plt.clf()
+    # plt.savefig("errbar_sigma")
+    # plt.clf()
 
 
 if __name__ == "__main__":

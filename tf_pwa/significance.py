@@ -17,7 +17,8 @@ def prob(chi_2, ndf):
     the value chi2 by chance, even for a correct model.
 
     """
-    if ndf <= 0.0: return 0.0  # Set CL(confidential level) to zero in case ndf<=0
+    if ndf <= 0.0:
+        return 0.0  # Set CL(confidential level) to zero in case ndf<=0
     if chi_2 <= 0.0:
         if chi_2 < 0.0:
             return 0.0
@@ -28,7 +29,7 @@ def prob(chi_2, ndf):
 
 def erfc_inverse(x):
     """ erfc-1(x) = - 1/sqrt(2) * normal_quantile( 0.5 * x)"""
-    return - 0.70710678118654752440 * normal_quantile(0.5 * x)
+    return -0.70710678118654752440 * normal_quantile(0.5 * x)
 
 
 def normal_quantile(p):
@@ -45,10 +46,10 @@ def normal_quantile(p):
 
 def significance(l1: float, l2: float, ndf: int) -> float:
     """
-    computation of significance for log-likelihood fit values l1 and l2 
+    computation of significance for log-likelihood fit values l1 and l2
     with number of degrees of freedom (ndf).
     """
     DeltaLL = 2.0 * abs(l1 - l2)
     p = prob(DeltaLL, ndf)
     # math.sqrt(2) * erfc_inverse(p)
-    return - normal_quantile(p / 2.0)
+    return -normal_quantile(p / 2.0)

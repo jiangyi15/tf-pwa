@@ -7,6 +7,7 @@ import warnings
 
 # from pysnooper import snoop
 
+
 def load_dec(s):
     """
     load *.dec string
@@ -61,6 +62,7 @@ commands = {}
 
 def regist_command(name=None):
     """regist command function for command call"""
+
     def g(f):
         name1 = name
         if name1 is None:
@@ -117,8 +119,7 @@ def get_decay(words, lines):
     return ("Decay", {"name": core, "final": ret})
 
 
-models = {"HELCOV": None,
-          "PHSP": None}
+models = {"HELCOV": None, "PHSP": None}
 
 
 def sigle_decay(s):
@@ -138,10 +139,7 @@ def sigle_decay(s):
                 outs.append(i)
             else:
                 params.append(i)
-    return {"outs": outs,
-            "model": model,
-            "total": total,
-            "params": params}
+    return {"outs": outs, "model": model, "total": total, "params": params}
 
 
 @regist_command(name="Particle")

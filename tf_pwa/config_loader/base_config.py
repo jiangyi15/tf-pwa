@@ -19,9 +19,9 @@ def load_config(file_name, share_dict=None):
 class BaseConfig(object):
     def __init__(self, file_name, share_dict=None):
         self.config = load_config(file_name, share_dict)
-    
+
     def __getitem__(self, key):
         return self.config[key]
-    
+
     def __setitem__(self, key, value):
         self.config[key] = value

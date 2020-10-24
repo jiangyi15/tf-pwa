@@ -10,7 +10,7 @@ def sss(i: int, *args, j="ss"):
 
 def test_cmd():
     ret = subprocess.getoutput("python -m tf_pwa")
-    
+
 
 def test_main_f():
     ret = main(["sss", "2", "--j=dd"])

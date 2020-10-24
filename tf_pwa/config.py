@@ -7,7 +7,7 @@ class ConfigManager(dict):
 
 
 class _Default:
-        pass
+    pass
 
 
 default_var = _Default()
@@ -44,6 +44,7 @@ def create_config(default=None):
         if name in _config:
             raise Exception("Configuration named {} already exists.".format(name))
         if var is None:
+
             def regist(f):
                 _config[name] = f
                 return f
@@ -55,11 +56,9 @@ def create_config(default=None):
     return set_, get_, regist_
 
 
-set_config, get_config, regist_config = create_config({
-    "multi_gpus": False,
-    "dtype": "float64",
-    "complex_dtype": "complex128"
-})
+set_config, get_config, regist_config = create_config(
+    {"multi_gpus": False, "dtype": "float64", "complex_dtype": "complex128"}
+)
 
 
 @contextmanager

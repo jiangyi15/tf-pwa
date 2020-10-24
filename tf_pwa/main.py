@@ -18,6 +18,7 @@ def _protect_dict(override_message=None):
             if override_message is not None:
                 warnings.warn("override {}: {}".format(override_message, name))
         d[name] = var
+
     return get_dict, set_var
 
 
@@ -39,6 +40,7 @@ def regist_subcommand(name=None, arg_fun=None, args=None):
             cmds = arg_fun
         set_sub_cmd(name_t, cmds)
         return f
+
     return wrap
 
 
@@ -58,6 +60,7 @@ def _build_arguments(f, config_args):
                     var = getattr(arg, i)
                     kwargs[i] = var
         return f(*args, **kwargs)
+
     wrap_f.__name__ = f.__name__
 
     ret = {"fun": wrap_f, "args": []}
@@ -109,9 +112,11 @@ def _build_arguments(f, config_args):
 
 @regist_subcommand(name="help")
 def help_function():
-    print("""
+    print(
+        """
     using ```python -m tf_pwa [subprocess]```
-    """)
+    """
+    )
 
 
 def main(argv=None):
