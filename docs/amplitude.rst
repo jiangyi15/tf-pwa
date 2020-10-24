@@ -49,7 +49,7 @@ the LS coupling formula
 Amplitude Combination Rules
 ---------------------------
 
-For a decay process `A -> R B, R -> C D`, we can get different part of amplitude:
+For a decay process :code:`A -> R B, R -> C D`, we can get different part of amplitude:
 
 1. Particle:
     1. Initial state: :math:`1`
@@ -59,7 +59,7 @@ For a decay process `A -> R B, R -> C D`, we can get different part of amplitude
     3. Propagator: :math:`R(m)`
 
 2. Decay:
-    Two body decay (`A -> R B`): :math:`H_{\lambda_R,\lambda_B} D_{\lambda_A, \lambda_R - \lambda_B} (\varphi, \theta,0)`
+    Two body decay (:code:`A -> R B`): :math:`H_{\lambda_R,\lambda_B} D_{\lambda_A, \lambda_R - \lambda_B} (\varphi, \theta,0)`
 
 Now we can use combination rules to build amplitude for the whole process.
 
