@@ -141,7 +141,7 @@ Decay D_2*+
 1  D*0 pi+ HELCOV one zero;
 Enddecay
 
-End    
+End
     """
 
     with write_temp_file(s) as f:

@@ -16,7 +16,7 @@ Submodules
 
 .. tf\_pwa.version module
 .. ----------------------
-.. 
+..
 .. .. automodule:: tf_pwa.version
 ..    :members:
 ..    :undoc-members:

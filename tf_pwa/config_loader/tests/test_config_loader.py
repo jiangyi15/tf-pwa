@@ -14,14 +14,14 @@ decay:
       - c
     - [R3, d, model: default]
     R1: [c, d, l_list: [0]]
-    R2: 
+    R2:
       - b
       - d
     R3: [b, c]
 
 particle:
     $top:
-        ee: 
+        ee:
             J: 1
             P: -1
             spins: [-1, 1]

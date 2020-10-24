@@ -26,7 +26,7 @@ def flat_mc(number,outfile):
   pd = flat_mc_data[2]
   pd_a = np.array([pd.T,pd.X,pd.Y,pd.Z]).reshape((4,-1))
   print(pd_a)
-  
+
   pa = np.array([pd_a,pb_a,pc_a])
   print(pa.shape)
   pa = np.transpose(pa,(2,0,1)).reshape((-1,4))
