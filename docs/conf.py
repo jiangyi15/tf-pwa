@@ -19,15 +19,15 @@ author = "Yi Jiang"
 # -- General configuration ---------------------------------------------------
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.mathjax",
     "sphinx.ext.doctest",
     "sphinx.ext.graphviz",
+    "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
 ]
 exclude_patterns = [
-    "_build",
-    "Thumbs.db",
     ".DS_Store",
+    "Thumbs.db",
+    "_build",
 ]
 source_suffix = [
     ".rst",
