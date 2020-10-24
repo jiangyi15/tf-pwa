@@ -5,6 +5,7 @@ __pycache__
 .ipynb_checkpoints
 *.pyc
 
+tf_pwa/version.py
 
 *.npy
 *.json
@@ -21,7 +22,9 @@ __pycache__
 *.doc
 *.gv
 *.root
+!environment.yml
 
+.run_start
 
 cached_dir
 trash
@@ -29,6 +32,7 @@ figure
 fig
 build
 dist
+.eggs
 *.egg-info
 site
 chains

@@ -15,7 +15,7 @@ By using simple configuration file (and some scripts), PWA can be done fast and 
 
 ## Install
 
-Get the packages using 
+Get the packages using
 
 ```
 git clone https://gitlab.com/jiangyi15/tf-pwa
@@ -59,11 +59,16 @@ conda install tf-pwa
 
 ### pip
 
-When using pip, you will need to install CUDA to use GPU. Just run the following command :
+When using `pip`, you will need to install CUDA to use GPU. Just run the following command :
 
-
+```bash
+python3 -m pip install -e .
 ```
-python setup.py develop
+
+To contribute to the project, please also install additional developer tools with:
+
+```bash
+python3 -m pip install -e .[dev]
 ```
 
 
@@ -71,7 +76,7 @@ python setup.py develop
 
 ### fit.py
 
-simple fit scripts, 
+simple fit scripts,
 decay structure is described in ```config.yml```
 
 ```
@@ -94,7 +99,7 @@ script for cache state, using the latest *_params.json file as parameters and ca
 
 See [https://jiangyi15.gitlab.io/tf-pwa/](https://jiangyi15.gitlab.io/tf-pwa/) for more information.
 
-Autodoc using sphinx-doc, need sphinx-doc 
+Autodoc using sphinx-doc, need sphinx-doc
 
 ```
 python setup.py build_sphinx
@@ -111,7 +116,7 @@ Then, the documents can be found in docs/_build/html.
 
 ## Dependencies
 
-tensorflow or tensorflow-gpu >= 2.0.0 
+tensorflow or tensorflow-gpu >= 2.0.0
 
 sympy : symbolic expression
 
