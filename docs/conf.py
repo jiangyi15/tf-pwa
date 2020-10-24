@@ -23,6 +23,7 @@ extensions = [
     "sphinx.ext.graphviz",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
 ]
 exclude_patterns = [
     ".DS_Store",
@@ -36,6 +37,7 @@ source_suffix = [
 # -- Options for HTML output -------------------------------------------------
 html_theme = "sphinx_rtd_theme"
 html_title = "TFPWA"
+viewcode_follow_imported_members = True
 
 # -- Options for API ---------------------------------------------------------
 add_module_names = False
