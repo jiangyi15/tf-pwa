@@ -21,6 +21,7 @@ tf_pwa/version.py
 *.doc
 *.gv
 *.root
+!**.sample.yml
 !.github/**/*.yml
 !.readthedocs.yml
 !.vscode/*.json

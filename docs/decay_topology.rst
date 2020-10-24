@@ -1,5 +1,5 @@
 ----------------
-Decay Topology 
+Decay Topology
 ----------------
 
 A decay chain is a simple tree, from top particle to final particles.
@@ -51,7 +51,5 @@ there are the three possible decay chains of A -> B,C,D ::
 
 the process is unique for different final particles
 
-Each inserting process delete a line and add three new line, 
+Each inserting process delete a line and add three new line,
 So for decay process has n final particles, there are (2n-3)!! possible decay topology.
-
-

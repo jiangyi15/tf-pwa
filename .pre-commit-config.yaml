@@ -1,11 +1,41 @@
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
 repos:
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.3.0
+    hooks:
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: check-yaml
+        exclude: conda/meta.yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
   - repo: https://github.com/psf/black
-    rev: 20.8b1 # Replace by any tag/version: https://github.com/psf/black/tags
+    rev: 20.8b1
     hooks:
       - id: black
         language_version: python3 # Should be a command that runs python3.6+
+
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.3.8
+    hooks:
+      - id: nbstripout
+        files: ".ipynb"
+
+  - repo: https://github.com/prettier/prettier
+    rev: 2.1.2
+    hooks:
+      - id: prettier
 
   - repo: local
     hooks:
