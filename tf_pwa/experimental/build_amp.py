@@ -1,7 +1,8 @@
-from .opt_int import split_gls
 import tensorflow as tf
 from tf_pwa.data import data_shape
 from tf_pwa.utils import time_print
+
+from .opt_int import split_gls
 
 
 def build_sum_amplitude(dg, dec_chain, data):

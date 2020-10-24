@@ -1,33 +1,35 @@
 #!/usr/bin/env python3
 
-import sys
+import json
+import math
+import os
 import os.path
+import subprocess
+import sys
+import threading
+import time
+from sys import platform
+
+import numpy as np
+from numpy import cos, pi
+from scipy.optimize import BFGS, basinhopping, minimize
+
+import pymultinest
+import tensorflow as tf
+from pymultinest.solve import solve
+from tf_pwa.amplitude import AllAmplitude, param_list
+from tf_pwa.angle import cal_ang_file, cal_ang_file4
+from tf_pwa.bounds import Bounds
+from tf_pwa.fitfractions import cal_fitfractions
+from tf_pwa.model import FCN, Cache_Model, param_list
+from tf_pwa.utils import error_print, flatten_np_data, load_config_file, pprint
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
 
-from pymultinest.solve import solve
-from numpy import pi, cos
-from tf_pwa.model import Cache_Model, param_list, FCN
-import tensorflow as tf
-import time
-import numpy as np
-import json
-from scipy.optimize import minimize, BFGS, basinhopping
-from tf_pwa.angle import cal_ang_file, cal_ang_file4
-from tf_pwa.utils import load_config_file, flatten_np_data, pprint, error_print
-from tf_pwa.fitfractions import cal_fitfractions
-from tf_pwa.amplitude import AllAmplitude, param_list
 
-import math
-from tf_pwa.bounds import Bounds
 
-import pymultinest
-import math
-import os
-import threading, subprocess
-from sys import platform
 
 try:
     os.mkdir("chains")

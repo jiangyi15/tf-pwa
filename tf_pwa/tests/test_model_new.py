@@ -1,7 +1,7 @@
+import numpy as np
+
 from tf_pwa.model.model import sum_gradient, sum_hessian
 from tf_pwa.tensorflow_wrapper import tf
-
-import numpy as np
 
 
 def test_sum_hessian():

@@ -1,8 +1,7 @@
 import argparse
 import inspect
-import warnings
 import sys
-
+import warnings
 
 __all__ = ["regist_subcommand"]
 

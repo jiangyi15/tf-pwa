@@ -1,17 +1,18 @@
-import pytest
 import os
-import numpy as np
 
 import matplotlib
+import numpy as np
+import pytest
 
-matplotlib.use("agg")
-
+import tensorflow as tf
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 
+matplotlib.use("agg")
+
+
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
-import tensorflow as tf
 
 
 def generate_phspMC(Nmc):

@@ -1,44 +1,36 @@
 #!/usr/bin/env python3
 
-import sys
+import datetime
+# from pprint import pprint
+import json
+import math
+import os
 import os.path
+import sys
+import time
+
+import numpy as np
+from scipy.optimize import BFGS, basinhopping, minimize
+
+import tf_pwa
+from tf_pwa.amp import (AmplitudeModel, DecayGroup, HelicityDecay, Particle,
+                        get_name)
+from tf_pwa.cal_angle import prepare_data_from_decay
+from tf_pwa.data import data_to_numpy, data_to_tensor, split_generator
+from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
+from tf_pwa.model import FCN, Model
+from tf_pwa.tensorflow_wrapper import tf
+from tf_pwa.utils import (error_print, flatten_np_data, load_config_file,
+                          pprint, std_polar)
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
-from tf_pwa.model import Model, FCN
-from tf_pwa.tensorflow_wrapper import tf
-import time
-import numpy as np
 
-# from pprint import pprint
-import json
-import os
-import datetime
-from scipy.optimize import minimize, BFGS, basinhopping
-import tf_pwa
-from tf_pwa.utils import (
-    load_config_file,
-    flatten_np_data,
-    pprint,
-    error_print,
-    std_polar,
-)
-from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
-import math
 
 # from tf_pwa.bounds import Bounds
 
-from tf_pwa.amp import (
-    AmplitudeModel,
-    DecayGroup,
-    HelicityDecay,
-    Particle,
-    get_name,
-)
 
-from tf_pwa.data import data_to_numpy, data_to_tensor, split_generator
-from tf_pwa.cal_angle import prepare_data_from_decay
 
 log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 

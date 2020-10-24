@@ -1,9 +1,11 @@
-from tf_pwa.config_loader.data import register_data_mode, SimpleData
+import warnings
+
 import numpy as np
+
 from tf_pwa.amp import get_particle
 from tf_pwa.cal_angle import cal_angle_from_momentum
+from tf_pwa.config_loader.data import SimpleData, register_data_mode
 from tf_pwa.data import data_shape
-import warnings
 
 
 @register_data_mode("simple_npz")

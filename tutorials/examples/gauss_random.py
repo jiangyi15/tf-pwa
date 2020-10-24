@@ -5,12 +5,13 @@ Script for generating data for resolution of gauss function.
 """
 
 import numpy as np
-from tf_pwa.config_loader import ConfigLoader
-from tf_pwa.cal_angle import cal_helicity_angle
-from tf_pwa.amp import get_relative_p2
+
 import tensorflow as tf
-from tf_pwa.amp import get_particle
-from tf_pwa.angle import Vector3 as v3, LorentzVector as lv
+from tf_pwa.amp import get_particle, get_relative_p2
+from tf_pwa.angle import LorentzVector as lv
+from tf_pwa.angle import Vector3 as v3
+from tf_pwa.cal_angle import cal_helicity_angle
+from tf_pwa.config_loader import ConfigLoader
 
 
 def main():

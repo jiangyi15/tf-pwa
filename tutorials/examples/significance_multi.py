@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import sys
-import os.path
 import copy
+import os.path
+import sys
 from pprint import pprint
+
 import yaml
 
-from tf_pwa.significance import significance
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
+from tf_pwa.significance import significance
 
 
 def single_fit(configs, res, data):

@@ -1,5 +1,6 @@
-import tensorflow as tf
 import functools
+
+import tensorflow as tf
 
 
 def extra_function(f0=None, using_numpy=True):

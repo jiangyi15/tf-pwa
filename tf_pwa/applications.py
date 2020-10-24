@@ -4,20 +4,22 @@ It acts like a synthesis of all the other modules of their own physical purposes
 In general, users only need to import functions in this module to implement their physical analysis instead of
 going into every modules. There are some example files where you can figure out how it is used.
 """
-import time
 import os
-import numpy as np
-import tensorflow as tf
+import time
+
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy.stats import norm as Norm
 
+import tensorflow as tf
+
+from .cal_angle import cal_angle_from_momentum, prepare_data_from_decay
+from .data import data_to_tensor, load_dat_file, split_generator
+from .fit import fit_minuit, fit_multinest, fit_scipy
 from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
-from .data import split_generator, load_dat_file, data_to_tensor
-from .cal_angle import prepare_data_from_decay, cal_angle_from_momentum
 from .phasespace import PhaseSpaceGenerator
-from .fit import fit_scipy, fit_minuit, fit_multinest
 from .significance import significance
-from .utils import error_print, std_periodic_var, check_positive_definite
+from .utils import check_positive_definite, error_print, std_periodic_var
 
 
 def fit_fractions(

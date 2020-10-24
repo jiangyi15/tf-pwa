@@ -2,15 +2,17 @@
 adaptive split data into bins.
 """
 
-import numpy as np
 import functools
+
+import numpy as np
+
+from .data import data_index, data_mask
 
 try:
     import matplotlib.patches as mpathes
 except ImportError:
     pass
 
-from .data import data_index, data_mask
 
 
 class AdaptiveBound(object):

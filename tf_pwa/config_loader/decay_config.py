@@ -1,14 +1,12 @@
-import functools
 import copy
+import functools
 import random
-from tf_pwa.amp import (
-    DecayGroup,
-    DecayChain,
-    get_particle,
-    get_decay,
-    split_particle_type,
-)
+
 import yaml
+
+from tf_pwa.amp import (DecayChain, DecayGroup, get_decay, get_particle,
+                        split_particle_type)
+
 from .base_config import BaseConfig
 
 

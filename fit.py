@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 
+import json
+import time
+from pprint import pprint
+
 # avoid using Xwindow
 import matplotlib
 
-matplotlib.use("agg")
-
-from tf_pwa.config_loader import ConfigLoader, MultiConfig
-from pprint import pprint
-from tf_pwa.utils import error_print
 import tensorflow as tf
-import json
-import time
-
-
 # examples of custom particle model
 from tf_pwa.amp import simple_resonance
+from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import extra_amp, extra_data
+from tf_pwa.utils import error_print
+
+matplotlib.use("agg")
+
+
+
 
 
 @simple_resonance("New", params=["alpha", "beta"])

@@ -1,5 +1,6 @@
-from tf_pwa.phasespace import *
 import numpy as np
+
+from tf_pwa.phasespace import *
 
 
 def test_phasespace():

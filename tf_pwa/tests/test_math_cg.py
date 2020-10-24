@@ -1,4 +1,4 @@
-from tf_pwa.cg import get_cg_coef, cg_coef
+from tf_pwa.cg import cg_coef, get_cg_coef
 from tf_pwa.significance import significance
 
 

@@ -4,7 +4,6 @@ module for parsing decay card *.dec file
 import re
 import warnings
 
-
 # from pysnooper import snoop
 
 

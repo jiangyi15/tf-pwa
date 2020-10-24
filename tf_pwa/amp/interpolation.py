@@ -1,6 +1,7 @@
-from tf_pwa.amp import register_particle, Particle
-from tf_pwa.tensorflow_wrapper import tf
 import numpy as np
+
+from tf_pwa.amp import Particle, register_particle
+from tf_pwa.tensorflow_wrapper import tf
 
 # pylint: disable=no-member
 

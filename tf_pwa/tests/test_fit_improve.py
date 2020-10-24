@@ -1,5 +1,6 @@
-from tf_pwa.fit_improve import *
 import numpy as np
+
+from tf_pwa.fit_improve import *
 
 
 def rosen(x):

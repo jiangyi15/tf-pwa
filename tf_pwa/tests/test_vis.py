@@ -1,6 +1,5 @@
+from tf_pwa.particle import BaseDecay, BaseParticle, DecayChain
 from tf_pwa.vis import *
-from tf_pwa.particle import BaseParticle, BaseDecay, DecayChain
-
 
 ex_result = """
 digraph {

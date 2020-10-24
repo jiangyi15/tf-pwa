@@ -1,7 +1,8 @@
 import functools
-import tensorflow as tf
+
 import numpy as np
 
+import tensorflow as tf
 from tf_pwa.data import data_split
 
 

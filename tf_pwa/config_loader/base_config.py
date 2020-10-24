@@ -1,5 +1,6 @@
-import yaml
 import copy
+
+import yaml
 
 
 def load_config(file_name, share_dict=None):

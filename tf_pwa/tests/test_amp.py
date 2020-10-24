@@ -2,7 +2,8 @@ import pytest
 
 from tf_pwa.amp import *
 from tf_pwa.cal_angle import cal_angle_from_momentum
-from tf_pwa.model import Model, FCN
+from tf_pwa.model import FCN, Model
+
 from .common import write_temp_file
 
 

@@ -52,19 +52,12 @@ Inner nodes are named as tuple of particles.
 
 import numpy as np
 
-from .angle import EulerAngle, LorentzVector, Vector3, SU2M, _epsilon
-from .data import (
-    load_dat_file,
-    flatten_dict_data,
-    data_shape,
-    split_generator,
-    data_to_numpy,
-    data_strip,
-    data_merge,
-)
-from .tensorflow_wrapper import tf
-from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
+from .angle import SU2M, EulerAngle, LorentzVector, Vector3, _epsilon
 from .config import get_config
+from .data import (data_merge, data_shape, data_strip, data_to_numpy,
+                   flatten_dict_data, load_dat_file, split_generator)
+from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
+from .tensorflow_wrapper import tf
 
 
 def struct_momentum(p, center_mass=True) -> dict:

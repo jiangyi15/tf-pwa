@@ -1,9 +1,9 @@
-import numpy as np
+from warnings import warn
 
+import numpy as np
 # from numpy import xrange
 # from scipy.optimize.linesearch import line_search_wolfe1, line_search_wolfe2
 from scipy.optimize import OptimizeResult
-from warnings import warn
 
 
 class LineSearchWarning(RuntimeWarning):

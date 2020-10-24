@@ -1,13 +1,15 @@
-import sys
 import os.path
+import sys
 
-this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, this_dir + "/..")
 import numpy as np
 
 # import tf_pwa
 from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.utils import error_print
+
+this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, this_dir + "/..")
+
 
 
 def main():

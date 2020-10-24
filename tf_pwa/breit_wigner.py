@@ -3,11 +3,13 @@ This module provides functions to describe the lineshapes of the intermediate pa
 Breit-Wigner function. Users can also define new lineshape using the function wrapper **regist_lineshape()**.
 """
 
-import functools
-import warnings
-import math
 import fractions
+import functools
+import math
+import warnings
+
 import sympy as sym
+
 from .tensorflow_wrapper import tf
 
 breit_wigner_dict = {}

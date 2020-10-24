@@ -1,12 +1,13 @@
 """
 This module provides some functions that may be useful in other modules.
 """
+import functools
 import json
 import math
 import time
-import functools
-import numpy as np
 import warnings
+
+import numpy as np
 
 
 class AttrDict(dict):

@@ -1,29 +1,31 @@
 #!/usr/bin/env python3
 
-import sys
+import datetime
+# from pprint import pprint
+import json
 import os.path
+import sys
+import time
+
+import numpy as np
+from scipy.optimize import minimize
+
+import tf_pwa
+from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle
+from tf_pwa.cal_angle import prepare_data_from_decay
+from tf_pwa.data import data_to_tensor, split_generator
+from tf_pwa.fitfractions import cal_fitfractions
+from tf_pwa.model import FCN, CombineFCN, Model
+from tf_pwa.tensorflow_wrapper import tf
+from tf_pwa.utils import error_print, load_config_file, pprint
+from tf_pwa.variable import VarsManager
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
-from tf_pwa.model import Model, FCN, CombineFCN
-from tf_pwa.tensorflow_wrapper import tf
-import time
-import numpy as np
 
-# from pprint import pprint
-import json
-import datetime
-from scipy.optimize import minimize
-import tf_pwa
-from tf_pwa.utils import load_config_file, pprint, error_print
-from tf_pwa.fitfractions import cal_fitfractions
 
-from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle
 
-from tf_pwa.data import data_to_tensor, split_generator
-from tf_pwa.cal_angle import prepare_data_from_decay
-from tf_pwa.variable import VarsManager
 
 # log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
