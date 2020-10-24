@@ -1,4 +1,9 @@
 {
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    }
+  },
   "coverage-gutters.coverageFileNames": ["coverage.xml"],
   "coverage-gutters.coverageReportFileName": "**/htmlcov/index.html",
   "coverage-gutters.showGutterCoverage": false,

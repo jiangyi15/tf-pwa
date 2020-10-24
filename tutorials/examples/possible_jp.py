@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # from tf_pwa.phasespace import  PhaseSpaceGenerator
-import sys
+import itertools
 import os.path
+import sys
+
+from tf_pwa.amp import DecayChain, get_decay, get_particle
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
-
-
-from tf_pwa.amp import get_particle, get_decay, DecayChain
-import itertools
 
 
 def jp_seq(max_J=2):

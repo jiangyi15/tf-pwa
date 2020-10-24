@@ -1,7 +1,7 @@
 """
 This module implements three classes **Vector3**, **LorentzVector**, **EulerAngle** .
 """
-from .tensorflow_wrapper import tf, numpy_cross
+from .tensorflow_wrapper import numpy_cross, tf
 
 _epsilon = 1.0e-14
 

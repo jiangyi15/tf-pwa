@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-import sys
 import os.path
+import sys
+
+import matplotlib.colors as mcolors
+import matplotlib.patches as mpathes
+import matplotlib.pyplot as plt
+import numpy as np
+
+from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
+from tf_pwa.angle import kine_max, kine_min
+from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.data import data_index, data_to_numpy
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
-
-from tf_pwa.config_loader import ConfigLoader
-
-from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
-from tf_pwa.data import data_to_numpy, data_index
-from tf_pwa.angle import kine_min, kine_max
-
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpathes
-import matplotlib.colors as mcolors
 
 
 def cal_chi2_config(

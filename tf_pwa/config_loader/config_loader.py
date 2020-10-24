@@ -1,55 +1,54 @@
-import yaml
+import copy
+import functools
+import itertools
 import json
+import os
+import re
+import time
+import warnings
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sy
+import yaml
+from scipy.interpolate import interp1d
+from scipy.optimize import BFGS, basinhopping, minimize
+
+from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
 from tf_pwa.amp import (
-    get_particle,
-    get_decay,
+    AmplitudeModel,
     DecayChain,
     DecayGroup,
-    AmplitudeModel,
+    get_decay,
+    get_particle,
 )
-from tf_pwa.particle import split_particle_type
+from tf_pwa.applications import (
+    cal_hesse_error,
+    corr_coef_matrix,
+    fit,
+    fit_fractions,
+)
 from tf_pwa.cal_angle import prepare_data_from_decay
-from tf_pwa.model import Model, Model_new, FCN, CombineFCN
-from tf_pwa.model.cfit import Model_cfit
-from tf_pwa.model.opt_int import ModelCachedInt, ModelCachedAmp
-import re
-import functools
-import time
-from scipy.interpolate import interp1d
-from scipy.optimize import minimize, BFGS, basinhopping
-import numpy as np
-import matplotlib.pyplot as plt
 from tf_pwa.data import (
     data_index,
+    data_merge,
     data_shape,
     data_split,
     load_data,
     save_data,
-    data_merge,
-)
-from tf_pwa.variable import VarsManager
-from tf_pwa.utils import time_print
-import itertools
-import os
-import sympy as sy
-from tf_pwa.root_io import save_dict_to_root, has_uproot
-import warnings
-from scipy.optimize import BFGS
-from tf_pwa.fit_improve import minimize as my_minimize
-from tf_pwa.applications import (
-    fit,
-    cal_hesse_error,
-    corr_coef_matrix,
-    fit_fractions,
 )
 from tf_pwa.fit import FitResult
-from tf_pwa.variable import Variable
+from tf_pwa.fit_improve import minimize as my_minimize
+from tf_pwa.model import FCN, CombineFCN, Model, Model_new
+from tf_pwa.model.cfit import Model_cfit
+from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
+from tf_pwa.particle import split_particle_type
+from tf_pwa.root_io import has_uproot, save_dict_to_root
+from tf_pwa.utils import time_print
+from tf_pwa.variable import Variable, VarsManager
 
-from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
-import copy
-
-from .decay_config import DecayConfig
 from .data import load_data_mode
+from .decay_config import DecayConfig
 
 
 class ConfigLoader(object):

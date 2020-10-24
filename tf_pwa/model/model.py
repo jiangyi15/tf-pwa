@@ -2,14 +2,16 @@
 This module provides methods to calculate NLL(Negative Log-Likelihood) as well as its derivatives.
 """
 
-import numpy as np
 import math
-from itertools import repeat as _loop_generator
 import warnings
-from ..data import data_shape, split_generator, data_merge, data_split
+from itertools import repeat as _loop_generator
+
+import numpy as np
+
+from ..config import get_config
+from ..data import data_merge, data_shape, data_split, split_generator
 from ..tensorflow_wrapper import tf
 from ..utils import time_print
-from ..config import get_config
 from ..variable import Variable
 
 

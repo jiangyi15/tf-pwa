@@ -30,3 +30,12 @@ exclude = '''
   | dist
 )/
 '''
+
+[tool.isort]
+profile = "black"
+src_paths = [
+    "benchmarks",
+    "tf_pwa",
+    "tutorials",
+]
+line_length = 79

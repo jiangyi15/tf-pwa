@@ -1,5 +1,6 @@
-from tf_pwa import root_io
 import numpy as np
+
+from tf_pwa import root_io
 
 
 def test_read_load():

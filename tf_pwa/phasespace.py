@@ -1,7 +1,9 @@
-import tensorflow as tf
 from math import pi
-from .angle import LorentzVector
+
 import numpy as np
+import tensorflow as tf
+
+from .angle import LorentzVector
 
 
 def get_p(M, ma, mb):

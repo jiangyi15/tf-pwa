@@ -13,8 +13,11 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(".."))
 import tf_pwa
+from tf_pwa.amp import PARTICLE_MODEL, get_config
+from tf_pwa.experimental import extra_amp
+
+sys.path.insert(0, os.path.abspath(".."))
 
 
 # -- Project information -----------------------------------------------------
@@ -59,9 +62,6 @@ html_static_path = ["_static"]
 
 
 autodoc_mock_imports = ["tensorflow", "iminuit"]
-
-from tf_pwa.experimental import extra_amp
-from tf_pwa.amp import get_config, PARTICLE_MODEL
 
 
 def add_indent(s, number=2):

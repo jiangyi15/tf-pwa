@@ -1,12 +1,13 @@
-import sys
 import os.path
+import sys
 
-this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, this_dir + "/..")
 import yaml
 
 # import tf_pwa
 from tf_pwa.config_loader import ConfigLoader
+
+this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, this_dir + "/..")
 
 
 def main():

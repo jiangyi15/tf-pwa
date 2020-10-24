@@ -1,6 +1,7 @@
 import os
-import tensorflow as tf
 import warnings
+
+import tensorflow as tf
 
 # default configurations
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"

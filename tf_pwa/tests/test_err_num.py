@@ -1,5 +1,6 @@
-from tf_pwa.err_num import *
 import math
+
+from tf_pwa.err_num import *
 
 
 def test_add():

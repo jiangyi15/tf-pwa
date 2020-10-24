@@ -1,6 +1,7 @@
 import argparse
-from jinja2 import Template
 import os
+
+from jinja2 import Template
 
 
 def load_config(input_file, variable_file=""):

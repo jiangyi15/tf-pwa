@@ -1,19 +1,18 @@
 import json
+
+import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.interpolate import interp1d
-import yaml
 import scipy.signal as signal
-
-
+import yaml
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-import matplotlib.animation as animation
+from scipy.interpolate import interp1d
+
+from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.experimental.extra_amp import spline_matrix
 
 # import mplhep
 # plt.style.use(mplhep.style.LHCb)
-
-from tf_pwa.experimental.extra_amp import spline_matrix
-from tf_pwa.config_loader import ConfigLoader
 
 
 def vialid_name(s):

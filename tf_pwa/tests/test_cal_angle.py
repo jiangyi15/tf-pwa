@@ -1,5 +1,5 @@
-from tf_pwa.data import *
 from tf_pwa.cal_angle import *
+from tf_pwa.data import *
 
 
 def test_process():

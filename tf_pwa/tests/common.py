@@ -1,6 +1,6 @@
-import tempfile
 import contextlib
 import os
+import tempfile
 
 
 @contextlib.contextmanager

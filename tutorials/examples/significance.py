@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-import sys
-import os.path
 import copy
+import os.path
+import sys
 from pprint import pprint
+
 import yaml
+
+from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.significance import significance
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-
-from tf_pwa.significance import significance
-from tf_pwa.config_loader import ConfigLoader
 
 
 def single_fit(config_dict, data, phsp, bg):

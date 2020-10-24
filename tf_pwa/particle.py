@@ -2,15 +2,17 @@
 This module implements classes to describe particles and decays.
 """
 import functools
-import numpy as np
 from collections import UserList
+
+import numpy as np
+
+from .breit_wigner import barrier_factor as default_barrier_factor
+from .cg import cg_coef
+from .config import get_config
+from .utils import deep_ordered_iter
 
 # from pysnooper import snoop
 
-from .cg import cg_coef
-from .breit_wigner import barrier_factor as default_barrier_factor
-from .utils import deep_ordered_iter
-from .config import get_config
 
 DEFAULT_DECAY = "defalut_decay"
 

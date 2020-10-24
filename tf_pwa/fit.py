@@ -1,8 +1,12 @@
-import tensorflow as tf
-import time
-import numpy as np
 import json
-from .fit_improve import minimize as my_minimize, Cached_FG
+import time
+
+import numpy as np
+import tensorflow as tf
+from scipy.optimize import BFGS, basinhopping, minimize
+
+from .fit_improve import Cached_FG
+from .fit_improve import minimize as my_minimize
 
 
 class LargeNumberError(ValueError):
@@ -62,9 +66,6 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     )
     ret.set_error(dict(m.errors))
     return ret
-
-
-from scipy.optimize import minimize, BFGS, basinhopping
 
 
 def fit_scipy(

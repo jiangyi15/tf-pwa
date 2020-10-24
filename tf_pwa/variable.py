@@ -1,10 +1,13 @@
 """
 This module implements classes and methods to manage the variables in fitting.
 """
-from .tensorflow_wrapper import tf
-import numpy as np
 import warnings
-from .config import regist_config, get_config
+
+import numpy as np
+import sympy as sy
+
+from .config import get_config, regist_config
+from .tensorflow_wrapper import tf
 
 
 def combineVM(vm1, vm2, name="", same_list=None):
@@ -714,9 +717,6 @@ class VarsManager(object):
         dydx = np.array(dydxs)
         hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
         return hess_inv
-
-
-import sympy as sy
 
 
 class Bound(object):

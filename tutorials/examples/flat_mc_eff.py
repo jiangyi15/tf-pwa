@@ -1,14 +1,16 @@
-import sys
 import os.path
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+import uproot
+
+from tf_pwa.angle import LorentzVector as lv
+from tf_pwa.angle import Vector3 as v3
+from tf_pwa.phasespace import PhaseSpaceGenerator
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
-
-import uproot
-import numpy as np
-from tf_pwa.phasespace import PhaseSpaceGenerator
-from tf_pwa.angle import Vector3 as v3, LorentzVector as lv
-import matplotlib.pyplot as plt
 
 
 def generate_mc(num):

@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 
-import sys
+import json
+import os
 import os.path
+import sys
+from functools import reduce
+from math import pi
+
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import interpolate
+
+from tf_pwa.angle import EularAngle, cal_ang_file, cal_ang_file4
+from tf_pwa.applications import gen_data
+from tf_pwa.model import *
+from tf_pwa.utils import flatten_np_data, load_config_file, pprint
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-from tf_pwa.model import *
-import json
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy import interpolate
-from functools import reduce
-from tf_pwa.angle import cal_ang_file, cal_ang_file4, EularAngle
-from tf_pwa.utils import load_config_file, flatten_np_data, pprint
-import os
-from math import pi
-from tf_pwa.applications import gen_data
 
 
 def config_split(config):

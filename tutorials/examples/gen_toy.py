@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-import sys
-import os.path
 import copy
+import json
+import os.path
+import sys
 from pprint import pprint
+
+import numpy as np
 import yaml
+
+from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.data import data_index, data_mask, data_to_numpy
+from tf_pwa.phasespace import PhaseSpaceGenerator
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-from tf_pwa.config_loader import ConfigLoader
-from tf_pwa.phasespace import PhaseSpaceGenerator
-from tf_pwa.data import data_mask, data_index, data_to_numpy
-import numpy as np
-import json
 
 
 def gen_phasespace(top, finals, number):

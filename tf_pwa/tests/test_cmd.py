@@ -1,5 +1,6 @@
 import subprocess
-from tf_pwa.main import regist_subcommand, main
+
+from tf_pwa.main import main, regist_subcommand
 
 
 @regist_subcommand()

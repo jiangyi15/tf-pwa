@@ -1,8 +1,8 @@
 import numpy as np
 
-from .model import Model, sum_gradient, clip_log, sum_hessian
-from ..tensorflow_wrapper import tf
 from ..data import data_shape, split_generator
+from ..tensorflow_wrapper import tf
+from .model import Model, clip_log, sum_gradient, sum_hessian
 
 
 class Model_cfit(Model):

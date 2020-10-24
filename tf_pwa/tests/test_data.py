@@ -1,6 +1,8 @@
 import pytest
+
 from tf_pwa.data import *
 from tf_pwa.particle import BaseDecay, BaseParticle
+
 from .common import write_temp_file
 
 

@@ -1,6 +1,8 @@
-from opt_einsum import get_symbol, contract_path, contract
-from .tensorflow_wrapper import tf
 import warnings
+
+from opt_einsum import contract, contract_path, get_symbol
+
+from .tensorflow_wrapper import tf
 
 # from pysnooper import snoop
 

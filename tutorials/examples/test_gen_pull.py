@@ -1,30 +1,37 @@
-import sys
+import json
 import os.path
+import pickle
+import sys
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from fit_scipy_new import (
+    cal_hesse_error,
+    get_amplitude,
+    get_decay_chains,
+    load_params,
+)
+from scipy.optimize import minimize
+
+from tf_pwa.applications import (
+    compare_result,
+    fit_fractions,
+    gen_data,
+    gen_mc,
+    plot_pull,
+)
+from tf_pwa.cal_angle import prepare_data_from_decay
+from tf_pwa.data import data_to_tensor, load_dat_file, split_generator
+from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
+
+# for fit
+from tf_pwa.model import FCN, Model
+from tf_pwa.utils import error_print, load_config_file, pprint
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-
-import tensorflow as tf
-import numpy as np
-import json
-from tf_pwa.utils import load_config_file, pprint, error_print
-from fit_scipy_new import (
-    get_decay_chains,
-    get_amplitude,
-    load_params,
-    cal_hesse_error,
-)
-from tf_pwa.data import load_dat_file, data_to_tensor, split_generator
-from tf_pwa.cal_angle import prepare_data_from_decay
-
-# for fit
-from tf_pwa.model import Model, FCN
-from scipy.optimize import minimize
-from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
-import matplotlib.pyplot as plt
-import time
-import pickle
 
 
 def prepare_data(fname, decs, particles=None, dtype="float64"):
@@ -32,9 +39,6 @@ def prepare_data(fname, decs, particles=None, dtype="float64"):
         fname, decs, particles=particles, dtype=dtype
     )
     return data_to_tensor(data_np)
-
-
-from tf_pwa.applications import gen_data, gen_mc
 
 
 def gen_data_from_mc():
@@ -155,9 +159,6 @@ def fit():
         json.dump(outdic, f, indent=2)
 
 
-from tf_pwa.applications import fit_fractions
-
-
 def gen_toy_sample():
     Ndata = 10000  # 8065
     Nbg = 0  # 3445
@@ -264,9 +265,6 @@ def gen_toy_sample():
     output.close()
 
 
-from tf_pwa.applications import compare_result
-
-
 def compare_toy():
     with open("toyMar9.pkl", "rb") as f:
         dd = pickle.load(f)
@@ -304,9 +302,6 @@ def compare_toy():
         )
         """compare_result(result["frac"], frac[i], result["err_frac"], err_frac[i],
                        figname="fig/tmp/frac_pull_{}".format(i), yrange=5)"""
-
-
-from tf_pwa.applications import plot_pull
 
 
 def toy_pull():

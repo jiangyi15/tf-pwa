@@ -1,13 +1,13 @@
-import sys
 import os.path
+import re
+import sys
 
+import yaml
+
+from tf_pwa.dec_parser import load_dec_file
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-import yaml
-import re
-from tf_pwa.dec_parser import load_dec_file
 
 
 commands = {}

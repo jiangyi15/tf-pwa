@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 # from tf_pwa.phasespace import  PhaseSpaceGenerator
-import sys
 import os.path
+import sys
+
+import numpy as np
+
+from tf_pwa.applications import gen_mc
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
 
-import numpy as np
-from tf_pwa.applications import gen_mc
 
 """
 def flat_mc(number,outfile):

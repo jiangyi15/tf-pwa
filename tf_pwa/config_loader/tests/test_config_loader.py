@@ -1,6 +1,5 @@
-from tf_pwa.tests.common import write_temp_file
 from tf_pwa.config_loader import ConfigLoader
-
+from tf_pwa.tests.common import write_temp_file
 
 config_str = """
 

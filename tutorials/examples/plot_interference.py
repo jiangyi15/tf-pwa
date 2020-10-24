@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-import sys
+import json
 import os.path
+import sys
+from itertools import combinations
+from pprint import pprint
+
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+
+from tf_pwa.config_loader import ConfigLoader, MultiConfig
+from tf_pwa.data import data_index
+from tf_pwa.utils import error_print
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-
-from tf_pwa.config_loader import ConfigLoader, MultiConfig
-from pprint import pprint
-from tf_pwa.utils import error_print
-import tensorflow as tf
-import json
-import matplotlib.pyplot as plt
-import numpy as np
-from tf_pwa.data import data_index
-from itertools import combinations
 
 
 def get_data(config_file="config.yml", init_params="init_params.json"):

@@ -8,13 +8,15 @@ Data cache can be implemented based on the dynamic features of ``list`` and ``di
 """
 
 from pprint import pprint
+
 import numpy as np
+
+from .config import get_config
+from .tensorflow_wrapper import tf
 
 # import tensorflow as tf
 # from pysnooper import  snoop
 
-from .tensorflow_wrapper import tf
-from .config import get_config
 
 try:
     from collections.abc import Iterable

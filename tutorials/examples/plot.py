@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
-import os
 import datetime
 import json
-from math import pi
-from scipy import interpolate
-import matplotlib.pyplot as plt
-from functools import reduce
-
-import sys
+import os
 import os.path
+import sys
+from functools import reduce
+from math import pi
 
-this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + "/..")
-
+import matplotlib.pyplot as plt
 from fit_scipy_new import (
-    prepare_data,
-    get_decay_chains,
     get_amplitude,
+    get_decay_chains,
     load_params,
+    prepare_data,
 )
+from scipy import interpolate
 
 import tf_pwa
 from tf_pwa.amp import *
 from tf_pwa.cal_angle import prepare_data_from_decay
-from tf_pwa.utils import load_config_file
 from tf_pwa.data import flatten_dict_data
+from tf_pwa.utils import load_config_file
+
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + "/..")
 
 
 def config_split(config):

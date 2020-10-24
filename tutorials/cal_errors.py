@@ -1,14 +1,16 @@
-import sys
 import os.path
+import sys
 
-this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, this_dir + "/..")
 import numpy as np
+
+from tf_pwa.applications import cal_hesse_error, corr_coef_matrix
 
 # import tf_pwa
 from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.utils import error_print
-from tf_pwa.applications import cal_hesse_error, corr_coef_matrix
+
+this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, this_dir + "/..")
 
 
 def main():
