@@ -52,6 +52,13 @@ repos:
         types:
           - python
 
+      - id: pylint
+        name: pylint
+        entry: pylint --rcfile=.pylintrc --score=no
+        language: system
+        types:
+          - python
+
       - id: rstcheck
         name: rstcheck
         entry: rstcheck
