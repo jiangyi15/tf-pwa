@@ -4,7 +4,7 @@ Custom Model
 ------------
 
 
-TF-PWA support custom model of ``Particle``, just implement the ``get_amp`` method for a class inherited from Particle as:
+TF-PWA support custom model of `.Particle`, just implement the `.Particle.get_amp` method for a class inherited from `.Particle` as:
 
 .. code-block:: python
 
@@ -41,7 +41,7 @@ We can get the data used for amplitude, and add some calculations such as Breit-
 
 Note, we used ``one`` to make sure the shape to be same.
 
-We can also add parameters in the Model ``init_params`` using ``self.add_var(...)``.
+We can also add parameters in the `.Model` ``init_params`` using ``self.add_var(...)``.
 
 .. code-block:: python
 

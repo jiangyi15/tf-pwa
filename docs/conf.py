@@ -21,6 +21,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.doctest",
     "sphinx.ext.graphviz",
+    "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
@@ -46,6 +47,14 @@ autodoc_mock_imports = [
     "tensorflow",
 ]
 
+# Cross-referencing configuration
+default_role = "py:obj"
+primary_domain = "py"
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}
+
 # -- Generate API skeleton ----------------------------------------------------
 shutil.rmtree("api", ignore_errors=True)
 subprocess.call(
@@ -64,6 +73,7 @@ subprocess.call(
 )
 
 
+# -- Generate available resonance models --------------------------------------
 def add_indent(s, number=2):
     ret = ""
     for i in s.split("\n"):
@@ -78,16 +88,16 @@ Available Resonances Model
 --------------------------
 
 """
-    idx = 1
-    for k, v in get_config(PARTICLE_MODEL).items():
-        n = len(k)
+    for idx, (k, v) in enumerate(get_config(PARTICLE_MODEL).items(), 1):
         doc_i = v.__doc__
         if v.__doc__ is None and v.get_amp.__doc__ is None:
             continue
         if v.__doc__ is None:
             doc_i = v.get_amp.__doc__
 
-        particle_model_doc += "\n- {}. {}\n\n".format(idx, k)
+        particle_model_doc += (
+            f"\n{idx}. {k} (`~{v.__module__}.{v.__qualname__}`)\n\n"
+        )
         idx += 1
         particle_model_doc += add_indent(doc_i) + "\n\n"
 

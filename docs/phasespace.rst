@@ -2,7 +2,7 @@
 Phase Space
 ----------------
 
-N body decay phase space can be defined as
+:math:`N` body decay phase space can be defined as
 
 .. math::
     d \Phi(P;p_1,\cdots,p_n) = (2\pi)^4\delta^4(P - \sum {p_i}) \prod \theta(p^0)2\pi\delta(p_i^2 - m_i^2)\frac{d^4 p_i}{(2\pi)^{4}}
