@@ -10,10 +10,13 @@ import shutil
 import subprocess
 
 from tf_pwa.amp import PARTICLE_MODEL, get_config
+from tf_pwa.experimental import (  # type: ignore  # pylint: disable=unused-import
+    extra_amp,
+)
 
 # -- Project information -----------------------------------------------------
 project = "TFPWA"
-copyright = "2020, Yi Jiang"
+copyright = "2020, Yi Jiang"  # pylint: disable=redefined-builtin
 author = "Yi Jiang"
 
 # -- General configuration ---------------------------------------------------
