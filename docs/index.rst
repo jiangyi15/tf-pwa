@@ -21,7 +21,7 @@ A detailed configuration file sample (with all usable parameters) can be found *
    decay_topology
    phasespace
    resolution
-   api/modules
+   api
    particle_model
    FAQ
 

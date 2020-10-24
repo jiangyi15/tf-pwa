@@ -6,6 +6,8 @@ https://www.sphinx-doc.org/en/master/usage/configuration.html
 """
 
 import os
+import shutil
+import subprocess
 
 from tf_pwa.amp import PARTICLE_MODEL, get_config
 
@@ -39,6 +41,23 @@ autodoc_mock_imports = [
     "iminuit",
     "tensorflow",
 ]
+
+# -- Generate API skeleton ----------------------------------------------------
+shutil.rmtree("api", ignore_errors=True)
+subprocess.call(
+    " ".join(
+        [
+            "sphinx-apidoc",
+            "../tf_pwa/",
+            "-o api/",
+            "--force",
+            "--no-toc",
+            "--templatedir _templates",
+            "--separate",
+        ]
+    ),
+    shell=True,
+)
 
 
 def add_indent(s, number=2):
