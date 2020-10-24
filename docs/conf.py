@@ -38,6 +38,7 @@ html_theme = "sphinx_rtd_theme"
 html_title = "TFPWA"
 
 # -- Options for API ---------------------------------------------------------
+add_module_names = False
 autodoc_mock_imports = [
     "iminuit",
     "tensorflow",
