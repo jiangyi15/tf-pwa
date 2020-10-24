@@ -105,6 +105,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[dev]
       - name: Perform style checks
+        run: pre-commit run -a
+      - name: Run pylint
         run: |
           pylint tf_pwa --errors-only --exit-zero
           pylint tf_pwa -E --disable=all -e E0602
