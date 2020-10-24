@@ -1,5 +1,5 @@
 """
-module for parsing decay card *.dec file
+module for parsing decay card :code:`*.dec` file
 """
 import re
 import warnings
@@ -9,7 +9,7 @@ import warnings
 
 def load_dec(s):
     """
-    load *.dec string
+    load :code:`*.dec` string
     """
     lines = split_lines(s)
     return process_decay_card(lines)
@@ -17,7 +17,7 @@ def load_dec(s):
 
 def load_dec_file(f):
     """
-    load *.dec file
+    load :code:`*.dec` file
     """
     lines = f.readlines()
     return process_decay_card(lines)

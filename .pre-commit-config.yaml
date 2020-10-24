@@ -26,6 +26,12 @@ repos:
       - id: black
         language_version: python3 # Should be a command that runs python3.6+
 
+  - repo: https://github.com/PyCQA/doc8
+    rev: 0.8.1
+    hooks:
+      - id: doc8
+        args: ["--ignore=D001", "-q"]
+
   - repo: https://github.com/kynan/nbstripout
     rev: 0.3.8
     hooks:
@@ -45,3 +51,9 @@ repos:
         language: system
         types:
           - python
+
+      - id: rstcheck
+        name: rstcheck
+        entry: rstcheck
+        language: system
+        files: \.(inc|rst)$

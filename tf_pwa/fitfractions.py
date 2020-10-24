@@ -25,19 +25,19 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
     defination:
 
     .. math::
-    FF_{i} = \frac{\int |A_i|^2 d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
-    \approx \frac{\sum |A_i|^2 }{\sum|\sum_{i} A_{i}|^2}
+        FF_{i} = \frac{\int |A_i|^2 d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
+        \approx \frac{\sum |A_i|^2 }{\sum|\sum_{i} A_{i}|^2}
 
     interference fitfraction:
 
     .. math::
-    FF_{i,j} = \frac{\int 2Re(A_i A_j*) d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
-    = \frac{\int |A_i +A_j|^2  d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega } - FF_{i} - FF_{j}
+        FF_{i,j} = \frac{\int 2Re(A_i A_j*) d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
+        = \frac{\int |A_i +A_j|^2  d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega } - FF_{i} - FF_{j}
 
     gradients (for error transfer):
 
     .. math::
-    \frac{\partial }{\partial \theta_i }\frac{f(\theta_i)}{g(\theta_i)} =
+        \frac{\partial }{\partial \theta_i }\frac{f(\theta_i)}{g(\theta_i)} =
         \frac{\partial f(\theta_i)}{\partial \theta_i} \frac{1}{g(\theta_i)} -
         \frac{\partial g(\theta_i)}{\partial \theta_i} \frac{f(\theta_i)}{g^2(\theta_i)}
 
