@@ -22,6 +22,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.doctest",
     "sphinx.ext.graphviz",
+    "sphinx.ext.napoleon",
 ]
 exclude_patterns = [
     "_build",
