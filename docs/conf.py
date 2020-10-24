@@ -61,12 +61,14 @@ subprocess.call(
     " ".join(
         [
             "sphinx-apidoc",
-            "../tf_pwa/",
             "-o api/",
             "--force",
             "--no-toc",
             "--templatedir _templates",
             "--separate",
+            "../tf_pwa/",
+            # exclude patterns
+            "../tf_pwa/tests",
         ]
     ),
     shell=True,
