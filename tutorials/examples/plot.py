@@ -8,11 +8,15 @@ from functools import reduce
 from math import pi
 
 import matplotlib.pyplot as plt
+from fit_scipy_new import (
+    get_amplitude,
+    get_decay_chains,
+    load_params,
+    prepare_data,
+)
 from scipy import interpolate
 
 import tf_pwa
-from fit_scipy_new import (get_amplitude, get_decay_chains, load_params,
-                           prepare_data)
 from tf_pwa.amp import *
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.data import flatten_dict_data
@@ -20,8 +24,6 @@ from tf_pwa.utils import load_config_file
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-
 
 
 def config_split(config):

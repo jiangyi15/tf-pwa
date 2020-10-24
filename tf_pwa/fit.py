@@ -2,9 +2,8 @@ import json
 import time
 
 import numpy as np
-from scipy.optimize import BFGS, basinhopping, minimize
-
 import tensorflow as tf
+from scipy.optimize import BFGS, basinhopping, minimize
 
 from .fit_improve import Cached_FG
 from .fit_improve import minimize as my_minimize
@@ -67,8 +66,6 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     )
     ret.set_error(dict(m.errors))
     return ret
-
-
 
 
 def fit_scipy(

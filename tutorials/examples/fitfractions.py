@@ -6,9 +6,9 @@ import sys
 import time
 
 import numpy as np
+import tensorflow as tf
 from scipy.optimize import BFGS, basinhopping, minimize
 
-import tensorflow as tf
 from tf_pwa.amplitude import AllAmplitude
 from tf_pwa.angle import cal_ang_file
 from tf_pwa.fitfractions import cal_fitfractions
@@ -17,7 +17,6 @@ from tf_pwa.utils import flatten_np_data, load_config_file
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
 
 
 def error_print(x, err):

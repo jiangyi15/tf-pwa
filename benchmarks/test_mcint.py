@@ -1,7 +1,7 @@
 import pytest
 
 from tf_pwa.amp import *
-from tf_pwa.cal_angle import *
+from tf_pwa.cal_angle import cal_angle_from_momentum
 from tf_pwa.phasespace import PhaseSpaceGenerator
 
 

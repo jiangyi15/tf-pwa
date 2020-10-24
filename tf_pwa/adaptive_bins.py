@@ -14,7 +14,6 @@ except ImportError:
     pass
 
 
-
 class AdaptiveBound(object):
     """adaptive bound cut for data value"""
 

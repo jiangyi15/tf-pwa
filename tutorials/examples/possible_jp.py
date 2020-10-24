@@ -10,8 +10,6 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
 
 
-
-
 def jp_seq(max_J=2):
     """all JP combination"""
     for j in range(max_J + 1):

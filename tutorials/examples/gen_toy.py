@@ -16,7 +16,6 @@ this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
 
-
 def gen_phasespace(top, finals, number):
     a = PhaseSpaceGenerator(top, finals)
     flat_mc_data = a.generate(number)

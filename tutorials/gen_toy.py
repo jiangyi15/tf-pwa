@@ -11,7 +11,6 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
 
 
-
 def main():
     """Take three-body decay A->BCD for example, we generate a PhaseSpace MC sample and a toy data sample."""
     import argparse

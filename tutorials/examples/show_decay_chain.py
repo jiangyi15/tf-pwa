@@ -8,8 +8,6 @@ this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
 
-
-
 def main():
     config = ConfigLoader("config.yml")
     for i, dec in enumerate(config.get_decay()):

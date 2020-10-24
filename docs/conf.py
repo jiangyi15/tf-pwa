@@ -64,7 +64,6 @@ html_static_path = ["_static"]
 autodoc_mock_imports = ["tensorflow", "iminuit"]
 
 
-
 def add_indent(s, number=2):
     ret = ""
     for i in s.split("\n"):

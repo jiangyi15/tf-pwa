@@ -719,8 +719,6 @@ class VarsManager(object):
         return hess_inv
 
 
-
-
 class Bound(object):
     """
     This class provides methods to implement the boundary constraint for a variable.

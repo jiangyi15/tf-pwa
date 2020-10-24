@@ -15,7 +15,6 @@ from tf_pwa.experimental.extra_amp import spline_matrix
 # plt.style.use(mplhep.style.LHCb)
 
 
-
 def vialid_name(s):
     return s.replace("+", ".")
 

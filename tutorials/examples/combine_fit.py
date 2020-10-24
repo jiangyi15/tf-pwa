@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import datetime
+
 # from pprint import pprint
 import json
 import os.path
@@ -22,9 +23,6 @@ from tf_pwa.variable import VarsManager
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-
-
 
 
 # log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

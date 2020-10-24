@@ -16,9 +16,6 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
 
 
-
-
-
 def cal_chi2_config(
     config, adapter, data, phsp, data_idx, bg=None, data_cut=None
 ):

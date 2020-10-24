@@ -3,8 +3,8 @@ import os
 import matplotlib
 import numpy as np
 import pytest
-
 import tensorflow as tf
+
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 
@@ -12,7 +12,6 @@ matplotlib.use("agg")
 
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
-
 
 
 def generate_phspMC(Nmc):

@@ -13,8 +13,6 @@ this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
 
-
-
 def single_fit(config_dict, data, phsp, bg):
     config = ConfigLoader(config_dict)
 

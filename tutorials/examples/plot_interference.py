@@ -7,16 +7,14 @@ from pprint import pprint
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 import tensorflow as tf
+
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.data import data_index
 from tf_pwa.utils import error_print
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-
 
 
 def get_data(config_file="config.yml", init_params="init_params.json"):

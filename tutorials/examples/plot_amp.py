@@ -20,7 +20,6 @@ this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
 
-
 def config_split(config):
     ret = {}
     for i in config:

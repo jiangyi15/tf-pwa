@@ -10,7 +10,6 @@ this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
 
 
-
 commands = {}
 config = {"particle": {}, "decay": {}}
 model_map = {"HELCOV": "default"}

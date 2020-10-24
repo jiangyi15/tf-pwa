@@ -6,13 +6,13 @@ import os.path
 import sys
 import time
 
+import iminuit
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import BFGS, basinhopping, minimize
-
-import iminuit
 import tensorflow as tf
 from fit_scipy import prepare_data
+from scipy.optimize import BFGS, basinhopping, minimize
+
 from tf_pwa.angle import EularAngle, cal_ang_file
 from tf_pwa.bounds import Bounds
 from tf_pwa.model import FCN, Cache_Model, param_list
@@ -20,8 +20,6 @@ from tf_pwa.utils import flatten_np_data, load_config_file, pprint
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + "/..")
-
-
 
 
 def main(param_name, x, method):
