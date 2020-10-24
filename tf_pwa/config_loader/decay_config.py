@@ -4,8 +4,13 @@ import random
 
 import yaml
 
-from tf_pwa.amp import (DecayChain, DecayGroup, get_decay, get_particle,
-                        split_particle_type)
+from tf_pwa.amp import (
+    DecayChain,
+    DecayGroup,
+    get_decay,
+    get_particle,
+    split_particle_type,
+)
 
 from .base_config import BaseConfig
 

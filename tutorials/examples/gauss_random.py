@@ -5,8 +5,8 @@ Script for generating data for resolution of gauss function.
 """
 
 import numpy as np
-
 import tensorflow as tf
+
 from tf_pwa.amp import get_particle, get_relative_p2
 from tf_pwa.angle import LorentzVector as lv
 from tf_pwa.angle import Vector3 as v3

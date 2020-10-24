@@ -6,8 +6,14 @@ import numpy as np
 from tf_pwa.amp import get_particle
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
-from tf_pwa.data import (data_index, data_shape, data_split, data_to_tensor,
-                         load_data, save_data)
+from tf_pwa.data import (
+    data_index,
+    data_shape,
+    data_split,
+    data_to_tensor,
+    load_data,
+    save_data,
+)
 
 DATA_MODE = "data_mode"
 regist_config(DATA_MODE, {})

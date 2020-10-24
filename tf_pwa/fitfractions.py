@@ -1,8 +1,8 @@
 import functools
 
 import numpy as np
-
 import tensorflow as tf
+
 from tf_pwa.data import data_split
 
 

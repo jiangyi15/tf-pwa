@@ -1,11 +1,16 @@
 import numpy as np
-
 import tensorflow as tf
+
 from tf_pwa.data import data_shape
 from tf_pwa.experimental import build_amp, opt_int
 
-from .model import (Model, _loop_generator, clip_log, split_generator,
-                    sum_hessian)
+from .model import (
+    Model,
+    _loop_generator,
+    clip_log,
+    split_generator,
+    sum_hessian,
+)
 
 
 def sum_gradient(fs, var, weight=1.0, trans=tf.identity, args=(), kwargs=None):

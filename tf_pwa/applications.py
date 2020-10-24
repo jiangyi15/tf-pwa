@@ -9,9 +9,8 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import norm as Norm
-
 import tensorflow as tf
+from scipy.stats import norm as Norm
 
 from .cal_angle import cal_angle_from_momentum, prepare_data_from_decay
 from .data import data_to_tensor, load_dat_file, split_generator

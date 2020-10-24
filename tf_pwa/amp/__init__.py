@@ -8,46 +8,41 @@ DecayGroup: addition (+)
 
 """
 
-import functools
-import numpy as np
 import contextlib
-from pprint import pprint
-from itertools import combinations
+import copy
+import functools
 import inspect
 import warnings
-import copy
+from itertools import combinations
+from pprint import pprint
+
+import numpy as np
+
+from tf_pwa.breit_wigner import (
+    BW,
+    BWR,
+    BWR2,
+    Bprime,
+    Bprime_q2,
+    BWR_normal,
+    Gamma,
+)
+from tf_pwa.breit_wigner import barrier_factor2 as barrier_factor
+from tf_pwa.cg import cg_coef
+from tf_pwa.config import get_config, regist_config, temp_config
+from tf_pwa.data import data_map, data_shape, split_generator
+from tf_pwa.dec_parser import load_dec_file
+from tf_pwa.dfun import get_D_matrix_lambda
+from tf_pwa.einsum import einsum
+from tf_pwa.particle import DEFAULT_DECAY, BaseParticle, Decay
+from tf_pwa.particle import DecayChain as BaseDecayChain
+from tf_pwa.particle import DecayGroup as BaseDecayGroup
+from tf_pwa.particle import _spin_int, _spin_range, split_particle_type
+from tf_pwa.tensorflow_wrapper import tf
+from tf_pwa.variable import Variable, VarsManager
 
 # from pysnooper import snoop
 
-from tf_pwa.particle import (
-    split_particle_type,
-    Decay,
-    BaseParticle,
-    DecayChain as BaseDecayChain,
-    DecayGroup as BaseDecayGroup,
-    _spin_int,
-    _spin_range,
-    DEFAULT_DECAY,
-)
-from tf_pwa.tensorflow_wrapper import tf
-from tf_pwa.breit_wigner import (
-    barrier_factor2 as barrier_factor,
-    BWR,
-    BW,
-    Bprime,
-    Gamma,
-    BWR2,
-    BWR_normal,
-    Bprime_q2,
-)
-from tf_pwa.dfun import get_D_matrix_lambda
-from tf_pwa.cg import cg_coef
-from tf_pwa.variable import VarsManager, Variable
-from tf_pwa.data import data_shape, split_generator, data_map
-
-from tf_pwa.config import regist_config, get_config, temp_config
-from tf_pwa.einsum import einsum
-from tf_pwa.dec_parser import load_dec_file
 
 PARTICLE_MODEL = "particle_model"
 regist_config(PARTICLE_MODEL, {})

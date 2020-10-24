@@ -15,13 +15,28 @@ from scipy.interpolate import interp1d
 from scipy.optimize import BFGS, basinhopping, minimize
 
 from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
-from tf_pwa.amp import (AmplitudeModel, DecayChain, DecayGroup, get_decay,
-                        get_particle)
-from tf_pwa.applications import (cal_hesse_error, corr_coef_matrix, fit,
-                                 fit_fractions)
+from tf_pwa.amp import (
+    AmplitudeModel,
+    DecayChain,
+    DecayGroup,
+    get_decay,
+    get_particle,
+)
+from tf_pwa.applications import (
+    cal_hesse_error,
+    corr_coef_matrix,
+    fit,
+    fit_fractions,
+)
 from tf_pwa.cal_angle import prepare_data_from_decay
-from tf_pwa.data import (data_index, data_merge, data_shape, data_split,
-                         load_data, save_data)
+from tf_pwa.data import (
+    data_index,
+    data_merge,
+    data_shape,
+    data_split,
+    load_data,
+    save_data,
+)
 from tf_pwa.fit import FitResult
 from tf_pwa.fit_improve import minimize as my_minimize
 from tf_pwa.model import FCN, CombineFCN, Model, Model_new
