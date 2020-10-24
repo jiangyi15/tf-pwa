@@ -19,7 +19,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="calculate fit fractions and their errors"
     )
-    parser.add_argument("--params", default="final_params.json", dest="params_file")
+    parser.add_argument(
+        "--params", default="final_params.json", dest="params_file"
+    )
     results = parser.parse_args()
 
     cal_fitfractions(params_file=results.params_file)

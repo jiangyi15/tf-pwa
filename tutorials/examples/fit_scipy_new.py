@@ -29,7 +29,13 @@ import math
 
 # from tf_pwa.bounds import Bounds
 
-from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
+from tf_pwa.amp import (
+    AmplitudeModel,
+    DecayGroup,
+    HelicityDecay,
+    Particle,
+    get_name,
+)
 
 from tf_pwa.data import data_to_numpy, data_to_tensor, split_generator
 from tf_pwa.cal_angle import prepare_data_from_decay
@@ -92,7 +98,9 @@ def prepare_data(decs, particles=None, dtype="float64"):
 def cal_hesse_error(amp, val, w_bkg, data, mcdata, bg, args_name, batch):
     a_h = FCN(Model(amp, w_bkg), data, mcdata, bg=bg, batch=batch)
     t = time.time()
-    nll, g, h = a_h.nll_grad_hessian(val)  # data_w,mcdata,weight=weights,batch=50000)
+    nll, g, h = a_h.nll_grad_hessian(
+        val
+    )  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     # print(nll)
     # print([i.numpy() for i in g])
@@ -112,7 +120,11 @@ def get_decay_chains(config_list):
     for i in config_list:
         config = config_list[i]
         res = Particle(
-            i, config["J"], config["Par"], mass=config["m0"], width=config["g0"]
+            i,
+            config["J"],
+            config["Par"],
+            mass=config["m0"],
+            width=config["g0"],
         )
         chain = config["Chain"]
         if chain < 0:
@@ -188,7 +200,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     config_list = load_config_file("Resonances")
 
     decs, final_particles, decay = get_decay_chains(config_list)
-    data, bg, mcdata = prepare_data(decs, particles=final_particles, dtype=dtype)
+    data, bg, mcdata = prepare_data(
+        decs, particles=final_particles, dtype=dtype
+    )
     amp = get_amplitude(decs, config_list, decay, polar=POLAR)
     load_params(amp, init_params)
     amp.vm.trans_params(POLAR)
@@ -303,7 +317,12 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             jac=True,
             bounds=bnds,
             callback=callback,
-            options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter},
+            options={
+                "disp": 1,
+                "maxcor": 10000,
+                "ftol": 1e-15,
+                "maxiter": maxiter,
+            },
         )
         xn = s.x
     else:
@@ -363,9 +382,15 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="simple fit scripts")
-    parser.add_argument("--no-hesse", action="store_false", default=True, dest="hesse")
-    parser.add_argument("--no-frac", action="store_false", default=True, dest="frac")
-    parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
+    parser.add_argument(
+        "--no-hesse", action="store_false", default=True, dest="hesse"
+    )
+    parser.add_argument(
+        "--no-frac", action="store_false", default=True, dest="frac"
+    )
+    parser.add_argument(
+        "--no-GPU", action="store_false", default=True, dest="has_gpu"
+    )
     parser.add_argument("--method", default="BFGS", dest="method")
     results = parser.parse_args()
     if results.has_gpu:

@@ -40,7 +40,7 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
         grad=f_g.grad,
         print_level=2,
         use_array_call=True,
-        **var_args
+        **var_args,
     )
     print("########## begin MIGRAD")
     now = time.time()
@@ -57,7 +57,9 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
         m.minos()  # (var="")
         print("MINOS Time", time.time() - now)
     ndf = len(m.list_of_vary_param())
-    ret = FitResult(dict(m.values), fcn, m.fval, ndf=ndf, success=m.migrad_ok())
+    ret = FitResult(
+        dict(m.values), fcn, m.fval, ndf=ndf, success=m.migrad_ok()
+    )
     ret.set_error(dict(m.errors))
     return ret
 
@@ -66,7 +68,12 @@ from scipy.optimize import minimize, BFGS, basinhopping
 
 
 def fit_scipy(
-    fcn, method="BFGS", bounds_dict={}, check_grad=False, improve=False, maxiter=None
+    fcn,
+    method="BFGS",
+    bounds_dict={},
+    check_grad=False,
+    improve=False,
+    maxiter=None,
 ):
     """
 
@@ -210,7 +217,12 @@ def fit_scipy(
                 jac=True,
                 bounds=bnds,
                 callback=callback,
-                options={"disp": 1, "maxcor": 50, "ftol": 1e-15, "maxiter": maxiter},
+                options={
+                    "disp": 1,
+                    "maxcor": 50,
+                    "ftol": 1e-15,
+                    "maxiter": maxiter,
+                },
             )
         except LargeNumberError:
             return except_result(fcn, len(x0))
@@ -238,12 +250,16 @@ def fit_scipy(
             print(args_name[i], gs[i], gs0[i])
     fcn.vm.set_all(xn)
     params = fcn.vm.get_all_dic()
-    return FitResult(params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv)
+    return FitResult(
+        params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv
+    )
 
 
 def except_result(fcn, ndf):
     params = fcn.vm.get_all_dic()
-    return FitResult(params, fcn, float(fcn.cached_nll), ndf=ndf, success=False)
+    return FitResult(
+        params, fcn, float(fcn.cached_nll), ndf=ndf, success=False
+    )
 
 
 # import pymultinest
@@ -252,7 +268,9 @@ def fit_multinest(fcn):
 
 
 class FitResult(object):
-    def __init__(self, params, fcn, min_nll, ndf=0, success=True, hess_inv=None):
+    def __init__(
+        self, params, fcn, min_nll, ndf=0, success=True, hess_inv=None
+    ):
         self.params = params
         self.error = {}
         self.fcn = fcn
@@ -265,7 +283,11 @@ class FitResult(object):
         s = {
             "value": self.params,
             "error": self.error,
-            "status": {"success": self.success, "NLL": self.min_nll, "Ndf": self.ndf},
+            "status": {
+                "success": self.success,
+                "NLL": self.min_nll,
+                "Ndf": self.ndf,
+            },
         }
         if save_hess and self.hess_inv is not None:
             s["free_params"] = [str(i) for i in self.error]

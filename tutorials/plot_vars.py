@@ -16,7 +16,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="calculate errors of a given set of parameters and their correlation coefficients"
     )
-    parser.add_argument("--params", default="final_params.json", dest="params_file")
+    parser.add_argument(
+        "--params", default="final_params.json", dest="params_file"
+    )
     results = parser.parse_args()
 
     plot(params_file=results.params_file)

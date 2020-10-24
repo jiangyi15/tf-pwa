@@ -22,7 +22,9 @@ def main():
     decays = config.get_decay(False)
     decay_chain = decays.get_decay_chain(r_name)
     data = config.get_data("data")[0]
-    angle = cal_helicity_angle(data["particle"], decay_chain.standard_topology())
+    angle = cal_helicity_angle(
+        data["particle"], decay_chain.standard_topology()
+    )
     decay_chain.standard_topology()
     tp_map = decay_chain.topology_map()
 

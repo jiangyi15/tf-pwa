@@ -47,7 +47,8 @@ class NumberError(object):
         if isinstance(other, NumberError):
             val = self._value * other._value
             err = np.sqrt(
-                (self._error * other._value) ** 2 + (self._value * other._error) ** 2
+                (self._error * other._value) ** 2
+                + (self._value * other._error) ** 2
             )
         else:
             val = self._value * other
@@ -72,7 +73,9 @@ class NumberError(object):
     def __pow__(self, other):
         if isinstance(other, NumberError):
             val = self._value ** other._value
-            err1 = other._value * self._value ** (other._value - 1) * self._error
+            err1 = (
+                other._value * self._value ** (other._value - 1) * self._error
+            )
             err2 = np.log(other._value) * val * other._error
             err = np.sqrt(err1 ** 2 + err2 ** 2)
         else:

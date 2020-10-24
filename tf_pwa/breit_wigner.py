@@ -26,7 +26,9 @@ def regist_lineshape(name=None):
         if name_t is None:
             name_t = f.__name__
         if name_t in breit_wigner_dict:
-            warnings.warn("override breit wigner function :", name)  # warning to users
+            warnings.warn(
+                "override breit wigner function :", name
+            )  # warning to users
         breit_wigner_dict[name_t] = f  # function
         return f
 
@@ -38,7 +40,9 @@ def one(*args):
     """
     A uniform function
     """
-    return tf.complex(1.0, 0.0)  # breit_wigner_dict["one"]==tf.complex(1.0,0.0)
+    return tf.complex(
+        1.0, 0.0
+    )  # breit_wigner_dict["one"]==tf.complex(1.0,0.0)
 
 
 @regist_lineshape("BW")
@@ -141,7 +145,9 @@ def Gamma2(m, gamma0, q2, q02, L, m0, d):
     q02 = tf.cast(q02, q2.dtype)
     _epsilon = 1e-15
     qq0 = q2 / q02
-    qq0 = tf.cast(qq0 ** L, tf.complex128) * tf.sqrt(tf.cast(qq0, tf.complex128))
+    qq0 = tf.cast(qq0 ** L, tf.complex128) * tf.sqrt(
+        tf.cast(qq0, tf.complex128)
+    )
     mm0 = tf.cast(m0, m.dtype) / m
     z0 = q02 * d ** 2
     z = q2 * d ** 2
@@ -250,7 +256,8 @@ def reverse_bessel_polynomials(n, x):
     ret = 0
     for k in range(n + 1):
         c = fractions.Fraction(
-            math.factorial(n + k), math.factorial(n - k) * math.factorial(k) * 2 ** k
+            math.factorial(n + k),
+            math.factorial(n - k) * math.factorial(k) * 2 ** k,
         )
         ret += c * x ** (n - k)
     return ret

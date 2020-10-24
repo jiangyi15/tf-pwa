@@ -108,7 +108,14 @@ def fmin_bfgs_f(
             myfprime = f_g.grad
             gfk = gk
             old_fval = fk
-            alpha_k, fc, gc, old_fval, old_old_fval, gfkp1 = line_search_wolfe2(
+            (
+                alpha_k,
+                fc,
+                gc,
+                old_fval,
+                old_old_fval,
+                gfkp1,
+            ) = line_search_wolfe2(
                 f, myfprime, xk, pk, gfk, f_s.get_max(), old_fval, old_old_fval
             )
         except Exception as e:
@@ -147,7 +154,9 @@ def fmin_bfgs_f(
         gk = gki
         bs = np.dot(Bk, dki)
         Bk = (
-            Bk + np.outer(yk, yk) / np.dot(yk, dki) - np.outer(bs, bs) / np.dot(bs, dki)
+            Bk
+            + np.outer(yk, yk) / np.dot(yk, dki)
+            - np.outer(bs, bs) / np.dot(bs, dki)
         )
         # sk = dki
         # rhok = 1.0 / (np.dot(yk, sk))
@@ -378,7 +387,17 @@ def line_search_wolfe2(
     if derphi_star is None:
         warn("The line search algorithm did not converge", LineSearchWarning)
         return line_search_nonmonote(
-            f, myfprime, xk, pk, gfk, fk, old_fval, old_old_fval, args, c1, maxiter
+            f,
+            myfprime,
+            xk,
+            pk,
+            gfk,
+            fk,
+            old_fval,
+            old_old_fval,
+            args,
+            c1,
+            maxiter,
         )
     else:
         # derphi_star is a number (derphi) -- so use the most recently
@@ -504,7 +523,9 @@ def scalar_search_wolfe2(
             warn(msg, LineSearchWarning)
             break
 
-        if (phi_a1 > phi0 + c1 * alpha1 * derphi0) or ((phi_a1 >= phi_a0) and (i > 1)):
+        if (phi_a1 > phi0 + c1 * alpha1 * derphi0) or (
+            (phi_a1 >= phi_a0) and (i > 1)
+        ):
             alpha_star, phi_star, derphi_star = _zoom(
                 alpha0,
                 alpha1,
@@ -669,7 +690,9 @@ def _zoom(
 
         if i > 0:
             cchk = delta1 * dalpha
-            a_j = _cubicmin(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec)
+            a_j = _cubicmin(
+                a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
+            )
         if (i == 0) or (a_j is None) or (a_j > b - cchk) or (a_j < a + cchk):
             qchk = delta2 * dalpha
             a_j = _quadmin(a_lo, phi_lo, derphi_lo, a_hi, phi_hi)
@@ -686,7 +709,9 @@ def _zoom(
             phi_hi = phi_aj
         else:
             derphi_aj = derphi(a_j)
-            if abs(derphi_aj) <= -c2 * derphi0 and extra_condition(a_j, phi_aj):
+            if abs(derphi_aj) <= -c2 * derphi0 and extra_condition(
+                a_j, phi_aj
+            ):
                 a_star = a_j
                 val_star = phi_aj
                 valprime_star = derphi_aj

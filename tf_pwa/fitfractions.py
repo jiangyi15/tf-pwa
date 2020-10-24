@@ -71,11 +71,18 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
                 name = (str(res[i]), str(res[j]))
                 amp_tmp.set_used_res([res[i], res[j]])
             int_tmp, g_int_tmp = sum_gradient(
-                amp_tmp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs
+                amp_tmp,
+                mcdata,
+                var=var,
+                weight=weight,
+                args=args,
+                kwargs=kwargs,
             )
             if i == j:
                 fitFrac[name] = int_tmp / int_mc
-                gij = g_int_tmp / int_mc - (int_tmp / int_mc) * g_int_mc / int_mc
+                gij = (
+                    g_int_tmp / int_mc - (int_tmp / int_mc) * g_int_mc / int_mc
+                )
                 g_fitFrac[i] = gij
             else:
                 fitFrac[name] = (
@@ -95,7 +102,9 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
     return fitFrac, err_fitFrac
 
 
-def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
+def cal_fitfractions_no_grad(
+    amp, mcdata, res=None, batch=None, args=(), kwargs=None
+):
     r"""
     calculate fit fractions without gradients.
     """
@@ -127,7 +136,12 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=
                 name = "{}x{}".format(res[i], res[j])
                 amp_tmp.set_used_res([res[i], res[j]])
             int_tmp = sum_no_gradient(
-                amp_tmp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs
+                amp_tmp,
+                mcdata,
+                var=var,
+                weight=weight,
+                args=args,
+                kwargs=kwargs,
             )
             if i == j:
                 fitFrac[name] = int_tmp / int_mc
@@ -142,7 +156,14 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=
 
 
 def sum_gradient(
-    amp, data, var, weight=1.0, func=lambda x: x, grad=True, args=(), kwargs=None
+    amp,
+    data,
+    var,
+    weight=1.0,
+    func=lambda x: x,
+    grad=True,
+    args=(),
+    kwargs=None,
 ):
     kwargs = kwargs if kwargs is not None else {}
     # n_variables = len(var)

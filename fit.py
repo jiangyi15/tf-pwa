@@ -132,7 +132,10 @@ def write_some_results_combine(config, fit_result):
     print("########## fit fractions:")
     mcdata = config.configs[0].get_phsp_noeff()
     fit_frac, err_frac = fit_fractions(
-        config.configs[0].get_amplitude(), mcdata, config.inv_he, fit_result.params
+        config.configs[0].get_amplitude(),
+        mcdata,
+        config.inv_he,
+        fit_result.params,
     )
     fit_frac_string = ""
     for i in fit_frac:
@@ -151,7 +154,9 @@ def write_some_results_combine(config, fit_result):
 def write_run_point():
     """ write time as a point of fit start"""
     with open(".run_start", "w") as f:
-        localtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+        localtime = time.strftime(
+            "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+        )
         f.write(localtime)
 
 
@@ -160,9 +165,13 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="simple fit scripts")
-    parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
+    parser.add_argument(
+        "--no-GPU", action="store_false", default=True, dest="has_gpu"
+    )
     parser.add_argument("-c", "--config", default="config.yml", dest="config")
-    parser.add_argument("-i", "--init_params", default="init_params.json", dest="init")
+    parser.add_argument(
+        "-i", "--init_params", default="init_params.json", dest="init"
+    )
     parser.add_argument("-m", "--method", default="BFGS", dest="method")
     parser.add_argument("-l", "--loop", type=int, default=1, dest="loop")
     parser.add_argument(

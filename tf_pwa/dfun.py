@@ -134,7 +134,9 @@ def small_d_weight(j):  # the prefactor in the d-function of β
             for k in range(max(0, n - m), min(j - m, j + n) + 1, 2):
                 l = (2 * k + (m - n)) // 2
                 sign = (-1) ** ((k + m - n) // 2)
-                tmp = sign * math.sqrt(1.0 * f(j + m) * f(j - m) * f(j + n) * f(j - n))
+                tmp = sign * math.sqrt(
+                    1.0 * f(j + m) * f(j - m) * f(j + n) * f(j - n)
+                )
                 tmp /= f(j - m - k) * f(j + n - k) * f(k + m - n) * f(k)
                 ret[l][(m + j) // 2][(n + j) // 2] = tmp
     return ret
@@ -247,6 +249,8 @@ def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     """
     d = get_D_matrix_for_angle(angle, _spin_int(2 * ja))
     if lc is None:
-        return tf.reshape(Dfun_delta_v2(d, ja, la, lb, (0,)), (-1, len(la), len(lb)))
+        return tf.reshape(
+            Dfun_delta_v2(d, ja, la, lb, (0,)), (-1, len(la), len(lb))
+        )
     else:
         return Dfun_delta_v2(d, ja, la, lb, lc)

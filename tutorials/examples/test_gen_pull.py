@@ -9,7 +9,12 @@ import tensorflow as tf
 import numpy as np
 import json
 from tf_pwa.utils import load_config_file, pprint, error_print
-from fit_scipy_new import get_decay_chains, get_amplitude, load_params, cal_hesse_error
+from fit_scipy_new import (
+    get_decay_chains,
+    get_amplitude,
+    load_params,
+    cal_hesse_error,
+)
 from tf_pwa.data import load_dat_file, data_to_tensor, split_generator
 from tf_pwa.cal_angle import prepare_data_from_decay
 
@@ -23,7 +28,9 @@ import pickle
 
 
 def prepare_data(fname, decs, particles=None, dtype="float64"):
-    data_np = prepare_data_from_decay(fname, decs, particles=particles, dtype=dtype)
+    data_np = prepare_data_from_decay(
+        fname, decs, particles=particles, dtype=dtype
+    )
     return data_to_tensor(data_np)
 
 
@@ -245,7 +252,12 @@ def gen_toy_sample():
 
     output = open("toyMar9.pkl", "wb")
     pickle.dump(
-        {"var": var_arr, "err": err_arr, "frac": frac_arr, "err_frac": err_frac_arr},
+        {
+            "var": var_arr,
+            "err": err_arr,
+            "frac": frac_arr,
+            "err_frac": err_frac_arr,
+        },
         output,
         -1,
     )
@@ -344,7 +356,11 @@ def toy_pull():
     e_s = []
     for i in var:
         mean, sigma, err_m, err_s = plot_pull(
-            var[i], "var" + i, norm=True, value=result["value"][i], error=err[i]
+            var[i],
+            "var" + i,
+            norm=True,
+            value=result["value"][i],
+            error=err[i],
         )
         m.append(mean)
         s.append(sigma)
@@ -362,7 +378,11 @@ def toy_pull():
     e_s = []
     for i in frac:
         mean, sigma, err_m, err_s = plot_pull(
-            frac[i], "frac" + i, norm=True, value=result["frac"][i], error=err_frac[i]
+            frac[i],
+            "frac" + i,
+            norm=True,
+            value=result["frac"][i],
+            error=err_frac[i],
         )
         m.append(mean)
         s.append(sigma)
@@ -379,7 +399,13 @@ def draw_errorbar():
     mu = []
     err_mu = []
     plt.errorbar(
-        range(len(mu)), mu, yerr=err_mu, fmt="oy", ecolor="r", elinewidth=1, capsize=3
+        range(len(mu)),
+        mu,
+        yerr=err_mu,
+        fmt="oy",
+        ecolor="r",
+        elinewidth=1,
+        capsize=3,
     )
     plt.errorbar(range(len(mu)), 0, fmt="g")
     plt.xlabel("var index")

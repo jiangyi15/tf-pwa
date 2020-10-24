@@ -23,7 +23,9 @@ class NpzData(SimpleData):
         weight_sign = self.get_weight_sign(idx)
         return self.load_data(files, weight_sign)
 
-    def load_data(self, files, weights=None, weights_sign=1, charge=None) -> dict:
+    def load_data(
+        self, files, weights=None, weights_sign=1, charge=None
+    ) -> dict:
         # print(files, weights)
         if files is None:
             return None
@@ -33,7 +35,10 @@ class NpzData(SimpleData):
         r_boost = self.dic.get("r_boost", False)
         random_z = self.dic.get("random_z", False)
         npz_data = np.load(files)
-        p = {get_particle(str(v)): npz_data[str(k)] for k, v in zip(p_list, order)}
+        p = {
+            get_particle(str(v)): npz_data[str(k)]
+            for k, v in zip(p_list, order)
+        }
         data = cal_angle_from_momentum(
             p,
             self.decay_struct,

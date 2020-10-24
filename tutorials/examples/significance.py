@@ -90,7 +90,9 @@ def cal_significance(config_name, res, model="-"):
         nlls[i] = nll_i
         ndfs[i] = ndf_i
         signi[i] = significance(nll, nll_i, abs(ndf - ndf_i))
-        print("nll: {}, ndf: {}, significane: {}".format(nll_i, ndf_i, signi[i]))
+        print(
+            "nll: {}, ndf: {}, significane: {}".format(nll_i, ndf_i, signi[i])
+        )
     return signi, nlls, ndfs
 
 

@@ -33,7 +33,9 @@ class AdaptiveBound(object):
     def get_bounds_data(self):
         """get split data bounds, and the data after splitting"""
         base_bound = AdaptiveBound.base_bound(self._base_data)
-        bounds, datas = AdaptiveBound.loop_split_bound(self._base_data, self.bins)
+        bounds, datas = AdaptiveBound.loop_split_bound(
+            self._base_data, self.bins
+        )
         return bounds, datas
 
     def get_bounds(self):
@@ -185,5 +187,7 @@ def cal_chi2(numbers, n_fp):
     print("bins: ", len(weights))
     print("number of free parameters: ", n_fp)
     ndf = len(weights) - 1 - n_fp
-    print("chi2/ndf: ", np.sum(weights), "/", ndf)  # ,"another", np.sum(chi21))
+    print(
+        "chi2/ndf: ", np.sum(weights), "/", ndf
+    )  # ,"another", np.sum(chi21))
     return chi2, ndf

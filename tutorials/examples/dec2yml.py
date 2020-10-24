@@ -90,7 +90,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("in_file")
     parser.add_argument("-o", dest="out_file", default="config.yml")
-    parser.add_argument("--parity", dest="parity_file", default="_parity.list_")
+    parser.add_argument(
+        "--parity", dest="parity_file", default="_parity.list_"
+    )
     results = parser.parse_args()
     dec2yml(results.in_file, results.out_file, results.parity_file)
 

@@ -21,7 +21,8 @@ class InterpolationPartilce(Particle):
         else:
             self.interp_N = len(self.points)
         self.bound = [
-            (self.points[i], self.points[i + 1]) for i in range(0, self.interp_N - 1)
+            (self.points[i], self.points[i + 1])
+            for i in range(0, self.interp_N - 1)
         ]
         if self.fix_idx is not None and self.fix_idx < 0:
             self.fix_idx = self.interp_N // 2 - 1
@@ -29,7 +30,10 @@ class InterpolationPartilce(Particle):
     def init_params(self):
         # self.a = self.add_var("a")
         self.point_value = self.add_var(
-            "point", is_complex=True, shape=(self.n_points(),), polar=self.polar
+            "point",
+            is_complex=True,
+            shape=(self.n_points(),),
+            polar=self.polar,
         )
         if self.fix_idx is not None:
             self.point_value.set_fix_idx(fix_idx=self.fix_idx, fix_vals=1.0)
@@ -74,7 +78,9 @@ class Interp(InterpolationPartilce):
 
         def add_f(x, bl, br, pl, pr):
             return tf.where(
-                (x > bl) & (x <= br), (x - bl) / (br - bl) * (pr - pl) + pl, zeros
+                (x > bl) & (x <= br),
+                (x - bl) / (br - bl) * (pr - pl) + pl,
+                zeros,
             )
 
         ret = [
@@ -110,7 +116,8 @@ class Interp(InterpolationPartilce):
             return tmp
 
         h = tf.stack(
-            [poly_i(i, self.points) for i in range(1, self.interp_N - 1)], axis=-1
+            [poly_i(i, self.points) for i in range(1, self.interp_N - 1)],
+            axis=-1,
         )
         h = tf.stop_gradient(h)
         p_r = tf.math.real(p)
@@ -313,7 +320,11 @@ class Interp1DLang(InterpolationPartilce):
             for j in range(self.interp_N):
                 if i == j:
                     continue
-                x = x * (m - self.points[j]) / (self.points[i] - self.points[j])
+                x = (
+                    x
+                    * (m - self.points[j])
+                    / (self.points[i] - self.points[j])
+                )
             return x
 
         xs = tf.stack([poly_i(i) for i in range(self.interp_N)], axis=-1)
@@ -390,7 +401,9 @@ def get_matrix_interp1d3_v2(x, xi):
                 x_k = (xi[k] + xi[k - 1]) / 2
                 r = r * (x - x_k) / (x_i - x_k)
             r = tf.where(
-                (x >= (xi[j] + xi[j - 1]) / 2) & (x < (xi[j] + xi[j + 1]) / 2), r, zeros
+                (x >= (xi[j] + xi[j - 1]) / 2) & (x < (xi[j] + xi[j + 1]) / 2),
+                r,
+                zeros,
             )
             tmp = tmp + r
         return tmp

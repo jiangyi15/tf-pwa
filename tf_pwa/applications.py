@@ -20,7 +20,9 @@ from .significance import significance
 from .utils import error_print, std_periodic_var, check_positive_definite
 
 
-def fit_fractions(amp, mcdata, inv_he=None, params=None, batch=25000, res=None):
+def fit_fractions(
+    amp, mcdata, inv_he=None, params=None, batch=25000, res=None
+):
     """
     This function calculate fit fractions of the resonances as well as their coherent pairs. It imports
     ``cal_fitfractions`` and ``cal_fitfractions_no_grad`` from module **tf_pwa.fitfractions**.
@@ -214,7 +216,14 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
 
 
 def gen_data(
-    amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False, bgfile=None, genfile=None
+    amp,
+    Ndata,
+    mcfile,
+    Nbg=0,
+    wbg=0,
+    Poisson_fluc=False,
+    bgfile=None,
+    genfile=None,
 ):
     """
     This function is used to generate toy data according to an amplitude model.
@@ -248,7 +257,9 @@ def gen_data(
     idx_list = []
 
     while n < Nmc:
-        uni_rdm = tf.random.uniform([Nsample], minval=0, maxval=ampsq_max, dtype=dtype)
+        uni_rdm = tf.random.uniform(
+            [Nsample], minval=0, maxval=ampsq_max, dtype=dtype
+        )
         list_rdm = tf.random.uniform([Nsample], dtype=tf.int64, maxval=Nsample)
         j = 0
         mask = tf.boolean_mask(list_rdm, tf.gather(ampsq, list_rdm) > uni_rdm)
@@ -414,7 +425,9 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 
                 return -np.sum(np.log(normpdf(data, mu, sigma)))
 
-            m = Minuit(nll, mu=0, sigma=1, error_mu=0.1, error_sigma=0.1, errordef=0.5)
+            m = Minuit(
+                nll, mu=0, sigma=1, error_mu=0.1, error_sigma=0.1, errordef=0.5
+            )
             m.migrad()
             m.hesse()
             return m
@@ -425,7 +438,9 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 
     except Exception as e:
         if type(e) is ModuleNotFoundError:
-            print("No Minuit installed. Using scipy.optimize to fit the histogram")
+            print(
+                "No Minuit installed. Using scipy.optimize to fit the histogram"
+            )
             from scipy.optimize import minimize
 
             def fitNormHist(data):
@@ -458,7 +473,10 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     plt.plot(bins, y, "r-")
     plt.xlabel(name)
     plt.title(
-        "mu = " + error_print(mu, err_mu) + "; sigma = " + error_print(sigma, err_sigma)
+        "mu = "
+        + error_print(mu, err_mu)
+        + "; sigma = "
+        + error_print(sigma, err_sigma)
     )
     plt.savefig("fig/" + name + "_pull.png")
     plt.clf()
@@ -507,7 +525,13 @@ def likelihood_profile(m, var_names, bins=20, minos=True):
 
 
 def compare_result(
-    value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=None
+    value1,
+    value2,
+    error1,
+    error2=None,
+    figname=None,
+    yrange=None,
+    periodic_vars=None,
 ):
     """
     Compare two groups of fitting results. If only one error is provided,
@@ -546,7 +570,11 @@ def compare_result(
         if yrange:
             for v in diff_dict:
                 if np.abs(diff_dict[v]) > yrange:
-                    print("{0} out of yrange, which is {1}.".format(v, diff_dict[v]))
+                    print(
+                        "{0} out of yrange, which is {1}.".format(
+                            v, diff_dict[v]
+                        )
+                    )
                     arr.append(np.sign(diff_dict[v]) * yrange)
                 else:
                     arr.append(diff_dict[v])

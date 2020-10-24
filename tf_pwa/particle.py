@@ -84,7 +84,9 @@ class BaseParticle(object):
         self.P = P
         if spins is None:
             spins = tuple(_spin_range(-J, J))
-        self.spins = tuple([eval(i) if isinstance(i, str) else i for i in spins])
+        self.spins = tuple(
+            [eval(i) if isinstance(i, str) else i for i in spins]
+        )
         self.mass = mass
         self.width = width
         self.disable = disable
@@ -249,7 +251,13 @@ class BaseDecay(object):
     """
 
     def __init__(
-        self, core, outs, name=None, disable=False, p_break=False, curve_style=None
+        self,
+        core,
+        outs,
+        name=None,
+        disable=False,
+        p_break=False,
+        curve_style=None,
     ):
         self._name = name
         self.core = core
@@ -311,7 +319,9 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         pa = self.core.P
         pb = self.outs[0].P
         pc = self.outs[1].P
-        return tuple(GetA2BC_LS_list(ja, jb, jc, pa, pb, pc, p_break=self.p_break))
+        return tuple(
+            GetA2BC_LS_list(ja, jb, jc, pa, pb, pc, p_break=self.p_break)
+        )
 
     # @functools.lru_cache()
     def get_l_list(self):
@@ -373,8 +383,17 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
                 for lambda_c in range(-jc, jc + 1):
                     ret[j][i] = (
                         np.sqrt((2 * l + 1) / (2 * ja + 1))
-                        * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c)
-                        * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
+                        * cg_coef(
+                            jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c
+                        )
+                        * cg_coef(
+                            l,
+                            s,
+                            0,
+                            lambda_b - lambda_c,
+                            ja,
+                            lambda_b - lambda_c,
+                        )
                     )
                     j += 1
         return ret
@@ -646,7 +665,9 @@ class DecayChain(object):
                     ret[i] = j
                     break
         for i in self:
-            test_decay = BaseDecay(ret[i.core], [ret[k] for k in i.outs], disable=False)
+            test_decay = BaseDecay(
+                ret[i.core], [ret[k] for k in i.outs], disable=False
+            )
             for j in other:
                 if test_decay == j:
                     ret[i] = j

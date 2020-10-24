@@ -54,9 +54,13 @@ digraph {
         for i, j in edges:
             if j in decay_dict:
                 if has_label:
-                    ret += DotGenerator.dot_label_edge.format(i, decay_dict[j], j)
+                    ret += DotGenerator.dot_label_edge.format(
+                        i, decay_dict[j], j
+                    )
                 else:
-                    ret += DotGenerator.dot_default_edge.format(i, decay_dict[j])
+                    ret += DotGenerator.dot_default_edge.format(
+                        i, decay_dict[j]
+                    )
             else:
                 ret += DotGenerator.dot_default_edge.format(i, j)
         ret += DotGenerator.dot_tail

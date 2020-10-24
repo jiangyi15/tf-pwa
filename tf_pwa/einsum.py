@@ -143,7 +143,9 @@ def remove_size1(expr, *args, extra=None):
 def einsum(expr, *args, **kwargs):
     shapes = [replace_none_in_shape(i.shape, 10000) for i in args]
     expr, extra = replace_ellipsis(expr, shapes)
-    path, path_info = contract_path(expr, *shapes, shapes=True, optimize="auto")
+    path, path_info = contract_path(
+        expr, *shapes, shapes=True, optimize="auto"
+    )
     final_idx = expr.split("->")[1]
     expr2, args, size_map = remove_size1(expr, *args, extra=extra)
     final_shape = [size_map[i] for i in final_idx]
@@ -160,7 +162,9 @@ def einsum(expr, *args, **kwargs):
         for i in sorted(idx)[::-1]:
             del data[i]
             del in_idx[i]
-        out_idx = set("".join(part_in_idx)) & set(final_index + "".join(in_idx))
+        out_idx = set("".join(part_in_idx)) & set(
+            final_index + "".join(in_idx)
+        )
         out_idx = "".join(sorted(out_idx, key=lambda x: base_order[x]))
         in_idx.append(out_idx)
         expr_i = "{}->{}".format(",".join(part_in_idx), out_idx)
@@ -207,7 +211,9 @@ def tensor_einsum_reduce_sum(expr, *args, order):
         ex_shape = [shape_dict.get(i, 1) for i in require_order]
         return ex_shape
 
-    expand_shapes = [expand_shape_it(idx, shape) for idx, shape in zip(idxs, shapes)]
+    expand_shapes = [
+        expand_shape_it(idx, shape) for idx, shape in zip(idxs, shapes)
+    ]
 
     # print(expr, order, expand_shapes)
     s_args = [

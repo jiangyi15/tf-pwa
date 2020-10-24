@@ -85,7 +85,9 @@ class PhaseSpaceGenerator(object):
             mass_t.append(i)
         mass_t.append(self.m0)
         zeros = tf.zeros([n_iter], dtype="float64")
-        p_list = [tf.stack([zeros + self.m_mass[-1], zeros, zeros, zeros], axis=-1)]
+        p_list = [
+            tf.stack([zeros + self.m_mass[-1], zeros, zeros, zeros], axis=-1)
+        ]
         for i in range(0, self.m_nt - 1):
             p_list = self.generate_momentum_i(
                 mass_t[i + 1], mass_t[i], self.m_mass[-i - 2], n_iter, p_list

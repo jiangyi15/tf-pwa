@@ -54,7 +54,9 @@ def get_params():
     data_1 = [i["NR(1+)S"] for i in data["fracs"]]
     data_2 = [i["NR(1+)D"] for i in data["fracs"]]
 
-    idx = np.argmax(np.fabs(np.array(data_0) * np.array(data_1) * np.array(data_2)))
+    idx = np.argmax(
+        np.fabs(np.array(data_0) * np.array(data_1) * np.array(data_2))
+    )
     print(idx, data_infer[idx])
     return data["prarms"][idx]
 
@@ -73,9 +75,13 @@ def test_plot(init_params):
         init_params=init_params
     )  # init_params=get_params())
 
-    m_DsDst = data_index(data, config.plot_params.get_data_index("mass", "R_BC"))
+    m_DsDst = data_index(
+        data, config.plot_params.get_data_index("mass", "R_BC")
+    )
     m_DsK = data_index(data, config.plot_params.get_data_index("mass", "R_BD"))
-    m_DstK = data_index(data, config.plot_params.get_data_index("mass", "R_CD"))
+    m_DstK = data_index(
+        data, config.plot_params.get_data_index("mass", "R_CD")
+    )
 
     val = m_DsDst
 
@@ -98,8 +104,12 @@ def test_plot(init_params):
         # ax = plt.subplot(a,b,i+1)
         plt.clf()
         ax = plt.subplot(1, 1, 1)
-        ax.hist(val, weights=pw[j[0]], bins=100, histtype="step", label=label[j[0]])
-        ax.hist(val, weights=pw[j[1]], bins=100, histtype="step", label=label[j[1]])
+        ax.hist(
+            val, weights=pw[j[0]], bins=100, histtype="step", label=label[j[0]]
+        )
+        ax.hist(
+            val, weights=pw[j[1]], bins=100, histtype="step", label=label[j[1]]
+        )
         x, y, _ = ax.hist(
             val,
             weights=pw_if[j],

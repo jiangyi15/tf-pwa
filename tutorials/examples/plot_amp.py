@@ -268,7 +268,9 @@ def plot(
         a_sig[i] = Model(config_res[i], w_bkg, kwargs={"polar": POLAR})
         # a_sig[i].Amp.polar=POLAR
         a_sig[i].set_params(a.get_params())
-        a_weight[i] = a_sig[i].Amp(mcdata_cache, cached=True).numpy() * norm_int
+        a_weight[i] = (
+            a_sig[i].Amp(mcdata_cache, cached=True).numpy() * norm_int
+        )
         fitFrac[name] = a_weight[i].sum() / (n_data - w_bkg * n_bg)
     print("FitFractions:")
     pprint(fitFrac)
@@ -291,7 +293,14 @@ def plot(
     ] + colors
 
     def plot_params(
-        ax, name, bins=None, xrange=None, idx=0, display=None, units="GeV", legend=True
+        ax,
+        name,
+        bins=None,
+        xrange=None,
+        idx=0,
+        display=None,
+        units="GeV",
+        legend=True,
     ):
         fd = lambda x: x
         if name.startswith("cos"):
@@ -300,13 +309,20 @@ def plot(
         color = iter(colors)
         if display is None:
             display = name
-        data_hist = np.histogram(fd(data[idx].numpy()), range=xrange, bins=bins)
+        data_hist = np.histogram(
+            fd(data[idx].numpy()), range=xrange, bins=bins
+        )
         # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
         data_y, data_x = data_hist[0:2]
         data_x = (data_x[:-1] + data_x[1:]) / 2
         data_err = np.sqrt(data_y)
         ax.errorbar(
-            data_x, data_y, yerr=data_err, fmt=".", color=next(color), zorder=-2
+            data_x,
+            data_y,
+            yerr=data_err,
+            fmt=".",
+            color=next(color),
+            zorder=-2,
         )
         if bg is not None:
             ax.hist(
@@ -339,7 +355,9 @@ def plot(
         )
         for i in a_sig:
             weights = a_weight[i]
-            x, y = hist_line(fd(mcdata[idx].numpy()), weights, bins, xrange, inter)
+            x, y = hist_line(
+                fd(mcdata[idx].numpy()), weights, bins, xrange, inter
+            )
             y = y
             ax.plot(
                 x,
