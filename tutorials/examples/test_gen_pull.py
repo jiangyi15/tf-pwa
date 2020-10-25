@@ -278,7 +278,7 @@ def compare_toy():
     POLAR = False
     if POLAR:
         periodic_vars = []
-        for v in prm["error"]:
+        for v in result["error"]:
             if v[-1] == "i":
                 periodic_vars.append(v)
     else:

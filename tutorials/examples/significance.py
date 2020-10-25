@@ -44,8 +44,8 @@ def veto_resonance(config, res):
     if res in config["decay"]:
         config["decay"].remove(res)
     for k, v in config["decay"].items():
-        if res in v:
-            decay[k].remove(res)
+        # if res in v:
+        #     decay[k].remove(res)
         for j in v:
             if isinstance(j, list):
                 if res in j:
