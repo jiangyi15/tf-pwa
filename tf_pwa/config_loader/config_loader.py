@@ -851,13 +851,16 @@ class ConfigLoader(object):
         save_root=False,
         bin_scale=3,
         res=None,
+        batch=65000,
         **kwargs
     ):
         data_dict = {}
         phsp_dict = {}
         bg_dict = {}
         with amp.temp_params(params):
-            total_weight = amp(phsp) * phsp.get("weight", 1.0)
+            weights_i = [amp(i) for i in data_split(phsp, batch)]
+            weight_phsp = data_merge(*weights_i)  # amp(phsp)
+            total_weight = weight_phsp * phsp.get("weight", 1.0)
             data_weight = data.get("weight", None)
             if data_weight is None:
                 n_data = data_shape(data)
