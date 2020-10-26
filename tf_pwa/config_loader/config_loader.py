@@ -672,7 +672,7 @@ class ConfigLoader(object):
             nll = float(getattr(params, "min_nll"))
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        print(nll, params)
+        # print(nll, params)
         pathes = prefix.rstrip("/").split("/")
         path = ""
         for p in pathes:
@@ -698,7 +698,12 @@ class ConfigLoader(object):
             for i, name in enumerate(res):
                 if not isinstance(name, list):
                     name = [name]
-                display = "+".join([str(i) for i in name])
+                if len(name) == 1:
+                    display = str(name[0])
+                else:
+                    display = (
+                        "{ " + ",\n  ".join([str(i) for i in name]) + " }"
+                    )
                 name_i = "_".join([str(i) for i in name])
                 chain_property.append([i, name_i, display, None])
         plot_var_dic = {}
@@ -1001,7 +1006,10 @@ class ConfigLoader(object):
             else:
                 ax = fig.add_subplot(1, 1, 1)
 
-            ax.errorbar(
+            legends = []
+            legends_label = []
+
+            le = ax.errorbar(
                 data_x,
                 data_y,
                 yerr=data_err,
@@ -1011,8 +1019,11 @@ class ConfigLoader(object):
                 color="black",
             )  # , capsize=2)
 
+            legends.append(le)
+            legends_label.append("data")
+
             if bg_dict:
-                ax.hist(
+                le = ax.hist(
                     bg_i,
                     weights=bg_weight,
                     label="back ground",
@@ -1024,7 +1035,7 @@ class ConfigLoader(object):
                 )
                 mc_i = np.concatenate([bg_i, phsp_i])
                 mc_weights = np.concatenate([bg_weight, phsp_weights])
-                fit_y, fit_x, _ = ax.hist(
+                fit_y, fit_x, le2 = ax.hist(
                     mc_i,
                     weights=mc_weights,
                     range=xrange,
@@ -1033,11 +1044,15 @@ class ConfigLoader(object):
                     bins=bins,
                     color="black",
                 )
+                legends.append(le2[0])
+                legends_label.append("total fit")
+                legends.append(le[2][0])
+                legends_label.append("back ground")
             else:
                 mc_i = phsp_i
                 print("$$$", len(mc_i))
                 print("$$$", len(phsp_weights))
-                fit_y, fit_x, _ = ax.hist(
+                fit_y, fit_x, le2 = ax.hist(
                     phsp_i,
                     weights=phsp_weights,
                     range=xrange,
@@ -1046,6 +1061,8 @@ class ConfigLoader(object):
                     bins=bins,
                     color="black",
                 )
+                legends.append(le2[0])
+                legends_label.append("total fit")
 
             # plt.hist(data_i, label="data", bins=50, histtype="step")
             style = itertools.product(colors, linestyles)
@@ -1059,7 +1076,7 @@ class ConfigLoader(object):
                 )
                 if curve_style is None:
                     color, ls = next(style)
-                    ax.plot(
+                    le3 = ax.plot(
                         x,
                         y,
                         label=label,
@@ -1068,12 +1085,20 @@ class ConfigLoader(object):
                         linewidth=1,
                     )
                 else:
-                    ax.plot(x, y, curve_style, label=label, linewidth=1)
+                    le3 = ax.plot(x, y, curve_style, label=label, linewidth=1)
+                legends.append(le3[0])
+                legends_label.append(label)
 
             ax.set_ylim((0, upper_ylim))
             ax.set_xlim(xrange)
             if has_legend:
-                leg = ax.legend(frameon=False, labelspacing=0.1, borderpad=0.0)
+                leg = ax.legend(
+                    legends,
+                    legends_label,
+                    frameon=False,
+                    labelspacing=0.1,
+                    borderpad=0.0,
+                )
             if nll is None:
                 ax.set_title(display, fontsize="xx-large")
             else:
