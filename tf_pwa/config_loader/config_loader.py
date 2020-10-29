@@ -34,6 +34,7 @@ from tf_pwa.data import (
     data_merge,
     data_shape,
     data_split,
+    data_to_numpy,
     load_data,
     save_data,
 )
@@ -835,11 +836,18 @@ class ConfigLoader(object):
                     **kwargs,
                 )
                 if has_uproot and save_root:
-                    save_dict_to_root(
-                        [datas_dict, phsps_dict, bgs_dict],
-                        file_name=path + "variables_com.root",
-                        tree_name=["data", "fitted", "sideband"],
-                    )
+                    if bg[0] is None:
+                        save_dict_to_root(
+                            [datas_dict, phsps_dict],
+                            file_name=path + "variables_com.root",
+                            tree_name=["data", "fitted"],
+                        )
+                    else:
+                        save_dict_to_root(
+                            [datas_dict, phsps_dict, bgs_dict],
+                            file_name=path + "variables_com.root",
+                            tree_name=["data", "fitted", "sideband"],
+                        )
                     print("Save root file " + prefix + "com_variables.root")
 
     def _cal_partial_wave(
@@ -937,13 +945,22 @@ class ConfigLoader(object):
                 if bg is not None:
                     bg_i = trans(data_index(bg, idx))
                     bg_dict[name + "_sideband"] = bg_i  # sideband
-
+        data_dict = data_to_numpy(data_dict)
+        phsp_dict = data_to_numpy(phsp_dict)
+        bg_dict = data_to_numpy(bg_dict)
         if has_uproot and save_root:
-            save_dict_to_root(
-                [data_dict, phsp_dict, bg_dict],
-                file_name=prefix + "variables.root",
-                tree_name=["data", "fitted", "sideband"],
-            )
+            if bg is None:
+                save_dict_to_root(
+                    [data_dict, phsp_dict],
+                    file_name=prefix + "variables.root",
+                    tree_name=["data", "fitted"],
+                )
+            else:
+                save_dict_to_root(
+                    [data_dict, phsp_dict, bg_dict],
+                    file_name=prefix + "variables.root",
+                    tree_name=["data", "fitted", "sideband"],
+                )
             print("Save root file " + prefix + "variables.root")
         return data_dict, phsp_dict, bg_dict
 
@@ -1050,8 +1067,8 @@ class ConfigLoader(object):
                 legends_label.append("back ground")
             else:
                 mc_i = phsp_i
-                print("$$$", len(mc_i))
-                print("$$$", len(phsp_weights))
+                # print("$$$", len(mc_i))
+                # print("$$$", len(phsp_weights))
                 fit_y, fit_x, le2 = ax.hist(
                     phsp_i,
                     weights=phsp_weights,
