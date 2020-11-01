@@ -602,7 +602,7 @@ class ParticleExp(Particle):
         zeros = tf.zeros_like(mass)
         a = tf.abs(self.a())
         b = self.b()
-        r = -tf.complex(a, b) * tf.complex(mass*mass, zeros)
+        r = -tf.complex(a, b) * tf.complex(mass *mass, zeros)
         return tf.exp(r)
 
 class AmpDecay(Decay, AmpBase):
