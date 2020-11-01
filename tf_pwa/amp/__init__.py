@@ -585,6 +585,25 @@ class ParticleExp(Particle):
         a = tf.abs(self.a())
         return tf.complex(tf.exp(-a * mass), zeros)
 
+@regist_particle("exp_com")
+class ParticleExp(Particle):
+    """
+    .. math::
+        R(m) = e^{-|a+ib| m^2}
+
+    """
+
+    def init_params(self):
+        self.a = self.add_var("a")
+        self.b = self.add_var("b")
+
+    def get_amp(self, data, _data_c=None, **kwargs):
+        mass = data["m"]
+        zeros = tf.zeros_like(mass)
+        a = tf.abs(self.a())
+        b = self.b()
+        r = -tf.complex(a, b) * tf.complex(mass*mass, zeros)
+        return tf.exp(r)
 
 class AmpDecay(Decay, AmpBase):
     """base class for decay with amplitude"""
