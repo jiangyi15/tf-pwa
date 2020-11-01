@@ -1129,21 +1129,25 @@ class Variable(object):
                 fix_vals = [fix_vals, 0.0]
 
             def func(name, idx):
-                if name[-2:] in fix_idx_str:
-                    self.vm.set_fix(name + "r", value=fix_vals[0])
-                    self.vm.set_fix(name + "i", value=fix_vals[1])
-                if name[-2:] in free_idx_str:
-                    self.vm.set_fix(name + "r", unfix=True)
-                    self.vm.set_fix(name + "i", unfix=True)
+                for ss in fix_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name + "r", value=fix_vals[0])
+                        self.vm.set_fix(name + "i", value=fix_vals[1])
+                for ss in free_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name + "r", unfix=True)
+                        self.vm.set_fix(name + "i", unfix=True)
 
             _shape_func(func, self.shape, self.name)
         else:
 
             def func(name, idx):
-                if name[-2:] in fix_idx_str:
-                    self.vm.set_fix(name, value=fix_vals)
-                if name[-2:] in free_idx_str:
-                    self.vm.set_fix(name, unfix=True)
+                for ss in fix_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name, value=fix_vals)
+                for ss in free_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name, unfix=True)
 
             _shape_func(func, self.shape, self.name)
 
