@@ -688,7 +688,10 @@ class ConfigLoader(object):
                 bg = [bg] * len(data)
         amp = self.get_amplitude()
         self._Ngroup = len(data)
-        ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
+        ws_bkg = [
+            None if bg_i is None else bg_i.get("weight", None) for bg_i in bg
+        ]
+        # ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
         chain_property = []
         if res is None:
             for i in range(len(self.full_decay.chains)):
