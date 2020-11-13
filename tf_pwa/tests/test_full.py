@@ -71,6 +71,9 @@ def fit_result(toy_config):
 
 def test_fit(toy_config, fit_result):
     toy_config.plot_partial_wave(prefix="toy_data/figure", save_root=True)
+    toy_config.plot_partial_wave(
+        prefix="toy_data/figure", plot_pull=True, single_legend=True
+    )
     toy_config.get_params_error(fit_result)
     fit_result.save_as("toy_data/final_params.json")
     toy_config.cal_fitfractions()
