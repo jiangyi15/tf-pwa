@@ -32,14 +32,15 @@ When using conda, you don't need to install CUDA for TensorFlow specially.
 1. Get miniconda for python3 from
    [miniconda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
 
-2. Install following packages
+2. Install requirements
 
 ```
-conda install tensorflow-gpu pyyaml sympy matplotlib scipy
+conda install --file requirements-min.txt
 ```
 
 3. The following command can be used to set environment variables of Python.
-   (Use `--no-deps` to make sure that no PyPI package will be installed)
+   (Use `--no-deps` to make sure that no PyPI package will be installed. Using
+   `-e`, so it can be updated by `git pull` directly.)
 
 ```
 python -m pip install -e . --no-deps
@@ -82,13 +83,15 @@ python3 -m pip install -e .[dev]
 
 ### fit.py
 
-simple fit scripts, decay structure is described in `config.yml`
+simple fit scripts, decay structure is described in `config.yml`, here `[]`
+means options.
 
 ```
 python fit.py [--config config.yml]  [--init_params init_params.json]
 ```
 
-fit parameters will save in final_params.json, figure can be found in `figure/`
+fit parameters will save in final_params.json, figure can be found in
+`figure/`.
 
 ### state_cache.sh
 

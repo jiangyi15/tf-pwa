@@ -1103,7 +1103,9 @@ class ConfigLoader(object):
                         linewidth=1,
                     )
                 else:
-                    le3 = ax.plot(x, y, curve_style, label=label, linewidth=1) # ax.step(x, y, curve_style, label=label, linewidth=1, where="mid")
+                    le3 = ax.plot(
+                        x, y, curve_style, label=label, linewidth=1
+                    )  # ax.step(x, y, curve_style, label=label, linewidth=1, where="mid")
                 legends.append(le3[0])
                 legends_label.append(label)
 
@@ -1125,11 +1127,7 @@ class ConfigLoader(object):
                 )
             ax.set_xlabel(display + units)
             ywidth = (max(data_x) - min(data_x)) / bins
-            ax.set_ylabel(
-                "Events/{:.3f}{}".format(
-                    ywidth, units
-                )
-            )
+            ax.set_ylabel("Events/{:.3f}{}".format(ywidth, units))
             if plot_delta or plot_pull:
                 plt.setp(ax.get_xticklabels(), visible=False)
                 ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
@@ -1141,9 +1139,23 @@ class ConfigLoader(object):
                         y_err = y_err / fit_err
                     y_err[fit_err < _epsilon] = 0.0
                 ax2.bar(data_x, y_err, color="k", alpha=0.7, width=ywidth)
-                ax2.plot([data_x[0], data_x[-1]], [0, 0], color="r", linewidth=0.5)
-                ax2.plot([data_x[0], data_x[-1]], [3, 3], color="r", linestyle='--', linewidth=0.5)
-                ax2.plot([data_x[0], data_x[-1]], [-3, -3], color="r", linestyle='--', linewidth=0.5)
+                ax2.plot(
+                    [data_x[0], data_x[-1]], [0, 0], color="r", linewidth=0.5
+                )
+                ax2.plot(
+                    [data_x[0], data_x[-1]],
+                    [3, 3],
+                    color="r",
+                    linestyle="--",
+                    linewidth=0.5,
+                )
+                ax2.plot(
+                    [data_x[0], data_x[-1]],
+                    [-3, -3],
+                    color="r",
+                    linestyle="--",
+                    linewidth=0.5,
+                )
                 if plot_pull:
                     ax2.set_ylabel("pull")
                     ax2.set_ylim((-5, 5))
@@ -1458,7 +1470,9 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
     data_y, data_x = data_hist[0:2]
     data_x = (data_x[:-1] + data_x[1:]) / 2
     if kind == "poisson":
-        data_err = np.sqrt(np.abs(data_y)) # data_err = np.maximum(np.sqrt(np.abs(data_y)),1)
+        data_err = np.sqrt(
+            np.abs(data_y)
+        )  # data_err = np.maximum(np.sqrt(np.abs(data_y)),1)
     elif kind == "binomial":
         n = data.shape[0]
         p = data_y / n
@@ -1480,7 +1494,10 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
     y_new = func(x_new)
     return x_new, y_new
 
-def hist_line_step(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
+
+def hist_line_step(
+    data, weights, bins, xrange=None, inter=1, kind="quadratic"
+):
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     x = (x[:-1] + x[1:]) / 2
     return x, y
