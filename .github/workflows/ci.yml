@@ -60,9 +60,9 @@ jobs:
       - name: Install dependencies
         run: |
           conda install --file requirements-min.txt
-          python -m pip install -e . --no-deps
+          ./miniconda/bin/python -m pip install -e . --no-deps
       - name: Test imports
-        run: python -c "import tf_pwa"
+        run: ./miniconda/bin/python -c "import tf_pwa"
 
   pytest:
     name: Unit tests
