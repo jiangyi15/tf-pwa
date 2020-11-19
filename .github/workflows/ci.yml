@@ -54,9 +54,9 @@ jobs:
         run: |
           wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
           bash ~/miniconda.sh -b -p ./miniconda
-          ./miniconda/bin/conda init bash
+          export PATH=`pwd`/miniconda/bin:$PATH
           source ./miniconda/etc/profile.d/conda.sh
-          ./miniconda/bin/conda activate
+          conda activate
       - name: Install dependencies
         run: |
           conda install --file requirements-min.txt
