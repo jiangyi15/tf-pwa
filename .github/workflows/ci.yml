@@ -50,20 +50,14 @@ jobs:
         os: [ubuntu-18.04]
     steps:
       - uses: actions/checkout@master
-      - name: Set up miniconda
-        run: |
-          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
-          bash ~/miniconda.sh -b -p ./miniconda
-          export PATH=`pwd`/miniconda/bin:$PATH
-          source ./miniconda/etc/profile.d/conda.sh
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2.0.0
       - name: Install dependencies
         run: |
-          export PATH=`pwd`/miniconda/bin:$PATH
           conda install --file requirements-min.txt -y
           python -m pip install -e . --no-deps
       - name: Test imports
         run: |
-          export PATH=`pwd`/miniconda/bin:$PATH
           python -c "import tf_pwa"
 
   pytest:
