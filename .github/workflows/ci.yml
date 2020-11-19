@@ -56,10 +56,11 @@ jobs:
           bash ~/miniconda.sh -b -p ./miniconda
           export PATH=`pwd`/miniconda/bin:$PATH
           source ./miniconda/etc/profile.d/conda.sh
+          conda activate
       - name: Install dependencies
         run: |
-          conda activate
-          conda install --file requirements-min.txt
+          echo $PATH
+          conda install --file requirements-min.txt -y
           python -m pip install -e . --no-deps
       - name: Test imports
         run: |
