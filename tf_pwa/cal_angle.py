@@ -504,6 +504,7 @@ def cal_angle_from_momentum_single(
     :param decs: DecayGroup
     :return: Dictionary of data
     """
+    p = {BaseParticle(k) if isinstance(k, str) else k: v for k, v in p.items()}
     p = {i: p[i] for i in decs.outs}
     data_p = struct_momentum(p, center_mass=center_mass)
     if using_topology:
