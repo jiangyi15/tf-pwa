@@ -56,13 +56,15 @@ jobs:
           bash ~/miniconda.sh -b -p ./miniconda
           export PATH=`pwd`/miniconda/bin:$PATH
           source ./miniconda/etc/profile.d/conda.sh
-          conda activate
       - name: Install dependencies
         run: |
+          conda activate
           conda install --file requirements-min.txt
-          ./miniconda/bin/python -m pip install -e . --no-deps
+          python -m pip install -e . --no-deps
       - name: Test imports
-        run: ./miniconda/bin/python -c "import tf_pwa"
+        run: |
+          conda activate
+          python -c "import tf_pwa"
 
   pytest:
     name: Unit tests
