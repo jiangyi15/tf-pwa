@@ -53,7 +53,9 @@ python -m pip install -e . --no-deps
 conda install uproot -c conda-forge
 ```
 
+<details><summary>
 ### conda channel (experimental)
+</summary><p>
 
 A pre-built conda package (Linux only) is also provided, just run following
 command to install it.
@@ -63,8 +65,11 @@ conda config --add channels jiangyi15
 conda install tf-pwa
 ```
 
-### pip
+</p></details>
 
+<details><summary>
+### pip
+</summary><p>
 When using `pip`, you will need to install CUDA to use GPU. Just run the
 following command :
 
@@ -78,6 +83,8 @@ with:
 ```bash
 python3 -m pip install -e .[dev]
 ```
+
+</p></details>
 
 ## Scripts
 
