@@ -41,6 +41,28 @@ jobs:
           file: ./coverage.xml
           flags: unittests
 
+  conda_install:
+    name: conda install
+    if: github.event.pull_request.draft == false
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+    steps:
+      - uses: actions/checkout@master
+      - name: Set up miniconda
+        run: |
+          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+          bash ~/miniconda.sh -b -p ./miniconda
+          source ./miniconda/etc/profile.d/conda.sh
+          ./miniconda/bin/conda activate
+      - name: Install dependencies
+        run: |
+          conda install --file requirements-min.txt
+          python -m pip install -e . --no-deps
+      - name: Test imports
+        run: python -c "import tf_pwa"
+
   pytest:
     name: Unit tests
     if: github.event.pull_request.draft == false
