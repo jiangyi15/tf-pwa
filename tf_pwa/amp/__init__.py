@@ -151,6 +151,20 @@ class AmpBase(object):
         default add_var method
         """
         name = get_name(self, names)
+        constrains = ["min", "max", "range", "sigma"]
+        params_constr = {}
+        for i in constrains:
+            if name in ["mass", "width"]:
+                tmp = getattr(self, f"{name}_{i}", None)
+            else:
+                params = getattr(self, "params", {})
+                tmp = params.get(f"{name}_{i}", None)
+            if tmp is not None:
+                params_constr[i] = tmp
+        x_range = params.get(
+            "range", [params.get("min", None), params.get("max", None)]
+        )
+
         return Variable(name, shape, is_complex, **kwargs)
 
     def amp_shape(self):
@@ -247,16 +261,23 @@ class Particle(BaseParticle, AmpBase):
             # print("$$$$$",self.mass)
         else:
             if not isinstance(self.mass, Variable):
-                self.mass = self.add_var("mass", value=self.mass, fix=True)
+                if self.mass is not None:
+                    self.mass = self.add_var("mass", value=self.mass, fix=True)
         if self.width is not None:
             if not isinstance(self.width, Variable):
-                self.width = self.add_var("width", value=self.width, fix=True)
+                if self.width is None:
+                    self.width = self.add_var(
+                        "width", value=self.width, fix=True
+                    )
 
     def get_amp(self, data, data_c, **kwargs):
         mass = self.get_mass()
         width = self.get_width()
         if width is None:
-            return tf.ones_like(data["m"])
+            m = data["m"]
+            zeros = tf.zeros_like(m)
+            ones = tf.ones_like(m)
+            return tf.complex(ones, zeros)
         if not self.running_width:
             ret = BW(data["m"], mass, width)
         else:
@@ -700,6 +721,8 @@ class HelicityDecay(AmpDecay, AmpBase):
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
         m2 = _get_mass(self.outs[1])
+        if m0 is None or m1 is None or m2 is None:
+            return 1.0
         return get_relative_p2(m0, m1, m2)
 
     def get_cg_matrix(self):

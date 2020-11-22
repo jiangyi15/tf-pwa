@@ -272,13 +272,17 @@ class ConfigLoader(object):
                     m_sigma = self.config["particle"][i].get("m_sigma", None)
                     g_sigma = self.config["particle"][i].get("g_sigma", None)
                     if m_sigma is None:
-                        self.init_value[p_i.mass.name] = m0
+                        if hasattr(p_i.mass, "name"):
+                            self.init_value[p_i.mass.name] = m0
                     else:
-                        self.init_value[p_i.mass.name] = [m0, m_sigma]
+                        if hasattr(p_i.mass, "name"):
+                            self.init_value[p_i.mass.name] = [m0, m_sigma]
                     if g_sigma is None:
-                        self.init_value[p_i.width.name] = g0
+                        if hasattr(p_i.width, "name"):
+                            self.init_value[p_i.width.name] = g0
                     else:
-                        self.init_value[p_i.width.name] = [g0, g_sigma]
+                        if hasattr(p_i.width, "name"):
+                            self.init_value[p_i.width.name] = [g0, g_sigma]
 
                     if (
                         "gauss_constr" in self.config["particle"][i]
