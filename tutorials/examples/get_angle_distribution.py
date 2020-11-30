@@ -12,7 +12,7 @@ from tf_pwa.config_loader import ConfigLoader
 
 def spin_int(i):
     """use it for half integer in spins"""
-    return sym.S(int(i * 2 + 0.001)) / 2
+    return sym.S(int(abs(i) * 2 + 0.001)) / 2 * sym.sign(i)
 
 
 def get_decay_part(decay, ls, lambda_list, symbol_list):
@@ -41,6 +41,7 @@ def get_decay_part(decay, ls, lambda_list, symbol_list):
         symbol_list[decay]["beta"],
         0,
     )
+    print(lambda_list)
     cg_part = sym.sqrt((2 * l + 1)) / sym.sqrt((2 * spin_int(a.J) + 1))
     cg_part = cg_part * CG(l, 0, spin_int(s), delta, spin_int(a.J), delta)
     cg_part = cg_part * CG(
