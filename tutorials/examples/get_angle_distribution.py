@@ -10,28 +10,48 @@ from sympy.physics.quantum.spin import WignerD
 from tf_pwa.config_loader import ConfigLoader
 
 
+def spin_int(i):
+    """use it for half integer in spins"""
+    return sym.S(int(i * 2 + 0.001)) / 2
+
+
 def get_decay_part(decay, ls, lambda_list, symbol_list):
+    """
+    .. math::
+        \\sqrt{\\frac{ 2 l + 1 }{ 2 j_a + 1 }}
+        \\langle j_b, j_c, \\lambda_b, - \\lambda_c | s, \\lambda_b - \\lambda_c \\rangle
+        \\langle l, s, 0, \\lambda_b - \\lambda_c | j_a, \\lambda_b - \\lambda_c \\rangle
+
+    .. math::
+        D_{\\lambda_a, \\lambda_b - \\lambda_c}^{J_{A}*} (\\phi, \\theta, 0)
+
+    """
     a = decay.core
     b, c = decay.outs
     l, s = ls
+    lambda_list = {k: spin_int(v) for k, v in lambda_list.items()}
     delta = lambda_list[b] - lambda_list[c]
     if abs(delta) > a.J:
         return 0
     d_part = WignerD(
-        a.J,
+        spin_int(a.J),
         lambda_list[a],
         delta,
         symbol_list[decay]["alpha"],
         symbol_list[decay]["beta"],
         0,
     )
-    cg_part = (
-        sym.sqrt((2 * l + 1))
-        / sym.sqrt((2 * a.J + 1))
-        * CG(l, 0, s, delta, a.J, delta)
+    cg_part = sym.sqrt((2 * l + 1)) / sym.sqrt((2 * spin_int(a.J) + 1))
+    cg_part = cg_part * CG(l, 0, spin_int(s), delta, spin_int(a.J), delta)
+    cg_part = cg_part * CG(
+        spin_int(b.J),
+        lambda_list[b],
+        spin_int(c.J),
+        -lambda_list[c],
+        spin_int(s),
+        delta,
     )
-    cg_part = cg_part * CG(b.J, lambda_list[b], c.J, -lambda_list[c], s, delta)
-    return d_part * cg_part
+    return simplify(d_part.conjugate() * cg_part)
 
 
 def get_angle_distrubution_single(decay_chain, ls_list):
@@ -116,8 +136,9 @@ def main():
             f_theta = simplify(v2 * v2.conjugate())
             print(k, k2, f_theta)
             ret.append(f_theta)
+            # break
 
-    f_theta = ret[1]
+    f_theta = ret[0]
     plot_theta("costheta.png", f_theta, "theta1", np.cos)
     plot_theta("costheta2.png", f_theta, "theta2", np.cos)
     plot_theta("phi2.png", f_theta, "phi2")
