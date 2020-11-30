@@ -77,7 +77,7 @@ def get_angle_distrubution_single(decay_chain, ls_list):
             for decay, ls in zip(decay_chain, ls_list):
                 tmp = tmp * get_decay_part(decay, ls, lambda_list, symbol_list)
             ret_part = ret_part + tmp
-        ret[i] = simplify(ret_part).expand(complex=True)
+        ret[i] = ret_part.expand(complex=True)
     return ret
 
 
@@ -92,33 +92,56 @@ def get_angle_distrubution(decay_chain):
     return ret
 
 
-def plot_theta(f_name, f_theta, var, trans=lambda x: x):
+def get_projection(f_theta, var):
     var = Symbol(var, real=True)
-    if str(var).startswith("theta"):
-        var_range = (0, sym.pi)
-    else:
-        var_range = (-sym.pi, sym.pi)
     args = f_theta.free_symbols
     inte_args = [i for i in args if i != var]
     inte_params = []
     for i in inte_args:
         if str(i).startswith("theta"):
             inte_params.append((i, 0, sym.pi))
+            # d cos(theta) = sin(theta) d theta
+            f_theta = f_theta * sym.sin(i)
         else:
             inte_params.append((i, -sym.pi, sym.pi))
+    # projection in theta
     if len(inte_args) > 0:
         f_theta1 = sym.integrate(f_theta, *inte_params)
     else:
         f_theta1 = f_theta
-    normal = sym.integrate(f_theta1, (var, var_range[0], var_range[1]))
+
+    if str(var).startswith("theta"):
+        normal = sym.integrate(f_theta1 * sym.sin(var), (var, 0, sym.pi))
+    else:
+        var_range = (-sym.pi, sym.pi)
+        normal = sym.integrate(f_theta1, (var, -sym.pi, sym.pi))
+
     f_theta1 = simplify(f_theta1 / normal)
+    return f_theta1
+
+
+def plot_theta(f_name, f_theta, var):
+    """ plot phi and cos theta """
+    f_theta1 = get_projection(f_theta, var)
+    var = Symbol(var, real=True)
+
+    if str(var).startswith("theta"):
+        var_range = (0, np.pi)
+        trans = np.cos
+    else:
+        var_range = (-np.pi, np.pi)
+        trans = lambda x: x
+
     print(f_theta1)
+
     f = sym.lambdify((var,), f_theta1.evalf(), "numpy")
-    theta = np.linspace(float(var_range[0]), float(var_range[1]), 1000)
+    theta = np.linspace(var_range[0], var_range[1], 1000)
     x = trans(theta)
+    y = f(theta) + np.zeros_like(x)
+
     plt.clf()
     plt.title("${}$".format(sym.latex(f_theta1)))
-    plt.plot(x, f(theta) + np.zeros_like(x))
+    plt.plot(x, y)
     plt.xlim((np.min(x), np.max(x)))
     plt.ylim((0, None))
     plt.savefig(f_name)
@@ -135,13 +158,15 @@ def main():
     for k, v in angle.items():
         for k2, v2 in v.items():
             f_theta = simplify(v2 * v2.conjugate())
-            print(k, k2, f_theta)
+            print("ls: ", k)
+            print("  lambda:", k2)
+            print("    :", f_theta)
             ret.append(f_theta)
             # break
 
     f_theta = ret[0]
-    plot_theta("costheta.png", f_theta, "theta1", np.cos)
-    plot_theta("costheta2.png", f_theta, "theta2", np.cos)
+    plot_theta("costheta.png", f_theta, "theta1")
+    plot_theta("costheta2.png", f_theta, "theta2")
     plot_theta("phi2.png", f_theta, "phi2")
 
 
