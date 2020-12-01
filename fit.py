@@ -128,24 +128,25 @@ def write_some_results_combine(config, fit_result):
     for i, c in enumerate(config.configs):
         c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i))
 
-    print("########## fit fractions:")
-    mcdata = config.configs[0].get_phsp_noeff()
-    fit_frac, err_frac = fit_fractions(
-        config.configs[0].get_amplitude(),
-        mcdata,
-        config.inv_he,
-        fit_result.params,
-    )
-    fit_frac_string = ""
-    for i in fit_frac:
-        if isinstance(i, tuple):
-            name = "{}x{}".format(*i)  # interference term
-        else:
-            name = i  # fit fraction
-        fit_frac_string += "{} {}\n".format(
-            name, error_print(fit_frac[i], err_frac.get(i, None))
+    for it, config_i in enumerate(config.configs):
+        print("########## fit fractions {}:".format(it))
+        mcdata = config_i.get_phsp_noeff()
+        fit_frac, err_frac = fit_fractions(
+            config_i.get_amplitude(),
+            mcdata,
+            config.inv_he,
+            fit_result.params,
         )
-    print(fit_frac_string)
+        fit_frac_string = ""
+        for i in fit_frac:
+            if isinstance(i, tuple):
+                name = "{}x{}".format(*i)  # interference term
+            else:
+                name = i  # fit fraction
+            fit_frac_string += "{} {}\n".format(
+                name, error_print(fit_frac[i], err_frac.get(i, None))
+            )
+        print(fit_frac_string)
     # from frac_table import frac_table
     # frac_table(fit_frac_string)
 
