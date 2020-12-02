@@ -101,6 +101,15 @@ def test_simple_resonances():
     assert np.allclose(np.array(6.0 + 0.0j), a.numpy())
 
 
+def test_flatte():
+    a = get_particle(
+        "flatte", model="Flatte", mass=3.6, mass_list=[[1.0, 1.0], [1.5, 2.0]]
+    )
+    a.init_params()
+    b = a(np.array([3.6]))
+    assert b.numpy().real == 0
+
+
 def test_model_new():
     decs, particle = get_test_decay()
     amp = AmplitudeModel(decs)

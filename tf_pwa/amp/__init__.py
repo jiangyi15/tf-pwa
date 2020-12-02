@@ -1544,3 +1544,4 @@ def load_decfile_particle(fname):
 
 
 regist_config(DEFAULT_DECAY, (HelicityDecay, {}))
+from .flatte import ParticleFlatte
