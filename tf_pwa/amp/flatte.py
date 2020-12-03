@@ -69,7 +69,7 @@ class ParticleFlatte(Particle):
         for i, mab in enumerate(self.mass_list):
             ma, mb = mab
             pi = cal_monentum(m, ma, mb)
-            print(pi)
+            # print(pi)
             m_rho_i = pi * tf.complex(zeros, self.g_value[i]() * m_c)
             rhos.append(m_rho_i)
         rho = sum(rhos)

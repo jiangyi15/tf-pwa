@@ -273,14 +273,14 @@ class ConfigLoader(object):
                     g_sigma = self.config["particle"][i].get("g_sigma", None)
                     if m_sigma is None:
                         if hasattr(p_i.mass, "name"):
-                            self.init_value[p_i.mass.name] = m0
+                            self.init_value[str(p_i.mass)] = m0
                     else:
-                        self.init_value[p_i.mass.name] = [m0, m_sigma]
+                        self.init_value[str(p_i.mass)] = [m0, m_sigma]
                     if g_sigma is None:
                         if hasattr(p_i.width, "name"):
-                            self.init_value[p_i.width.name] = g0
+                            self.init_value[str(p_i.width)] = g0
                     else:
-                        self.init_value[p_i.width.name] = [g0, g_sigma]
+                        self.init_value[str(p_i.width)] = [g0, g_sigma]
 
                     if (
                         "gauss_constr" in self.config["particle"][i]
@@ -293,7 +293,7 @@ class ConfigLoader(object):
                                         i
                                     )
                                 )
-                            self.gauss_constr_dic[p_i.mass.name] = (
+                            self.gauss_constr_dic[str(p_i.mass)] = (
                                 m0,
                                 m_sigma,
                             )
@@ -304,7 +304,7 @@ class ConfigLoader(object):
                                         i
                                     )
                                 )
-                            self.gauss_constr_dic[p_i.width.name] = (
+                            self.gauss_constr_dic[str(p_i.width)] = (
                                 g0,
                                 g_sigma,
                             )
@@ -326,9 +326,9 @@ class ConfigLoader(object):
                             #    lower = self.config["particle"][i]["m0"] - 10 * m_sigma
                             else:
                                 lower = None
-                            self.bound_dic[p_i.mass.name] = (lower, upper)
+                            self.bound_dic[str(p_i.mass)] = (lower, upper)
                         else:
-                            self._neglect_when_set_params.append(p_i.mass.name)
+                            self._neglect_when_set_params.append(str(p_i.mass))
                         if "g" in self.config["particle"][i]["float"]:
                             p_i.width.freed()  # amp.vm.set_fix(i+'_width',unfix=True)
                             if "g_max" in self.config["particle"][i]:
@@ -343,10 +343,10 @@ class ConfigLoader(object):
                             #    lower = self.config["particle"][i]["g0"] - 10 * g_sigma
                             else:
                                 lower = None
-                            self.bound_dic[p_i.width.name] = (lower, upper)
+                            self.bound_dic[str(p_i.width)] = (lower, upper)
                         else:
                             self._neglect_when_set_params.append(
-                                p_i.width.name
+                                str(p_i.width)
                             )
                     else:
                         self._neglect_when_set_params.append(
