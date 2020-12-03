@@ -151,10 +151,46 @@ class AmpBase(object):
         default add_var method
         """
         name = get_name(self, names)
-        return Variable(name, shape, is_complex, **kwargs)
+        params_config = {}
+        config_map = {
+            "var0": "0",
+        }
+        for i in ["min", "max", "range", "constr", "sigma", "free"]:
+            config_map[i] = "_" + i
+        if name in ["mass", "width"]:
+            for k, v in config_map.items():
+                map_var = getattr(self, name + v, None)
+                if map_var:
+                    params_config[k] = map_var
+        for k, v in config_map.items():
+            map_name = name + v
+            params = getattr(self, "params", {})
+            if map_name in params:
+                params_config[k] = params[map_name]
+        params_config = load_params_config(params_config)
+        if "free" in params_config:
+            if not name in getattr(self, "float", []):
+                kwargs["fix"] = not params_config["free"]
+        var = Variable(name, shape, is_complex, **kwargs)
+        a, b = params_config["range"]
+        if a is not None or b is not None:
+            var.set_bound((a, b))
+        return var
 
     def amp_shape(self):
         raise NotImplementedError
+
+
+def load_params_config(pc):
+    ret = {}
+    if "range" in pc:
+        x_range = pc["range"]
+    else:
+        x_range = pc.get("min", None), pc.get("max", None)
+    ret["range"] = x_range
+    if "free" in pc:
+        ret["free"] = pc["free"]
+    return ret
 
 
 @contextlib.contextmanager
