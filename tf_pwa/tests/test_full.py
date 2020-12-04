@@ -7,6 +7,7 @@ import tensorflow as tf
 
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
+from tf_pwa.experimental import build_amp
 
 matplotlib.use("agg")
 
@@ -53,6 +54,13 @@ def toy_config(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_toy.yml")
     config.set_params(f"{this_dir}/gen_params.json")
     return config
+
+
+def test_build_angle_amplitude(toy_config):
+    data = toy_config.get_data("data")
+    dec = toy_config.get_amplitude().decay_group
+    amp_dict = build_amp.build_angle_amp_matrix(dec, data[0])
+    assert len(amp_dict) == 3
 
 
 @pytest.fixture
