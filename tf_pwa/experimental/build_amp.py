@@ -102,3 +102,27 @@ def build_amp2s(dg):
         return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
 
     return _amp2s
+
+
+def build_sum_angle_amplitude(dg, dec_chain, data):
+    cached = []
+    for i, dc in split_gls(dec_chain):
+        amp = dg.get_angle_amp(data)
+        cached.append(amp)
+    return cached
+
+
+def build_angle_amp_matrix(dec, data, weight=None):
+    hij = []
+    used_chains = dec.chains_idx
+    for k, i in enumerate(dec):
+        dec.set_used_chains([k])
+        tmp = []
+        for j, amp in enumerate(build_sum_amplitude(dec, i, data)):
+            tmp.append(amp)
+        hij.append(tmp)
+    dec.set_used_chains(used_chains)
+    ret = {}
+    for i, d in zip(hij, dec):
+        ret[d] = i
+    return ret
