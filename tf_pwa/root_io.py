@@ -4,10 +4,13 @@ from .data import data_merge
 
 has_uproot = True
 try:
-    import uproot
+    import uproot3 as uproot
 except ImportError as e:
-    has_uproot = False
-    print(e, "you should install `uproot` correctly for using this module")
+    try:
+        import uproot
+    except ImportError as e:
+        has_uproot = False
+        print(e, "you should install `uproot` correctly for using this module")
 
 
 def load_root_data(fnames):
