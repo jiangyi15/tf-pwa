@@ -899,7 +899,11 @@ class ConfigLoader(object):
         with amp.temp_params(params):
             weights_i = [amp(i) for i in data_split(phsp, batch)]
             weight_phsp = data_merge(*weights_i)  # amp(phsp)
-            total_weight = weight_phsp * phsp.get("weight", 1.0)
+            total_weight = (
+                weight_phsp
+                * phsp.get("weight", 1.0)
+                * phsp.get("eff_value", 1.0)
+            )
             data_weight = data.get("weight", None)
             if data_weight is None:
                 n_data = data_shape(data)
@@ -943,6 +947,7 @@ class ConfigLoader(object):
                     * norm_frac
                     * bin_scale
                     * phsp.get("weight", 1.0)
+                    * phsp.get("eff_value", 1.0)
                 )
                 phsp_dict[
                     "MC_{0}_{1}_fit".format(i, name_i)
