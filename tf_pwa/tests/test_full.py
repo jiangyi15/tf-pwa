@@ -40,17 +40,17 @@ def generate_toy_from_phspMC(Ndata, mc_file, data_file):
 def gen_toy():
     if not os.path.exists("toy_data"):
         os.mkdir("toy_data")
-    phsp = generate_phspMC(10000)
+    phsp = generate_phspMC(1000)
     np.savetxt("toy_data/PHSP.dat", phsp)
-    generate_toy_from_phspMC(1000, "toy_data/PHSP.dat", "toy_data/data.dat")
-    bg = generate_phspMC(1000)
+    generate_toy_from_phspMC(100, "toy_data/PHSP.dat", "toy_data/data.dat")
+    bg = generate_phspMC(100)
     data = np.loadtxt("toy_data/data.dat")
-    np.savetxt("toy_data/data.dat", np.concatenate([data, bg[:, :300]]))
+    np.savetxt("toy_data/data.dat", np.concatenate([data, bg[:, :30]]))
     np.savetxt("toy_data/bg.dat", bg)
-    np.savetxt("toy_data/data_bg_value.dat", np.ones((1000 + 100,)))
-    np.savetxt("toy_data/data_eff_value.dat", np.ones((1000 + 100,)))
-    np.savetxt("toy_data/phsp_bg_value.dat", np.ones((10000,)))
-    np.savetxt("toy_data/phsp_eff_value.dat", np.ones((10000,)))
+    np.savetxt("toy_data/data_bg_value.dat", np.ones((100 + 10,)))
+    np.savetxt("toy_data/data_eff_value.dat", np.ones((100 + 10,)))
+    np.savetxt("toy_data/phsp_bg_value.dat", np.ones((1000,)))
+    np.savetxt("toy_data/phsp_eff_value.dat", np.ones((1000,)))
 
 
 @pytest.fixture
@@ -86,6 +86,7 @@ def test_cfit(gen_toy):
     config.set_params(f"{this_dir}/gen_params.json")
     fcn = config.get_fcn()
     fcn({})
+    fcn.nll_grad({})
 
 
 def test_fit(toy_config, fit_result):
