@@ -82,7 +82,7 @@ def fit_result(toy_config):
 
 
 def test_cfit(gen_toy):
-    config = ConfigLoader(f"{this_dir}/config_toy.yml")
+    config = ConfigLoader(f"{this_dir}/config_cfit.yml")
     config.set_params(f"{this_dir}/gen_params.json")
     fcn = config.get_fcn()
     fcn({})
