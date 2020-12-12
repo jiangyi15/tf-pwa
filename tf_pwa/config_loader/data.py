@@ -287,6 +287,18 @@ class MultiData(SimpleData):
             self._Ngroup = len(ret)
         elif idx != "phsp_noeff":
             assert self._Ngroup == len(ret), "not the same data group"
+        bg_value = self.dic.get(idx + "_bg_value", None)
+        if bg_value is not None:
+            if isinstance(bg_value, str):
+                bg_value = [bg_value]
+            for i, file_name in enumerate(bg_value):
+                ret[i]["bg_value"] = np.reshape(np.loadtxt(file_name), (-1,))
+        eff_value = self.dic.get(idx + "_eff_value", None)
+        if eff_value is not None:
+            if isinstance(eff_value, str):
+                eff_value = [eff_value]
+            for i, file_name in enumerate(eff_value):
+                ret[i]["eff_value"] = np.reshape(np.loadtxt(file_name), (-1,))
         return ret
 
     def get_phsp_noeff(self):

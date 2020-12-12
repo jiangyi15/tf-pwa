@@ -839,23 +839,7 @@ class HelicityDecay(AmpDecay, AmpBase):
 
     def get_angle_ls_amp(self, data, data_p, **kwargs):
         g_ls = self.get_angle_g_ls()
-        # print(g_ls)
-        q0 = 1 / self.d
-        data["|q0|2"] = q0
-        if "|q|2" in data:
-            q = data["|q|2"]
-        else:
-            q = self.get_relative_momentum2(data_p, True)
-            data["|q|2"] = q
-        if self.has_barrier_factor:
-            bf = self.get_barrier_factor2(
-                data_p[self.core]["m"], q, q0, self.d
-            )
-            mag = g_ls
-            m_dep = mag * tf.cast(bf, mag.dtype)
-        else:
-            m_dep = g_ls
-        return m_dep
+        return g_ls
 
     def get_barrier_factor(self, mass, q, q0, d):
         ls = self.get_l_list()

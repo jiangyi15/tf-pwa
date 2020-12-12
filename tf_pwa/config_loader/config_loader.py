@@ -458,9 +458,18 @@ class ConfigLoader(object):
     @functools.lru_cache()
     def _get_model(self, vm=None, name=""):
         amp = self.get_amplitude(vm=vm, name=name)
+        model_name = self.config["data"].get("model", "auto")
         w_bkg, w_inmc = self._get_bg_weight()
         model = []
-        if "inmc" in self.config["data"]:
+        if model_name == "cfit":
+            bg_function = self.config["data"].get("bg_function", None)
+            eff_function = self.config["data"].get("eff_function", None)
+            w_bkg = self.config["data"]["bg_frac"]
+            if not isinstance(w_bkg, list):
+                w_bkg = [w_bkg]
+            for wb in w_bkg:
+                model.append(Model_cfit(amp, wb, bg_function, eff_function))
+        elif "inmc" in self.config["data"]:
             float_wmc = self.config["data"].get(
                 "float_inmc_ratio_in_pdf", False
             )
@@ -525,17 +534,29 @@ class ConfigLoader(object):
         model = self._get_model(vm=vm, name=name)
         fcns = []
         for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
-            fcns.append(
-                FCN(
-                    md,
-                    dt,
-                    mc,
-                    bg=sb,
-                    batch=batch,
-                    inmc=ij,
-                    gauss_constr=self.gauss_constr_dic,
+            if self.config["data"].get("model", "auto") == "cfit":
+                fcns.append(
+                    FCN(
+                        md,
+                        dt,
+                        mc,
+                        batch=batch,
+                        inmc=ij,
+                        gauss_constr=self.gauss_constr_dic,
+                    )
                 )
-            )
+            else:
+                fcns.append(
+                    FCN(
+                        md,
+                        dt,
+                        mc,
+                        bg=sb,
+                        batch=batch,
+                        inmc=ij,
+                        gauss_constr=self.gauss_constr_dic,
+                    )
+                )
         if len(fcns) == 1:
             fcn = fcns[0]
         else:
