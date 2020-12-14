@@ -92,7 +92,7 @@ class ConfigLoader(object):
             if file_name in share_dict:
                 return ConfigLoader.load_config(share_dict[file_name])
             with open(file_name) as f:
-                ret = yaml.safe_load(f)
+                ret = yaml.load(f, yaml.Loader)
             return ret
         raise TypeError("not support config {}".format(type(file_name)))
 

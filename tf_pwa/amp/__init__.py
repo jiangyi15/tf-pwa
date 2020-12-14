@@ -648,10 +648,12 @@ class HelicityDecay(AmpDecay, AmpBase):
         self.has_bprime = has_bprime
         self.aligned = aligned
         self.allow_cc = allow_cc
-        self.ls_list = ls_list
         self.single_gls = False
         self.ls_index = None
         self.total_ls = None
+        self.ls_list = None
+        if ls_list is not None:
+            self.ls_list = tuple([tuple(i) for i in ls_list])
 
     def set_ls(self, ls):
         if self.total_ls is None:
