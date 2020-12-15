@@ -10,8 +10,8 @@ data:
 
 decay:
   A:
-    - [R_BC, D]
-    - [R_BD, C]
+    - [R_BC, D, ls_list: [[0, 1], [2, 1]]]
+    - [R_BD, C, l_list: [0, 2]]
     - [R_CD, B]
   R_BC: [B, C]
   R_BD: [B, D]

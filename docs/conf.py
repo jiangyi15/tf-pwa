@@ -28,6 +28,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinx_gallery.gen_gallery",
 ]
 exclude_patterns = [
     ".DS_Store",
@@ -72,6 +73,7 @@ subprocess.call(
             "../tf_pwa/",
             # exclude patterns
             "../tf_pwa/tests",
+            "../tf_pwa/config_loader/tests/*",
         ]
     ),
     shell=True,
@@ -114,3 +116,12 @@ Available Resonances Model
 
 
 gen_particle_model()
+
+
+sphinx_gallery_conf = {
+    "examples_dirs": "../examples",  # path to your example scripts
+    "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
+    "line_numbers": True,
+    "run_stale_examples": True,
+    "filename_pattern": "/particle",
+}
