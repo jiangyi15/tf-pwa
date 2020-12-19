@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sympy as sy
 import yaml
-from scipy.interpolate import interp1d
+from scipy.interpolate import UnivariateSpline, interp1d
 from scipy.optimize import BFGS, basinhopping, minimize
 
 from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
@@ -1510,13 +1510,18 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
     return data_x, data_y, data_err
 
 
-def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
+def hist_line(
+    data, weights, bins, xrange=None, inter=1, kind="UnivariateSpline"
+):
     """interpolate data from hostgram into a line"""
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     x = (x[:-1] + x[1:]) / 2
     if xrange is None:
         xrange = (np.min(data), np.max(data))
-    func = interp1d(x, y, kind=kind)
+    if kind == "UnivariateSpline":
+        func = UnivariateSpline(x, y, s=2)
+    else:
+        func = interp1d(x, y, kind=kind)
     num = data.shape[0] * inter
     x_new = np.linspace(np.min(x), np.max(x), num=num, endpoint=True)
     y_new = func(x_new)
