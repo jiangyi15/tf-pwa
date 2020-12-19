@@ -87,7 +87,7 @@ def BWR(m, m0, g0, q, q0, L, d):
 
 def BWR2(m, m0, g0, q2, q02, L, d):
     """
-    Relativistic Breit-Wigner function (with running width). It's also set as the default lineshape.
+    Relativistic Breit-Wigner function (with running width). Allow complex :math:`\\Gamma`.
 
     .. math::
         BW(m) = \\frac{1}{m_0^2 - m^2 -  i m_0 \\Gamma(m)}
@@ -98,13 +98,17 @@ def BWR2(m, m0, g0, q2, q02, L, d):
     m0 = tf.cast(m0, m.dtype)
     x = tf.cast(m0 * m0 - m * m, gamma.dtype)
     y = tf.cast(m0, gamma.dtype) * gamma
-    ret = 1.0 / (x - 1j * y)
+    d = x - 1j * y
+    bw_x = tf.math.real(d)
+    bw_y = tf.math.imag(d)
+    bw_r2 = bw_x * bw_x + bw_y * bw_y
+    ret = tf.complex(bw_x / bw_r2, bw_y / bw_r2)
     return ret
 
 
 def BWR_normal(m, m0, g0, q2, q02, L, d):
     """
-    Relativistic Breit-Wigner function (with running width). It's also set as the default lineshape.
+    Relativistic Breit-Wigner function (with running width) with a normal factor.
 
     .. math::
         BW(m) = \\frac{\\sqrt{m_0 \\Gamma(m)}}{m_0^2 - m^2 -  i m_0 \\Gamma(m)}
