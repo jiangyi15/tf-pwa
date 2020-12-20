@@ -121,12 +121,15 @@ def _data_split(dat, batch_size, axis=0):
         raise Exception("unsupported axis: {}".format(axis))
 
 
-def data_generator(data, fun=_data_split, args=(), kwargs=None):
+def data_generator(data, fun=_data_split, args=(), kwargs=None, MAX_ITER=1000):
     """Data generator: call ``fun`` to each ``data`` as a generator. The extra arguments will be passed to ``fun``."""
     kwargs = kwargs if kwargs is not None else {}
 
     def _gen(dat):
         if isinstance(dat, dict):
+            if not dat:
+                for i in range(MAX_ITER):
+                    yield {}
             ks, vs = [], []
             for k, v in dat.items():
                 ks.append(k)
@@ -134,6 +137,9 @@ def data_generator(data, fun=_data_split, args=(), kwargs=None):
             for s_data in zip(*vs):
                 yield dict(zip(ks, s_data))
         elif isinstance(dat, list):
+            if not dat:
+                for i in range(MAX_ITER):
+                    yield []
             vs = []
             for v in dat:
                 vs.append(_gen(v))
@@ -161,12 +167,12 @@ def data_split(data, batch_size, axis=0):
     :param axis: Integer, axis for split, [option]
     :return: a generator for split data
 
-    >>> data = {"a": [np.array([1.0, 2.0]), np.array([3.0, 4.0])], "b": {"c": np.array([5.0, 6.0])}}
+    >>> data = {"a": [np.array([1.0, 2.0]), np.array([3.0, 4.0])], "b": {"c": np.array([5.0, 6.0])}, "d": [], "e": {}}
     >>> for i, data_i in enumerate(data_split(data, 1)):
     ...     print(i, data_to_numpy(data_i))
     ...
-    0 {'a': [array([1.]), array([3.])], 'b': {'c': array([5.])}}
-    1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}}
+    0 {'a': [array([1.]), array([3.])], 'b': {'c': array([5.])}, 'd': [], 'e': {}}
+    1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}, 'd': [], 'e': {}}
 
     """
     return data_generator(
