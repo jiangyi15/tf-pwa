@@ -62,7 +62,7 @@ class VarsManager:
         """
 
         >>> a = VarsManager()
-        >>> b = Variable("sss", a)
+        >>> b = Variable("sss", vm=a)
         >>> a.set_params({"sss": 1.0})
 
         """
