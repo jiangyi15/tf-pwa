@@ -1,18 +1,39 @@
 import numpy as np
 
+from ..config import create_config
 from ..data import data_shape, split_generator
 from ..tensorflow_wrapper import tf
 from .model import Model, clip_log, sum_gradient, sum_hessian
 
+set_function, get_function, register_function = create_config()
+
+
+@register_function("default_bg")
+def f_bg(data):
+    return data.get("bg_value", tf.ones((data_shape(data),), dtype="float64"))
+
+
+@register_function("default_eff")
+def f_eff(data):
+    return data.get("eff_value", tf.ones((data_shape(data),), dtype="float64"))
+
 
 class Model_cfit(Model):
-    def __init__(self, amp, w_bkg=0.001, bg_f=None):
+    def __init__(self, amp, w_bkg=0.001, bg_f=None, eff_f=None):
         self.Amp = amp
         if bg_f is None:
-            bg_f = lambda x: tf.ones(shape=(data_shape(x),), dtype="float64")
+            bg_f = get_function("default_bg")
+        elif isinstance(bg_f, str):
+            bg_f = get_function(bg_f)
+        if eff_f is None:
+            eff_f = get_function("default_eff")
+        elif isinstance(eff_f, str):
+            eff_f = get_function(eff_f)
         self.bg = bg_f
         self.vm = amp.vm
         self.w_bkg = w_bkg
+        self.eff = eff_f
+        self.sig = lambda x: self.eff(x) * self.Amp(x)
 
     def nll(
         self,
@@ -37,16 +58,16 @@ class Model_cfit(Model):
         :param bg: Background data array. It can be set to ``None`` if there is no such thing.
         :return: Real number. The value of NLL.
         """
-        data, weight = self.get_weight_data(data, weight, bg=bg)
+        data, weight = self.get_weight_data(data, weight)
         sw = tf.reduce_sum(weight)
-        sig_data = self.Amp(data)
+        sig_data = self.sig(data)
         bg_data = self.bg(data)
         if mc_weight is None:
-            int_mc = tf.reduce_mean(self.Amp(mcdata))
+            int_mc = tf.reduce_mean(self.sig(mcdata))
             int_bg = tf.reduce_mean(self.bg(mcdata))
         else:
-            int_mc = tf.math.log(tf.reduce_sum(mc_weight * self.Amp(mcdata)))
-            int_bg = tf.math.log(tf.reduce_sum(mc_weight * self.bg(mcdata)))
+            int_mc = tf.reduce_sum(mc_weight * self.sig(mcdata))
+            int_bg = tf.reduce_sum(mc_weight * self.bg(mcdata))
         ln_data = tf.math.log(
             (1 - self.w_bkg) * sig_data / int_mc
             + self.w_bkg * bg_data / int_bg
@@ -72,7 +93,7 @@ class Model_cfit(Model):
         var = self.vm.trainable_variables
         mcdata = list(mcdata)
         mc_weight = list(mc_weight)
-        int_sig, g_int_sig = sum_gradient(self.Amp, mcdata, var, mc_weight)
+        int_sig, g_int_sig = sum_gradient(self.sig, mcdata, var, mc_weight)
         int_bg, g_int_bg = sum_gradient(self.bg, mcdata, var, mc_weight)
         v_int_sig, v_int_bg = (
             tf.Variable(int_sig, dtype="float64"),
@@ -80,7 +101,7 @@ class Model_cfit(Model):
         )
 
         def prob(x):
-            return (1 - self.w_bkg) * self.Amp(
+            return (1 - self.w_bkg) * self.sig(
                 x
             ) / v_int_sig + self.w_bkg * self.bg(x) / v_int_bg
 
@@ -126,7 +147,7 @@ class Model_cfit(Model):
         sw = tf.reduce_sum(weight)
         var = self.vm.trainable_variables
         int_sig, g_int_sig, h_int_sig = sum_hessian(
-            self.Amp,
+            self.sig,
             split_generator(mcdata, batch),
             var,
             weight=split_generator(mc_weight, batch),
@@ -145,12 +166,12 @@ class Model_cfit(Model):
         )
 
         def prob(x):
-            return (1 - self.w_bkg) * self.Amp(
+            return (1 - self.w_bkg) * self.sig(
                 x
             ) / v_int_sig + self.w_bkg * self.bg(x) / v_int_bg
 
         ll, g_ll, h_ll = sum_hessian(
-            self.Amp,
+            prob,
             split_generator(data, batch),
             var + [v_int_sig, v_int_bg],
             weight=split_generator(weight, batch),

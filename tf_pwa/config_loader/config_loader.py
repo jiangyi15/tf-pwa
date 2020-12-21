@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sympy as sy
 import yaml
-from scipy.interpolate import interp1d
+from scipy.interpolate import UnivariateSpline, interp1d
 from scipy.optimize import BFGS, basinhopping, minimize
 
 from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
@@ -95,7 +95,7 @@ class ConfigLoader(object):
             if file_name in share_dict:
                 return ConfigLoader.load_config(share_dict[file_name])
             with open(file_name) as f:
-                ret = yaml.safe_load(f)
+                ret = yaml.load(f, yaml.FullLoader)
             return ret
         raise TypeError("not support config {}".format(type(file_name)))
 
@@ -473,9 +473,18 @@ class ConfigLoader(object):
     @functools.lru_cache()
     def _get_model(self, vm=None, name=""):
         amp = self.get_amplitude(vm=vm, name=name)
+        model_name = self.config["data"].get("model", "auto")
         w_bkg, w_inmc = self._get_bg_weight()
         model = []
-        if "inmc" in self.config["data"]:
+        if model_name == "cfit":
+            bg_function = self.config["data"].get("bg_function", None)
+            eff_function = self.config["data"].get("eff_function", None)
+            w_bkg = self.config["data"]["bg_frac"]
+            if not isinstance(w_bkg, list):
+                w_bkg = [w_bkg]
+            for wb in w_bkg:
+                model.append(Model_cfit(amp, wb, bg_function, eff_function))
+        elif "inmc" in self.config["data"]:
             float_wmc = self.config["data"].get(
                 "float_inmc_ratio_in_pdf", False
             )
@@ -540,17 +549,29 @@ class ConfigLoader(object):
         model = self._get_model(vm=vm, name=name)
         fcns = []
         for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
-            fcns.append(
-                FCN(
-                    md,
-                    dt,
-                    mc,
-                    bg=sb,
-                    batch=batch,
-                    inmc=ij,
-                    gauss_constr=self.gauss_constr_dic,
+            if self.config["data"].get("model", "auto") == "cfit":
+                fcns.append(
+                    FCN(
+                        md,
+                        dt,
+                        mc,
+                        batch=batch,
+                        inmc=ij,
+                        gauss_constr=self.gauss_constr_dic,
+                    )
                 )
-            )
+            else:
+                fcns.append(
+                    FCN(
+                        md,
+                        dt,
+                        mc,
+                        bg=sb,
+                        batch=batch,
+                        inmc=ij,
+                        gauss_constr=self.gauss_constr_dic,
+                    )
+                )
         if len(fcns) == 1:
             fcn = fcns[0]
         else:
@@ -893,7 +914,11 @@ class ConfigLoader(object):
         with amp.temp_params(params):
             weights_i = [amp(i) for i in data_split(phsp, batch)]
             weight_phsp = data_merge(*weights_i)  # amp(phsp)
-            total_weight = weight_phsp * phsp.get("weight", 1.0)
+            total_weight = (
+                weight_phsp
+                * phsp.get("weight", 1.0)
+                * phsp.get("eff_value", 1.0)
+            )
             data_weight = data.get("weight", None)
             if data_weight is None:
                 n_data = data_shape(data)
@@ -937,6 +962,7 @@ class ConfigLoader(object):
                     * norm_frac
                     * bin_scale
                     * phsp.get("weight", 1.0)
+                    * phsp.get("eff_value", 1.0)
                 )
                 phsp_dict[
                     "MC_{0}_{1}_fit".format(i, name_i)
@@ -1499,13 +1525,18 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
     return data_x, data_y, data_err
 
 
-def hist_line(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
+def hist_line(
+    data, weights, bins, xrange=None, inter=1, kind="UnivariateSpline"
+):
     """interpolate data from hostgram into a line"""
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     x = (x[:-1] + x[1:]) / 2
     if xrange is None:
         xrange = (np.min(data), np.max(data))
-    func = interp1d(x, y, kind=kind)
+    if kind == "UnivariateSpline":
+        func = UnivariateSpline(x, y, s=2)
+    else:
+        func = interp1d(x, y, kind=kind)
     num = data.shape[0] * inter
     x_new = np.linspace(np.min(x), np.max(x), num=num, endpoint=True)
     y_new = func(x_new)

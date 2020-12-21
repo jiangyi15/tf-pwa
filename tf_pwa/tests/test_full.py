@@ -45,8 +45,12 @@ def gen_toy():
     generate_toy_from_phspMC(100, "toy_data/PHSP.dat", "toy_data/data.dat")
     bg = generate_phspMC(100)
     data = np.loadtxt("toy_data/data.dat")
-    np.savetxt("toy_data/data.dat", np.concatenate([data, bg[:, :30]]))
+    np.savetxt("toy_data/data.dat", np.concatenate([data, bg[:30, :]]))
     np.savetxt("toy_data/bg.dat", bg)
+    np.savetxt("toy_data/data_bg_value.dat", np.ones((100 + 10,)))
+    np.savetxt("toy_data/data_eff_value.dat", np.ones((100 + 10,)))
+    np.savetxt("toy_data/phsp_bg_value.dat", np.ones((1000,)))
+    np.savetxt("toy_data/phsp_eff_value.dat", np.ones((1000,)))
 
 
 @pytest.fixture
@@ -75,6 +79,14 @@ def toy_config2(gen_toy, fit_result):
 @pytest.fixture
 def fit_result(toy_config):
     return toy_config.fit()
+
+
+def test_cfit(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_cfit.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    fcn = config.get_fcn()
+    fcn({})
+    fcn.nll_grad({})
 
 
 def test_fit(toy_config, fit_result):

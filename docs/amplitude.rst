@@ -40,11 +40,7 @@ then the differential cross-section
 .. math::
     \frac{d\sigma}{d\Phi} = \frac{1}{N}\sum_{\lambda_{A}}\sum_{\lambda_{B},\lambda_{C},\lambda_{D}}|A_{\lambda_{A},\lambda_{B},\lambda_{C},\lambda_{D}}^{total}|^2
 
-the LS coupling formula
 
-.. math::
-    H_{\lambda_{B},\lambda_{C}}^{A \rightarrow B+C} =
-    \sum_{ls} g_{ls} \sqrt{\frac{2l+1}{2 J_{A}+1}} CG_{ls\rightarrow \lambda_{B},\lambda_{C}} \color{red}{f_{l}(q,q_0)}
 
 Amplitude Combination Rules
 ---------------------------
@@ -67,7 +63,7 @@ Now we can use combination rules to build amplitude for the whole process.
         :math:`P = |\tilde{A}|^2` (modular square)
 
         Decay Group:
-            :math:`\tilde{A} = A_{R_1} + A_{R_2} + \cdots` (addition)
+            :math:`\tilde{A} = a_1 A_{R_1} + a_2 A_{R_2} + \cdots` (addition)
 
             Decay Chain:
                 :math:`A_{R} = A_1 \times R \times A_2 \cdots` (multiplication)
@@ -79,3 +75,36 @@ Now we can use combination rules to build amplitude for the whole process.
                 :math:`R(m)`
 
 The indices part is quantum number, and it can be summed automatically.
+
+
+
+Default Amplitude Model
+------------------------
+
+The defalut model for Decay is helicity amplitude
+
+.. math::
+   A^{A \rightarrow B C}_{\lambda_A,\lambda_B, \lambda_C} = H_{\lambda_B,\lambda_C}^{A \rightarrow B C} D^{J_{A}*}_{\lambda_A,\lambda_B - \lambda_C}(\phi, \theta, 0).
+
+The LS coupling formula is used
+
+.. math::
+    H_{\lambda_{B},\lambda_{C}}^{A \rightarrow B+C} =
+    \sum_{ls} g_{ls} \sqrt{\frac{2l+1}{2 J_{A}+1}} \langle l 0; s \delta|J_{A} \delta\rangle \langle J_{B} \lambda_{B} ;J_{C} -\lambda_{C} | s \delta \rangle q^{l} B_{l}'(q, q_0, d)
+
+:math:`g_{ls}` are the fit parameters, the first one is fixed.  :math:`q` and :math:`q_0` is the momentum in rest frame for invariant mass and resonance mass.
+
+:math:`B_{l}'(q, q0, d)`  (`~tf_pwa.breit_wigner.Bprime`) is Blatt-Weisskopf barrier factors. :math:`d` is :math:`3.0 \mathrm{GeV}^{-1}` by default.
+
+
+Resonances model use Relativistic Breit-Wigner function
+
+.. math::
+   R(m) = \frac{1}{m_0^2 - m^2 -  i m_0 \Gamma(m)}
+
+with running width
+
+.. math::
+   \Gamma(m) = \Gamma_0 \left(\frac{q}{q_0}\right)^{2L+1}\frac{m_0}{m} B_{L}'^2(q,q_0,d).
+
+By using the combination rules, the amplitude is built automatically.

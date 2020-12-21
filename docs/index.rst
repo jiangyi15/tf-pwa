@@ -21,6 +21,7 @@ A detailed configuration file sample (with all usable parameters) can be found *
    decay_topology
    phasespace
    resolution
+   auto_examples/index
    api
    particle_model
    FAQ
