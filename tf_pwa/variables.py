@@ -2,6 +2,7 @@ import itertools
 
 import numpy as np
 import tensorflow as T
+from scipy.optimize import minimize
 
 from .config import get_config, regist_config
 
@@ -79,8 +80,50 @@ class VarsManager:
         else:
             raise TypeError("not suported type {}".format(type(value)))
 
+    def get_init_value(self):
+        return flatten(self.variables_value)
+
+    def minimize(self, fun, args=(), kwargs={}):
+        """
+        >>> vm =VarsManager()
+        >>> a = Variable("a", vm=vm)
+        >>> b = Variable("b", vm=vm)
+        >>> def f():
+        ...   return a()**2 + (b()-1)**2
+        >>> result = vm.minimize(f)
+        >>> assert np.allclose(result.x, [0.0,1.0])
+        """
+
+        var = {
+            k: T.Variable(v, dtype=np.array(v).dtype)
+            for k, v in self.variables_value.items()
+        }
+
+        def g(x):
+            count = 0
+            for k in var:
+                n = T.reshape(var[k], (-1,)).shape[0]
+                var[k].assign(T.reshape(x[count : count + n], var[k].shape))
+                count += n
+            self.set_params(var)
+            with T.GradientTape() as tape:
+                value = fun()
+            grad = tape.gradient(value, var)
+            return float(value), flatten(grad)
+
+        x0 = self.get_init_value()
+        ret = minimize(g, x0, jac=True)
+        return ret
+
 
 regist_config("vm_new", VarsManager())
+
+
+def flatten(dic):
+    ret = []
+    for k, v in dic.items():
+        ret.append(np.reshape(v, (-1,)))
+    return np.concatenate(ret)
 
 
 class VariableBase:
@@ -123,6 +166,9 @@ class VariableBase:
 
     def __call__(self):
         return self.vm.get_value(self.name)
+
+    def __float__(self):
+        return float(self())
 
 
 def _shape_get(it, fun):
