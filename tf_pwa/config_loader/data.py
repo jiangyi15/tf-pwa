@@ -293,7 +293,7 @@ class MultiData(SimpleData):
         ]
         return [np.sum(weight_i) for weight_i in weight]
 
-    @functools.lru_cache
+    @functools.lru_cache()
     def get_data(self, idx) -> list:
         if self.cached_data is not None:
             data = self.cached_data.get(idx, None)
