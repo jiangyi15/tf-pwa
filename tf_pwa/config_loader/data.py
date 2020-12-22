@@ -1,3 +1,4 @@
+import functools
 import os
 import warnings
 
@@ -61,6 +62,7 @@ class SimpleData:
             for _, j in i.items():
                 for k, v in j.items():
                     self.re_map[v] = k
+        self.scale_list = self.dic.get("scale_list", ["bg"])
 
     def get_data_file(self, idx):
         if idx in self.dic:
@@ -112,7 +114,22 @@ class SimpleData:
         weights = self.dic.get(idx + "_weight", None)
         weight_sign = self.get_weight_sign(idx)
         charge = self.dic.get(idx + "_charge", None)
-        return self.load_data(files, weights, weight_sign, charge)
+        ret = self.load_data(files, weights, weight_sign, charge)
+        return self.process_scale(idx, ret)
+
+    def process_scale(self, idx, data):
+        if idx in self.scale_list and self.dic.get("weight_scale", False):
+            n_bg = data_shape(data)
+            scale_factor = self.get_n_data() / n_bg
+            data["weight"] = (
+                data.get("weight", np.ones((n_bg,))) * scale_factor
+            )
+        return data
+
+    def get_n_data(self):
+        data = self.get_data("data")
+        weight = data.get("weight", np.ones((data_shape(data),)))
+        return np.sum(weight)
 
     def load_data(
         self, files, weights=None, weights_sign=1, charge=None
@@ -258,6 +275,25 @@ class MultiData(SimpleData):
         super(MultiData, self).__init__(*args, **kwargs)
         self._Ngroup = 0
 
+    def process_scale(self, idx, data):
+        if idx in self.scale_list and self.dic.get("weight_scale", False):
+            for i, data_i in enumerate(data):
+                n_bg = data_shape(data_i)
+                scale_factor = self.get_n_data()[i] / n_bg
+                data_i["weight"] = (
+                    data_i.get("weight", np.ones((n_bg,))) * scale_factor
+                )
+        return data
+
+    def get_n_data(self):
+        data = self.get_data("data")
+        weight = [
+            data_i.get("weight", np.ones((data_shape(data_i),)))
+            for data_i in data
+        ]
+        return [np.sum(weight_i) for weight_i in weight]
+
+    @functools.lru_cache
     def get_data(self, idx) -> list:
         if self.cached_data is not None:
             data = self.cached_data.get(idx, None)
@@ -299,6 +335,7 @@ class MultiData(SimpleData):
                 eff_value = [eff_value]
             for i, file_name in enumerate(eff_value):
                 ret[i]["eff_value"] = np.reshape(np.loadtxt(file_name), (-1,))
+        ret = self.process_scale(idx, ret)
         return ret
 
     def get_phsp_noeff(self):
