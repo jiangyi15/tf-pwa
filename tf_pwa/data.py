@@ -7,6 +7,7 @@ Data cache can be implemented based on the dynamic features of ``list`` and ``di
 
 """
 
+import random
 from pprint import pprint
 
 import numpy as np
@@ -22,6 +23,15 @@ try:
     from collections.abc import Iterable
 except ImportError:  # python version < 3.7
     from collections import Iterable
+
+
+def set_random_seed(seed):
+    """
+    set random seed for random, numpy and tensorflow
+    """
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    random.seed(seed)
 
 
 def load_dat_file(

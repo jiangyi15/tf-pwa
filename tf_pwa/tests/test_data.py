@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from tf_pwa.data import *
@@ -74,3 +75,11 @@ def test_save_load():
     data2 = load_data(fname)
     assert np.allclose(data["a"], data2["a"])
     assert np.allclose(data[b], data2[b])
+
+
+def test_set_seed():
+    set_random_seed(100)
+    a = np.random.random((10,))
+    set_random_seed(100)
+    b = np.random.random((10,))
+    assert np.allclose(a, b)
