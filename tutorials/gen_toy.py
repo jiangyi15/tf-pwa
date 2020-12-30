@@ -32,32 +32,32 @@ def main():
 
 def generate_phspMC(Nmc, mc_file):
     """Generate PhaseSpace MC of size Nmc and save it as txt file"""
+    # the order of A->B,C,D should be same as dat_order in config.yml:data: [B, C, D]
     mA = 4.6  # masses of mother particle A and daughters BCD
     mB = 2.00698
     mC = 2.01028
     mD = 0.13957
-    a2bcd = gen_mc(
-        mA, [mB, mC, mD], Nmc
-    )  # a2bcd is a [3*Nmc, 4] array, which are the momenta of BCD in the rest frame of A
+    # a2bcd is a [3*Nmc, 4] array, which are the momenta of BCD in the rest frame of A
+    a2bcd = gen_mc(mA, [mB, mC, mD], Nmc)
     np.savetxt(mc_file, a2bcd)
 
 
 def generate_toy_from_phspMC(Ndata, mc_file, data_file):
     """Generate toy using PhaseSpace MC from mc_file"""
-    config = ConfigLoader(
-        "config.yml"
-    )  # We use ConfigLoader to read the information in the configuration file
-    config.set_params(
-        "gen_params.json"
-    )  # Set the parameters in the amplitude model
+    # We use ConfigLoader to read the information in the configuration file
+    config = ConfigLoader("config.yml")
+    # Set the parameters in the amplitude model
+    config.set_params("gen_params.json")
     amp = config.get_amplitude()
+    # data is saved in data_file
     data = gen_data(
         amp,
         Ndata=Ndata,
-        mcfile=mc_file,
-        genfile=data_file,
+        mcfile=mc_file,  # input phsase space file
+        genfile=data_file,  # saved toy data file
+        # use the order in config, the default is ascii order.
         particles=config.get_dat_order(),
-    )  # data is saved in data_file
+    )
     return data
 
 
