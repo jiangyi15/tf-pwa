@@ -32,7 +32,13 @@ def generate_toy_from_phspMC(Ndata, mc_file, data_file):
     config = ConfigLoader(f"{this_dir}/config_toy.yml")
     config.set_params(f"{this_dir}/gen_params.json")
     amp = config.get_amplitude()
-    data = gen_data(amp, Ndata=Ndata, mcfile=mc_file, genfile=data_file)
+    data = gen_data(
+        amp,
+        Ndata=Ndata,
+        mcfile=mc_file,
+        genfile=data_file,
+        particles=config.get_dat_order(),
+    )
     return data
 
 

@@ -225,6 +225,7 @@ def gen_data(
     Poisson_fluc=False,
     bgfile=None,
     genfile=None,
+    particles=None,
 ):
     """
     This function is used to generate toy data according to an amplitude model.
@@ -247,8 +248,8 @@ def gen_data(
         Nbg = np.random.poisson(Nbg)
     print("data:", Nmc + Nbg, ", sig:", Nmc, ", bkg:", Nbg)
     dtype = "float64"
-
-    particles = sorted(amp.decay_group.outs)
+    if not particles:
+        particles = sorted(amp.decay_group.outs)
     phsp = prepare_data_from_decay(mcfile, amp.decay_group, dtype=dtype)
     phsp = data_to_tensor(phsp)
     ampsq = amp(phsp)

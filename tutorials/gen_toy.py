@@ -52,7 +52,11 @@ def generate_toy_from_phspMC(Ndata, mc_file, data_file):
     )  # Set the parameters in the amplitude model
     amp = config.get_amplitude()
     data = gen_data(
-        amp, Ndata=Ndata, mcfile=mc_file, genfile=data_file
+        amp,
+        Ndata=Ndata,
+        mcfile=mc_file,
+        genfile=data_file,
+        particles=config.get_dat_order(),
     )  # data is saved in data_file
     return data
 
