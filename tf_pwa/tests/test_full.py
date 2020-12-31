@@ -1,10 +1,12 @@
 import os
+import time
 
 import matplotlib
 import numpy as np
 import pytest
 import tensorflow as tf
 
+from tf_pwa import set_random_seed
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import build_amp
@@ -44,25 +46,26 @@ def generate_toy_from_phspMC(Ndata, mc_file, data_file):
 
 @pytest.fixture
 def gen_toy():
+    set_random_seed(1)
     if not os.path.exists("toy_data"):
         os.mkdir("toy_data")
-    phsp = generate_phspMC(1000)
+    phsp = generate_phspMC(10000)
     np.savetxt("toy_data/PHSP.dat", phsp)
-    generate_toy_from_phspMC(100, "toy_data/PHSP.dat", "toy_data/data.dat")
-    bg = generate_phspMC(100)
+    generate_toy_from_phspMC(1000, "toy_data/PHSP.dat", "toy_data/data.dat")
+    bg = generate_phspMC(1000)
     data = np.loadtxt("toy_data/data.dat")
-    np.savetxt("toy_data/data.dat", np.concatenate([data, bg[:30, :]]))
+    np.savetxt("toy_data/data.dat", np.concatenate([data, bg[:300, :]]))
     np.savetxt("toy_data/bg.dat", bg)
-    np.savetxt("toy_data/data_bg_value.dat", np.ones((100 + 10,)))
-    np.savetxt("toy_data/data_eff_value.dat", np.ones((100 + 10,)))
-    np.savetxt("toy_data/phsp_bg_value.dat", np.ones((1000,)))
-    np.savetxt("toy_data/phsp_eff_value.dat", np.ones((1000,)))
+    np.savetxt("toy_data/data_bg_value.dat", np.ones((1000 + 100,)))
+    np.savetxt("toy_data/data_eff_value.dat", np.ones((1000 + 100,)))
+    np.savetxt("toy_data/phsp_bg_value.dat", np.ones((10000,)))
+    np.savetxt("toy_data/phsp_eff_value.dat", np.ones((10000,)))
 
 
 @pytest.fixture
 def toy_config(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_toy.yml")
-    config.set_params(f"{this_dir}/gen_params.json")
+    config.set_params(f"{this_dir}/exp_params.json")
     return config
 
 
