@@ -188,6 +188,156 @@ def clip_log(x, _epsilon=1e-6):
     return tf.where(x > _epsilon, b_t, b_f)
 
 
+class BaseModel(object):
+    """
+    This class implements methods to calculate NLL as well as its derivatives for an amplitude model. It may include
+    data for both signal and background.
+
+    :param signal: Signal Model
+    """
+
+    def __init__(self, signal):
+        self.signal = signal
+        self.Amp = signal
+        self.vm = signal.vm
+
+    def nll(self, data, mcdata):
+        """Negative log-Likelihood"""
+        weight = data.get("weight", tf.ones((data_shape(data),)))
+        sw = tf.reduce_sum(weight)
+        ln_data = clip_log(self.signal(data))
+        mc_weight = mcdata.get("weight", tf.ones((data_shape(mcdata),)))
+        int_mc = tf.reduce_sum(
+            mc_weight * self.signal(mcdata)
+        ) / tf.reduce_sum(mc_weight)
+        alpha = sw / tf.reduce_sum(weight ** 2)
+        return -alpha * (
+            tf.reduce_sum(weight * ln_data) - sw * tf.math.log(int_mc)
+        )
+
+    def nll_grad(self, data, mcdata, batch=65000):
+        weight = data.get("weight", tf.ones((data_shape(data),)))
+        alpha = tf.reduce_sum(weight ** 2) / tf.reduce_sum(weight ** 2)
+        weight = alpha * weight
+        ln_data, g_ln_data = sum_gradient(
+            self.signal,
+            split_generator(data, batch),
+            self.signal.trainable_variables,
+            weight=split_generator(weight, batch),
+            trans=clip_log,
+        )
+        mc_weight = mcdata.get("weight", tf.ones((data_shape(mcdata),)))
+        mc_weight = mc_weight / tf.reduce_sum(mc_weight)
+        int_mc, g_int_mc = sum_gradient(
+            self.signal,
+            split_generator(mcdata, batch),
+            self.signal.trainable_variables,
+            weight=data_split(mc_weight, batch),
+        )
+
+        sw = tf.cast(tf.reduce_sum(weight), ln_data.dtype)
+
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
+        nll = -ln_data + sw * tf.math.log(int_mc)
+        return nll, g
+
+    @property
+    def trainable_variables(self):
+        return self.signal.trainable_variables
+
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
+        """
+        ``self.nll_grad()`` is replaced by this one???
+
+        .. math::
+          - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
+            -\\sum_{x_i \\in data } w_i \\frac{\\partial}{\\partial \\theta_k} \\ln f(x_i;\\theta_k)
+            + (\\sum w_j ) \\left( \\frac{ \\partial }{\\partial \\theta_k} \\sum_{x_i \\in mc} f(x_i;\\theta_k) \\right)
+              \\frac{1}{ \\sum_{x_i \\in mc} f(x_i;\\theta_k) }
+
+        :param data:
+        :param mcdata:
+        :param weight:
+        :param mc_weight:
+        :return:
+        """
+        weight = list(weight)
+        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
+        ln_data, g_ln_data = sum_gradient(
+            self.signal,
+            data,
+            self.signal.trainable_variables,
+            weight=weight,
+            trans=clip_log,
+        )
+        int_mc, g_int_mc = sum_gradient(
+            self.signal,
+            mcdata,
+            self.signal.trainable_variables,
+            weight=mc_weight,
+        )
+
+        sw = tf.cast(sw, ln_data.dtype)
+
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
+        nll = -ln_data + sw * tf.math.log(int_mc)
+        return nll, g
+
+    def nll_grad_hessian(self, data, mcdata, batch=25000):
+        """
+        The parameters are the same with ``self.nll()``, but it will return Hessian as well.
+
+        :return NLL: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        :return Hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
+        """
+        weight = data.get("weight", tf.ones((data_shape(data),)))
+        mc_weight = mcdata.get("weight", tf.ones((data_shape(mcdata),)))
+        mc_weight = mc_weight / tf.reduce_sum(mc_weight)
+        alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight ** 2)
+        weight = alpha * weight
+        sw = tf.reduce_sum(weight)
+        ln_data, g_ln_data, h_ln_data = sum_hessian(
+            self.signal,
+            split_generator(data, batch),
+            self.signal.trainable_variables,
+            weight=split_generator(weight, batch),
+            trans=clip_log,
+        )
+        int_mc, g_int_mc, h_int_mc = sum_hessian(
+            self.signal,
+            split_generator(mcdata, batch),
+            self.signal.trainable_variables,
+            weight=split_generator(mc_weight, batch),
+        )
+
+        n_var = len(g_ln_data)
+        nll = -ln_data + sw * tf.math.log(int_mc)
+        g = -g_ln_data + sw * g_int_mc / int_mc
+
+        g_int_mc = g_int_mc / int_mc
+        g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
+
+        h = -h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
+        return nll, g, h
+
+    def set_params(self, var):
+        """
+        It has interface to ``Amplitude.set_params()``.
+        """
+        self.Amp.set_params(var)
+
+    def get_params(self, trainable_only=False):
+        """
+        It has interface to ``Amplitude.get_params()``.
+        """
+        return self.Amp.get_params(trainable_only)
+
+
 class Model(object):
     """
     This class implements methods to calculate NLL as well as its derivatives for an amplitude model. It may include
@@ -198,6 +348,7 @@ class Model(object):
     """
 
     def __init__(self, amp, w_bkg=1.0):
+        self.model = BaseModel(amp)
         self.Amp = amp
         self.w_bkg = w_bkg
         self.vm = amp.vm
@@ -244,7 +395,7 @@ class Model(object):
         weight: tf.Tensor = 1.0,
         batch=None,
         bg=None,
-        mc_weight=None,
+        mc_weight=1.0,
     ):
         """
         Calculate NLL.
@@ -260,14 +411,13 @@ class Model(object):
         :return: Real number. The value of NLL.
         """
         data, weight = self.get_weight_data(data, weight, bg=bg)
-        sw = tf.reduce_sum(weight)
-        ln_data = clip_log(self.Amp(data))
-        if mc_weight is None:
-            int_mc = tf.math.log(tf.reduce_mean(self.Amp(mcdata)))
-        else:
-            int_mc = tf.math.log(tf.reduce_sum(mc_weight * self.Amp(mcdata)))
-        nll_0 = -tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
-        return nll_0 + tf.cast(sw, int_mc.dtype) * int_mc
+        if isinstance(mc_weight, float):
+            mc_weight = tf.convert_to_tensor(
+                [mc_weight] * data_shape(mcdata), dtype="float64"
+            )
+        return self.model.nll(
+            {**data, "weight": weight}, {**mcdata, "weight": mc_weight}
+        )
 
     def nll_grad(
         self, data, mcdata, weight=1.0, batch=65000, bg=None, mc_weight=1.0
@@ -287,34 +437,13 @@ class Model(object):
         :return gradients: List of real numbers. The gradients for each variable.
         """
         data, weight = self.get_weight_data(data, weight, bg=bg)
-        n_mc = data_shape(mcdata)
-        sw = tf.reduce_sum(weight)
-        ln_data, g_ln_data = sum_gradient(
-            self.Amp,
-            split_generator(data, batch),
-            self.Amp.trainable_variables,
-            weight=split_generator(weight, batch),
-            trans=clip_log,
-        )
         if isinstance(mc_weight, float):
             mc_weight = tf.convert_to_tensor(
                 [mc_weight] * data_shape(mcdata), dtype="float64"
             )
-            mc_weight = mc_weight / tf.reduce_sum(mc_weight)
-        int_mc, g_int_mc = sum_gradient(
-            self.Amp,
-            split_generator(mcdata, batch),
-            self.Amp.trainable_variables,
-            weight=data_split(mc_weight, batch),
+        return self.model.nll_grad(
+            {**data, "weight": weight}, {**mcdata, "weight": mc_weight}
         )
-
-        sw = tf.cast(sw, ln_data.dtype)
-
-        g = list(
-            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
-        )
-        nll = -ln_data + sw * tf.math.log(int_mc)
-        return nll, g
 
     # @tf.function
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
@@ -333,25 +462,9 @@ class Model(object):
         :param mc_weight:
         :return:
         """
-        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
-        ln_data, g_ln_data = sum_gradient(
-            self.Amp,
-            data,
-            self.Amp.trainable_variables,
-            weight=weight,
-            trans=clip_log,
-        )
-        int_mc, g_int_mc = sum_gradient(
-            self.Amp, mcdata, self.Amp.trainable_variables, weight=mc_weight
-        )
-
-        sw = tf.cast(sw, ln_data.dtype)
-
-        g = list(
-            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
-        )
-        nll = -ln_data + sw * tf.math.log(int_mc)
-        return nll, g
+        data_i = ({**i, "weight": j} for i, j in zip(data, weight))
+        mcdata_i = ({**i, "weight": j} for i, j in zip(mcdata, mc_weight))
+        return self.model.nll_grad_batch(data_i, mcdata_i, weight, mc_weight)
 
     def nll_grad_hessian(
         self, data, mcdata, weight=1.0, batch=24000, bg=None, mc_weight=1.0
@@ -368,31 +481,9 @@ class Model(object):
             mc_weight = tf.convert_to_tensor(
                 [mc_weight] * data_shape(mcdata), dtype="float64"
             )
-        n_mc = tf.reduce_sum(mc_weight)
-        sw = tf.reduce_sum(weight)
-        ln_data, g_ln_data, h_ln_data = sum_hessian(
-            self.Amp,
-            split_generator(data, batch),
-            self.Amp.trainable_variables,
-            weight=split_generator(weight, batch),
-            trans=clip_log,
-        )
-        int_mc, g_int_mc, h_int_mc = sum_hessian(
-            self.Amp,
-            split_generator(mcdata, batch),
-            self.Amp.trainable_variables,
-            weight=split_generator(mc_weight, batch),
-        )
-
-        n_var = len(g_ln_data)
-        nll = -ln_data + sw * tf.math.log(int_mc / n_mc)
-        g = -g_ln_data + sw * g_int_mc / int_mc
-
-        g_int_mc = g_int_mc / int_mc
-        g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
-
-        h = -h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
-        return nll, g, h
+        data_i = {**data, "weight": weight}
+        mcdata_i = {**mcdata, "weight": mc_weight}
+        return self.model.nll_grad_hessian(data_i, mcdata_i)
 
     def set_params(self, var):
         """

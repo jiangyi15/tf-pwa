@@ -89,9 +89,7 @@ class ModelCachedInt(Model):
     """
 
     def __init__(self, amp, w_bkg=1.0):
-        self.Amp = amp
-        self.w_bkg = w_bkg
-        self.vm = amp.vm
+        super(ModelCachedInt, self).__init__(amp, w_bkg)
         self.cached_int = {}
         self.cached_amp = {}
 
@@ -261,9 +259,7 @@ class ModelCachedAmp(Model):
     """
 
     def __init__(self, amp, w_bkg=1.0):
-        self.Amp = amp
-        self.w_bkg = w_bkg
-        self.vm = amp.vm
+        super(ModelCachedAmp, self).__init__(amp, w_bkg)
         self.cached_amp = build_amp.build_amp2s(amp.decay_group)
         self.cached_data = {}
 
