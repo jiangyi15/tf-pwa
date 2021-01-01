@@ -165,11 +165,9 @@ def fsFun(s, m2, gam, daug2Mass, daug3Mass):
     return f
 
 
-@regist_lineshape("GS")  # Gounaris-Sakurai model for rho
-def GS(m, m0, g0, q, q0, L, d):
+# Gounaris-Sakurai model for rho
+def GS(m, m0, g0, q, q0, L, d, c_daug2Mass=0.13957039, c_daug3Mass=0.1349768):
     gamma = Gamma(m, g0, q, q0, L, m0, d)
-    c_daug2Mass = 0.13957039
-    c_daug3Mass = 0.1349768
     c_daug2Mass = tf.cast(c_daug2Mass, m.dtype)
     c_daug3Mass = tf.cast(c_daug3Mass, m.dtype)
 

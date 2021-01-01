@@ -338,8 +338,33 @@ class ParticleBWR_normal(Particle):
 
 
 # added by xiexh for GS model rho
-@regist_particle("GS")
+@regist_particle("GS_rho")
 class ParticleGS(Particle):
+    r"""
+    Gounaris G.J., Sakurai J.J., Phys. Rev. Lett., 21 (1968), pp. 244-247
+
+    .. math::
+      R(m) = \frac{1 + D \Gamma_0 / m_0}{(m_0^2 -m^2) + f(m) - i m_0 \Gamma(m)}
+
+    .. math::
+      f(m) = \Gamma_0 \frac{m_0 ^2 }{q_0^3} \left[q^2 [h(m)-h(m_0)] + (m_0^2 - m^2) q_0^2 \frac{d h}{d m}|_{m0} \right]
+
+    .. math::
+      h(m) = \frac{2}{\pi} \frac{q}{m} \ln \left(\frac{m+q}{2m_{\pi}} \right)
+
+    .. math::
+      \frac{d h}{d m}|_{m0} = h(m_0) [(8q_0^2)^{-1} - (2m_0^2)^{-1}] + (2\pi m_0^2)^{-1}
+
+    .. math::
+      D = \frac{f(0)}{\Gamma_0 m_0} = \frac{3}{\pi}\frac{m_\pi^2}{q_0^2} \ln \left(\frac{m_0 + 2q_0}{2 m_\pi }\right)
+        + \frac{m_0}{2\pi q_0} - \frac{m_\pi^2 m_0}{\pi q_0^3}
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.c_daug2Mass = 0.13957039
+        self.c_daug3Mass = 0.1349768
+        super().__init__(*args, **kwargs)
+
     def get_amp(self, data, data_c, **kwargs):
         mass = self.get_mass()
         width = self.get_width()
@@ -353,7 +378,17 @@ class ParticleGS(Particle):
             if self.bw_l is None:
                 decay = self.decay[0]
                 self.bw_l = min(decay.get_l_list())
-            ret = GS(data["m"], mass, width, q, q0, self.bw_l, self.d)
+            ret = GS(
+                data["m"],
+                mass,
+                width,
+                q,
+                q0,
+                self.bw_l,
+                self.d,
+                self.c_daug2Mass,
+                self.c_daug3Mass,
+            )
         return ret
 
 
