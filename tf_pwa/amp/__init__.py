@@ -26,6 +26,7 @@ from tf_pwa.breit_wigner import (
     Bprime_q2,
     BWR_normal,
     Gamma,
+    GS
 )
 from tf_pwa.breit_wigner import barrier_factor2 as barrier_factor
 from tf_pwa.cg import cg_coef
@@ -335,6 +336,25 @@ class ParticleBWR_normal(Particle):
             )
         return ret
 
+#added by xiexh for GS model rho
+@regist_particle("GS")
+class ParticleGS(Particle):
+    def get_amp(self, data, data_c, **kwargs):
+        mass = self.get_mass()
+        width = self.get_width()
+        if width is None:
+            return tf.ones_like(data["m"])
+        if not self.running_width:
+            ret = BW(data["m"], mass, width)
+        else:
+            q = data_c["|q|"]
+            q0 = data_c["|q0|"]
+            if self.bw_l is None:
+                decay = self.decay[0]
+                self.bw_l = min(decay.get_l_list())
+            ret = GS(data["m"], mass, width, q, q0, self.bw_l, self.d)
+        return ret
+#added by xiexh end
 
 class SimpleResonances(Particle):
     def __init__(self, *args, **kwargs):

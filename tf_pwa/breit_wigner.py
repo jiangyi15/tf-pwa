@@ -84,6 +84,84 @@ def BWR(m, m0, g0, q, q0, L, d):
     ret = tf.complex(x / s, y / s)
     return ret
 
+#added by xiexh for GS model rho
+def twoBodyCMmom(m_0, m_1, m_2):
+    """relative momentum for 0 -> 1 + 2"""
+    M12S = m_1 + m_2
+    M12D = m_1 - m_2
+    if hasattr(M12S, "dtype"):
+        m_0 = tf.convert_to_tensor(m_0, dtype=M12S.dtype)
+#    m_eff = tf.where(m_0 > M12S, m_0, M12S)
+#    p = (m_eff - M12S) * (m_eff + M12S) * (m_eff - M12D) * (m_eff + M12D)
+    # if p is negative, which results from bad data, the return value is 0.0
+    # print("p", tf.where(p==0), m_0, m_1, m_2)
+    p = (m_0 - M12S) * (m_0 + M12S) * (m_0 - M12D) * (m_0 + M12D)
+    zeros = tf.zeros_like(m_0)
+    ret = tf.where(p > 0, tf.sqrt(p)/(2*m_0), zeros)
+    return ret
+
+
+def hFun(s, daug2Mass, daug3Mass):
+    _pi = 3.14159265359
+    _pi = tf.cast(_pi, s.dtype)
+
+    sm = daug2Mass + daug3Mass
+    sqrt_s = tf.sqrt(s)
+    k_s = twoBodyCMmom(s, daug2Mass, daug3Mass)
+
+    ret = ((2.0 / _pi) * (k_s / sqrt_s) * tf.math.log((sqrt_s + 2.0 * k_s) / (sm), name='log'))
+    ret = tf.cast(ret, s.dtype)
+    return ret
+
+def dh_dsFun(s, daug2Mass, daug3Mass):
+    _pi = 3.14159265359
+    _pi = tf.cast(_pi, s.dtype)
+    k_s = twoBodyCMmom(s, daug2Mass, daug3Mass)
+
+    ret = hFun(s, daug2Mass, daug3Mass) * (1.0 / (8.0 * tf.pow(k_s,2)) - 1.0 / (2.0 * s)) + 1.0 / (2.0 * _pi * s)
+    ret = tf.cast(ret, s.dtype)
+    return ret
+
+def dFun(s, daug2Mass, daug3Mass):
+    _pi = 3.14159265359
+    _pi = tf.cast(_pi, s.dtype)
+    sm = daug2Mass + daug3Mass
+    sm24 = sm * sm / 4.0
+    m = tf.sqrt(s)
+    k_m2 = twoBodyCMmom(s, daug2Mass, daug3Mass)
+
+    ret = 3.0 / _pi * sm24 / tf.pow(k_m2,2) * tf.math.log((m + 2 * k_m2) / sm, name='log') + m / (2 * _pi * k_m2) - sm24 * m / (_pi * tf.pow(k_m2,3))
+    ret = tf.cast(ret, s.dtype)
+    return ret
+
+def fsFun(s, m2, gam, daug2Mass, daug3Mass):
+    k_s   = twoBodyCMmom(s, daug2Mass, daug3Mass)
+    k_Am2 = twoBodyCMmom(m2, daug2Mass, daug3Mass)
+
+    f = gam * m2 / tf.pow(k_Am2,3)
+    f *= (tf.pow(k_s,2) * (hFun(s, daug2Mass, daug3Mass) - hFun(m2, daug2Mass, daug3Mass)) + (m2 - s) * tf.pow(k_Am2,2) * dh_dsFun(m2, daug2Mass, daug3Mass))
+
+    f = tf.cast(f, s.dtype)
+    return f
+
+@regist_lineshape("GS") #Gounaris-Sakurai model for rho
+def GS(m, m0, g0, q, q0, L, d):
+    gamma = Gamma(m, g0, q, q0, L, m0, d)
+    c_daug2Mass = 0.13957039
+    c_daug3Mass = 0.1349768
+    c_daug2Mass = tf.cast(c_daug2Mass, m.dtype)
+    c_daug3Mass = tf.cast(c_daug3Mass, m.dtype)
+
+    D = (1.0 + dFun(m0*m0, c_daug2Mass, c_daug3Mass) * g0 / m0)
+    E = m0*m0 - m*m + fsFun(m*m, m0*m0, g0, c_daug2Mass, c_daug3Mass)
+    F = m0 * gamma
+
+    D /= (E * E + F * F)
+    ret = tf.complex(D*E, D*F)
+
+    return ret
+#added by xiexh end 
+
 
 def BWR2(m, m0, g0, q2, q02, L, d):
     """
