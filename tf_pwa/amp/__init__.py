@@ -343,6 +343,10 @@ class ParticleGS(Particle):
     r"""
     Gounaris G.J., Sakurai J.J., Phys. Rev. Lett., 21 (1968), pp. 244-247
 
+    `c_daug2Mass`: mass for daughter particle 2 (:math:`\pi^{+}`) 0.13957039
+
+    `c_daug3Mass`: mass for daughter particle 3 (:math:`\pi^{0}`) 0.1349768
+
     .. math::
       R(m) = \frac{1 + D \Gamma_0 / m_0}{(m_0^2 -m^2) + f(m) - i m_0 \Gamma(m)}
 
