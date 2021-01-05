@@ -6,7 +6,7 @@ from tf_pwa.tensorflow_wrapper import tf
 # pylint: disable=no-member
 
 
-class InterpolationPartilce(Particle):
+class InterpolationParticle(Particle):
     def __init__(self, *args, **kwargs):
         self.points = None
         self.max_m = None
@@ -15,11 +15,13 @@ class InterpolationPartilce(Particle):
         self.polar = True
         self.fix_idx = -1
         self.with_bound = False
-        super(InterpolationPartilce, self).__init__(*args, **kwargs)
+        super(InterpolationParticle, self).__init__(*args, **kwargs)
+        self.fix_width = True
         if self.points is None:
             dx = (self.max_m - self.min_m) / (self.interp_N - 1)
             self.points = [self.min_m + dx * i for i in range(self.interp_N)]
         else:
+            self.fix_width = False
             self.interp_N = len(self.points)
         self.bound = [
             (self.points[i], self.points[i + 1])
@@ -58,12 +60,31 @@ class InterpolationPartilce(Particle):
     def get_point_values(self):
         p = self.point_value()
         v_r = [0.0] + [tf.math.real(i) for i in p] + [0.0]
-        v_i = [0.0] + [tf.math.real(i) for i in p] + [0.0]
+        v_i = [0.0] + [tf.math.imag(i) for i in p] + [0.0]
         return self.points, v_r, v_i
+
+    def get_bin_index(self, m):
+        if self.fix_width:
+            m_min = tf.convert_to_tensor(self.points[0], m.dtype)
+            m_max = tf.convert_to_tensor(self.points[-1], m.dtype)
+            delta_width = (m_max - m_min) / (self.interp_N - 1)
+            bin_idx = tf.histogram_fixed_width_bins(
+                m,
+                [m_min - delta_width, m_max + delta_width],
+                nbins=self.interp_N + 1,
+                dtype=tf.dtypes.int64,
+            )
+        else:
+            dig = lambda x, y: tf.numpy_function(np.digitize, [x, y], tf.int64)
+            bin_idx = dig(m, self.points)
+        bin_idx = bin_idx - 1
+        # print(tf.reduce_max(bin_idx), tf.reduce_min(bin_idx))
+        bin_idx = tf.stop_gradient(bin_idx)
+        return bin_idx
 
 
 @register_particle("interp")
-class Interp(InterpolationPartilce):
+class Interp(InterpolationParticle):
     """linear interpolation for real number"""
 
     def init_params(self):
@@ -92,7 +113,7 @@ class Interp(InterpolationPartilce):
 
 
 @register_particle("interp_c")
-class Interp(InterpolationPartilce):
+class Interp(InterpolationParticle):
     """linear interpolation for complex number"""
 
     def interp(self, m):
@@ -129,7 +150,7 @@ class Interp(InterpolationPartilce):
 
 
 @register_particle("spline_c")
-class Interp1DSpline(InterpolationPartilce):
+class Interp1DSpline(InterpolationParticle):
     """Spline interpolation function for model independent resonance"""
 
     def __init__(self, *args, **kwargs):
@@ -266,7 +287,7 @@ def spline_xi_matrix(xi, bc_type="not-a-knot"):
 
 
 @register_particle("interp1d3")
-class Interp1D3(InterpolationPartilce):
+class Interp1D3(InterpolationParticle):
     """Piecewise third order interpolation"""
 
     def interp(self, m):
@@ -308,7 +329,7 @@ def get_matrix_interp1d3(x, xi):
 
 
 @register_particle("interp_lagrange")
-class Interp1DLang(InterpolationPartilce):
+class Interp1DLang(InterpolationParticle):
     """Lagrange interpolation"""
 
     def interp(self, m):
@@ -336,7 +357,7 @@ class Interp1DLang(InterpolationPartilce):
 
 
 @register_particle("interp_hist")
-class InterpHist(InterpolationPartilce):
+class InterpHist(InterpolationParticle):
     """Interpolation for each bins as constant"""
 
     def interp(self, m):
@@ -366,8 +387,68 @@ class InterpHist(InterpolationPartilce):
         return tf.complex(ret_r, ret_i)
 
 
+class HistParticle(InterpolationParticle):
+    def n_points(self):
+        return self.interp_N - 1
+
+
+@register_particle("hist_idx")
+class InterpHist(HistParticle):
+    """Interpolation for each bins as constant"""
+
+    def interp(self, m):
+        _, p_r, p_i = self.get_point_values()
+        bin_idx = self.get_bin_index(m)
+        ret_r = tf.gather(p_r[1:], bin_idx)
+        ret_i = tf.gather(p_i[1:], bin_idx)
+        return tf.complex(ret_r, ret_i)
+
+
+@register_particle("spline_c_idx")
+class Interp1DSplineIdx(InterpolationParticle):
+    """Spline function in index way"""
+
+    def __init__(self, *args, **kwargs):
+        self.bc_type = "not-a-knot"
+        super().__init__(*args, **kwargs)
+        assert self.interp_N > 2, "points need large than 2"
+        self.h_matrix = None
+
+    def init_params(self):
+        super(Interp1DSplineIdx, self).init_params()
+        h_matrix = spline_xi_matrix(self.points, self.bc_type)
+        if self.with_bound:
+            self.h_matrix = tf.convert_to_tensor(h_matrix.transpose((1, 0, 2)))
+        else:
+            self.h_matrix = tf.convert_to_tensor(
+                h_matrix.transpose((1, 0, 2))[..., 1:-1]
+            )
+
+    def interp(self, m):
+        p = self.point_value()
+        p_r = tf.math.real(p)
+        p_i = tf.math.imag(p)
+        idx = self.get_bin_index(m)
+        idx = tf.clip_by_value(idx, 0, self.h_matrix.shape[1] - 1)
+        ret_r = do_spline_hmatrix(self.h_matrix, p_r, m, idx)
+        ret_i = do_spline_hmatrix(self.h_matrix, p_i, m, idx)
+        return tf.complex(ret_r, ret_i)
+
+
+def do_spline_hmatrix(h_matrix, y, m, idx):
+    ai, bi, ci, di = tf.unstack(tf.reduce_sum(h_matrix * y, axis=-1), axis=0)
+    a, b, c, d = (
+        tf.gather(ai, idx),
+        tf.gather(bi, idx),
+        tf.gather(ci, idx),
+        tf.gather(di, idx),
+    )
+    ret = a + m * (b + m * (c + d * m))
+    return ret
+
+
 @register_particle("interp_l3")
-class InterpL3(InterpolationPartilce):
+class InterpL3(InterpolationParticle):
     def interp(self, m):
         p = self.point_value()
         ones = tf.ones_like(m)
