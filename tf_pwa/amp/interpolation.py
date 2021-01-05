@@ -393,7 +393,7 @@ class HistParticle(InterpolationParticle):
 
 
 @register_particle("hist_idx")
-class InterpHist(HistParticle):
+class InterpHistIdx(HistParticle):
     """Interpolation for each bins as constant"""
 
     def interp(self, m):
