@@ -8,6 +8,10 @@ https://www.sphinx-doc.org/en/master/usage/configuration.html
 import os
 import shutil
 import subprocess
+import sys
+
+this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, this_dir + "/..")
 
 from tf_pwa.amp import PARTICLE_MODEL, get_config
 from tf_pwa.experimental import (  # type: ignore  # pylint: disable=unused-import
@@ -95,6 +99,8 @@ Available Resonances Model
 --------------------------
 
 """
+    models = []
+    model_params = {}
     for idx, (k, v) in enumerate(get_config(PARTICLE_MODEL).items(), 1):
         doc_i = v.__doc__
         if v.__doc__ is None and v.get_amp.__doc__ is None:
@@ -102,8 +108,19 @@ Available Resonances Model
         if v.__doc__ is None:
             doc_i = v.get_amp.__doc__
 
+        if v not in models:
+            models.append(v)
+        if v in model_params:
+            model_params[v]["name"].append(f'"{k}"')
+        else:
+            model_params[v] = {"name": [f'"{k}"'], "doc": doc_i}
+
+    for idx, v in enumerate(models):
+        name_list = model_params[v]["name"]
+        name = ", ".join(name_list)
+        doc_i = model_params[v]["doc"]
         particle_model_doc += (
-            f'\n{idx}. :code:`"{k}"`'
+            f"\n{idx+1}. :code:`{name}`"
             f" (`~{v.__module__}.{v.__qualname__}`)\n\n"
         )
         idx += 1
