@@ -439,25 +439,32 @@ class VarsManager(object):
         tmp_list = []
         for name in name_list:
             for add_list in self.same_list:
+                if name not in self.variables:
+                    continue
                 if name in add_list:
                     tmp_list += add_list
                     self.same_list.remove(add_list)
                     break
+
         for i in tmp_list:
             if i not in name_list:
                 name_list.append(i)  # 去掉重复元素
 
         def same_real(name_list):
+            name_list = [i for i in name_list if i in self.variables]
+            if len(name_list) == 0:
+                return
             var = self.variables[name_list[0]]
             for name in name_list[1:]:
+                print("name", name)
                 if name in self.trainable_vars:
                     self.trainable_vars.remove(name)
                 else:
-                    var = self.variables[
-                        name
-                    ]  # if one is untrainable, the others will all be untrainable
-                    if name_list[0] in self.trainable_vars:
-                        self.trainable_vars.remove(name_list[0])
+                    # if one is untrainable, the others will all be untrainable
+                    var = self.variables.get(name, None)
+                    if var is not None:
+                        if name_list[0] in self.trainable_vars:
+                            self.trainable_vars.remove(name_list[0])
             for name in name_list:
                 self.variables[name] = var
 

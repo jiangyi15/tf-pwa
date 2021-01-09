@@ -219,6 +219,7 @@ class ConfigLoader(object):
         self.add_particle_constraints(amp, constrains.get("particle", {}))
         self.add_fix_var_constraints(amp, constrains.get("fix_var", {}))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
+        self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
 
     def add_fix_var_constraints(self, amp, dic=None):
         if dic is None:
@@ -233,6 +234,13 @@ class ConfigLoader(object):
         for k, v in dic.items():
             print("variable range: ", k, " in ", v)
             self.bound_dic[k] = v
+
+    def add_var_equal_constraints(self, amp, dic=None):
+        if dic is None:
+            dic = []
+        for k in dic:
+            print("same value:", k)
+            amp.vm.set_same(k)
 
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:
