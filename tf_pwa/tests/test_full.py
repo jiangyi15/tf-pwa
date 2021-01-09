@@ -98,6 +98,21 @@ def test_cfit(gen_toy):
     fcn.nll_grad({})
 
 
+def test_constrains(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_cfit.yml")
+    var_name = "A->R_CD.B_g_ls_1r"
+    config.config["constrains"]["init_params"] = {var_name: 1.0}
+
+    @config.register_extra_constrains("init_params")
+    def float_var(amp, params=None):
+        amp.set_params(params)
+
+    config.register_extra_constrains("init_params2", float_var)
+
+    amp = config.get_amplitude()
+    assert amp.get_params()[var_name] == 1.0
+
+
 def test_fit(toy_config, fit_result):
     toy_config.plot_partial_wave(prefix="toy_data/figure", save_root=True)
     toy_config.plot_partial_wave(

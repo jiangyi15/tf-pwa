@@ -83,6 +83,7 @@ class ConfigLoader(object):
         self.inv_he = None
         self._Ngroup = 1
         self.cached_fcn = {}
+        self.extra_constrains = {}
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -220,6 +221,22 @@ class ConfigLoader(object):
         self.add_fix_var_constraints(amp, constrains.get("fix_var", {}))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
+        for k, v in self.extra_constrains.items():
+            v(amp, constrains.get(k, {}))
+
+    def register_extra_constrains(self, name, f=None):
+        """
+        add extra_constrains
+        """
+
+        def _reg(g):
+            self.extra_constrains[name] = g
+            return g
+
+        if f is None:
+            return _reg
+        else:
+            return _reg(f)
 
     def add_fix_var_constraints(self, amp, dic=None):
         if dic is None:
