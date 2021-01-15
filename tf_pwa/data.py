@@ -310,7 +310,6 @@ def data_merge(*data, axis=0):
     return m_data
 
 
-
 def data_shape(data, axis=0, all_list=False):
     """
     Get data size.

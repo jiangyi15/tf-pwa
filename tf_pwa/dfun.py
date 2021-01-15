@@ -190,7 +190,6 @@ def exp_i(theta, mi):
     return exp_theta
 
 
-
 def D_matrix_conj(alpha, beta, gamma, j):
     """
     The conjugated D-matrix element with indices (:math:`m_1,m_2`) is
