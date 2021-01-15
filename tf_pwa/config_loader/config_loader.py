@@ -722,12 +722,9 @@ class ConfigLoader(object):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         # print(nll, params)
-        pathes = prefix.rstrip("/").split("/")
-        path = ""
-        for p in pathes:
-            path += p + "/"
-            if not os.path.exists(path):
-                os.mkdir(path)
+        path = os.path.dirname(prefix)
+        os.makedirs(path, exist_ok=True)
+
         if data is None:
             data = self.get_data("data")
             bg = self.get_data("bg")
@@ -1035,6 +1032,7 @@ class ConfigLoader(object):
         single_legend=False,
         format="png",
         nll=None,
+        smooth=True,
         **kwargs
     ):
         # cmap = plt.get_cmap("jet")
@@ -1139,26 +1137,54 @@ class ConfigLoader(object):
             style = itertools.product(colors, linestyles)
             for i, name_i, label, curve_style in chain_property:
                 weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name_i)]
-                x, y = hist_line(
-                    phsp_i,
-                    weights=weight_i,
-                    xrange=xrange,
-                    bins=bins * bin_scale,
-                )
-                if curve_style is None:
-                    color, ls = next(style)
-                    le3 = ax.plot(
-                        x,
-                        y,
-                        label=label,
-                        color=color,
-                        linestyle=ls,
-                        linewidth=1,
+                if smooth:
+                    x, y = hist_line(
+                        phsp_i,
+                        weights=weight_i,
+                        xrange=xrange,
+                        bins=bins * bin_scale,
                     )
+                    if curve_style is None:
+                        color, ls = next(style)
+                        le3 = ax.plot(
+                            x,
+                            y,
+                            label=label,
+                            color=color,
+                            linestyle=ls,
+                            linewidth=1,
+                        )
+                    else:
+                        le3 = ax.plot(
+                            x, y, curve_style, label=label, linewidth=1
+                        )
                 else:
-                    le3 = ax.plot(
-                        x, y, curve_style, label=label, linewidth=1
-                    )  # ax.step(x, y, curve_style, label=label, linewidth=1, where="mid")
+                    x, y = hist_line_step(
+                        phsp_i,
+                        weights=weight_i,
+                        xrange=xrange,
+                        bins=bins * bin_scale,
+                    )
+                    if curve_style is None:
+                        color, ls = next(style)
+                        le3 = ax.step(
+                            x,
+                            y,
+                            label=label,
+                            color=color,
+                            linestyle=ls,
+                            linewidth=1,
+                            where="mid",
+                        )
+                    else:
+                        le3 = ax.step(
+                            x,
+                            y,
+                            curve_style,
+                            label=label,
+                            linewidth=1,
+                            where="mid",
+                        )
                 legends.append(le3[0])
                 legends_label.append(label)
 
@@ -1557,7 +1583,10 @@ def hist_line_step(
     data, weights, bins, xrange=None, inter=1, kind="quadratic"
 ):
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
+    dx = x[1] - x[0]
     x = (x[:-1] + x[1:]) / 2
+    x = np.concatenate([[x[0] - dx], x, [x[-1] + dx]])
+    y = np.concatenate([[0], y, [0]])
     return x, y
 
 
