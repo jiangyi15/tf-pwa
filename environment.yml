@@ -1,0 +1,9 @@
+name: tfpwa
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python>=3.6,<=3.8
+  - pip
+  - pip:
+      - -e .[dev]

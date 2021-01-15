@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
 
+import json
+import time
+from pprint import pprint
+
 # avoid using Xwindow
 import matplotlib
+
 matplotlib.use("agg")
 
-from tf_pwa.config_loader import ConfigLoader, MultiConfig
-from pprint import pprint
-from tf_pwa.utils import error_print
 import tensorflow as tf
-import json
-
 
 # examples of custom particle model
-from tf_pwa.amp import Particle, register_particle
-from tf_pwa.expermental import extra_amp
+from tf_pwa.amp import simple_resonance
+from tf_pwa.config_loader import ConfigLoader, MultiConfig
+from tf_pwa.experimental import extra_amp, extra_data
+from tf_pwa.utils import error_print
 
-@register_particle("New")
-class NewParticle(Particle):
+
+@simple_resonance("New", params=["alpha", "beta"])
+def New_Particle(m, alpha, beta=0):
     """example Particle model define, can be used in config.yml as `model: New`"""
-    def init_params(self):
-        # self.a = self.add_var("a")
-        pass
-    def get_amp(self, data, data_extra, **kwargs):
-        # m = data["m"]
-        # q = data_extra[self.outs[0]]["|q|"]
-        # a = self.a()
-        return 1.0
+    zeros = tf.zeros_like(m)
+    r = -tf.complex(alpha, beta) * tf.complex(m, zeros)
+    return tf.exp(r)
 
 
 def json_print(dic):
@@ -34,28 +32,54 @@ def json_print(dic):
     print(s, flush=True)
 
 
-def fit(config_file="config.yml", init_params="init_params.json", method="BFGS"):
+def load_config(config_file="config.yml", total_same=False):
+    config_files = config_file.split(",")
+    if len(config_files) == 1:
+        return ConfigLoader(config_files[0])
+    return MultiConfig(config_files, total_same=total_same)
+
+
+def fit(config, init_params="", method="BFGS", loop=1):
     """
-    simple fit script 
+    simple fit script
     """
     # load config.yml
-    config = ConfigLoader(config_file)
-    
-    # set initial parameters if have
-    try:
-        config.set_params(init_params)
-        print("using {}".format(init_params))
-    except Exception as e:
-        if str(e) != "[Errno 2] No such file or directory: 'init_params.json'":
-            print(e)
-        print("\nusing RANDOM parameters", flush=True)
-    
-    # print("\n########### initial parameters")
-    # json_print(config.get_params())
+    # config = ConfigLoader(config_file)
 
-    # fit
-    data, phsp, bg, inmc = config.get_all_data()
-    fit_result = config.fit(batch=65000, method=method)
+    # load data
+    all_data = config.get_all_data()
+
+    fit_results = []
+    for i in range(loop):
+        # set initial parameters if have
+        if config.set_params(init_params):
+            print("using {}".format(init_params))
+        else:
+            print("\nusing RANDOM parameters", flush=True)
+        # try to fit
+        try:
+            fit_result = config.fit(batch=65000, method=method)
+        except KeyboardInterrupt:
+            config.save_params("break_params.json")
+            raise
+        except Exception as e:
+            print(e)
+            config.save_params("break_params.json")
+            raise
+        fit_results.append(fit_result)
+        # reset parameters
+        try:
+            config.reinit_params()
+        except Exception as e:
+            print(e)
+
+    fit_result = fit_results.pop()
+    for i in fit_results:
+        if i.success:
+            if not fit_result.success or fit_result.min_nll > i.min_nll:
+                fit_result = i
+
+    config.set_params(fit_result.params)
     json_print(fit_result.params)
     fit_result.save_as("final_params.json")
 
@@ -66,9 +90,15 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
     pprint(fit_error)
 
     print("\n########## fit results:")
+    print("Fit status: ", fit_result.success)
+    print("Minimal -lnL = ", fit_result.min_nll)
     for k, v in config.get_params().items():
         print(k, error_print(v, fit_error.get(k, None)))
 
+    return fit_result
+
+
+def write_some_results(config, fit_result):
     # plot partial wave distribution
     config.plot_partial_wave(fit_result, plot_pull=True)
 
@@ -83,81 +113,85 @@ def fit(config_file="config.yml", init_params="init_params.json", method="BFGS")
             name = "{}x{}".format(*i)
         else:
             name = i
-        fit_frac_string += "{} {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
+        fit_frac_string += "{} {}\n".format(
+            name, error_print(fit_frac[i], err_frac.get(i, None))
+        )
     print(fit_frac_string)
-    #from tf_pwa.utils import frac_table
-    #frac_table(fit_frac_string)
+    # from frac_table import frac_table
+    # frac_table(fit_frac_string)
+    # chi2, ndf = config.cal_chi2(mass=["R_BC", "R_CD"], bins=[[2,2]]*4)
 
 
-def fit_combine(config_file=["config.yml"], init_params="init_params.json", method="BFGS", total_same=False):
-    """fit with multiply config.yml"""
-    config = MultiConfig(config_file, total_same=total_same)
-    try:
-        config.set_params(init_params)
-        print("using {}".format(init_params))
-    except Exception as e:
-        if str(e) != "[Errno 2] No such file or directory: 'init_params.json'":
-            print(e)
-        print("\nusing RANDOM parameters")
-    
-    # print("\n########### initial parameters")
-    # pprint = lambda dic: print(json.dumps(dic, indent=2))
-    # pprint(config.get_params())
-    
-    fit_result = config.fit(method=method, batch=65000)
-    pprint(fit_result.params)
+def write_some_results_combine(config, fit_result):
 
-    fit_error = config.get_params_error(fit_result, batch=13000)
-    fit_result.set_error(fit_error)
-    fit_result.save_as("final_params.json")
-    pprint(fit_error)
-    
-    print("\n########## fit results:")
     from tf_pwa.applications import fit_fractions
-    for k, v in fit_result.params.items():
-        print(k, error_print(v, fit_error.get(k, None)))
 
     for i, c in enumerate(config.configs):
         c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i))
 
-    print("########## fit fractions:")
-    mcdata = config.configs[0].get_phsp_noeff()
-    fit_frac, err_frac = fit_fractions(config.configs[0].get_amplitude(), mcdata, config.inv_he, fit_result.params)
-    fit_frac_string = ""
-    for i in fit_frac:
-        if isinstance(i, tuple):
-            name = "{}x{}".format(*i) # interference term
-        else:
-            name = i # fit fraction
-        fit_frac_string += "{} {}\n".format(name, error_print(fit_frac[i], err_frac.get(i, None)))
-    print(fit_frac_string)
-    #from frac_table import frac_table
-    #frac_table(fit_frac_string)
+    for it, config_i in enumerate(config.configs):
+        print("########## fit fractions {}:".format(it))
+        mcdata = config_i.get_phsp_noeff()
+        fit_frac, err_frac = fit_fractions(
+            config_i.get_amplitude(),
+            mcdata,
+            config.inv_he,
+            fit_result.params,
+        )
+        fit_frac_string = ""
+        for i in fit_frac:
+            if isinstance(i, tuple):
+                name = "{}x{}".format(*i)  # interference term
+            else:
+                name = i  # fit fraction
+            fit_frac_string += "{} {}\n".format(
+                name, error_print(fit_frac[i], err_frac.get(i, None))
+            )
+        print(fit_frac_string)
+    # from frac_table import frac_table
+    # frac_table(fit_frac_string)
+
+
+def write_run_point():
+    """ write time as a point of fit start"""
+    with open(".run_start", "w") as f:
+        localtime = time.strftime(
+            "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+        )
+        f.write(localtime)
+
 
 def main():
     """entry point of fit. add some arguments in commond line"""
     import argparse
+
     parser = argparse.ArgumentParser(description="simple fit scripts")
-    parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
+    parser.add_argument(
+        "--no-GPU", action="store_false", default=True, dest="has_gpu"
+    )
     parser.add_argument("-c", "--config", default="config.yml", dest="config")
-    parser.add_argument("-i", "--init_params", default="init_params.json", dest="init")
+    parser.add_argument(
+        "-i", "--init_params", default="init_params.json", dest="init"
+    )
     parser.add_argument("-m", "--method", default="BFGS", dest="method")
     parser.add_argument("-l", "--loop", type=int, default=1, dest="loop")
-    parser.add_argument("--total-same", action="store_true", default=False, dest="total_same")
+    parser.add_argument(
+        "--total-same", action="store_true", default=False, dest="total_same"
+    )
     results = parser.parse_args()
-    config = results.config.split(",")
     if results.has_gpu:
         devices = "/device:GPU:0"
     else:
         devices = "/device:CPU:0"
     with tf.device(devices):
-        for i in range(results.loop):
-            if len(config) > 1:
-                fit_combine(config, results.init, results.method, results.total_same)
-            else:
-                fit(results.config, results.init, results.method)
-            print("", flush=True)
+        config = load_config(results.config, results.total_same)
+        fit_result = fit(config, results.init, results.method, results.loop)
+        if isinstance(config, ConfigLoader):
+            write_some_results(config, fit_result)
+        else:
+            write_some_results_combine(config, fit_result)
 
 
 if __name__ == "__main__":
+    write_run_point()
     main()

@@ -1,12 +1,13 @@
 """
 This module provides some functions that may be useful in other modules.
 """
+import functools
 import json
 import math
 import time
-import functools
-import numpy as np
 import warnings
+
+import numpy as np
 
 
 class AttrDict(dict):
@@ -69,7 +70,9 @@ def flatten_dict_data(data, fun="{}/{}".format):
         return data
 
 
-flatten_np_data = lambda data: flatten_dict_data(data, fun=lambda x, y: "{}{}".format(y, x[3:]))
+flatten_np_data = lambda data: flatten_dict_data(
+    data, fun=lambda x, y: "{}{}".format(y, x[3:])
+)
 
 
 def error_print(x, err=None):
@@ -190,13 +193,14 @@ def array_split(data, batch=None):
     for i in range(n_split):
         tmp = []
         for data_i in data:
-            tmp.append(data_i[i * batch:min(i * batch + batch, n_data)])
+            tmp.append(data_i[i * batch : min(i * batch + batch, n_data)])
         ret.append(tmp)
     return ret
 
 
 def time_print(f):
     """It provides a wrapper to print the time cost on a process."""
+
     @functools.wraps(f)
     def g(*args, **kwargs):
         now = time.time()
@@ -207,9 +211,15 @@ def time_print(f):
     return g
 
 
-def std_periodic_var(p, mid=0., pi=math.pi):
+def std_periodic_var(p, mid=0.0, pi=math.pi):
     """
     Transform a periodic variable into its range.
+
+    >>> std_periodic_var(math.pi)
+    -3.1415...
+
+    >>> std_periodic_var(2*math.pi + 0.01)
+    0.0...
 
     :param p: Value
     :param mid: The middle value
@@ -217,7 +227,7 @@ def std_periodic_var(p, mid=0., pi=math.pi):
     :return: The transformed value
     """
     twopi = 2 * pi
-    while p <= mid - pi:
+    while p < mid - pi:
         p += twopi
     while p >= mid + pi:
         p -= twopi
@@ -225,7 +235,16 @@ def std_periodic_var(p, mid=0., pi=math.pi):
 
 
 def check_positive_definite(m):
-    """check if matrix m is postive definite"""
+    """check if matrix m is postive definite
+
+    >>> check_positive_definite([[1.0,0.0],[0.0, 0.1]])
+    True
+
+    >>> check_positive_definite([[1.0,0.0],[1.0,-0.1]])
+    eigvalues:  [-0.1  1. ]
+    False
+
+    """
     e, v = np.linalg.eig(m)
     if np.all(e > 0.0):
         return True

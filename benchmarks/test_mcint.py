@@ -1,8 +1,8 @@
 import pytest
 
-from tf_pwa.phasespace import PhaseSpaceGenerator
-from tf_pwa.cal_angle import *
 from tf_pwa.amp import *
+from tf_pwa.cal_angle import cal_angle_from_momentum
+from tf_pwa.phasespace import PhaseSpaceGenerator
 
 
 def generate_mc(num):
@@ -51,6 +51,7 @@ def test_mc_int(benchmark):
 
     def mc_int(dat):
         return tf.reduce_sum(amp(dat))
+
     benchmark(mc_int, data)
 
 
@@ -60,6 +61,7 @@ def test_mc_int_CPU(benchmark):
 
     def mc_int(dat):
         return tf.reduce_sum(amp(dat))
+
     with tf.device("CPU:0"):
         benchmark(mc_int, data)
 
@@ -70,6 +72,7 @@ def test_mc_int2(benchmark):
 
     def mc_int(dat):
         return tf.reduce_sum(amp(dat))
+
     benchmark(mc_int, data)
 
 
@@ -79,6 +82,7 @@ def test_mc_int2_CPU(benchmark):
 
     def mc_int(dat):
         return tf.reduce_sum(amp(dat))
+
     with tf.device("CPU:0"):
         benchmark(mc_int, data)
 
@@ -92,7 +96,9 @@ def test_mc_int_grad(benchmark):
             int_mc = tf.reduce_sum(amp(dat))
         args = tape.gradient(int_mc, params)
         return int_mc, args
+
     benchmark(mc_int, data)
+
 
 @pytest.mark.benchmark(group="mc_int")
 def test_mc_int_grad_CPU(benchmark):
@@ -103,5 +109,6 @@ def test_mc_int_grad_CPU(benchmark):
             int_mc = tf.reduce_sum(amp(dat))
         args = tape.gradient(int_mc, params)
         return int_mc, args
+
     with tf.device("CPU:0"):
         benchmark(mc_int, data)

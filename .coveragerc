@@ -3,15 +3,15 @@
 branch = True
 omit =
     # large io files
-    #tf_pwa/config_loader.py
-    tf_pwa/applications.py
-    tf_pwa/fit.py
-    tf_pwa/root_io.py
+    # tf_pwa/config_loader.py
+    # tf_pwa/applications.py
+    # tf_pwa/fit.py
+    # tf_pwa/root_io.py
     # GPU required
     tf_pwa/gpu_info.py
     # Deprecated module
     # test file
-	*/test_*.py
+	# */test_*.py
 
 
 [paths]

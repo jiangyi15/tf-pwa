@@ -52,11 +52,19 @@ Inner nodes are named as tuple of particles.
 
 import numpy as np
 
-from .angle import EulerAngle, LorentzVector, Vector3, SU2M, _epsilon
-from .data import load_dat_file, flatten_dict_data, data_shape, split_generator, data_to_numpy, data_strip, data_merge
-from .tensorflow_wrapper import tf
-from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
+from .angle import SU2M, EulerAngle, LorentzVector, Vector3, _epsilon
 from .config import get_config
+from .data import (
+    data_merge,
+    data_shape,
+    data_strip,
+    data_to_numpy,
+    flatten_dict_data,
+    load_dat_file,
+    split_generator,
+)
+from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
+from .tensorflow_wrapper import tf
 
 
 def struct_momentum(p, center_mass=True) -> dict:
@@ -161,9 +169,9 @@ def cal_chain_boost(data, decay_chain: DecayChain) -> dict:
             else:
                 tmp_decay_set.append(i)
         decay_set = tmp_decay_set
-    #from pprint import pprint
-    #pprint(part_data)
-    #exit()
+    # from pprint import pprint
+    # pprint(part_data)
+    # exit()
     return part_data
 
 
@@ -180,14 +188,18 @@ def cal_single_boost(data, decay_chain: DecayChain) -> dict:
             part_data[i]["rest_p"][j] = p
     return part_data
 
+
 # from pysnooper import snoop
 # @snoop()
-def cal_helicity_angle(data: dict, decay_chain: DecayChain,
-                       base_z=np.array([[0.0, 0.0, 1.0]]),
-                       base_x=np.array([[1.0, 0.0, 0.0]])) -> dict:
+def cal_helicity_angle(
+    data: dict,
+    decay_chain: DecayChain,
+    base_z=np.array([[0.0, 0.0, 1.0]]),
+    base_x=np.array([[1.0, 0.0, 0.0]]),
+) -> dict:
     """
-    Calculate helicity angle for A -> B + C: :math:`\\theta_{B}^{A}, \\phi_{B}^{A}` from momentum. 
-    
+    Calculate helicity angle for A -> B + C: :math:`\\theta_{B}^{A}, \\phi_{B}^{A}` from momentum.
+
     from `{A:{p:momentum},B:{p:...},C:{p:...}}`
 
     to   `{A->B+C:{B:{"ang":{"alpha":...,"beta":...,"gamma":...},"x":...,"z"},...}}`
@@ -195,9 +207,9 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     ret = {}
     # boost all in them mother rest frame
 
-    #print(decay_chain, part_data)
+    # print(decay_chain, part_data)
     part_data = cal_chain_boost(data, decay_chain)
-    #print(decay_chain , part_data)
+    # print(decay_chain , part_data)
     # calculate angle and base x,z axis from mother particle rest frame momentum and base axis
     set_x = {decay_chain.top: base_x}
     set_z = {decay_chain.top: base_z}
@@ -209,22 +221,26 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
         for i in set_decay:
             if i.core in set_x:
                 ret[i] = {}
-                bias = - np.pi
+                bias = -np.pi
                 for j in i.outs:
                     ret[i][j] = {}
                     p_rest = part_data[i]["rest_p"][j]
                     z2 = LorentzVector.vect(p_rest)
-                    ang, x = EulerAngle.angle_zx_z_getx(set_z[i.core], set_x[i.core], z2)
+                    ang, x = EulerAngle.angle_zx_z_getx(
+                        set_z[i.core], set_x[i.core], z2
+                    )
                     set_x[j] = x
                     set_z[j] = z2
-                    ang["alpha"] = (ang["alpha"] - bias) % (2*np.pi) + bias
+                    ang["alpha"] = (ang["alpha"] - bias) % (2 * np.pi) + bias
                     bias += np.pi
                     ret[i][j]["ang"] = ang
                     ret[i][j]["x"] = x
                     ret[i][j]["z"] = z2
                     Bp = SU2M.Boost_z_from_p(p_rest)
                     b_matrix[j] = Bp
-                    r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
+                    r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(
+                        ang["alpha"]
+                    )
                     if i.core in r_matrix:
                         r_matrix[j] = r * r_matrix[i.core] * b_matrix[i.core]
                     else:
@@ -233,16 +249,22 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
                     # Euler Angle for
                     p_rest = [part_data[i]["rest_p"][j] for j in i.outs]
                     zi = [LorentzVector.vect(i) for i in p_rest]
-                    ret[i]["ang"], xi = EulerAngle.angle_zx_zzz_getx(set_z[i.core], set_x[i.core], zi)
+                    ret[i]["ang"], xi = EulerAngle.angle_zx_zzz_getx(
+                        set_z[i.core], set_x[i.core], zi
+                    )
                     for j, x, z, p_rest_i in zip(i.outs, xi, zi, p_rest):
                         ret[i][j] = {}
                         ret[i][j]["x"] = x
                         ret[i][j]["z"] = z
                         Bp = SU2M.Boost_z_from_p(p_rest_i)
                         b_matrix[j] = Bp
-                        r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
+                        r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(
+                            ang["alpha"]
+                        )
                         if i.core in r_matrix:
-                            r_matrix[j] = r * b_matrix[i.core] * r_matrix[i.core]
+                            r_matrix[j] = (
+                                r * b_matrix[i.core] * r_matrix[i.core]
+                            )
                         else:
                             r_matrix[j] = r
             else:
@@ -253,10 +275,17 @@ def cal_helicity_angle(data: dict, decay_chain: DecayChain,
     return ret
 
 
-def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, random_z=True, r_boost=True, final_rest=True):
+def cal_angle_from_particle(
+    data,
+    decay_group: DecayGroup,
+    using_topology=True,
+    random_z=True,
+    r_boost=True,
+    final_rest=True,
+):
     """
     Calculate helicity angle for particle momentum, add aligned angle.
-    
+
     :params data: dict as {particle: {"p":...}}
 
     :return: Dictionary of data
@@ -312,10 +341,14 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
                         b_matrix = decay_data[decay_chain]["b_matrix"][i]
                         r_matrix_ref = decay_data[ref_matrix[i]]["r_matrix"][i]
                         b_matrix_ref = decay_data[ref_matrix[i]]["b_matrix"][i]
-                        R =  SU2M(r_matrix_ref["x"]) * SU2M.inv(r_matrix)
+                        R = SU2M(r_matrix_ref["x"]) * SU2M.inv(r_matrix)
                         # print(R)
                         if final_rest:
-                            R = SU2M(b_matrix_ref["x"]) * R * SU2M.inv(b_matrix)
+                            R = (
+                                SU2M(b_matrix_ref["x"])
+                                * R
+                                * SU2M.inv(b_matrix)
+                            )
                         ang = R.get_euler_angle()
                     else:
                         x1 = part_data[i]["x"]
@@ -323,9 +356,9 @@ def cal_angle_from_particle(data, decay_group: DecayGroup, using_topology=True, 
                         z1 = part_data[i]["z"]
                         z2 = part_data2[i]["z"]
                         ang = EulerAngle.angle_zx_zx(z1, x1, z2, x2)
-                    #ang = AlignmentAngle.angle_px_px(z1, x1, z2, x2)
+                    # ang = AlignmentAngle.angle_px_px(z1, x1, z2, x2)
                     part_data[i]["aligned_angle"] = ang
-    ret = data_strip(decay_data, ["r_matrix", "b_matrix"])
+    ret = data_strip(decay_data, ["r_matrix", "b_matrix", "x", "z"])
     return ret
 
 
@@ -345,13 +378,15 @@ def Getp(M_0, M_1, M_2):
     M12S = M_1 + M_2
     M12D = M_1 - M_2
     p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
-    q = (p + tf.abs(p)) / 2  # if p is negative, which results from bad data, the return value is 0.0
+    q = (
+        p + tf.abs(p)
+    ) / 2  # if p is negative, which results from bad data, the return value is 0.0
     return tf.sqrt(q) / (2 * M_0)
 
 
 def get_relative_momentum(data: dict, decay_chain: DecayChain):
     """
-    add add rest frame momentum scalar from data momentum. 
+    add add rest frame momentum scalar from data momentum.
 
     from `{"particle": {A: {"m": ...}, ...}, "decay": {A->B+C: {...}, ...}`
 
@@ -368,7 +403,9 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
     return ret
 
 
-def prepare_data_from_decay(fnames, decs, particles=None, dtype=None, **kwargs):
+def prepare_data_from_decay(
+    fnames, decs, particles=None, dtype=None, **kwargs
+):
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -395,11 +432,13 @@ def prepare_data_from_dat_file(fnames):
     bc, cd, bd = [BaseParticle(i) for i in ["BC", "CD", "BD"]]
     p = load_dat_file(fnames, [d, b, c])
     # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
-    decs = DecayGroup([
-        [BaseDecay(a, [bc, d]), BaseDecay(bc, [b, c])],
-        [BaseDecay(a, [bd, c]), BaseDecay(bd, [b, d])],
-        [BaseDecay(a, [cd, b]), BaseDecay(cd, [c, d])]
-    ])
+    decs = DecayGroup(
+        [
+            [BaseDecay(a, [bc, d]), BaseDecay(bc, [b, c])],
+            [BaseDecay(a, [bd, c]), BaseDecay(bd, [b, d])],
+            [BaseDecay(a, [cd, b]), BaseDecay(cd, [c, d])],
+        ]
+    )
     # decs = DecayChain.from_particles(a, [d, b, c])
     data = cal_angle_from_momentum(p, decs)
     data = data_to_numpy(data)
@@ -424,7 +463,15 @@ def get_chain_data(data, decay_chain=None):
     return ret
 
 
-def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True, random_z=False, batch=65000) -> dict:
+def cal_angle_from_momentum(
+    p,
+    decs: DecayGroup,
+    using_topology=True,
+    center_mass=False,
+    r_boost=True,
+    random_z=False,
+    batch=65000,
+) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -434,11 +481,22 @@ def cal_angle_from_momentum(p, decs: DecayGroup, using_topology=True, center_mas
     """
     ret = []
     for i in split_generator(p, batch):
-        ret.append(cal_angle_from_momentum_single(i, decs, using_topology, center_mass, r_boost, random_z))
+        ret.append(
+            cal_angle_from_momentum_single(
+                i, decs, using_topology, center_mass, r_boost, random_z
+            )
+        )
     return data_merge(*ret)
 
 
-def cal_angle_from_momentum_single(p, decs: DecayGroup, using_topology=True, center_mass=False, r_boost=True, random_z=True) -> dict:
+def cal_angle_from_momentum_single(
+    p,
+    decs: DecayGroup,
+    using_topology=True,
+    center_mass=False,
+    r_boost=True,
+    random_z=True,
+) -> dict:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
 
@@ -446,6 +504,7 @@ def cal_angle_from_momentum_single(p, decs: DecayGroup, using_topology=True, cen
     :param decs: DecayGroup
     :return: Dictionary of data
     """
+    p = {BaseParticle(k) if isinstance(k, str) else k: v for k, v in p.items()}
     p = {i: p[i] for i in decs.outs}
     data_p = struct_momentum(p, center_mass=center_mass)
     if using_topology:
@@ -457,7 +516,9 @@ def cal_angle_from_momentum_single(p, decs: DecayGroup, using_topology=True, cen
         # print(data_p)
         # exit()
         data_p = add_mass(data_p, dec)
-    data_d = cal_angle_from_particle(data_p, decs, using_topology, r_boost=r_boost, random_z=random_z)
+    data_d = cal_angle_from_particle(
+        data_p, decs, using_topology, r_boost=r_boost, random_z=random_z
+    )
     data = {"particle": data_p, "decay": data_d}
     return data
 
@@ -486,24 +547,37 @@ def prepare_data_from_dat_file4(fnames):
     return data
 
 
-def get_keys(dic, key_path=''):
+def get_keys(dic, key_path=""):
     """get_keys of nested dictionary
+
+    >>> a = {"a": 1, "b": {"c": 2}}
+    >>> get_keys(a)
+    ['/a', '/b/c']
+
     """
     keys_list = []
+
     def get_keys(dic, key_path):
         if type(dic) == dict:
             for i in dic:
                 get_keys(dic[i], key_path + "/" + str(i))
         else:
             keys_list.append(key_path)
+
     get_keys(dic, key_path)
     return keys_list
 
 
 def get_key_content(dic, key_path):
     """get key content. E.g. get_key_content(data, '/particle/(B, C)/m')
+
+    >>> data = {"particle": {"(B, C)": {"p": 0.1, "m": 1.0},"B":1.0}}
+    >>> get_key_content(data, '/particle/(B, C)/m')
+    1.0
+
     """
-    keys = key_path.strip('/').split('/')
+    keys = key_path.strip("/").split("/")
+
     def get_content(dic, keys):
         if len(keys) == 0:
             return dic
@@ -512,4 +586,5 @@ def get_key_content(dic, key_path):
                 ret = get_content(dic[k], keys[1:])
                 break
         return ret
+
     return get_content(dic, keys)

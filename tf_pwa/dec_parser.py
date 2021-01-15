@@ -1,15 +1,15 @@
 """
-module for parsing decay card *.dec file
+module for parsing decay card :code:`*.dec` file
 """
 import re
 import warnings
 
-
 # from pysnooper import snoop
+
 
 def load_dec(s):
     """
-    load *.dec string
+    load :code:`*.dec` string
     """
     lines = split_lines(s)
     return process_decay_card(lines)
@@ -17,7 +17,7 @@ def load_dec(s):
 
 def load_dec_file(f):
     """
-    load *.dec file
+    load :code:`*.dec` file
     """
     lines = f.readlines()
     return process_decay_card(lines)
@@ -61,6 +61,7 @@ commands = {}
 
 def regist_command(name=None):
     """regist command function for command call"""
+
     def g(f):
         name1 = name
         if name1 is None:
@@ -117,8 +118,7 @@ def get_decay(words, lines):
     return ("Decay", {"name": core, "final": ret})
 
 
-models = {"HELCOV": None,
-          "PHSP": None}
+models = {"HELCOV": None, "PHSP": None}
 
 
 def sigle_decay(s):
@@ -138,10 +138,7 @@ def sigle_decay(s):
                 outs.append(i)
             else:
                 params.append(i)
-    return {"outs": outs,
-            "model": model,
-            "total": total,
-            "params": params}
+    return {"outs": outs, "model": model, "total": total, "params": params}
 
 
 @regist_command(name="Particle")

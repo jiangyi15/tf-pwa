@@ -1,0 +1,6 @@
+tensorflow-gpu>=2.0,<=2.2
+matplotlib
+pyyaml
+scipy
+setuptools_scm
+sympy

@@ -4,23 +4,26 @@ It acts like a synthesis of all the other modules of their own physical purposes
 In general, users only need to import functions in this module to implement their physical analysis instead of
 going into every modules. There are some example files where you can figure out how it is used.
 """
-import time
 import os
+import time
+
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from scipy.stats import norm as Norm
 
+from .cal_angle import cal_angle_from_momentum, prepare_data_from_decay
+from .data import data_to_tensor, load_dat_file, split_generator
+from .fit import fit_minuit, fit_multinest, fit_scipy
 from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
-from .data import split_generator, load_dat_file, data_to_tensor
-from .cal_angle import prepare_data_from_decay, cal_angle_from_momentum
 from .phasespace import PhaseSpaceGenerator
-from .fit import fit_scipy, fit_minuit, fit_multinest
 from .significance import significance
-from .utils import error_print, std_periodic_var, check_positive_definite
+from .utils import check_positive_definite, error_print, std_periodic_var
 
 
-def fit_fractions(amp, mcdata, inv_he=None, params=None, batch=25000):
+def fit_fractions(
+    amp, mcdata, inv_he=None, params=None, batch=25000, res=None
+):
     """
     This function calculate fit fractions of the resonances as well as their coherent pairs. It imports
     ``cal_fitfractions`` and ``cal_fitfractions_no_grad`` from module **tf_pwa.fitfractions**.
@@ -45,7 +48,7 @@ def fit_fractions(amp, mcdata, inv_he=None, params=None, batch=25000):
         params = {}
     err_frac = {}
     with amp.temp_params(params):
-        frac, grad = cal_fitfractions(amp, mcdata, batch=batch)
+        frac, grad = cal_fitfractions(amp, mcdata, res=res, batch=batch)
     if inv_he is not None:
         for i in frac:
             err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
@@ -198,7 +201,9 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     :return inv_he: The inverse Hessian matrix.
     """
     t = time.time()
-    nll, g, h = fcn.nll_grad_hessian(params)  # data_w,mcdata,weight=weights,batch=50000)
+    nll, g, h = fcn.nll_grad_hessian(
+        params
+    )  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     if check_positive_definite(h.numpy()):
         inv_he = np.linalg.inv(h.numpy())
@@ -211,8 +216,17 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     return hesse_error, inv_he
 
 
-def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
-             bgfile=None, genfile=None):
+def gen_data(
+    amp,
+    Ndata,
+    mcfile,
+    Nbg=0,
+    wbg=0,
+    Poisson_fluc=False,
+    bgfile=None,
+    genfile=None,
+    particles=None,
+):
     """
     This function is used to generate toy data according to an amplitude model.
 
@@ -234,8 +248,8 @@ def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
         Nbg = np.random.poisson(Nbg)
     print("data:", Nmc + Nbg, ", sig:", Nmc, ", bkg:", Nbg)
     dtype = "float64"
-
-    particles = sorted(amp.decay_group.outs)
+    if not particles:
+        particles = sorted(amp.decay_group.outs)
     phsp = prepare_data_from_decay(mcfile, amp.decay_group, dtype=dtype)
     phsp = data_to_tensor(phsp)
     ampsq = amp(phsp)
@@ -245,17 +259,23 @@ def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
     idx_list = []
 
     while n < Nmc:
-        uni_rdm = tf.random.uniform([Nsample], minval=0, maxval=ampsq_max, dtype=dtype)
+        uni_rdm = tf.random.uniform(
+            [Nsample], minval=0, maxval=ampsq_max, dtype=dtype
+        )
         list_rdm = tf.random.uniform([Nsample], dtype=tf.int64, maxval=Nsample)
         j = 0
-        for i in list_rdm:
-            if ampsq[i] > uni_rdm[j]:
-                idx_list.append(i)
-                n += 1
-            j += 1
-            if n == Nmc:
-                break
-    idx_list = tf.stack(idx_list).numpy()
+        mask = tf.boolean_mask(list_rdm, tf.gather(ampsq, list_rdm) > uni_rdm)
+        idx_list.append(mask)
+        n += mask.shape[0]
+        # print(mask)
+        # for i in list_rdm:
+        # if ampsq[i] > uni_rdm[j]:
+        # idx_list.append(i)
+        # n += 1
+        # j += 1
+        # if n == Nmc:
+        # break
+    idx_list = tf.concat(idx_list, axis=0).numpy()[:Nmc]
 
     data_tmp = load_dat_file(mcfile, particles, dtype)
     for i in particles:
@@ -264,8 +284,9 @@ def gen_data(amp, Ndata, mcfile, Nbg=0, wbg=0, Poisson_fluc=False,
 
     if Nbg:
         bg_tmp = load_dat_file(bgfile, particles, dtype)
-        bg_idx = tf.random.uniform([Nbg], dtype=tf.int64,
-                                   maxval=len(bg_tmp[particles[0]]))  # np.random.randint(len(bg),size=Nbg)
+        bg_idx = tf.random.uniform(
+            [Nbg], dtype=tf.int64, maxval=len(bg_tmp[particles[0]])
+        )  # np.random.randint(len(bg),size=Nbg)
         bg_idx = tf.stack(bg_idx).numpy()
         for i in particles:
             tmp = bg_tmp[i][bg_idx]
@@ -392,15 +413,23 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 
     try:
         from iminuit import Minuit
+
         print("Using Minuit to fit the histogram")
+
         def fitNormHist(data):
             def nll(mu, sigma):
                 def normpdf(x, mu, sigma):
-                    return np.exp(-(x - mu) * (x - mu) / 2 / sigma / sigma) / np.sqrt(2 * np.pi) / sigma
+                    return (
+                        np.exp(-(x - mu) * (x - mu) / 2 / sigma / sigma)
+                        / np.sqrt(2 * np.pi)
+                        / sigma
+                    )
 
                 return -np.sum(np.log(normpdf(data, mu, sigma)))
 
-            m = Minuit(nll, mu=0, sigma=1, error_mu=0.1, error_sigma=0.1, errordef=0.5)
+            m = Minuit(
+                nll, mu=0, sigma=1, error_mu=0.1, error_sigma=0.1, errordef=0.5
+            )
             m.migrad()
             m.hesse()
             return m
@@ -411,16 +440,29 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 
     except Exception as e:
         if type(e) is ModuleNotFoundError:
-            print("No Minuit installed. Using scipy.optimize to fit the histogram")
+            print(
+                "No Minuit installed. Using scipy.optimize to fit the histogram"
+            )
             from scipy.optimize import minimize
+
             def fitNormHist(data):
                 def nll(mu_sigma):
                     def normpdf(x, mu_sigma):
-                        return np.exp(-(x - mu_sigma[0]) * (x - mu_sigma[0]) / 2 / mu_sigma[1] / mu_sigma[1]) / np.sqrt(2 * np.pi) / mu_sigma[1]
+                        return (
+                            np.exp(
+                                -(x - mu_sigma[0])
+                                * (x - mu_sigma[0])
+                                / 2
+                                / mu_sigma[1]
+                                / mu_sigma[1]
+                            )
+                            / np.sqrt(2 * np.pi)
+                            / mu_sigma[1]
+                        )
 
                     return -np.sum(np.log(normpdf(data, mu_sigma)))
 
-                s = minimize(nll, [0,1])
+                s = minimize(nll, [0, 1])
                 return s
 
             s = fitNormHist(data)
@@ -432,7 +474,12 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
     y = Norm.pdf(bins, mu, sigma)
     plt.plot(bins, y, "r-")
     plt.xlabel(name)
-    plt.title("mu = " + error_print(mu, err_mu) + '; sigma = ' + error_print(sigma, err_sigma))
+    plt.title(
+        "mu = "
+        + error_print(mu, err_mu)
+        + "; sigma = "
+        + error_print(sigma, err_sigma)
+    )
     plt.savefig("fig/" + name + "_pull.png")
     plt.clf()
     return mu, sigma, err_mu, err_sigma
@@ -454,6 +501,7 @@ def plot_pull(data, name, nbins=20, norm=False, value=None, error=None):
 # elif mode == "back&forth":
 #    x1 = np.arange(start, end, step)
 #    x2 = x1[::-1]
+
 
 def likelihood_profile(m, var_names, bins=20, minos=True):
     """
@@ -478,7 +526,15 @@ def likelihood_profile(m, var_names, bins=20, minos=True):
     return lklpf
 
 
-def compare_result(value1, value2, error1, error2=None, figname=None, yrange=None, periodic_vars=None):
+def compare_result(
+    value1,
+    value2,
+    error1,
+    error2=None,
+    figname=None,
+    yrange=None,
+    periodic_vars=None,
+):
     """
     Compare two groups of fitting results. If only one error is provided,
     the figure is :math:`\\frac{\\mu_1-\\mu_2}{\\sigma_1}`;
@@ -516,7 +572,11 @@ def compare_result(value1, value2, error1, error2=None, figname=None, yrange=Non
         if yrange:
             for v in diff_dict:
                 if np.abs(diff_dict[v]) > yrange:
-                    print("{0} out of yrange, which is {1}.".format(v, diff_dict[v]))
+                    print(
+                        "{0} out of yrange, which is {1}.".format(
+                            v, diff_dict[v]
+                        )
+                    )
                     arr.append(np.sign(diff_dict[v]) * yrange)
                 else:
                     arr.append(diff_dict[v])

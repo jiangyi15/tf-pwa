@@ -1,6 +1,5 @@
-from tf_pwa.tests.common import write_temp_file
 from tf_pwa.config_loader import ConfigLoader
-
+from tf_pwa.tests.common import write_temp_file
 
 config_str = """
 
@@ -15,14 +14,14 @@ decay:
       - c
     - [R3, d, model: default]
     R1: [c, d, l_list: [0]]
-    R2: 
+    R2:
       - b
       - d
     R3: [b, c]
 
 particle:
     $top:
-        ee: 
+        ee:
             J: 1
             P: -1
             spins: [-1, 1]
@@ -47,7 +46,7 @@ R1_b: {J: 1, P: -1, mass: 2.3, width: 0.03}
 
 def test_load():
     with write_temp_file(resonancs_str) as f:
-        cs = config_str.format(file_name = f)
+        cs = config_str.format(file_name=f)
         print(cs)
         with write_temp_file(cs) as g:
             config = ConfigLoader(g)

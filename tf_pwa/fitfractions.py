@@ -1,6 +1,7 @@
 import functools
-import tensorflow as tf
+
 import numpy as np
+import tensorflow as tf
 
 from tf_pwa.data import data_split
 
@@ -24,23 +25,23 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
     defination:
 
     .. math::
-    FF_{i} = \frac{\int |A_i|^2 d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
-    \approx \frac{\sum |A_i|^2 }{\sum|\sum_{i} A_{i}|^2}
+        FF_{i} = \frac{\int |A_i|^2 d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
+        \approx \frac{\sum |A_i|^2 }{\sum|\sum_{i} A_{i}|^2}
 
     interference fitfraction:
 
     .. math::
-    FF_{i,j} = \frac{\int 2Re(A_i A_j*) d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
-    = \frac{\int |A_i +A_j|^2  d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega } - FF_{i} - FF_{j}
+        FF_{i,j} = \frac{\int 2Re(A_i A_j*) d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega }
+        = \frac{\int |A_i +A_j|^2  d\Omega }{ \int |\sum_{i}A_i|^2 d\Omega } - FF_{i} - FF_{j}
 
-    gradients (for error transfer): 
+    gradients (for error transfer):
 
     .. math::
-    \frac{\partial }{\partial \theta_i }\frac{f(\theta_i)}{g(\theta_i)} =
+        \frac{\partial }{\partial \theta_i }\frac{f(\theta_i)}{g(\theta_i)} =
         \frac{\partial f(\theta_i)}{\partial \theta_i} \frac{1}{g(\theta_i)} -
         \frac{\partial g(\theta_i)}{\partial \theta_i} \frac{f(\theta_i)}{g^2(\theta_i)}
 
-  """
+    """
     kwargs = kwargs if kwargs is not None else {}
     var = amp.trainable_variables
     # allvar = [i.name for i in var]
@@ -58,7 +59,9 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
         mcdata = list(data_split(mcdata, batch))
         if not isinstance(weight, float):
             weight = list(data_split(weight, batch))
-    int_mc, g_int_mc = sum_gradient(amp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
+    int_mc, g_int_mc = sum_gradient(
+        amp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs
+    )
     for i in range(n_res):
         for j in range(i, -1, -1):
             amp_tmp = amp
@@ -68,21 +71,41 @@ def cal_fitfractions(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
             else:
                 name = (str(res[i]), str(res[j]))
                 amp_tmp.set_used_res([res[i], res[j]])
-            int_tmp, g_int_tmp = sum_gradient(amp_tmp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
+            int_tmp, g_int_tmp = sum_gradient(
+                amp_tmp,
+                mcdata,
+                var=var,
+                weight=weight,
+                args=args,
+                kwargs=kwargs,
+            )
             if i == j:
-                fitFrac[name] = (int_tmp / int_mc)
-                gij = g_int_tmp / int_mc - (int_tmp / int_mc) * g_int_mc / int_mc
+                fitFrac[name] = int_tmp / int_mc
+                gij = (
+                    g_int_tmp / int_mc - (int_tmp / int_mc) * g_int_mc / int_mc
+                )
                 g_fitFrac[i] = gij
             else:
-                fitFrac[name] = (int_tmp / int_mc) - fitFrac["{}".format(res[i])] - fitFrac["{}".format(res[j])]
-                gij = g_int_tmp / int_mc - (int_tmp / int_mc) * g_int_mc / int_mc - g_fitFrac[i] - g_fitFrac[j]
+                fitFrac[name] = (
+                    (int_tmp / int_mc)
+                    - fitFrac["{}".format(res[i])]
+                    - fitFrac["{}".format(res[j])]
+                )
+                gij = (
+                    g_int_tmp / int_mc
+                    - (int_tmp / int_mc) * g_int_mc / int_mc
+                    - g_fitFrac[i]
+                    - g_fitFrac[j]
+                )
             # print(name,gij.tolist())
             err_fitFrac[name] = gij
     amp.set_used_res(cahced_res)
     return fitFrac, err_fitFrac
 
 
-def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=None):
+def cal_fitfractions_no_grad(
+    amp, mcdata, res=None, batch=None, args=(), kwargs=None
+):
     r"""
     calculate fit fractions without gradients.
     """
@@ -101,7 +124,9 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=
         mcdata = list(data_split(mcdata, batch))
         if not isinstance(weight, float):
             weight = list(data_split(weight, batch))
-    int_mc = sum_no_gradient(amp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
+    int_mc = sum_no_gradient(
+        amp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs
+    )
     for i in range(n_res):
         for j in range(i, -1, -1):
             amp_tmp = amp
@@ -111,16 +136,36 @@ def cal_fitfractions_no_grad(amp, mcdata, res=None, batch=None, args=(), kwargs=
             else:
                 name = "{}x{}".format(res[i], res[j])
                 amp_tmp.set_used_res([res[i], res[j]])
-            int_tmp = sum_no_gradient(amp_tmp, mcdata, var=var, weight=weight, args=args, kwargs=kwargs)
+            int_tmp = sum_no_gradient(
+                amp_tmp,
+                mcdata,
+                var=var,
+                weight=weight,
+                args=args,
+                kwargs=kwargs,
+            )
             if i == j:
-                fitFrac[name] = (int_tmp / int_mc)
+                fitFrac[name] = int_tmp / int_mc
             else:
-                fitFrac[name] = (int_tmp / int_mc) - fitFrac["{}".format(res[i])] - fitFrac["{}".format(res[j])]
+                fitFrac[name] = (
+                    (int_tmp / int_mc)
+                    - fitFrac["{}".format(res[i])]
+                    - fitFrac["{}".format(res[j])]
+                )
     amp.set_used_res(cahced_res)
     return fitFrac
 
 
-def sum_gradient(amp, data, var, weight=1.0, func=lambda x: x, grad=True, args=(), kwargs=None):
+def sum_gradient(
+    amp,
+    data,
+    var,
+    weight=1.0,
+    func=lambda x: x,
+    grad=True,
+    args=(),
+    kwargs=None,
+):
     kwargs = kwargs if kwargs is not None else {}
     # n_variables = len(var)
     if isinstance(weight, float):  # 给data乘weight
@@ -135,7 +180,9 @@ def sum_gradient(amp, data, var, weight=1.0, func=lambda x: x, grad=True, args=(
 
     for d, w in zip(data, weight):
         if grad:  # 是否提供grad表达式
-            p_nll, a = nll_grad(f, var, args=(d, w))()  # 调用上面定义的nll_grad，返回f(d,w)和f对var的导数
+            p_nll, a = nll_grad(
+                f, var, args=(d, w)
+            )()  # 调用上面定义的nll_grad，返回f(d,w)和f对var的导数
             g_list.append([i.numpy() for i in a])
         else:
             p_nll = f(d, w)

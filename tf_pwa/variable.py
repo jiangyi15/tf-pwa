@@ -1,10 +1,13 @@
 """
 This module implements classes and methods to manage the variables in fitting.
 """
-from .tensorflow_wrapper import tf
-import numpy as np
 import warnings
-from .config import regist_config, get_config
+
+import numpy as np
+import sympy as sy
+
+from .config import get_config, regist_config
+from .tensorflow_wrapper import tf
 
 
 def combineVM(vm1, vm2, name="", same_list=None):
@@ -17,7 +20,9 @@ def combineVM(vm1, vm2, name="", same_list=None):
     if same_list is None:
         same_list = []
     if vm1.name == vm2.name:
-        raise Exception("The two VarsManager to be combined have the same name.")
+        raise Exception(
+            "The two VarsManager to be combined have the same name."
+        )
     vm = VarsManager(name, vm1.dtype)
 
     for i in vm1.variables:
@@ -89,7 +94,11 @@ class VarsManager(object):
 
         self.bnd_dic = {}  # {name:(a,b),...}
 
-        self.var_head = {}  # {head:[name1,name2],...} It's operated directly by Variable objects
+        self.var_head = (
+            {}
+        )  # {head:[name1,name2],...} It's operated directly by Variable objects
+
+        self.init_val = {}
 
     def add_real_var(self, name, value=None, range_=None, trainable=True):
         """
@@ -108,21 +117,35 @@ class VarsManager(object):
 
         if value is None:
             if range_ is None:  # random [0,1]
-                self.variables[name] = tf.Variable(tf.random.uniform(shape=[], minval=0., maxval=1., dtype=self.dtype),
-                                                   trainable=trainable)
+                self.variables[name] = tf.Variable(
+                    tf.random.uniform(
+                        shape=[], minval=0.0, maxval=1.0, dtype=self.dtype
+                    ),
+                    trainable=trainable,
+                )
             else:  # random [a,b]
                 self.variables[name] = tf.Variable(
-                    tf.random.uniform(shape=[], minval=range_[0], maxval=range_[1], dtype=self.dtype),
-                    trainable=trainable)
+                    tf.random.uniform(
+                        shape=[],
+                        minval=range_[0],
+                        maxval=range_[1],
+                        dtype=self.dtype,
+                    ),
+                    trainable=trainable,
+                )
         else:  # constant value
             if name in self.bnd_dic:
                 value = self.bnd_dic[name].get_y2x(value)
-            self.variables[name] = tf.Variable(value, dtype=self.dtype, trainable=trainable)
+            self.variables[name] = tf.Variable(
+                value, dtype=self.dtype, trainable=trainable
+            )
 
         if trainable:
             self.trainable_vars.append(name)
 
-    def add_complex_var(self, name, polar=None, trainable=True, fix_vals=(1.0, 0.0)):
+    def add_complex_var(
+        self, name, polar=None, trainable=True, fix_vals=(1.0, 0.0)
+    ):
         """
         Add a complex variable. Two real variables named **name+'r'** and **name+'i'** will be added into
         **self.variables**. The initial values will be given automatically according to its form of coordinate.
@@ -134,8 +157,8 @@ class VarsManager(object):
         """
         if polar is None:
             polar = self.polar
-        var_r = name + 'r'
-        var_i = name + 'i'
+        var_r = name + "r"
+        var_i = name + "i"
         if trainable:
             if polar:
                 self.add_real_var(name=var_r, range_=(0, 2.0))
@@ -157,8 +180,8 @@ class VarsManager(object):
         """
         if name in self.complex_vars:
             del self.complex_vars[name]
-            name_r = name + 'r'
-            name_i = name + 'i'
+            name_r = name + "r"
+            name_i = name + "i"
             if self.variables[name_r].trainable:
                 if name_r in self.trainable_vars:
                     self.trainable_vars.remove(name_r)
@@ -178,7 +201,8 @@ class VarsManager(object):
             del self.variables[name_i]
         else:
             if self.variables[name].trainable:
-                self.trainable_vars.remove(name)
+                if name in self.trainable_vars:
+                    self.trainable_vars.remove(name)
             for l in self.same_list:
                 if name in l:
                     l.remove(name)
@@ -197,10 +221,10 @@ class VarsManager(object):
         if cplx:
             self.complex_vars[new_name] = self.complex_vars[name]
             del self.complex_vars[name]
-            name_r = name + 'r'
-            name_i = name + 'i'
-            new_name_r = new_name + 'r'
-            new_name_i = new_name + 'i'
+            name_r = name + "r"
+            name_i = name + "i"
+            new_name_r = new_name + "r"
+            new_name_i = new_name + "i"
             if self.variables[name_r].trainable:
                 if name_r in self.trainable_vars:
                     self.trainable_vars.remove(name_r)
@@ -240,33 +264,87 @@ class VarsManager(object):
             self.variables[new_name] = self.variables[name]
             del self.variables[name]
 
-    def refresh_vars(self, name):
+    def refresh_vars(self, init_val=None, bound_dic=None):
         """
-        Refresh all trainable variables (WIP)
+        Refresh all trainable variables
         """
+        if bound_dic is None:
+            bound_dic = self.bnd_dic
+        if init_val is None:
+            init_val = self.init_val
         cplx_vars = []
-        for name in self.complex_vars:
-            name_r = name + 'r'
-            name_i = name + 'i'
+        for name in self.complex_vars:  # complex vars
+            name_r = name + "r"
+            name_i = name + "i"
             if self.complex_vars[name] == False:  # xy coordinate
                 if name_r in self.trainable_vars:
                     cplx_vars.append(name_r)
-                    self.variables[name_r].assign(tf.random.uniform(shape=[], minval=-1, maxval=1, dtype=self.dtype))
-                if name_i in self.trainable_vars:
-                    cplx_vars.append(name_i)
-                    self.variables[name_i].assign(tf.random.uniform(shape=[], minval=-1, maxval=1, dtype=self.dtype))
-            else:  # polar coordinate
-                if name_r in self.trainable_vars:
-                    cplx_vars.append(name_r)
-                    self.variables[name_r].assign(tf.random.uniform(shape=[], minval=0, maxval=2, dtype=self.dtype))
+                    self.variables[name_r].assign(
+                        tf.random.uniform(
+                            shape=[], minval=-1, maxval=1, dtype=self.dtype
+                        )
+                    )
                 if name_i in self.trainable_vars:
                     cplx_vars.append(name_i)
                     self.variables[name_i].assign(
-                        tf.random.uniform(shape=[], minval=-np.pi, maxval=np.pi, dtype=self.dtype))
-        real_vars = self.trainable_vars.copy()  # 实变量还没refresh
-        for i in real_vars:
-            if i in cplx_vars:
-                real_vars.remove(i)
+                        tf.random.uniform(
+                            shape=[], minval=-1, maxval=1, dtype=self.dtype
+                        )
+                    )
+            else:  # polar coordinate
+                if name_r in self.trainable_vars:
+                    cplx_vars.append(name_r)
+                    self.variables[name_r].assign(
+                        tf.random.uniform(
+                            shape=[], minval=0, maxval=2, dtype=self.dtype
+                        )
+                    )
+                if name_i in self.trainable_vars:
+                    cplx_vars.append(name_i)
+                    self.variables[name_i].assign(
+                        tf.random.uniform(
+                            shape=[],
+                            minval=-np.pi,
+                            maxval=np.pi,
+                            dtype=self.dtype,
+                        )
+                    )
+        # all_vars = set(self.trainable_vars) # real vars
+        # real_vars = all_vars - set(cplx_vars)
+        for name in set(init_val) & set(self.trainable_vars):
+            if hasattr(init_val[name], "__len__"):
+                mu = init_val[name][0]
+                sigma = init_val[name][1]
+                if name not in bound_dic:
+                    val = tf.random.normal(
+                        shape=[], mean=mu, stddev=sigma, dtype=self.dtype
+                    )
+                else:
+                    range_ = bound_dic[name]
+                    while True:
+                        val = tf.random.normal(
+                            shape=[], mean=mu, stddev=sigma, dtype=self.dtype
+                        )
+                        if val < range_[1] and val > range_[0]:
+                            break
+                self.variables[name].assign(val)
+            else:
+                if init_val[name] is not None:
+                    self.variables[name].assign(init_val[name])
+
+        for name in set(bound_dic) - set(init_val):
+            _min, _max = bound_dic[name]
+            if _min is not None:
+                if _max is not None:
+                    val = tf.random.uniform(
+                        shape=[], minval=_min, maxval=_max, dtype=self.dtype
+                    )
+                else:
+                    val = _min + np.random.chisquare(df=1)
+            else:
+                if _max is not None:
+                    val = _max - np.random.chisquare(df=1)
+            self.variables[name].assign(val)
 
     def set_fix(self, name, value=None, unfix=False):
         """
@@ -346,7 +424,7 @@ class VarsManager(object):
         :param name_list: List of strings. Note the strings should be the name of the complex variables rather than of their radium parts.
         """
         self.xy2rp_all(name_list)
-        name_r_list = [name + 'r' for name in name_list]
+        name_r_list = [name + "r" for name in name_list]
         self.set_same(name_r_list)
         for name in name_r_list:
             self.complex_vars[name[:-1]] = name_r_list
@@ -361,29 +439,38 @@ class VarsManager(object):
         tmp_list = []
         for name in name_list:
             for add_list in self.same_list:
+                if name not in self.variables:
+                    continue
                 if name in add_list:
                     tmp_list += add_list
                     self.same_list.remove(add_list)
                     break
+
         for i in tmp_list:
             if i not in name_list:
                 name_list.append(i)  # 去掉重复元素
 
         def same_real(name_list):
+            name_list = [i for i in name_list if i in self.variables]
+            if len(name_list) == 0:
+                return
             var = self.variables[name_list[0]]
             for name in name_list[1:]:
+                print("name", name)
                 if name in self.trainable_vars:
                     self.trainable_vars.remove(name)
                 else:
-                    var = self.variables[name]  # if one is untrainable, the others will all be untrainable
-                    if name_list[0] in self.trainable_vars:
-                        self.trainable_vars.remove(name_list[0])
+                    # if one is untrainable, the others will all be untrainable
+                    var = self.variables.get(name, None)
+                    if var is not None:
+                        if name_list[0] in self.trainable_vars:
+                            self.trainable_vars.remove(name_list[0])
             for name in name_list:
                 self.variables[name] = var
 
         if cplx:
-            same_real([name + 'r' for name in name_list])
-            same_real([name + 'i' for name in name_list])
+            same_real([name + "r" for name in name_list])
+            same_real([name + "i" for name in name_list])
         else:
             same_real(name_list)
         self.same_list.append(name_list)
@@ -423,12 +510,12 @@ class VarsManager(object):
         """
         if self.complex_vars[name] != True:  # if not polar (already xy)
             return
-        r = self.variables[name + 'r']
-        p = self.variables[name + 'i']
+        r = self.variables[name + "r"]
+        p = self.variables[name + "i"]
         x = r * tf.cos(p)
         y = r * tf.sin(p)
-        self.variables[name + 'r'].assign(x)
-        self.variables[name + 'i'].assign(y)
+        self.variables[name + "r"].assign(x)
+        self.variables[name + "i"].assign(y)
         self.complex_vars[name] = False
         for l in self.same_list:
             if name in l:
@@ -443,12 +530,12 @@ class VarsManager(object):
         """
         if self.complex_vars[name] != False:  # if already polar
             return
-        x = self.variables[name + 'r']
-        y = self.variables[name + 'i']
+        x = self.variables[name + "r"]
+        y = self.variables[name + "i"]
         r = tf.sqrt(x * x + y * y)
         p = tf.atan2(y, x)
-        self.variables[name + 'r'].assign(r)
-        self.variables[name + 'i'].assign(p)
+        self.variables[name + "r"].assign(r)
+        self.variables[name + "i"].assign(p)
         self.complex_vars[name] = True
         for l in self.same_list:
             if name in l:
@@ -536,7 +623,7 @@ class VarsManager(object):
             name_list = self.complex_vars
         for name in name_list:
             self.rp2xy(name)
-        self.polar=False
+        self.polar = False
 
     def xy2rp_all(self, name_list=None):
         """
@@ -548,7 +635,7 @@ class VarsManager(object):
             name_list = self.complex_vars
         for name in name_list:
             self.xy2rp(name)
-        self.polar=True
+        self.polar = True
 
     @staticmethod
     def _std_polar_angle(p, a=-np.pi, b=np.pi):
@@ -565,13 +652,13 @@ class VarsManager(object):
         :param name: String
         """
         self.xy2rp(name)
-        r = self.variables[name + 'r']
-        p = self.variables[name + 'i']
+        r = self.variables[name + "r"]
+        p = self.variables[name + "i"]
         if r < 0:
             r.assign(tf.abs(r))
             if type(self.complex_vars[name]) == list:
                 for name_r in self.complex_vars[name]:
-                    self.variables[name_r[:-1] + 'i'].assign_add(np.pi)
+                    self.variables[name_r[:-1] + "i"].assign_add(np.pi)
             else:
                 p.assign_add(np.pi)
         self._std_polar_angle(p)
@@ -620,8 +707,23 @@ class VarsManager(object):
 
         return fcn_t
 
+    def trans_error_matrix(self, hess_inv, xvals):
+        """
+        Bound trans for error matrix
+        :math:`F(x)=F(y(x))`, :math:`V_y = y' V_x y'`
 
-import sympy as sy
+        :return:
+        """
+        xvals = np.array(xvals)
+        dydxs = []
+        for i, name in enumerate(self.trainable_vars):
+            if name in self.bnd_dic:
+                dydxs.append(self.bnd_dic[name].get_dydx(xvals[i]))
+            else:
+                dydxs.append(1)
+        dydx = np.array(dydxs)
+        hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
+        return hess_inv
 
 
 class Bound(object):
@@ -659,7 +761,7 @@ class Bound(object):
         self.f, self.df, self.inv = self.get_func()
 
     def __repr__(self):
-        return '['+str(self.lower)+', '+str(self.upper)+']'
+        return "[" + str(self.lower) + ", " + str(self.upper) + "]"
 
     def get_func(self):  # init func string into sympy f(x) or f(y)
         """
@@ -683,7 +785,7 @@ class Bound(object):
         :param val: Real number *x*
         :return: Real number *y*
         """
-        x = sy.symbols('x')
+        x = sy.symbols("x")
         return float(self.f.evalf(subs={x: val}))
 
     def get_y2x(self, val):  # gls->var
@@ -693,7 +795,7 @@ class Bound(object):
         :param val: Real number *y*
         :return: Real number *x*
         """
-        y = sy.symbols('y')
+        y = sy.symbols("y")
         if self.lower is not None and val < self.lower:
             val = self.lower
         elif self.upper is not None and val > self.upper:
@@ -708,7 +810,7 @@ class Bound(object):
         :param val: Real number *x*
         :return: Real number :math:`\\frac{dy}{dx}`
         """
-        x = sy.symbols('x')
+        x = sy.symbols("x")
         return float(self.df.evalf(subs={x: val}))
 
 
@@ -717,12 +819,13 @@ def _get_val_from_index(val, index):
         val = val[i]
     return val
 
+
 def _shape_func(f, shape, name="", idx=[], **kwargs):
     if not shape:
         f(name, idx, **kwargs)
     else:
         for i in range(shape[0]):
-            _shape_func(f, shape[1:], name + '_' + str(i), idx+[i], **kwargs)
+            _shape_func(f, shape[1:], name + "_" + str(i), idx + [i], **kwargs)
 
 
 regist_config("vm", VarsManager(dtype="float64"))
@@ -744,7 +847,9 @@ class Variable(object):
     :param kwargs: Other arguments that may be used when calling **self.real_var()** or **self.cplx_var()**
     """
 
-    def __init__(self, name, shape=None, cplx=False, vm=None, overwrite=True, **kwargs):
+    def __init__(
+        self, name, shape=None, cplx=False, vm=None, overwrite=True, **kwargs
+    ):
         if shape is None:
             shape = []
         if vm is None:
@@ -756,7 +861,7 @@ class Variable(object):
                 if not overwrite:
                     ex = 1
                     while True:
-                        ex_name = i.name+"_"+str(ex)
+                        ex_name = i.name + "_" + str(ex)
                         judg = True
                         for ii in self.vm.var_head:
                             if ii.name == ex_name:
@@ -796,7 +901,14 @@ class Variable(object):
             self.vm.add_real_var(name, value, range_, trainable)
             self.vm.var_head[self].append(name)
 
-        _shape_func(func, self.shape, self.name, value=value, range_=range_, trainable=trainable)
+        _shape_func(
+            func,
+            self.shape,
+            self.name,
+            value=value,
+            range_=range_,
+            trainable=trainable,
+        )
 
     def cplx_var(self, polar=True, fix=False, fix_vals=(1.0, 0.0)):
         """
@@ -807,14 +919,16 @@ class Variable(object):
         :param fix_vals: Length-2 tuple. The value of the fixed complex variable is ``fix_vals[0]+fix_vals[1]j``.
         """
         if not hasattr(fix_vals, "__len__"):
-            fix_vals = [fix_vals, 0.]
+            fix_vals = [fix_vals, 0.0]
 
         def func(name, idx, **kwargs):
             trainable = not fix
             self.vm.add_complex_var(name, polar, trainable, fix_vals)
             self.vm.var_head[self].append(name)
 
-        _shape_func(func, self.shape, self.name, polar=polar, fix_vals=fix_vals)
+        _shape_func(
+            func, self.shape, self.name, polar=polar, fix_vals=fix_vals
+        )
 
     def __repr__(self):
         return self.name
@@ -831,38 +945,56 @@ class Variable(object):
             assert len(index) == len(self.shape)
             var_name = self.name
             for i in index:
-                var_name += ("_" + str(index[i]))
+                var_name += "_" + str(index[i])
             if self.cplx == True:
-                self.vm.set(var_name+'r', value[0])
-                self.vm.set(var_name+'i', value[1])
+                self.vm.set(var_name + "r", value[0])
+                self.vm.set(var_name + "i", value[1])
             else:
                 self.vm.set(var_name, value)
         else:
             value = np.array(value)
+
             def _get_val_from_index(val, index):
                 for i in index:
                     val = val[i]
                 return val
+
             if self.cplx == True:
                 if value.shape[:-1] == ():
+
                     def func(name, idx, **kwargs):
-                        self.vm.set(name+'r', value[0])
-                        self.vm.set(name+'i', value[1])
+                        self.vm.set(name + "r", value[0])
+                        self.vm.set(name + "i", value[1])
+
                 elif value.shape[:-1] == tuple(self.shape):
+
                     def func(name, idx, **kwargs):
-                        self.vm.set(name+'r', _get_val_from_index(value, idx)[0])
-                        self.vm.set(name+'i', _get_val_from_index(value, idx)[1])
+                        self.vm.set(
+                            name + "r", _get_val_from_index(value, idx)[0]
+                        )
+                        self.vm.set(
+                            name + "i", _get_val_from_index(value, idx)[1]
+                        )
+
                 else:
-                    raise Exception("The shape of value should be ", self.shape)
+                    raise Exception(
+                        "The shape of value should be ", self.shape
+                    )
             else:
                 if value.shape == ():
+
                     def func(name, idx, **kwargs):
                         self.vm.set(name, value)
+
                 elif value.shape == tuple(self.shape):
+
                     def func(name, idx, **kwargs):
                         self.vm.set(name, _get_val_from_index(value, idx))
+
                 else:
-                    raise Exception("The shape of value should be ", self.shape)
+                    raise Exception(
+                        "The shape of value should be ", self.shape
+                    )
 
             _shape_func(func, self.shape, self.name, idx=[])
 
@@ -873,19 +1005,24 @@ class Variable(object):
             assert len(index) == len(self.shape)
             var_name = self.name
             for i in index:
-                var_name += ("_" + str(index[i]))
-            self.vm.set(var_name+'r', rho)
+                var_name += "_" + str(index[i])
+            self.vm.set(var_name + "r", rho)
         else:
             rho = np.array(rho)
             if rho.shape == ():
+
                 def func(name, idx, **kwargs):
-                    self.vm.set(name+'r', rho)
+                    self.vm.set(name + "r", rho)
+
             elif rho.shape == tuple(self.shape):
+
                 def func(name, idx, **kwargs):
-                    self.vm.set(name+'r', _get_val_from_index(rho, idx)[0])
+                    self.vm.set(name + "r", _get_val_from_index(rho, idx)[0])
+
             else:
                 raise Exception("The shape of rho should be ", self.shape)
             _shape_func(func, self.shape, self.name, idx=[])
+
     def set_phi(self, phi, index=None):
         if self.cplx is not True:
             raise Exception("This method only supports complex Variable!")
@@ -893,20 +1030,23 @@ class Variable(object):
             assert len(index) == len(self.shape)
             var_name = self.name
             for i in index:
-                var_name += ("_" + str(index[i]))
-            self.vm.set(var_name+'i', phi)
+                var_name += "_" + str(index[i])
+            self.vm.set(var_name + "i", phi)
         else:
             phi = np.array(phi)
             if phi.shape == ():
+
                 def func(name, idx, **kwargs):
-                    self.vm.set(name+'i', phi)
+                    self.vm.set(name + "i", phi)
+
             elif phi.shape == tuple(self.shape):
+
                 def func(name, idx, **kwargs):
-                    self.vm.set(name+'i', _get_val_from_index(phi, idx)[0])
+                    self.vm.set(name + "i", _get_val_from_index(phi, idx)[0])
+
             else:
                 raise Exception("The shape of phi should be ", self.shape)
             _shape_func(func, self.shape, self.name, idx=[])
-
 
     @property
     def variables(self):
@@ -919,6 +1059,7 @@ class Variable(object):
 
     def rename(self, new_name):
         """Rename this Variable."""
+
         def func(name, idx):
             vn = self.name + name
             new_vn = new_name + name
@@ -926,7 +1067,7 @@ class Variable(object):
             self.vm.var_head[self].remove(vn)
             self.vm.var_head[self].append(new_vn)
 
-        _shape_func(func, self.shape, '')
+        _shape_func(func, self.shape, "")
         self.name = new_name
 
     def fixed(self, value=None):
@@ -942,8 +1083,8 @@ class Variable(object):
                 else:
                     cplx_value = complex(value)
                     value = [cplx_value.real, cplx_value.imag]
-                self.vm.set_fix(self.name + 'r', value[0])
-                self.vm.set_fix(self.name + 'i', value[1])
+                self.vm.set_fix(self.name + "r", value[0])
+                self.vm.set_fix(self.name + "i", value[1])
             else:
                 self.vm.set_fix(self.name, value)
         else:
@@ -955,8 +1096,8 @@ class Variable(object):
         """
         if not self.shape:
             if self.cplx:
-                self.vm.set_fix(self.name + 'r', unfix=True)
-                self.vm.set_fix(self.name + 'i', unfix=True)
+                self.vm.set_fix(self.name + "r", unfix=True)
+                self.vm.set_fix(self.name + "i", unfix=True)
             else:
                 self.vm.set_fix(self.name, unfix=True)
         else:
@@ -969,7 +1110,9 @@ class Variable(object):
         :param free_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is set free. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[0]``, then Variable()[i][j][0] will be set free.
         """
         if not self.shape:
-            raise Exception("Only shape!=() var supports 'set_fix_idx' method to fix or free variables.")
+            raise Exception(
+                "Only shape!=() var supports 'set_fix_idx' method to fix or free variables."
+            )
         if free_idx is None:
             free_idx = []
         else:
@@ -981,32 +1124,37 @@ class Variable(object):
 
         if not hasattr(fix_idx, "__len__"):
             fix_idx = [fix_idx]
-        fix_idx_str = ['_' + str(i) for i in fix_idx]
+        fix_idx_str = ["_" + str(i) for i in fix_idx]
         if not hasattr(free_idx, "__len__"):
             free_idx = [free_idx]
-        free_idx_str = ['_' + str(i) for i in free_idx]
+        free_idx_str = ["_" + str(i) for i in free_idx]
 
         if self.cplx:
             if fix_vals is None:
                 fix_vals = [None, None]
             elif not hasattr(fix_vals, "__len__"):
-                fix_vals = [fix_vals, 0.]
+                fix_vals = [fix_vals, 0.0]
 
             def func(name, idx):
-                if name[-2:] in fix_idx_str:
-                    self.vm.set_fix(name + 'r', value=fix_vals[0])
-                    self.vm.set_fix(name + 'i', value=fix_vals[1])
-                if name[-2:] in free_idx_str:
-                    self.vm.set_fix(name + 'r', unfix=True)
-                    self.vm.set_fix(name + 'i', unfix=True)
+                for ss in fix_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name + "r", value=fix_vals[0])
+                        self.vm.set_fix(name + "i", value=fix_vals[1])
+                for ss in free_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name + "r", unfix=True)
+                        self.vm.set_fix(name + "i", unfix=True)
 
             _shape_func(func, self.shape, self.name)
         else:
+
             def func(name, idx):
-                if name[-2:] in fix_idx_str:
-                    self.vm.set_fix(name, value=fix_vals)
-                if name[-2:] in free_idx_str:
-                    self.vm.set_fix(name, unfix=True)
+                for ss in fix_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name, value=fix_vals)
+                for ss in free_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name, unfix=True)
 
             _shape_func(func, self.shape, self.name)
 
@@ -1022,7 +1170,9 @@ class Variable(object):
             self.vm.set_bound({self.name: bound}, func, overwrite=overwrite)
             self.bound = self.vm.bnd_dic[self.name]
         else:
-            raise Exception("Only shape==() real var supports 'set_bound' method.")
+            raise Exception(
+                "Only shape==() real var supports 'set_bound' method."
+            )
 
     def r_shareto(self, Var):
         """
@@ -1038,7 +1188,7 @@ class Variable(object):
         def func(name, idx, **kwargs):
             self.vm.set_share_r([self.name + name, Var.name + name])
 
-        _shape_func(func, self.shape, '')
+        _shape_func(func, self.shape, "")
 
     def sameas(self, Var):
         """
@@ -1052,27 +1202,39 @@ class Variable(object):
             raise Exception("Types (real or complex) are not the same.")
 
         def func(name, idx, **kwargs):
-            self.vm.set_same([self.name + name, Var.name + name], cplx=self.cplx)
+            self.vm.set_same(
+                [self.name + name, Var.name + name], cplx=self.cplx
+            )
 
-        _shape_func(func, self.shape, '')
+        _shape_func(func, self.shape, "")
 
     def __call__(self):
         var_list = np.ones(shape=self.shape).tolist()
         if self.shape:
+
             def func(name, idx, **kwargs):
                 tmp = var_list
-                idx_str = name.split('_')[-len(self.shape):]
+                idx_str = name.split("_")[-len(self.shape) :]
                 for i in idx_str[:-1]:
                     tmp = tmp[int(i)]
                 if self.cplx:
-                    if (name in self.vm.complex_vars) and self.vm.complex_vars[name]:
-                        real = self.vm.variables[name + 'r'] * tf.cos(self.vm.variables[name + 'i'])
-                        imag = self.vm.variables[name + 'r'] * tf.sin(self.vm.variables[name + 'i'])
+                    if (name in self.vm.complex_vars) and self.vm.complex_vars[
+                        name
+                    ]:
+                        real = self.vm.variables[name + "r"] * tf.cos(
+                            self.vm.variables[name + "i"]
+                        )
+                        imag = self.vm.variables[name + "r"] * tf.sin(
+                            self.vm.variables[name + "i"]
+                        )
                         tmp[int(idx_str[-1])] = tf.complex(real, imag)
                         # print("&&&&&pg",name)
                     else:
                         # print("$$$$$xg",name)
-                        tmp[int(idx_str[-1])] = tf.complex(self.vm.variables[name + 'r'], self.vm.variables[name + 'i'])
+                        tmp[int(idx_str[-1])] = tf.complex(
+                            self.vm.variables[name + "r"],
+                            self.vm.variables[name + "i"],
+                        )
                     # print(tmp[int(idx_str[-1])])
                 else:
                     tmp[int(idx_str[-1])] = self.vm.variables[name]
@@ -1081,33 +1243,26 @@ class Variable(object):
         else:
             if self.cplx:
                 name = self.name
-                if (name in self.vm.complex_vars) and self.vm.complex_vars[name]:
-                    real = self.vm.variables[name + 'r'] * tf.cos(self.vm.variables[name + 'i'])
-                    imag = self.vm.variables[name + 'r'] * tf.sin(self.vm.variables[name + 'i'])
+                if (name in self.vm.complex_vars) and self.vm.complex_vars[
+                    name
+                ]:
+                    real = self.vm.variables[name + "r"] * tf.cos(
+                        self.vm.variables[name + "i"]
+                    )
+                    imag = self.vm.variables[name + "r"] * tf.sin(
+                        self.vm.variables[name + "i"]
+                    )
                     var_list = tf.complex(real, imag)
                     # print("&&&pt",name)
                 else:
                     # print("$$$xt",name)
-                    var_list = tf.complex(self.vm.variables[self.name + 'r'], self.vm.variables[self.name + 'i'])
+                    var_list = tf.complex(
+                        self.vm.variables[self.name + "r"],
+                        self.vm.variables[self.name + "i"],
+                    )
                 # print(var_list)
             else:
                 var_list = self.vm.variables[self.name]
 
         # return tf.stack(var_list)
         return var_list
-
-
-if __name__ == "__main__":
-    m = Variable("R_m", value=2.1)  # trainable is True by default
-    g_ls = Variable("A2BR_H", shape=[3], cplx=True)
-    fcr = Variable("R_total", cplx=True)
-    m1 = Variable("R1_m", value=2.3)
-    g_ls1 = Variable("A2BR1_H", shape=[3], cplx=True)
-    fcr1 = Variable("R1_total", cplx=True)
-
-    print(g_ls.value)
-    print(g_ls())
-
-    m.fixed(2.4)
-    g_ls.sameas(g_ls1)
-    fcr.r_shareto(fcr1)

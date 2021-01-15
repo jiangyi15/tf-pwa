@@ -1,12 +1,16 @@
-
 import numpy as np
+
 from .data import data_merge
+
 has_uproot = True
 try:
-    import uproot
+    import uproot3 as uproot
 except ImportError as e:
-    has_uproot = False
-    print(e, "you should install `uproot` correctly for using this module")
+    try:
+        import uproot
+    except ImportError as e:
+        has_uproot = False
+        print(e, "you should install `uproot` correctly for using this module")
 
 
 def load_root_data(fnames):
@@ -50,7 +54,7 @@ def save_dict_to_root(dic, file_name, tree_name=None):
     :param file_name: String
     :param tree_name: String. By default it's "tree".
     """
-    if file_name[-5:] == '.root':
+    if file_name[-5:] == ".root":
         file_name = file_name[:-5]
     if isinstance(dic, dict):
         dic = [dic]
@@ -62,7 +66,7 @@ def save_dict_to_root(dic, file_name, tree_name=None):
     else:
         t = []
         for i in range(Ndic):
-            t.append(tree_name+str(i))
+            t.append(tree_name + str(i))
         tree_name = t
 
     with uproot.recreate(file_name + ".root") as f:
@@ -70,7 +74,14 @@ def save_dict_to_root(dic, file_name, tree_name=None):
             branch_type = {}
             branch_data = {}
             for i in d:
-                j = i.replace('(','_').replace(')','_').replace(' ','_')
+                j = (
+                    i.replace("(", "_")
+                    .replace(")", "_")
+                    .replace(" ", "_")
+                    .replace("*", "star")
+                    .replace("+", "p")
+                    .replace("-", "m")
+                )
                 branch_data[j] = np.array(d[i])
                 branch_type[j] = branch_data[j].dtype.name
             f[t] = uproot.newtree(branch_type)

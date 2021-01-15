@@ -2,7 +2,8 @@ import pytest
 
 from tf_pwa.amp import *
 from tf_pwa.cal_angle import cal_angle_from_momentum
-from tf_pwa.model import Model, FCN
+from tf_pwa.model import FCN, Model
+
 from .common import write_temp_file
 
 
@@ -58,13 +59,13 @@ test_data = [
     [
         np.array([[2.0, 0.1, 0.2, 0.3]]),
         np.array([[3.0, 0.2, 0.3, 0.4]]),
-        np.array([[4.0, 0.3, 0.4, 0.5]])
+        np.array([[4.0, 0.3, 0.4, 0.5]]),
     ],
     [
         np.array([[2.0, 0.1, 0.2, 0.3], [2.0, 0.3, 0.2, 0.1]]),
         np.array([[3.0, 0.2, 0.3, 0.4], [3.0, 0.4, 0.3, 0.2]]),
-        np.array([[4.0, 0.3, 0.4, 0.5], [4.0, 0.5, 0.4, 0.3]])
-    ]
+        np.array([[4.0, 0.3, 0.4, 0.5], [4.0, 0.5, 0.4, 0.3]]),
+    ],
 ]
 
 
@@ -75,6 +76,50 @@ def test_amp():
         p = dict(zip(particle, p_data))
         data = cal_angle_from_momentum(p, decs)
         amp(data)
+
+
+def test_simple_resonances():
+    @simple_resonance("xxx")
+    def f(m, s=3.0):
+        return m + s
+
+    b = get_particle("ss:2", model="xxx")
+    b.init_params()
+    b(1.0, s=2.0)
+    b(2.0)
+
+    a = b.get_amp({"m": 1.0}, {"|q|": 1.0}, {})
+    assert np.allclose(np.array(4.0 + 0.0j), a.numpy())
+
+    @simple_resonance("xxx2")
+    def g(m, m0, g0, q, q0, a: FloatParams = 2.0):
+        return m + a + q + q0
+
+    b = get_particle("ss:2", a=3.0, model="xxx2")
+    b.init_params()
+    a = b.get_amp({"m": 1.0}, {"|q|": 1.0, "|q0|": 1.0}, {})
+    assert np.allclose(np.array(6.0 + 0.0j), a.numpy())
+
+
+def test_flatte():
+    a = get_particle(
+        "flatte", model="Flatte", mass=3.6, mass_list=[[1.0, 1.0], [1.5, 2.0]]
+    )
+    a.init_params()
+    b = a(np.array([3.6]))
+    assert b.numpy().real == 0
+
+
+def test_gs():
+    a = get_particle("gs", J=1, P=-1, model="GS_rho", mass=3.6, width=0.01)
+    b = [get_particle(i, J=0, P=-1) for i in "ac"]
+    get_decay(a, b)
+    a.init_params()
+    b = a.get_amp(
+        {"m": np.array(1.0)},
+        {"|q|": np.array(1.0), "|q0|": np.array(1.0)},
+        all_data={},
+    )
 
 
 def test_model_new():
@@ -117,7 +162,7 @@ Decay D_2*+
 1  D*0 pi+ HELCOV one zero;
 Enddecay
 
-End    
+End
     """
 
     with write_temp_file(s) as f:

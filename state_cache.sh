@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 
 
 time_tag=`date +%Y_%m_%d_%H_%M_%S`
@@ -7,7 +7,7 @@ cache_path=trash/${time_tag}_${head_tag}
 
 if [[ $# > 0 ]];
 then
-  cache_path=${1} 
+  cache_path=${1}
 fi
 
 echo "Saving state at ${cache_path}"
@@ -21,7 +21,7 @@ cache_file() {
   then
     mkdir -p `dirname ${cache_path}/${1}`
   fi
-  
+
   if [ -f ${1} ];
   then
     cp ${1} ${cache_path}/${1}
@@ -37,7 +37,7 @@ echo "using ${new_json_file} as params file"
 
 newer_file=`find -cnewer ${new_json_file} | grep -v trash | grep -E ".*\.(C|json|root|log|png|txt|pdf)"`
 for i in ${newer_file};
-do 
+do
   cache_file ${i}
 done
 cache_file ${new_json_file}

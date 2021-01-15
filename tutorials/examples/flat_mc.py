@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # from tf_pwa.phasespace import  PhaseSpaceGenerator
-import sys
 import os.path
-
-this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, this_dir + '/..')
+import sys
 
 import numpy as np
+
 from tf_pwa.applications import gen_mc
 
-'''
+this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, this_dir + "/..")
+
+
+"""
 def flat_mc(number,outfile):
   a = PhaseSpaceGenerator(4.59925172,[2.01028,0.13957,2.00698]) #from data???
   flat_mc_data = a.generate(number)
@@ -24,13 +26,13 @@ def flat_mc(number,outfile):
   pd = flat_mc_data[2]
   pd_a = np.array([pd.T,pd.X,pd.Y,pd.Z]).reshape((4,-1))
   print(pd_a)
-  
+
   pa = np.array([pd_a,pb_a,pc_a])
   print(pa.shape)
   pa = np.transpose(pa,(2,0,1)).reshape((-1,4))
   print(pa.shape)
   np.savetxt(outfile,pa)  # 一个不包含探测器效率的MC样本
-'''
+"""
 if __name__ == "__main__":
     data = gen_mc(4.59925172, [2.00698, 2.01028, 0.13957], 100, "tmp.dat")
     print(data)

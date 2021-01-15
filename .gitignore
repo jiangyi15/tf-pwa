@@ -1,27 +1,50 @@
-
-data
+*data
 
 __pycache__
 .ipynb_checkpoints
 *.pyc
 
+tf_pwa/version.py
 
 *.npy
 *.json
 *.log
 *.yml
 *.png
+*.pdf
+*.pptx
+*.ppt
+*.csv
+*.txt
+*.lyx*
+*.docx
+*.doc
+*.gv
+*.root
+!**.sample.yml
+!.github/**/*.yml
+!.readthedocs.yml
+!.vscode/*.json
+!environment.yml
+
+.run_start
 
 cached_dir
 trash
 figure
+fig
 build
 cached_dir
 dist
+.eggs
 *.egg-info
 site
 chains
 
 coverage.xml
 .coverage
+.vs
 htmlcov/
+
+docs/particle_model.rst
+docs/auto_examples/

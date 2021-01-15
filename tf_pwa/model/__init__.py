@@ -1,1 +1,1 @@
-from .model import Model, FCN,  Model_new, ConstrainModel, CombineFCN
+from .model import FCN, CombineFCN, ConstrainModel, Model, Model_new

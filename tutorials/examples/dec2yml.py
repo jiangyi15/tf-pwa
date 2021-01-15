@@ -1,28 +1,24 @@
-import sys
 import os.path
-
-
-this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
+import re
+import sys
 
 import yaml
-import re
+
 from tf_pwa.dec_parser import load_dec_file
+
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + "/..")
 
 
 commands = {}
-config = {
-    "particle": {},
-    "decay": {}
-}
-model_map = {
-    "HELCOV": "default"
-}
+config = {"particle": {}, "decay": {}}
+model_map = {"HELCOV": "default"}
 
 
 def register_commands(name):
     def regist_(f):
         commands[name] = f
+
     return regist_
 
 
@@ -90,10 +86,13 @@ def dec2yml(in_file, out_file, parity_list="_parity.list_"):
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("in_file")
     parser.add_argument("-o", dest="out_file", default="config.yml")
-    parser.add_argument("--parity", dest="parity_file", default="_parity.list_")
+    parser.add_argument(
+        "--parity", dest="parity_file", default="_parity.list_"
+    )
     results = parser.parse_args()
     dec2yml(results.in_file, results.out_file, results.parity_file)
 

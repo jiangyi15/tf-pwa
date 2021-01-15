@@ -1,6 +1,9 @@
-from opt_einsum import get_symbol, contract_path, contract
-from .tensorflow_wrapper import tf
 import warnings
+
+from opt_einsum import contract, contract_path, get_symbol
+
+from .tensorflow_wrapper import tf
+
 # from pysnooper import snoop
 
 
@@ -73,12 +76,12 @@ def ordered_indices(expr, shapes):
         for j in idx_input:
             if i in j:
                 pos = j.index(i)
-                if pos-1 >= 0:
-                    bound_dict[i][0].append(j[pos-1])
+                if pos - 1 >= 0:
+                    bound_dict[i][0].append(j[pos - 1])
                 else:
                     bound_dict[i][0].append("_min")
-                if pos+1 < len(j):
-                    bound_dict[i][1].append(j[pos+1])
+                if pos + 1 < len(j):
+                    bound_dict[i][1].append(j[pos + 1])
                 else:
                     bound_dict[i][1].append("_max")
 
@@ -94,7 +97,14 @@ def ordered_indices(expr, shapes):
     return base_order
 
 
-def remove_size1(expr, *args,extra=None):
+def replace_none_in_shape(x, num=-1):
+    # print(x.shape)
+    shape = tuple([num if i is None else i for i in x])
+    return shape
+
+
+def remove_size1(expr, *args, extra=None):
+    """remove order independent indices (size 1)"""
     if extra is None:
         extra = []
     sub = expr.split("->")[0].split(",")
@@ -103,7 +113,7 @@ def remove_size1(expr, *args,extra=None):
     for idx, shape in zip(sub, args):
         for i, j in zip(idx, shape.shape):
             l = size_map.get(i, 1)
-            if j >= l:
+            if j is None or j >= l:
                 size_map[i] = j
 
     remove_idx = []
@@ -117,25 +127,27 @@ def remove_size1(expr, *args,extra=None):
     for idx, arg in zip(idxs, args):
         shape = []
         idx2 = []
-        for i, j  in zip(idx, arg.shape):
+        for i, j in zip(idx, arg.shape):
             if i not in remove_idx:
                 shape.append(j)
                 idx2.append(i)
-        ret.append(tf.reshape(arg, shape))
+        ret.append(tf.reshape(arg, replace_none_in_shape(shape, -1)))
         idxs2.append("".join(idx2))
-    
+
     final_idx = expr.split("->")[1]
     for i in remove_idx:
         final_idx = final_idx.replace(i, "")
-    expr2 = ",".join(idxs2)+"->"+final_idx
-    
+    expr2 = ",".join(idxs2) + "->" + final_idx
+
     return expr2, ret, size_map
 
 
 def einsum(expr, *args, **kwargs):
-    path, path_info = contract_path(expr, *args, optimize="auto")
-    shapes = [i.shape for i in args]
+    shapes = [replace_none_in_shape(i.shape, 10000) for i in args]
     expr, extra = replace_ellipsis(expr, shapes)
+    path, path_info = contract_path(
+        expr, *shapes, shapes=True, optimize="auto"
+    )
     final_idx = expr.split("->")[1]
     expr2, args, size_map = remove_size1(expr, *args, extra=extra)
     final_shape = [size_map[i] for i in final_idx]
@@ -152,13 +164,15 @@ def einsum(expr, *args, **kwargs):
         for i in sorted(idx)[::-1]:
             del data[i]
             del in_idx[i]
-        out_idx = set("".join(part_in_idx)) & set(final_index + "".join(in_idx))
+        out_idx = set("".join(part_in_idx)) & set(
+            final_index + "".join(in_idx)
+        )
         out_idx = "".join(sorted(out_idx, key=lambda x: base_order[x]))
         in_idx.append(out_idx)
         expr_i = "{}->{}".format(",".join(part_in_idx), out_idx)
         result = tensor_einsum_reduce_sum(expr_i, *part_data, order=base_order)
         data.append(result)
-    return tf.reshape(data[0], final_shape)
+    return tf.reshape(data[0], replace_none_in_shape(final_shape, -1))
 
 
 def tensor_einsum_reduce_sum(expr, *args, order):
@@ -178,6 +192,7 @@ def tensor_einsum_reduce_sum(expr, *args, order):
     # transpose
     t_args = []
     n_args = len(idxs)
+
     def args_it(it):
         i, j = idxs[it], args[it]
         sorted_idx = sorted(i, key=lambda x: order[x])
@@ -185,11 +200,12 @@ def tensor_einsum_reduce_sum(expr, *args, order):
             return j
         else:
             trans = [i.index(k) for k in sorted_idx]
-            return  tf.transpose(j, trans)
+            return tf.transpose(j, trans)
+
     t_args = [args_it(it) for it in range(n_args)]
     # reshape
     sum_idx = set(require_order) - set(final_index)
-    sum_idx_idx =[i for i, j in enumerate(require_order) if j in sum_idx]
+    sum_idx_idx = [i for i, j in enumerate(require_order) if j in sum_idx]
     shapes = [i.shape for i in args]
 
     def expand_shape_it(idx, shape):
@@ -197,9 +213,15 @@ def tensor_einsum_reduce_sum(expr, *args, order):
         ex_shape = [shape_dict.get(i, 1) for i in require_order]
         return ex_shape
 
-    expand_shapes = [expand_shape_it(idx, shape) for idx, shape in zip(idxs, shapes)]
+    expand_shapes = [
+        expand_shape_it(idx, shape) for idx, shape in zip(idxs, shapes)
+    ]
 
-    s_args = [tf.reshape(j, i) for i, j in zip(expand_shapes, t_args)]
+    # print(expr, order, expand_shapes)
+    s_args = [
+        tf.reshape(j, replace_none_in_shape(i, -1))
+        for i, j in zip(expand_shapes, t_args)
+    ]
 
     # product
     ret_1 = s_args.pop()

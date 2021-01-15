@@ -50,13 +50,17 @@ The full data structure is
 ```
 """
 
+import random
 from pprint import pprint
+
 import numpy as np
+
+from .config import get_config
+from .tensorflow_wrapper import tf
+
 # import tensorflow as tf
 # from pysnooper import  snoop
 
-from .tensorflow_wrapper import tf
-from .config import get_config
 
 try:
     from collections.abc import Iterable
@@ -64,7 +68,18 @@ except ImportError:  # python version < 3.7
     from collections import Iterable
 
 
-def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_list=False):
+def set_random_seed(seed):
+    """
+    set random seed for random, numpy and tensorflow
+    """
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    random.seed(seed)
+
+
+def load_dat_file(
+    fnames, particles, dtype=None, split=None, order=None, _force_list=False
+):
     """
     Load ``*.dat`` file(s) of 4-momenta of the final particles.
 
@@ -90,7 +105,12 @@ def load_dat_file(fnames, particles, dtype=None, split=None, order=None, _force_
     datas = []
     sizes = []
     for fname in fnames:
-        data = np.loadtxt(fname, dtype=dtype)
+        if fname.endswith(".npz"):
+            data = np.load(fname)["arr_0"]
+        elif fname.endswith(".npy"):
+            data = np.load(fname)
+        else:
+            data = np.loadtxt(fname, dtype=dtype)
         data = np.reshape(data, (-1, 4))
         sizes.append(data.shape[0])
         datas.append(data)
@@ -146,20 +166,23 @@ def _data_split(dat, batch_size, axis=0):
     data_size = dat.shape[axis]
     if axis == 0:
         for i in range(0, data_size, batch_size):
-            yield dat[i:min(i + batch_size, data_size)]
+            yield dat[i : min(i + batch_size, data_size)]
     elif axis == -1:
         for i in range(0, data_size, batch_size):
-            yield dat[..., i:min(i + batch_size, data_size)]
+            yield dat[..., i : min(i + batch_size, data_size)]
     else:
         raise Exception("unsupported axis: {}".format(axis))
 
 
-def data_generator(data, fun=_data_split, args=(), kwargs=None):
+def data_generator(data, fun=_data_split, args=(), kwargs=None, MAX_ITER=1000):
     """Data generator: call ``fun`` to each ``data`` as a generator. The extra arguments will be passed to ``fun``."""
     kwargs = kwargs if kwargs is not None else {}
 
     def _gen(dat):
         if isinstance(dat, dict):
+            if not dat:
+                for i in range(MAX_ITER):
+                    yield {}
             ks, vs = [], []
             for k, v in dat.items():
                 ks.append(k)
@@ -167,6 +190,9 @@ def data_generator(data, fun=_data_split, args=(), kwargs=None):
             for s_data in zip(*vs):
                 yield dict(zip(ks, s_data))
         elif isinstance(dat, list):
+            if not dat:
+                for i in range(MAX_ITER):
+                    yield []
             vs = []
             for v in dat:
                 vs.append(_gen(v))
@@ -194,15 +220,17 @@ def data_split(data, batch_size, axis=0):
     :param axis: Integer, axis for split, [option]
     :return: a generator for split data
 
-    >>> data = {"a": [np.array([1.0, 2.0]), np.array([3.0, 4.0])], "b": {"c": np.array([5.0, 6.0])}}
+    >>> data = {"a": [np.array([1.0, 2.0]), np.array([3.0, 4.0])], "b": {"c": np.array([5.0, 6.0])}, "d": [], "e": {}}
     >>> for i, data_i in enumerate(data_split(data, 1)):
     ...     print(i, data_to_numpy(data_i))
     ...
-    0 {'a': [array([1.]), array([3.])], 'b': {'c': array([5.])}}
-    1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}}
+    0 {'a': [array([1.]), array([3.])], 'b': {'c': array([5.])}, 'd': [], 'e': {}}
+    1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}, 'd': [], 'e': {}}
 
     """
-    return data_generator(data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis})
+    return data_generator(
+        data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis}
+    )
 
 
 split_generator = data_split
@@ -256,6 +284,7 @@ def data_cut(data, expr, var_map=None):
     """
     var_map = var_map if isinstance(var_map, dict) else {}
     import sympy as sym
+
     expr_s = sym.sympify(expr)
     params = tuple(expr_s.free_symbols)
     args = [data_index(data, var_map.get(i.name, i.name)) for i in params]
@@ -392,3 +421,30 @@ def data_strip(data, keys):
     if isinstance(data, tuple):
         return tuple([data_strip(data_i, keys) for data_i in data])
     return data
+
+
+def check_nan(data, no_raise=False):
+    """check if there is nan in data"""
+    head_keys = []
+
+    def _check_nan(dat, head):
+        if isinstance(dat, dict):
+            return {k: _check_nan(v, head + [k]) for k, v in dat.items()}
+        if isinstance(dat, list):
+            return [
+                _check_nan(data_i, head + [i]) for i, data_i in enumerate(dat)
+            ]
+        if isinstance(dat, tuple):
+            return tuple(
+                [
+                    data_struct(data_i, head + [i])
+                    for i, data_i in enumerate(dat)
+                ]
+            )
+        if np.any(tf.math.is_nan(dat)):
+            if no_raise:
+                return False
+            raise ValueError("nan in data[{}]".format(head))
+        return True
+
+    return _check_nan(data, head_keys)

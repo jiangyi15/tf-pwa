@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 
-import sys
-import os.path
-this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
-
-
-from tf_pwa.model import Cache_Model, param_list, FCN
-import tensorflow as tf
-import time
-import numpy as np
 import json
-from scipy.optimize import minimize, BFGS, basinhopping
-import iminuit
-from tf_pwa.angle import cal_ang_file, EularAngle
-from tf_pwa.utils import load_config_file, flatten_np_data, pprint
-from fit_scipy import prepare_data
-import matplotlib.pyplot as plt
-from tf_pwa.bounds import Bounds
 import math
+import os.path
+import sys
+import time
+
+import iminuit
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from fit_scipy import prepare_data
+from scipy.optimize import BFGS, basinhopping, minimize
+
+from tf_pwa.angle import EularAngle, cal_ang_file
+from tf_pwa.bounds import Bounds
+from tf_pwa.model import FCN, Cache_Model, param_list
+from tf_pwa.utils import flatten_np_data, load_config_file, pprint
+
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + "/..")
 
 
 def main(param_name, x, method):
@@ -46,9 +47,8 @@ def main(param_name, x, method):
         x0 = []
         bounds_dict = {
             param_name: (fixed_var, fixed_var),
-
             "Zc_4160_m0:0": (4.1, 4.22),
-            "Zc_4160_g0:0": (0, 10)
+            "Zc_4160_g0:0": (0, 10),
         }
         for i in a.Amp.trainable_variables:
             args[i.name] = i.numpy()
@@ -56,14 +56,21 @@ def main(param_name, x, method):
             args_name.append(i.name)
             args["error_" + i.name] = 0.1
             if i.name not in bounds_dict:
-                bounds_dict[i.name] = (0., None)
+                bounds_dict[i.name] = (0.0, None)
         for i in bounds_dict:
             if i in args_name:
                 args["limit_{}".format(i)] = bounds_dict[i]
-        m = iminuit.Minuit(fcn, forced_parameters=args_name, errordef=0.5, grad=fcn.grad, print_level=2,
-                           use_array_call=True, **args)
+        m = iminuit.Minuit(
+            fcn,
+            forced_parameters=args_name,
+            errordef=0.5,
+            grad=fcn.grad,
+            print_level=2,
+            use_array_call=True,
+            **args,
+        )
         now = time.time()
-        with tf.device('/device:GPU:0'):
+        with tf.device("/device:GPU:0"):
             print(m.migrad(ncall=10000))  # ,precision=5e-7))
         print(time.time() - now)
         print(m.get_param_states())
@@ -76,9 +83,8 @@ def main(param_name, x, method):
         bnds = []
         bounds_dict = {
             param_name: (fixed_var, fixed_var),
-
             "Zc_4160_m0:0": (4.1, 4.22),
-            "Zc_4160_g0:0": (0, None)
+            "Zc_4160_g0:0": (0, None),
         }
         for i in a.Amp.trainable_variables:
             args[i.name] = i.numpy()
@@ -93,11 +99,18 @@ def main(param_name, x, method):
         bd = Bounds(bnds)
         f_g = bd.trans_f_g(fcn.nll_grad)
         callback = lambda x: print(fcn.cached_nll)
-        with tf.device('/device:GPU:0'):
+        with tf.device("/device:GPU:0"):
             # s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
             # 优化器
             # s = minimize(fcn.nll_grad,np.array(x0),method="L-BFGS-B",jac=True,bounds=bnds,callback=callback,options={"disp":1,"maxcor":100})
-            s = minimize(f_g, np.array(bd.get_x(x0)), method="BFGS", jac=True, callback=callback, options={"disp": 1})
+            s = minimize(
+                f_g,
+                np.array(bd.get_x(x0)),
+                method="BFGS",
+                jac=True,
+                callback=callback,
+                options={"disp": 1},
+            )
         print("#" * 5, param_name, fixed_var, "#" * 5)
         # print(s)
         return s
@@ -124,14 +137,16 @@ def lklpf(param_name):
     method = "scipy"  ###
     mode = "bothsides"  # "back&forth"
     if mode == "back&forth":
-        x1 = np.arange(x_mean - 5 * x_sigma, x_mean + 5 * x_sigma, x_sigma / 2)  ###
+        x1 = np.arange(
+            x_mean - 5 * x_sigma, x_mean + 5 * x_sigma, x_sigma / 2
+        )  ###
         x2 = x1[::-1]
         t1 = time.time()
         y1 = main(param_name, x1, method)
         t2 = time.time()
         y2 = main(param_name, x2, method)
         t3 = time.time()
-        print(mode, x1, y1, x1, y2[::-1], sep='\n')
+        print(mode, x1, y1, x1, y2[::-1], sep="\n")
     elif mode == "bothsides":
         # x1=np.arange(x_mean,x_mean-5*x_sigma,-x_sigma/2)
         x1 = np.arange(x_mean, x_mean - 100, -10)
@@ -142,14 +157,19 @@ def lklpf(param_name):
         t2 = time.time()
         y2 = main(param_name, x2, method)
         t3 = time.time()
-        print(mode, list(np.append(x1[::-1], x2)), list(np.append(y1[::-1], y2)), sep='\n')
+        print(
+            mode,
+            list(np.append(x1[::-1], x2)),
+            list(np.append(y1[::-1], y2)),
+            sep="\n",
+        )
     print(param_name, x_mean)
     print("#" * 10, t2 - t1, "#" * 10, t3 - t2)
-    '''plt.plot(x,yf,"*-",x,yb,"*-")
+    """plt.plot(x,yf,"*-",x,yb,"*-")
   plt.title(param_name)
   plt.legend(["forward","backward"])
   plt.savefig("lklhd_prfl")
-  plt.clf()'''
+  plt.clf()"""
 
 
 if __name__ == "__main__":

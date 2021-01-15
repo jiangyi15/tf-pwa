@@ -1,5 +1,6 @@
 import subprocess
-from tf_pwa.main import regist_subcommand, main
+
+from tf_pwa.main import main, regist_subcommand
 
 
 @regist_subcommand()
@@ -10,7 +11,7 @@ def sss(i: int, *args, j="ss"):
 
 def test_cmd():
     ret = subprocess.getoutput("python -m tf_pwa")
-    
+
 
 def test_main_f():
     ret = main(["sss", "2", "--j=dd"])

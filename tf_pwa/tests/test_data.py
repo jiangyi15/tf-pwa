@@ -1,6 +1,9 @@
+import numpy as np
 import pytest
+
 from tf_pwa.data import *
 from tf_pwa.particle import BaseDecay, BaseParticle
+
 from .common import write_temp_file
 
 
@@ -18,8 +21,12 @@ def test_index2():
     b = BaseParticle("B")
     c = BaseParticle("C")
     d = BaseDecay(a, [b, c])
-    data = {"particle": {a: {"p": 1}, b: {"m": 2}},
-            "decay": [{d: {b: {"a": 3}, c: {"a": 4}}}, ]}
+    data = {
+        "particle": {a: {"p": 1}, b: {"m": 2}},
+        "decay": [
+            {d: {b: {"a": 3}, c: {"a": 4}}},
+        ],
+    }
     assert data_index(data, ["particle", a, "p"]) == 1
     assert data_index(data, ["particle", "B", "m"]) == 2
     assert data_index(data, ["decay", 0, str(d), b, "a"]) == 3
@@ -31,8 +38,12 @@ def test_flatten_dict_data():
     b = BaseParticle("B")
     c = BaseParticle("C")
     d = BaseDecay(a, [b, c])
-    data = {"particle": {a: {"p": 1}, b: {"m": 2}},
-            "decay": [{d: {b: {"a": 3}, c: {"a": 4}}}, ]}
+    data = {
+        "particle": {a: {"p": 1}, b: {"m": 2}},
+        "decay": [
+            {d: {b: {"a": 3}, c: {"a": 4}}},
+        ],
+    }
     data_f = flatten_dict_data(data)
     assert len(data_f) == 4
     assert data_f["particle/A/p"] == 1
@@ -45,7 +56,7 @@ def test_load_dat_file():
     s1 = "5.0 2.0 3.0 3.0\n"
     s2 = "4.0 2.0 4.0 2.0\n4.0 2.0 4.0 2.0\n"
     print(s1 + s2)
-    with write_temp_file(s1+s2) as fname:
+    with write_temp_file(s1 + s2) as fname:
         dat1 = load_dat_file(fname, ["a", "b", "c"])
     with write_temp_file(s1) as fname1:
         with write_temp_file(s2) as fname2:
@@ -57,12 +68,18 @@ def test_load_dat_file():
 
 def test_save_load():
     b = BaseParticle("b")
-    data = {"a": np.array([1.0,2.0,3.0]),
-            b: np.array([2.0, 3.0, 4.0])}
-    
+    data = {"a": np.array([1.0, 2.0, 3.0]), b: np.array([2.0, 3.0, 4.0])}
+
     fname = "test_save_load.npy"
     save_data(fname, data)
     data2 = load_data(fname)
     assert np.allclose(data["a"], data2["a"])
     assert np.allclose(data[b], data2[b])
-    
+
+
+def test_set_seed():
+    set_random_seed(100)
+    a = np.random.random((10,))
+    set_random_seed(100)
+    b = np.random.random((10,))
+    assert np.allclose(a, b)

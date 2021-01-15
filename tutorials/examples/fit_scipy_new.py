@@ -1,31 +1,47 @@
 #!/usr/bin/env python3
 
-import sys
-import os.path
-this_dir = os.path.dirname(__file__)
-sys.path.insert(0, this_dir + '/..')
-
-from tf_pwa.model import Model, FCN
-from tf_pwa.tensorflow_wrapper import tf
-import time
-import numpy as np
-#from pprint import pprint
-import json
-import os
 import datetime
-from scipy.optimize import minimize, BFGS, basinhopping
-import tf_pwa
-from tf_pwa.utils import load_config_file, flatten_np_data, pprint, error_print, std_polar
-from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
+
+# from pprint import pprint
+import json
 import math
+import os
+import os.path
+import sys
+import time
+
+import numpy as np
+from scipy.optimize import BFGS, basinhopping, minimize
+
+import tf_pwa
+from tf_pwa.amp import (
+    AmplitudeModel,
+    DecayGroup,
+    HelicityDecay,
+    Particle,
+    get_name,
+)
+from tf_pwa.cal_angle import prepare_data_from_decay
+from tf_pwa.data import data_to_numpy, data_to_tensor, split_generator
+from tf_pwa.fitfractions import cal_fitfractions, cal_fitfractions_no_grad
+from tf_pwa.model import FCN, Model
+from tf_pwa.tensorflow_wrapper import tf
+from tf_pwa.utils import (
+    error_print,
+    flatten_np_data,
+    load_config_file,
+    pprint,
+    std_polar,
+)
+
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + "/..")
+
+
 # from tf_pwa.bounds import Bounds
 
-from tf_pwa.amp import AmplitudeModel, DecayGroup, HelicityDecay, Particle, get_name
 
-from tf_pwa.data import data_to_numpy, data_to_tensor, split_generator
-from tf_pwa.cal_angle import prepare_data_from_decay
-
-log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") 
+log_dir = "./cached_dir/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 def load_cached_data(cached_data_file="cached_data_new.npy"):
@@ -51,7 +67,7 @@ def prepare_data(decs, particles=None, dtype="float64"):
     fname = [
         ["./data/data4600_new.dat", "data/Dst0_data4600_new.dat"],
         ["./data/bg4600_new.dat", "data/Dst0_bg4600_new.dat"],
-        ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"]
+        ["./data/PHSP4600_new.dat", "data/Dst0_PHSP4600_new.dat"],
     ]
     tname = ["data", "bg", "PHSP"]
     try:
@@ -69,11 +85,13 @@ def prepare_data(decs, particles=None, dtype="float64"):
         return data, bg, mcdata
     data_np = {}
     for i, name in enumerate(fname):
-        data_np[tname[i]] = prepare_data_from_decay(name[0], decs, particles=particles, dtype=dtype)
+        data_np[tname[i]] = prepare_data_from_decay(
+            name[0], decs, particles=particles, dtype=dtype
+        )
 
     data, bg, mcdata = data_to_tensor([data_np[i] for i in tname])
-    #import pprint
-    #pprint.pprint(data)
+    # import pprint
+    # pprint.pprint(data)
     save_cached_data(data_to_numpy({"data": data, "bg": bg, "PHSP": mcdata}))
     return data, bg, mcdata
 
@@ -81,7 +99,9 @@ def prepare_data(decs, particles=None, dtype="float64"):
 def cal_hesse_error(amp, val, w_bkg, data, mcdata, bg, args_name, batch):
     a_h = FCN(Model(amp, w_bkg), data, mcdata, bg=bg, batch=batch)
     t = time.time()
-    nll, g, h = a_h.nll_grad_hessian(val)  # data_w,mcdata,weight=weights,batch=50000)
+    nll, g, h = a_h.nll_grad_hessian(
+        val
+    )  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     # print(nll)
     # print([i.numpy() for i in g])
@@ -100,7 +120,13 @@ def get_decay_chains(config_list):
     decay = {}
     for i in config_list:
         config = config_list[i]
-        res = Particle(i, config["J"], config["Par"], mass=config["m0"], width=config["g0"])
+        res = Particle(
+            i,
+            config["J"],
+            config["Par"],
+            mass=config["m0"],
+            width=config["g0"],
+        )
         chain = config["Chain"]
         if chain < 0:
             dec1 = HelicityDecay(a, [res, c])
@@ -120,7 +146,7 @@ def get_decay_chains(config_list):
 
 
 def get_amplitude(decs, config_list, decay, polar=True):
-    amp = AmplitudeModel(decs,polar)
+    amp = AmplitudeModel(decs, polar)
     for i in config_list:
         if "coef_head" in config_list[i]:
             coef_head = config_list[i]["coef_head"]
@@ -135,11 +161,11 @@ def get_amplitude(decs, config_list, decay, polar=True):
             for j in decs.chains:
                 if decay[i][0] in j:
                     j.total.fixed(config_list[i]["total"])
-        '''if ("float" in config_list[i]) and config_list[i]["float"]:
+        """if ("float" in config_list[i]) and config_list[i]["float"]:
             if 'm' in config_list[i]["float"]:
                 decay[i][1].core.mass.freed()
             if 'g' in config_list[i]["float"]:
-                decay[i][1].core.width.freed()'''
+                decay[i][1].core.width.freed()"""
     return amp
 
 
@@ -175,7 +201,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     config_list = load_config_file("Resonances")
 
     decs, final_particles, decay = get_decay_chains(config_list)
-    data, bg, mcdata = prepare_data(decs, particles=final_particles, dtype=dtype)
+    data, bg, mcdata = prepare_data(
+        decs, particles=final_particles, dtype=dtype
+    )
     amp = get_amplitude(decs, config_list, decay, polar=POLAR)
     load_params(amp, init_params)
     amp.vm.trans_params(POLAR)
@@ -226,9 +254,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             x0[i] -= 2e-5
             nll1, _ = fcn.nll_grad(x0)
             x0[i] += 1e-5
-            gs.append((nll0-nll1)/2e-5)
+            gs.append((nll0 - nll1) / 2e-5)
             print(args_name[i], gs[i], gs0[i])
-            
+
     check_hessian = False
     if check_hessian:
         nll, g, hs0 = fcn.nll_grad_hessian(x0, 20000)
@@ -239,7 +267,7 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             x0[i] -= 2e-5
             _, gi2 = fcn.nll_grad(x0)
             x0[i] += 1e-5
-            hs.append((gi1 - gi2)/2e-5)
+            hs.append((gi1 - gi2) / 2e-5)
             print(args_name[i], hs[i], hs0[i])
 
     points = []
@@ -249,24 +277,33 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
 
     # s = basinhopping(f.nll_grad,np.array(x0),niter=6,disp=True,minimizer_kwargs={"jac":True,"options":{"disp":True}})
     if method in ["BFGS", "CG", "Nelder-Mead"]:
+
         def callback(x):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
                 raise Exception("x too large: {}".format(x_p))
             points.append(model.Amp.vm.get_all_val())
             nlls.append(float(fcn.cached_nll))
-            #if len(nlls) > maxiter:
+            # if len(nlls) > maxiter:
             #    with open("fit_curve.json", "w") as f:
             #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
             #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
 
-        #bd = Bounds(bnds)
+        # bd = Bounds(bnds)
         fcn.model.Amp.vm.set_bound(bounds_dict)
         f_g = fcn.model.Amp.vm.trans_fcn_grad(fcn.nll_grad)
-        s = minimize(f_g, np.array(fcn.model.Amp.vm.get_all_val(True)), method=method, jac=True, callback=callback, options={"disp": 1,"gtol":1e-4,"maxiter":maxiter})
-        xn = fcn.model.Amp.vm.get_all_val() #bd.get_y(s.x)
+        s = minimize(
+            f_g,
+            np.array(fcn.model.Amp.vm.get_all_val(True)),
+            method=method,
+            jac=True,
+            callback=callback,
+            options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter},
+        )
+        xn = fcn.model.Amp.vm.get_all_val()  # bd.get_y(s.x)
     elif method in ["L-BFGS-B"]:
+
         def callback(x):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
@@ -274,14 +311,26 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
             points.append([float(i) for i in x])
             nlls.append(float(fcn.cached_nll))
 
-        s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
-                     options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
+        s = minimize(
+            fcn.nll_grad,
+            np.array(x0),
+            method=method,
+            jac=True,
+            bounds=bnds,
+            callback=callback,
+            options={
+                "disp": 1,
+                "maxcor": 10000,
+                "ftol": 1e-15,
+                "maxiter": maxiter,
+            },
+        )
         xn = s.x
     else:
         pass  # raise Exception("unknown method")
     print("########## fit state:")
     print(s)
-    #print(s.success,s.message)
+    # print(s.success,s.message)
     print("\nTime for fitting:", time.time() - now)
     model.Amp.vm.trans_params(POLAR)
     val = {k: v.numpy() for k, v in model.Amp.variables.items()}
@@ -289,7 +338,9 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         json.dump({"value": val}, f, indent=2)
     err = {}
     if hesse:
-        inv_he = cal_hesse_error(model.Amp, val, w_bkg, data, mcdata, bg, args_name, batch=20000)
+        inv_he = cal_hesse_error(
+            model.Amp, val, w_bkg, data, mcdata, bg, args_name, batch=20000
+        )
         diag_he = inv_he.diagonal()
         hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         print(hesse_error)
@@ -307,9 +358,13 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
     if frac:
         err_frac = {}
         if hesse:
-            frac, grad = cal_fitfractions(model.Amp, list(split_generator(mcdata, 25000)))
+            frac, grad = cal_fitfractions(
+                model.Amp, list(split_generator(mcdata, 25000))
+            )
         else:
-            frac = cal_fitfractions_no_grad(model.Amp, list(split_generator(mcdata, 45000)))
+            frac = cal_fitfractions_no_grad(
+                model.Amp, list(split_generator(mcdata, 45000))
+            )
 
         for i in frac:
             if hesse:
@@ -318,18 +373,25 @@ def fit(method="BFGS", init_params="init_params.json", hesse=True, frac=True):
         for i in frac:
             print(i, ":", error_print(frac[i], err_frac.get(i, None)))
     print("\nEND\n")
-    '''outdic = {"value": val, "error": err, "frac": frac, "err_frac": err_frac}
+    """outdic = {"value": val, "error": err, "frac": frac, "err_frac": err_frac}
     with open("glbmin_params.json", "w") as f:
         json.dump(outdic, f, indent=2)
-    '''
+    """
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="simple fit scripts")
-    parser.add_argument("--no-hesse", action="store_false", default=True, dest="hesse")
-    parser.add_argument("--no-frac", action="store_false", default=True, dest="frac")
-    parser.add_argument("--no-GPU", action="store_false", default=True, dest="has_gpu")
+    parser.add_argument(
+        "--no-hesse", action="store_false", default=True, dest="hesse"
+    )
+    parser.add_argument(
+        "--no-frac", action="store_false", default=True, dest="frac"
+    )
+    parser.add_argument(
+        "--no-GPU", action="store_false", default=True, dest="has_gpu"
+    )
     parser.add_argument("--method", default="BFGS", dest="method")
     results = parser.parse_args()
     if results.has_gpu:
@@ -341,7 +403,7 @@ def main():
 
 
 if __name__ == "__main__":
-    
+
     # summary_writer = tf.summary.create_file_writer(log_dir)
     # with summary_writer.as_default():
     main()

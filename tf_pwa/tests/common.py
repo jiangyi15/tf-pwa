@@ -1,6 +1,7 @@
-import tempfile
 import contextlib
 import os
+import tempfile
+
 
 @contextlib.contextmanager
 def write_temp_file(s, filename=None):

@@ -1,0 +1,22 @@
+{
+  "recommendations": [
+    "bungcip.better-toml",
+    "christian-kohler.path-intellisense",
+    "eamodio.gitlens",
+    "editorconfig.editorconfig",
+    "esbenp.prettier-vscode",
+    "joaompinto.vscode-graphviz",
+    "lextudio.restructuredtext",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-vsliveshare.vsliveshare",
+    "redhat.vscode-yaml",
+    "ryanluker.vscode-coverage-gutters",
+    "stkb.rewrap",
+    "travisillig.vscode-json-stable-stringify",
+    "trentrand.git-commit-helper-vscode",
+    "tyriar.sort-lines",
+    "yzhang.markdown-all-in-one"
+  ],
+  "unwantedRecommendations": ["dbaeumer.vscode-eslint"]
+}

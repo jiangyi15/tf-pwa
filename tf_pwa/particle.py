@@ -2,14 +2,17 @@
 This module implements classes to describe particles and decays.
 """
 import functools
-import numpy as np
 from collections import UserList
+
+import numpy as np
+
+from .breit_wigner import barrier_factor as default_barrier_factor
+from .cg import cg_coef
+from .config import get_config
+from .utils import deep_ordered_iter
+
 # from pysnooper import snoop
 
-from .cg import cg_coef
-from .breit_wigner import barrier_factor as default_barrier_factor
-from .utils import deep_ordered_iter
-from .config import get_config
 
 DEFAULT_DECAY = "defalut_decay"
 
@@ -46,7 +49,7 @@ def _spin_range(a, b):
 def _spin_int(x):
     if isinstance(x, int):
         return x
-    return int(x+0.1)
+    return int(x + 0.1)
 
 
 @functools.total_ordering
@@ -61,7 +64,19 @@ class BaseParticle(object):
     :param mass: Real variable
     :param width: Real variable
     """
-    def __init__(self, name, J=0, P=-1, spins=None, mass=None, width=None, id_=None, disable=False, **kwargs):
+
+    def __init__(
+        self,
+        name,
+        J=0,
+        P=-1,
+        spins=None,
+        mass=None,
+        width=None,
+        id_=None,
+        disable=False,
+        **kwargs
+    ):
         self.set_name(name, id_)
         self.decay = []  # list of Decay
         self.creators = []  # list of Decay which creates the particle
@@ -71,14 +86,16 @@ class BaseParticle(object):
         self.P = P
         if spins is None:
             spins = tuple(_spin_range(-J, J))
-        self.spins = tuple(spins)
+        self.spins = tuple(
+            [eval(i) if isinstance(i, str) else i for i in spins]
+        )
         self.mass = mass
         self.width = width
         self.disable = disable
         for k, v in kwargs.items():
             setattr(self, k, v)
-    
-    def set_name(self, name, id_ =None):
+
+    def set_name(self, name, id_=None):
         if id_ is None:
             names = name.split(":")
             if len(names) > 1:
@@ -95,7 +112,6 @@ class BaseParticle(object):
     @property
     def name(self):
         return self._name
-
 
     def add_decay(self, d):
         """
@@ -165,6 +181,7 @@ class BaseParticle(object):
 
 class ParticleList(UserList):
     """List for Particle"""
+
     def __add__(self, other):
         if isinstance(other, BaseParticle):
             other = [other]
@@ -235,7 +252,15 @@ class BaseDecay(object):
     :param disable: Boolean. If it's True???
     """
 
-    def __init__(self, core, outs, name=None, disable=False, p_break=False, curve_style=None):
+    def __init__(
+        self,
+        core,
+        outs,
+        name=None,
+        disable=False,
+        p_break=False,
+        curve_style=None,
+    ):
         self._name = name
         self.core = core
         self.outs = tuple(outs)
@@ -296,9 +321,11 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         pa = self.core.P
         pb = self.outs[0].P
         pc = self.outs[1].P
-        return tuple(GetA2BC_LS_list(ja, jb, jc, pa, pb, pc, p_break=self.p_break))
+        return tuple(
+            GetA2BC_LS_list(ja, jb, jc, pa, pb, pc, p_break=self.p_break)
+        )
 
-    @functools.lru_cache()
+    # @functools.lru_cache()
     def get_l_list(self):
         """
         List of l in ``self.get_ls_list()``
@@ -356,9 +383,20 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
             j = 0
             for lambda_b in range(-jb, jb + 1):
                 for lambda_c in range(-jc, jc + 1):
-                    ret[j][i] = np.sqrt((2 * l + 1) / (2 * ja + 1)) \
-                                * cg_coef(jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c) \
-                                * cg_coef(l, s, 0, lambda_b - lambda_c, ja, lambda_b - lambda_c)
+                    ret[j][i] = (
+                        np.sqrt((2 * l + 1) / (2 * ja + 1))
+                        * cg_coef(
+                            jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c
+                        )
+                        * cg_coef(
+                            l,
+                            s,
+                            0,
+                            lambda_b - lambda_c,
+                            ja,
+                            lambda_b - lambda_c,
+                        )
+                    )
                     j += 1
         return ret
 
@@ -426,6 +464,7 @@ class DecayChain(object):
 
     :param chain: ???
     """
+
     def __init__(self, chain):
         self.chain = chain
         top, inner, outs = split_particle_type(chain)
@@ -436,6 +475,11 @@ class DecayChain(object):
 
     def __iter__(self):
         return iter(self.chain)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, int):
+            return self.chain[idx]
+        raise NotImplementedError
 
     def __repr__(self):
         return "{}".format(list(self.chain))
@@ -547,7 +591,10 @@ class DecayChain(object):
         base = _Chain_Graph()
         base.add_edge(top, finals[0])
         gs = get_graphs(base, finals[1:])
-        return [gi.get_decay_chain(top, head="chain{}_".format(i)) for i, gi in enumerate(gs)]
+        return [
+            gi.get_decay_chain(top, head="chain{}_".format(i))
+            for i, gi in enumerate(gs)
+        ]
 
     @functools.lru_cache()
     def topology_id(self, identical=True):
@@ -563,7 +610,7 @@ class DecayChain(object):
         else:
             set_a = [list(a[i]) for i in a]
         return sorted(set_a)
-    
+
     def __eq__(self, other):
         if not isinstance(other, DecayChain):
             return False
@@ -586,7 +633,7 @@ class DecayChain(object):
 
     def standard_topology(self):
         """
-        standard topology structure of the decay chain, 
+        standard topology structure of the decay chain,
         all inner particle will be replace as a tuple of out particles.
         for example [A->R+C, R->B+D], is [A->(B, D)+C, (B, D)->B+D]
         """
@@ -605,11 +652,13 @@ class DecayChain(object):
             ret.append(BaseDecay(core, [particle_map[j] for j in i.outs]))
         return DecayChain(ret)
 
-    def topology_map(self, other):
-        """ Mapping relations of the same topology decay
+    def topology_map(self, other=None):
+        """Mapping relations of the same topology decay
         E.g. [A->R+B,R->C+D],[A->Z+B,Z->C+D] => {A:A,B:B,C:C,D:D,R:Z,A->R+B:A->Z+B,R->C+D:Z->C+D}
         """
         a = self.sorted_table()
+        if other is None:
+            other = self.standard_topology()
         b = other.sorted_table()
         ret = {}
         for i in a:
@@ -618,7 +667,9 @@ class DecayChain(object):
                     ret[i] = j
                     break
         for i in self:
-            test_decay = BaseDecay(ret[i.core], [ret[k] for k in i.outs], disable=False)
+            test_decay = BaseDecay(
+                ret[i.core], [ret[k] for k in i.outs], disable=False
+            )
             for j in other:
                 if test_decay == j:
                     ret[i] = j
@@ -627,8 +678,8 @@ class DecayChain(object):
 
     def topology_same(self, other, identical=True):
         """
-        whether self and other is the same topology 
-        
+        whether self and other is the same topology
+
         :param other: other decay chains
         :param identical: using identical particles
         :return:
@@ -716,6 +767,7 @@ class DecayGroup(object):
 
     :param chains: List of DecayChain
     """
+
     def __init__(self, chains):
         first_chain = chains[0]
         if not isinstance(first_chain, DecayChain):
@@ -726,7 +778,9 @@ class DecayGroup(object):
         self.outs = sorted(list(first_chain.outs))
         for i in chains:
             assert i.top == first_chain.top, ""
-            assert i.outs == first_chain.outs, "{} and {} particles are different".format(i, first_chain)
+            assert (
+                i.outs == first_chain.outs
+            ), "{} and {} particles are different".format(i, first_chain)
         # resonances = set()
         resonances = []
         for i in chains:
@@ -807,3 +861,14 @@ class DecayGroup(object):
             else:
                 return decay_chain
         raise ValueError("Not found such decay chain: {}".format(names))
+
+    def get_particle(self, name):
+        """
+        get particle by name
+        """
+        for decay_chain in self.chains:
+            all_particles = list(decay_chain.get_all_particles())
+            for i in all_particles:
+                if str(i) == str(name):
+                    return i
+        raise ValueError("Not found such decay chain: {}".format(name))

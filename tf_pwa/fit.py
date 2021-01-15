@@ -1,15 +1,25 @@
-import tensorflow as tf
-import time
-import numpy as np
 import json
-from .fit_improve import minimize as my_minimize, Cached_FG
+import time
+
+import numpy as np
+import tensorflow as tf
+from scipy.optimize import BFGS, basinhopping, minimize
+
+from .fit_improve import Cached_FG
+from .fit_improve import minimize as my_minimize
 
 
-def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False, **kwargs):
+class LargeNumberError(ValueError):
+    pass
+
+
+def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     try:
         from iminuit import Minuit
     except ImportError:
-        raise RuntimeError("You haven't installed iminuit so you can't use Minuit to fit.")
+        raise RuntimeError(
+            "You haven't installed iminuit so you can't use Minuit to fit."
+        )
     """
 
     :param fcn:
@@ -27,8 +37,15 @@ def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False, **kwargs):
         var_args["error_" + i] = 0.1
 
     f_g = Cached_FG(fcn.nll_grad)
-    m = Minuit(f_g.fun, forced_parameters=var_names, errordef=0.5, grad=f_g.grad, print_level=2, use_array_call=True,
-               **var_args)
+    m = Minuit(
+        f_g.fun,
+        forced_parameters=var_names,
+        errordef=0.5,
+        grad=f_g.grad,
+        print_level=2,
+        use_array_call=True,
+        **var_args,
+    )
     print("########## begin MIGRAD")
     now = time.time()
     m.migrad()  # (ncall=10000))#,precision=5e-7))
@@ -44,13 +61,21 @@ def fit_minuit(fcn,bounds_dict={},hesse=True,minos=False, **kwargs):
         m.minos()  # (var="")
         print("MINOS Time", time.time() - now)
     ndf = len(m.list_of_vary_param())
-    ret = FitResult(dict(m.values), fcn, m.fval, ndf = ndf, success = m.migrad_ok())
+    ret = FitResult(
+        dict(m.values), fcn, m.fval, ndf=ndf, success=m.migrad_ok()
+    )
     ret.set_error(dict(m.errors))
     return ret
 
 
-from scipy.optimize import minimize,BFGS,basinhopping
-def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False, maxiter=None):
+def fit_scipy(
+    fcn,
+    method="BFGS",
+    bounds_dict={},
+    check_grad=False,
+    improve=False,
+    maxiter=None,
+):
     """
 
     :param fcn:
@@ -71,12 +96,13 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
 
     points = []
     nlls = []
+    hess_inv = None
     now = time.time()
     if maxiter is None:
         maxiter = max(100 * len(x0), 2000)
     min_nll = 0.0
     ndf = 0
-    
+    # maxiter = 0
     def v_g2(x0):
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         nll, gs0 = f_g(x0)
@@ -87,9 +113,9 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
             x0[i] -= 2e-5
             nll1, _ = f_g(x0)
             x0[i] += 1e-5
-            gs.append((nll0-nll1)/2e-5)
+            gs.append((nll0 - nll1) / 2e-5)
         return nll, np.array(gs)
-    
+
     if check_grad:
         print("checking gradients ...")
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
@@ -99,10 +125,11 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
             print(args_name[i], gs[i], gs0[i])
 
     if method in ["BFGS", "CG", "Nelder-Mead", "test"]:
+
         def callback(x):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
-                raise Exception("x too large: {}".format(x_p))
+                raise LargeNumberError("x too large: {}".format(x_p))
             points.append(fcn.vm.get_all_val())
             nlls.append(float(fcn.cached_nll))
             # if len(nlls) > maxiter:
@@ -111,23 +138,48 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
             #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
             print(fcn.cached_nll)
 
-        #bd = Bounds(bnds)
+        # bd = Bounds(bnds)
         fcn.vm.set_bound(bounds_dict)
 
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         x0 = np.array(fcn.vm.get_all_val(True))
         # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
         if method == "test":
-            s = my_minimize(f_g, x0, method=method,
-                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+            try:
+                s = my_minimize(
+                    f_g,
+                    x0,
+                    method=method,
+                    jac=True,
+                    callback=callback,
+                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                )
+            except LargeNumberError:
+                return except_result(fcn, x0.shape[0])
         else:
-            s = minimize(f_g, x0, method=method,
-                        jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
+            try:
+                s = minimize(
+                    f_g,
+                    x0,
+                    method=method,
+                    jac=True,
+                    callback=callback,
+                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                )
+            except LargeNumberError:
+                return except_result(fcn, x0.shape[0])
+
         while improve and not s.success:
             min_nll = s.fun
             maxiter -= s.nit
-            s = minimize(f_g, s.x, method=method,
-                     jac=True, callback=callback, options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter})
+            s = minimize(
+                f_g,
+                s.x,
+                method=method,
+                jac=True,
+                callback=callback,
+                options={"disp": 1, "gtol": 1e-2, "maxiter": maxiter},
+            )
             if hasattr(s, "hess_inv"):
                 edm = np.dot(np.dot(s.hess_inv, s.jac), s.jac)
             else:
@@ -139,24 +191,42 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
             if abs(s.fun - min_nll) < 1e-3:
                 break
         print(s)
-        
-        #xn = s.x  # fcn.vm.get_all_val()  # bd.get_y(s.x)
+
+        # xn = s.x  # fcn.vm.get_all_val()  # bd.get_y(s.x)
         fcn.vm.set_all(s.x)
         ndf = s.x.shape[0]
         min_nll = s.fun
         success = s.success
+        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv, s.x)
         fcn.vm.remove_bound()
         xn = fcn.vm.get_all_val()
     elif method in ["L-BFGS-B"]:
+
         def callback(x):
             if np.fabs(x).sum() > 1e7:
                 x_p = dict(zip(args_name, x))
-                raise Exception("x too large: {}".format(x_p))
+                raise LargeNumberError("x too large: {}".format(x_p))
             points.append([float(i) for i in x])
             nlls.append(float(fcn.cached_nll))
 
-        s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
-                     options={"disp": 1, "maxcor": 50, "ftol": 1e-15, "maxiter": maxiter})
+        try:
+
+            s = minimize(
+                fcn.nll_grad,
+                np.array(x0),
+                method=method,
+                jac=True,
+                bounds=bnds,
+                callback=callback,
+                options={
+                    "disp": 1,
+                    "maxcor": 50,
+                    "ftol": 1e-15,
+                    "maxiter": maxiter,
+                },
+            )
+        except LargeNumberError:
+            return except_result(fcn, len(x0))
         xn = s.x
         ndf = s.x.shape[0]
         min_nll = s.fun
@@ -177,30 +247,52 @@ def fit_scipy(fcn, method="BFGS",bounds_dict={}, check_grad=False, improve=False
             xn[i] -= 2e-5
             nll1, _ = f_g(xn)
             xn[i] += 1e-5
-            gs.append((nll0-nll1)/2e-5)
+            gs.append((nll0 - nll1) / 2e-5)
             print(args_name[i], gs[i], gs0[i])
     fcn.vm.set_all(xn)
     params = fcn.vm.get_all_dic()
-    return FitResult(params, fcn, min_nll, ndf = ndf, success=success)
+    return FitResult(
+        params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv
+    )
 
 
-#import pymultinest
+def except_result(fcn, ndf):
+    params = fcn.vm.get_all_dic()
+    return FitResult(
+        params, fcn, float(fcn.cached_nll), ndf=ndf, success=False
+    )
+
+
+# import pymultinest
 def fit_multinest(fcn):
     pass
 
 
-
 class FitResult(object):
-    def __init__(self, params, fcn, min_nll, ndf=0, success=True):
+    def __init__(
+        self, params, fcn, min_nll, ndf=0, success=True, hess_inv=None
+    ):
         self.params = params
         self.error = {}
         self.fcn = fcn
         self.min_nll = float(min_nll)
         self.ndf = int(ndf)
         self.success = success
+        self.hess_inv = hess_inv
 
-    def save_as(self, file_name):
-        s = {"value": self.params, "error": self.error, "status": {"success":self.success,"NLL":self.min_nll,"Ndf":self.ndf}}
+    def save_as(self, file_name, save_hess=False):
+        s = {
+            "value": self.params,
+            "error": self.error,
+            "status": {
+                "success": self.success,
+                "NLL": self.min_nll,
+                "Ndf": self.ndf,
+            },
+        }
+        if save_hess and self.hess_inv is not None:
+            s["free_params"] = [str(i) for i in self.error]
+            s["hess_inv"] = [[float(j) for j in i] for i in self.hess_inv]
         with open(file_name, "w") as f:
             json.dump(s, f, indent=2)
 

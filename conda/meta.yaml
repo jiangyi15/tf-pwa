@@ -1,0 +1,80 @@
+{% set version = "0.1.0" %}
+
+package:
+  name: tf-pwa
+  version: {{ version }}
+
+source:
+  git_url: https://github.com/jiangyi15/tf-pwa
+  # git_depth: 1 # (Defaults to -1/not shallow)
+#  patches:
+   # List any patch files here
+   # - fix.patch
+
+build:
+  script: {{ PYTHON }} -m pip install . --no-deps
+  noarch: python
+  # noarch_python: True
+  number: {{ GIT_DESCRIBE_NUMBER }}
+
+  # Note that this will override the default build string with the Python
+  # and NumPy versions
+  string: {{ GIT_BUILD_STR }}
+  ## preserve_egg_dir: True
+  ## entry_points:
+    ## Put any entry points (scripts to be generated automatically) here. The
+    ## syntax is module:function.  For example
+    ##
+    ## - tf_pwa = tf_pwa:main.main
+    ##
+    ## Would create an entry point called six that calls six.main()
+
+
+  ## If this is a new build for the same version, increment the build
+  ## number. If you do not include this key, it defaults to 0.
+  ## number: 1
+
+requirements:
+  build:
+    - python
+    - setuptools
+
+  run:
+    - python
+    - tensorflow-gpu>=2.0.0
+    - matplotlib
+    - scipy
+    - sympy
+    - pyyaml
+
+test:
+  # Python imports
+  imports:
+    - tf_pwa
+    - tf_pwa.tests
+    - tf_pwa.config_loader
+
+  #commands:
+    #- py.test -m tf_pwa
+    ## You can put test commands to be run here.  Use this to test that the
+    ## entry points work.
+
+
+  ## You can also put a file called run_test.py in the recipe that will be run
+  ## at test time.
+
+  #requires:
+    #- pytest
+    #- pytest-benchmark
+    # Put any additional test requirements here.  For example
+    # - nose
+
+about:
+  home: https://github.com/jiangyi15/tf-pwa
+  license: MIT License
+  license_file: LICENSE
+  summary: 'A Partial Wave Analysis program using Tensorflow'
+
+# See
+# http://docs.continuum.io/conda/build.html for
+# more information about meta.yaml
