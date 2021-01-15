@@ -162,7 +162,6 @@ def small_d_matrix(theta, j):
     a = tf.cast(a, dtype=sintheta.dtype)
     s = tf.pow(sintheta, a)
     c = tf.pow(costheta, j - a)
-    # print("theta", s[0], c[0])
     sc = s * c
     w = small_d_weight(j)
 
@@ -212,7 +211,6 @@ def D_matrix_conj(alpha, beta, gamma, j):
     expi_gamma = tf.reshape(exp_i(gamma, m), (-1, 1, j + 1))
     expi_gamma = tf.cast(expi_gamma, dtype=expi_alpha.dtype)
     dc = tf.complex(d, tf.zeros_like(d))
-    # print(expi_alpha[0], expi_gamma[0])
     ret = tf.cast(expi_alpha * expi_gamma, dc.dtype) * dc
     return ret
 
