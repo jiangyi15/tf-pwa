@@ -784,7 +784,7 @@ class ConfigLoader(object):
                 phsp[0],
                 bg[0],
                 ws_bkg[0],
-                path,
+                prefix,
                 plot_var_dic,
                 chain_property,
                 save_root=save_root,
@@ -795,7 +795,7 @@ class ConfigLoader(object):
                 data_dict,
                 phsp_dict,
                 bg_dict,
-                path,
+                prefix,
                 plot_var_dic,
                 chain_property,
                 nll=nll,
@@ -814,7 +814,7 @@ class ConfigLoader(object):
                         mc,
                         sb,
                         w_bkg,
-                        path + "d{}_".format(i),
+                        prefix + "d{}_".format(i),
                         plot_var_dic,
                         chain_property,
                         save_root=save_root,
@@ -824,7 +824,7 @@ class ConfigLoader(object):
                         data_dict,
                         phsp_dict,
                         bg_dict,
-                        path + "d{}_".format(i),
+                        prefix + "d{}_".format(i),
                         plot_var_dic,
                         chain_property,
                         nll=nll,
@@ -842,7 +842,7 @@ class ConfigLoader(object):
                         mc,
                         sb,
                         w_bkg,
-                        path + "d{}_".format(i),
+                        prefix + "d{}_".format(i),
                         plot_var_dic,
                         chain_property,
                         save_root=save_root,
@@ -877,7 +877,7 @@ class ConfigLoader(object):
                     datas_dict,
                     phsps_dict,
                     bgs_dict,
-                    path + "com_",
+                    prefix + "com_",
                     plot_var_dic,
                     chain_property,
                     nll=nll,
@@ -887,13 +887,13 @@ class ConfigLoader(object):
                     if bg[0] is None:
                         save_dict_to_root(
                             [datas_dict, phsps_dict],
-                            file_name=path + "variables_com.root",
+                            file_name=prefix + "variables_com.root",
                             tree_name=["data", "fitted"],
                         )
                     else:
                         save_dict_to_root(
                             [datas_dict, phsps_dict, bgs_dict],
-                            file_name=path + "variables_com.root",
+                            file_name=prefix + "variables_com.root",
                             tree_name=["data", "fitted", "sideband"],
                         )
                     print("Save root file " + prefix + "com_variables.root")
