@@ -231,8 +231,9 @@ def cal_helicity_angle(
                     )
                     set_x[j] = x
                     set_z[j] = z2
+                    # set range to make sure opposite allow be - phi
                     ang["alpha"] = (ang["alpha"] - bias) % (2 * np.pi) + bias
-                    bias += np.pi
+                    bias -= np.pi
                     ret[i][j]["ang"] = ang
                     ret[i][j]["x"] = x
                     ret[i][j]["z"] = z2
