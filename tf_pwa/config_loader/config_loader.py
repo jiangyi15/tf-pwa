@@ -766,6 +766,7 @@ class ConfigLoader(object):
             xrange = conf.get("range", None)
             bins = conf.get("bins", None)
             units = conf.get("units", "")
+            yscale = conf.get("yscale", "linear")
             plot_var_dic[name] = {
                 "display": display,
                 "upper_ylim": upper_ylim,
@@ -775,6 +776,7 @@ class ConfigLoader(object):
                 "range": xrange,
                 "bins": bins,
                 "units": units,
+                "yscale": yscale,
             }
         if self._Ngroup == 1:
             data_dict, phsp_dict, bg_dict = self._cal_partial_wave(
@@ -1033,6 +1035,7 @@ class ConfigLoader(object):
         format="png",
         nll=None,
         smooth=True,
+        color_first=True,
         **kwargs
     ):
         # cmap = plt.get_cmap("jet")
@@ -1066,6 +1069,7 @@ class ConfigLoader(object):
             bins = plot_var_dic[name]["bins"]
             units = plot_var_dic[name]["units"]
             xrange = plot_var_dic[name]["range"]
+            yscale = plot_var_dic[name].get("yscale", "linear")
             if xrange is None:
                 xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
             data_x, data_y, data_err = hist_error(
@@ -1134,7 +1138,10 @@ class ConfigLoader(object):
                 legends_label.append("total fit")
 
             # plt.hist(data_i, label="data", bins=50, histtype="step")
-            style = itertools.product(colors, linestyles)
+            if color_first:
+                style = itertools.product(linestyles, colors)
+            else:
+                style = itertools.product(colors, linestyles)
             for i, name_i, label, curve_style in chain_property:
                 weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name_i)]
                 if smooth:
@@ -1145,7 +1152,10 @@ class ConfigLoader(object):
                         bins=bins * bin_scale,
                     )
                     if curve_style is None:
-                        color, ls = next(style)
+                        if color_first:
+                            ls, color = next(style)
+                        else:
+                            color, ls = next(style)
                         le3 = ax.plot(
                             x,
                             y,
@@ -1166,7 +1176,10 @@ class ConfigLoader(object):
                         bins=bins * bin_scale,
                     )
                     if curve_style is None:
-                        color, ls = next(style)
+                        if color_first:
+                            ls, color = next(style)
+                        else:
+                            color, ls = next(style)
                         le3 = ax.step(
                             x,
                             y,
@@ -1190,6 +1203,7 @@ class ConfigLoader(object):
 
             ax.set_ylim((0, upper_ylim))
             ax.set_xlim(xrange)
+            ax.set_yscale(yscale)
             if has_legend:
                 leg = ax.legend(
                     legends,
@@ -1685,6 +1699,9 @@ class PlotParams(dict):
             units = v.get("units", "GeV")
             bins = v.get("bins", self.defaults_config.get("bins", 50))
             legend = v.get("legend", self.defaults_config.get("legend", True))
+            yscale = v.get(
+                "yscale", self.defaults_config.get("yscale", "linear")
+            )
             yield {
                 "name": "m_" + k,
                 "display": display,
@@ -1699,6 +1716,7 @@ class PlotParams(dict):
                 "bins": bins,
                 "trans": trans,
                 "units": units,
+                "yscale": yscale,
             }
 
     def get_angle_vars(self):
@@ -1743,6 +1761,9 @@ class PlotParams(dict):
                 legend = v.get(
                     "legend", self.defaults_config.get("legend", False)
                 )
+                yscale = v.get(
+                    "yscale", self.defaults_config.get("yscale", "linear")
+                )
                 yield {
                     "name": validate_file_name(k + "_" + j),
                     "display": display,
@@ -1752,6 +1773,7 @@ class PlotParams(dict):
                     "bins": bins,
                     "range": xrange,
                     "legend": legend,
+                    "yscale": yscale,
                 }
 
     def get_params(self, params=None):

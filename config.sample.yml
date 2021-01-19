@@ -107,6 +107,8 @@ constrains:
   # "A->R_CD.BR_CD->C.D_total_0r": 1.0
   # var_range:
   # "A->R_CD.BR_CD->C.D_total_0r": [1.0, null]
+  # var_equal:
+  #   -  ["A->R_CD.BR_CD->C.D_total_0r", "A->R_BD.CR_BD->B.D_total_0r"]
 
 # plot describe the configuration of plotting 1-d data distribution
 plot:

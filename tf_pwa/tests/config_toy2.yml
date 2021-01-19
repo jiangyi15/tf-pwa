@@ -33,6 +33,8 @@ constrains:
   decay: null
 
 plot:
+  config:
+    yscale: log
   mass:
     R_BC: { display: "$M_{BC}$" }
     R_BD: { display: "$M_{BD}$" }

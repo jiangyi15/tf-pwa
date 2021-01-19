@@ -121,6 +121,7 @@ def test_fit(toy_config, fit_result):
     toy_config.plot_partial_wave(
         prefix="toy_data/figure", smooth=False, bin_scale=1
     )
+    toy_config.plot_partial_wave(prefix="toy_data/figure", color_first=False)
     toy_config.get_params_error(fit_result)
     fit_result.save_as("toy_data/final_params.json")
     toy_config.cal_fitfractions()
