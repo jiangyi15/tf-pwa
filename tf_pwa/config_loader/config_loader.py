@@ -1200,8 +1200,10 @@ class ConfigLoader(object):
                         )
                 legends.append(le3[0])
                 legends_label.append(label)
-
-            ax.set_ylim((0, upper_ylim))
+            if yscale == "log":
+                ax.set_ylim((0.1, upper_ylim))
+            else:
+                ax.set_ylim((0, upper_ylim))
             ax.set_xlim(xrange)
             ax.set_yscale(yscale)
             if has_legend:
