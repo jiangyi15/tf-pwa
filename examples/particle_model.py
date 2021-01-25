@@ -16,6 +16,7 @@ DecayGroup
 import matplotlib.pyplot as plt
 
 from tf_pwa.amp import Decay, DecayChain, DecayGroup, Particle
+from tf_pwa.vis import plot_decay_struct
 
 # %%
 # We can easy create some instance of Particle
@@ -39,7 +40,13 @@ decay_chain = DecayChain([dec1, dec2])
 decay_chain
 
 # %%
-# DecayGroup is a list of DEcayChain with the same initial and final states
+# We can plot it using matplotlib.
+
+plot_decay_struct(decay_chain)
+plt.show()
+
+# %%
+# DecayGroup is a list of DecayChain with the same initial and final states
 
 decay_group = DecayGroup([decay_chain])
 decay_group
@@ -52,19 +59,11 @@ def charge_infer(dec, charge_map):
     # use particle equal condition
     cached_charge = {Particle(k): v for k, v in charge_map.items()}
     # loop for all decays in decay chain
-    dec_set = list(dec)
-    while dec_set:
-        # get the first decay
-        dec_i = dec_set.pop(0)
-        # if all out particles has charge
-        if all(i in cached_charge for i in dec_i.outs):
-            # the charge or core particle is the sum or
-            cached_charge[dec_i.core] = sum(
-                cached_charge[i] for i in dec_i.outs
-            )
-            continue
-        # wait for another loop
-        dec_set.append(dec_i)
+    for i, dec_i in dec.depth_first(False):
+        # all out particles has charge
+        assert all(i in cached_charge for i in dec_i.outs)
+        # the charge or core particle is the sum of
+        cached_charge[dec_i.core] = sum(cached_charge[i] for i in dec_i.outs)
     return cached_charge
 
 

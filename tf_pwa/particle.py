@@ -511,6 +511,7 @@ class DecayChain(object):
         decay_dict[self.top] = sorted(list(self.outs))
         return decay_dict
 
+    @simple_cache_fun
     def sorted_table_layers(self):
         """
         Get the layer of decay chain as sorted table.
@@ -710,6 +711,24 @@ class DecayChain(object):
             if i.core == p:
                 return i
         raise ValueError("Not found particle {} decay".format(p))
+
+    def depth_first(self, node_first=True):
+        """
+        depth first travel for decay
+        """
+        node_map = {i.core: i for i in self.chain}
+
+        def _dep(t, d):
+            dec = node_map.get(t, None)
+            if dec is not None:
+                if node_first:
+                    yield d, dec
+                for i in dec.outs:
+                    yield from _dep(i, d + 1)
+                if not node_first:
+                    yield d, dec
+
+        return _dep(self.top, 1)
 
 
 class _Chain_Graph(object):
