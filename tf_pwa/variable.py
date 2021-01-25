@@ -71,6 +71,9 @@ def combineVM(vm1, vm2, name="", same_list=None):
     return vm
 
 
+regist_config("polar", True)
+
+
 class VarsManager(object):
     """
     This class provides methods to operate the variables in fitting. Every variable is a 1-d **tf.Variable** of
@@ -86,7 +89,7 @@ class VarsManager(object):
     def __init__(self, name="", dtype=tf.float64):
         self.name = name
         self.dtype = dtype
-        self.polar = True
+        self.polar = get_config("polar")
         self.variables = {}  # {name:tf.Variable,...}
         self.trainable_vars = []  # [name,...]
         self.complex_vars = {}  # {name:polar(bool),...}
@@ -910,7 +913,7 @@ class Variable(object):
             trainable=trainable,
         )
 
-    def cplx_var(self, polar=True, fix=False, fix_vals=(1.0, 0.0)):
+    def cplx_var(self, polar=None, fix=False, fix_vals=(1.0, 0.0)):
         """
         It implements interface to ``VarsManager.add_complex_var()``, but supports variables that are not of non-shape.
 
