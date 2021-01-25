@@ -89,3 +89,18 @@ def test_sorted_table():
     c = {"a": ["b", "c", "d"], "c": ["c"], "d": ["d"]}
     with pytest.raises(Exception):
         de3 = DecayChain.from_sorted_table(c)
+
+
+def test_depth_fisrt():
+    decs = DecayChain.from_particles("a", ["B", "C", "D", "E"])
+    for de in decs:
+        used_node = [de.top]
+        for i, dec in de.depth_first():
+            assert dec.core in used_node
+            for j in dec.outs:
+                used_node.append(j)
+        used_node = [de.top]
+        for i, dec in list(de.depth_first(False))[::-1]:
+            assert dec.core in used_node
+            for j in dec.outs:
+                used_node.append(j)

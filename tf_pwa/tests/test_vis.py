@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 from tf_pwa.particle import BaseDecay, BaseParticle, DecayChain
 from tf_pwa.vis import *
 
@@ -45,3 +47,27 @@ def test_dot():
     assert source_0 != DotGenerator.dot_chain(chains_0, False)
     chains = DecayChain.from_particles(a, [b, c, d, e, f])
     assert len(chains) == 105  # (2*5-3)!!
+
+
+def remove_same(decs):
+    ret = [decs[0]]
+    for i in decs[1:]:
+        for j in ret:
+            if i.topology_same(j):
+                break
+        else:
+            ret.append(i)
+    return ret
+
+
+def test_plot():
+    final = [BaseParticle(i) for i in ["C", "D", "E", "B"]]
+    decs = DecayChain.from_particles("A", final)
+    decs = remove_same(decs)
+    plt.figure(figsize=(15, 9))
+    for i in range(len(decs)):
+        ax = plt.subplot(3, 5, i + 1)
+        plot_decay_struct(decs[i], ax)
+    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+    plt.margins(0, 0)
+    plt.savefig("topo_4.png", dpi=300, pad_inches=0)
