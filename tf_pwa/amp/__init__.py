@@ -127,8 +127,8 @@ def get_particle(*args, model="default", **kwargs):
 def trans_model(model):
     expr = model.get("expr")
     expr = sym.simplify(expr)
-    default_where = {str(k): str(k) for k in expr.free_symbols}
-    var = model.get("where", default_where)
+    var = {str(k): str(k) for k in expr.free_symbols}
+    var.update(model.get("where", {}))
     model_name = []
     for k, v in var.items():
         if isinstance(v, str):
