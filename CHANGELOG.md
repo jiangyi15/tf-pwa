@@ -4,6 +4,25 @@
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.0...HEAD)
 
+**Added**
+
+- Histogram module [#19](https://github.com/jiangyi15/tf-pwa/pull/19)
+- Plot decay struct without graphviz.
+  [#20](https://github.com/jiangyi15/tf-pwa/pull/20)
+- Model with expr for transpose model.
+  [#21](https://github.com/jiangyi15/tf-pwa/pull/21)
+
+**Changed**
+
+- Save fit fractions as csv file in fit.py
+- Allow `set_config("polar", False)` for parameters in cartesian coordinates.
+
+**Numeric**
+
+- Opposite angle
+  ![0](https://latex.codecogs.com/gif.latex?\phi&space;+&space;\pi&space;\rightarrow&space;\phi&space;-&space;\pi)
+  [#59d2fad](https://github.com/jiangyi15/tf-pwa/commit/59d2fad750ef3ccc9f3a5aed8b4ae6b8560d527f)
+
 ## [v0.1.0](https://github.com/jiangyi15/tf-pwa/tree/v0.1.0)
 
 Backup vesion before some changes.

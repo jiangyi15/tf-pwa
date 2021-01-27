@@ -6,6 +6,7 @@
 # resonance name as id
 # quotation marks are option
 # head resonance will has head fixed to 1.0
+
 D2_2460:
   # spin [required]
   J: 2
@@ -141,3 +142,14 @@ Zc_4025:
 Zc_4160:
   { J: 1, Par: 1, g0: 0.0921485, m0: 4.17329 }
   #float: mg,
+
+Zc_4210:
+  J: 1
+  P: 1
+  m0: 4.21
+  g0: 0.11
+  # trans model examples
+  model:
+    expr: a * BWR
+    where:
+      a: -1.0

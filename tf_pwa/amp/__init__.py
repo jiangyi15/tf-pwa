@@ -17,6 +17,7 @@ from itertools import combinations
 from pprint import pprint
 
 import numpy as np
+import sympy as sym
 
 from tf_pwa.breit_wigner import (
     BW,
@@ -104,9 +105,50 @@ regist_particle = register_particle
 regist_decay = register_decay
 
 
+def get_particle_model(name):
+    all_model = get_config(PARTICLE_MODEL)
+    return all_model.get(name, None)
+
+
 def get_particle(*args, model="default", **kwargs):
     """method for getting particle of model"""
-    return get_config(PARTICLE_MODEL)[model](*args, **kwargs)
+    if isinstance(model, dict):
+        model_class = trans_model(model)
+    else:
+        model_class = get_particle_model(model)
+    if model_class is None:
+        warnings.warn(
+            "No model named {} found, use default instead.".format(model)
+        )
+        model_class = get_particle_model("default")
+    return model_class(*args, **kwargs)
+
+
+def trans_model(model):
+    expr = model.get("expr")
+    expr = sym.simplify(expr)
+    var = {str(k): str(k) for k in expr.free_symbols}
+    var.update(model.get("where", {}))
+    model_name = []
+    for k, v in var.items():
+        if isinstance(v, str):
+            model_name.append((k, v))
+    assert len(model_name) == 1
+    expr = sym.simplify(expr)
+    var_name, name = model_name.pop()
+    expr2 = expr.subs({k: v for k, v in var.items() if k != var_name})
+    assert len(expr2.free_symbols) == 1, str(expr2)
+    fun = sym.lambdify((var_name,), expr2, "tensorflow")
+    base_model = get_particle_model(name)
+
+    class _TempModel(base_model):
+        _from_trans = True
+
+        def get_amp(self, *args, **kwargs):
+            amp = super().get_amp(*args, **kwargs)
+            return fun(amp)
+
+    return _TempModel
 
 
 def get_decay(core, outs, model="default", **kwargs):
@@ -283,6 +325,24 @@ class Particle(BaseParticle, AmpBase):
         if callable(self.width):
             return self.width()
         return self.width
+
+
+@regist_particle("x")
+class ParticleX(BaseParticle, AmpBase):
+    """simple particle model for mass, (used in expr)
+
+    .. math::
+        R(m) = m
+
+    """
+
+    def __call__(self, m):
+        return self.get_amp({"m": m})
+
+    def get_amp(self, data, *args, **kwargs):
+        m = data["m"]
+        zeros = tf.zeros_like(m)
+        return tf.complex(m, zeros)
 
 
 @regist_particle("BWR2")
