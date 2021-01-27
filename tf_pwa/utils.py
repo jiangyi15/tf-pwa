@@ -251,3 +251,26 @@ def check_positive_definite(m):
     warnings.warn("matrix is not positive definited")
     print("eigvalues: ", e)
     return False
+
+
+def tuple_table(fit_frac):
+    names = []
+    for i in fit_frac:
+        if isinstance(i, str):
+            names.append(i)
+    n_items = len(names)
+    table = [[None] * (n_items + 1) for i in range(n_items + 1)]
+
+    for k, v in fit_frac.items():
+        if isinstance(k, tuple):
+            a, b = k
+            table[names.index(a) + 1][names.index(b) + 1] = v
+        else:
+            a, b = k, k
+            table[names.index(a) + 1][names.index(b) + 1] = v
+
+    for i, name in enumerate(names):
+        table[i + 1][0] = name
+        table[0][i + 1] = name
+
+    return table

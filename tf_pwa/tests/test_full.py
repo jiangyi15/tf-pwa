@@ -10,6 +10,7 @@ from tf_pwa import set_random_seed
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import build_amp
+from tf_pwa.utils import tuple_table
 
 matplotlib.use("agg")
 
@@ -81,7 +82,7 @@ def toy_config2(gen_toy, fit_result):
     config = MultiConfig(
         [f"{this_dir}/config_toy.yml", f"{this_dir}/config_toy2.yml"]
     )
-    config.set_params("toy_data/final_params.json")
+    config.set_params(f"{this_dir}/exp2_params.json")
     return config
 
 
@@ -124,7 +125,8 @@ def test_fit(toy_config, fit_result):
     toy_config.plot_partial_wave(prefix="toy_data/figure", color_first=False)
     toy_config.get_params_error(fit_result)
     fit_result.save_as("toy_data/final_params.json")
-    toy_config.cal_fitfractions()
+    fit_frac, frac_err = toy_config.cal_fitfractions()
+    tuple_table(fit_frac)
 
 
 def test_cal_chi2(toy_config, fit_result):
@@ -138,3 +140,4 @@ def test_cal_signal_yields(toy_config, fit_result):
 def test_fit_combine(toy_config2):
     toy_config2.fit()
     toy_config2.get_params_error()
+    print(toy_config2.get_params())

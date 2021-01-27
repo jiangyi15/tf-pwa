@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import csv
 import json
 import time
 from pprint import pprint
@@ -15,7 +16,7 @@ import tensorflow as tf
 from tf_pwa.amp import simple_resonance
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import extra_amp, extra_data
-from tf_pwa.utils import error_print
+from tf_pwa.utils import error_print, tuple_table
 
 
 @simple_resonance("New", params=["alpha", "beta"])
@@ -117,6 +118,8 @@ def write_some_results(config, fit_result):
             name, error_print(fit_frac[i], err_frac.get(i, None))
         )
     print(fit_frac_string)
+    save_frac_csv("fit_frac.csv", fit_frac)
+    save_frac_csv("fit_frac_err.csv", err_frac)
     # from frac_table import frac_table
     # frac_table(fit_frac_string)
     # chi2, ndf = config.cal_chi2(mass=["R_BC", "R_CD"], bins=[[2,2]]*4)
@@ -148,8 +151,17 @@ def write_some_results_combine(config, fit_result):
                 name, error_print(fit_frac[i], err_frac.get(i, None))
             )
         print(fit_frac_string)
+        save_frac_csv(f"fit_frac{it}.csv", fit_frac)
+        save_frac_csv(f"fit_frac{it}_err.csv", err_frac)
     # from frac_table import frac_table
     # frac_table(fit_frac_string)
+
+
+def save_frac_csv(file_name, fit_frac):
+    table = tuple_table(fit_frac)
+    with open(file_name, "w") as f:
+        f_csv = csv.writer(f)
+        f_csv.writerows(table)
 
 
 def write_run_point():
