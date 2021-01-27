@@ -142,6 +142,20 @@ def test_particle():
         a.get_amp({}, {})
 
 
+def test_trans_model():
+    a = get_particle("a", model={"expr": "-1*x+2j"})
+    b = a(1.0)
+    assert b.numpy() == -1 + 2j
+    c = get_particle(
+        "c", mass=2.0, width=2.0, model={"expr": "-x", "where": {"x": "BW"}}
+    )
+    d = c.get_amp({"m": np.array([1.0, 2.0])})
+    assert np.allclose(d.numpy(), np.array([-0.12 - 0.16j, -0.0 - 0.25j]))
+    e = get_particle("e", mass=2.0, width=2.0, model={"expr": "-BW"})
+    f = e.get_amp({"m": np.array([1.0, 2.0])})
+    assert np.allclose(f.numpy(), d.numpy())
+
+
 def test_dec():
     s = """
 
