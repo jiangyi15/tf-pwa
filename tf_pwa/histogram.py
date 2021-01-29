@@ -69,16 +69,16 @@ class Hist1D:
 
     def draw_bar(self, ax=plt, **kwargs):
         return ax.bar(
-            (self.binning[:-1] + self.binning[1:]) / 2,
+            self.bin_center,
             self.count,
-            width=self.binning[1:] - self.binning[:-1],
+            width=self.bin_width,
             **kwargs,
         )
 
-    def draw_kde(self, ax=plt, kind="gauss", **kwargs):
+    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
         color = kwargs.pop("color", self._cached_color)
-        m = (self.binning[1:] + self.binning[:-1]) / 2
-        bw = self.binning[1:] - self.binning[:-1]
+        m = self.bin_center
+        bw = self.bin_width * bin_scale
         kde = weighted_kde(m, self.count, bw, kind)
         x = np.linspace(
             self.binning[0], self.binning[-1], self.count.shape[0] * 10
@@ -89,22 +89,31 @@ class Hist1D:
         with np.errstate(divide="ignore", invalid="ignore"):
             y_error = np.where(self.error == 0, 0, self.count / self.error)
         return ax.bar(
-            (self.binning[:-1] + self.binning[1:]) / 2,
+            self.bin_center,
             y_error,
-            width=self.binning[1:] - self.binning[:-1],
+            width=self.bin_width,
             **kwargs,
         )
 
     def draw_error(self, ax=plt, fmt="none", **kwargs):
         color = kwargs.pop("color", self._cached_color)
         return ax.errorbar(
-            (self.binning[:-1] + self.binning[1:]) / 2,
+            self.bin_center,
             y=self.count,
+            xerr=self.bin_width / 2,
             yerr=self.error,
             fmt=fmt,
             color=color,
             **kwargs,
         )
+
+    @property
+    def bin_center(self):
+        return (self.binning[:-1] + self.binning[1:]) / 2
+
+    @property
+    def bin_width(self):
+        return self.binning[1:] - self.binning[:-1]
 
     def __mul__(self, other):
         if isinstance(other, (float, int)):
@@ -157,11 +166,9 @@ class WeightedData(Hist1D):
         self.weights = weights
         super().__init__(binning, count, np.sqrt(count2))
 
-    def draw_kde(self, ax=plt, kind="gauss", **kwargs):
+    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
         color = kwargs.pop("color", self._cached_color)
-        bw = np.mean(self.binning[1:] - self.binning[:-1]) * np.ones_like(
-            self.value
-        )
+        bw = np.mean(self.bin_width) * bin_scale * np.ones_like(self.value)
         kde = weighted_kde(self.value, self.weights, bw, kind)
         x = np.linspace(
             self.binning[0], self.binning[-1], self.count.shape[0] * 10
