@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import UnivariateSpline, interp1d
 
 
 def plot_hist(binning, count, ax=plt, **kwargs):
@@ -10,6 +11,20 @@ def plot_hist(binning, count, ax=plt, **kwargs):
     a[-1] = binning[-1] + binning[-1] - binning[-2]
     b[1:-1] = count
     return ax.step(a, b, **kwargs)
+
+
+def interp_hist(binning, y, num=1000, kind="UnivariateSpline"):
+    """interpolate data from hostgram into a line"""
+    x = (binning[:-1] + binning[1:]) / 2
+    if kind == "UnivariateSpline":
+        func = UnivariateSpline(x, y, s=2)
+    else:
+        func = interp1d(x, y, kind=kind, fill_value="extrapolate")
+    x_new = np.linspace(
+        np.min(binning), np.max(binning), num=num, endpoint=True
+    )
+    y_new = func(x_new)
+    return x_new, y_new
 
 
 def gauss(x):
@@ -95,6 +110,10 @@ class Hist1D:
             **kwargs,
         )
 
+    def draw_line(self, ax=plt, num=1000, kind="UnivariateSpline", **kwargs):
+        x_new, y_new = interp_hist(self.binning, self.count, num, kind)
+        return ax.plot(x_new, y_new, **kwargs)
+
     def draw_error(self, ax=plt, fmt="none", **kwargs):
         color = kwargs.pop("color", self._cached_color)
         return ax.errorbar(
@@ -114,6 +133,11 @@ class Hist1D:
     @property
     def bin_width(self):
         return self.binning[1:] - self.binning[:-1]
+
+    def get_bin_weight(self):
+        return (self.binning[-1] - self.binning[0]) / (
+            self.binning.shape[0] - 1
+        )
 
     def __mul__(self, other):
         if isinstance(other, (float, int)):
@@ -148,6 +172,7 @@ class Hist1D:
             count, binning = np.histogram(m, *args, **kwargs)
             count2, _ = np.histogram(m, *args, **kwargs)
         else:
+            weights = np.asarray(weights)
             count, binning = np.histogram(m, *args, weights=weights, **kwargs)
             count2, _ = np.histogram(m, *args, weights=weights ** 2, **kwargs)
         return Hist1D(binning, count, np.sqrt(count2))
@@ -166,7 +191,7 @@ class WeightedData(Hist1D):
         self.weights = weights
         super().__init__(binning, count, np.sqrt(count2))
 
-    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
+    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.2, **kwargs):
         color = kwargs.pop("color", self._cached_color)
         bw = np.mean(self.bin_width) * bin_scale * np.ones_like(self.value)
         kde = weighted_kde(self.value, self.weights, bw, kind)

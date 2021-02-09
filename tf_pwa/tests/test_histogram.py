@@ -10,6 +10,8 @@ def test_hist1d():
     plt.clf()
     ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
     hist.draw(ax)
+    hist.draw_line()
+    hist.draw_line(kind="quadratic")
     hist.draw_kde(ax, kind="gauss", color="blue")
     hist.draw_kde(ax, kind="cauchy", color="red")
     (0.1 * hist + hist * 0.1).draw_bar(ax)

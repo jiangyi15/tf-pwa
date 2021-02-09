@@ -34,3 +34,9 @@ plot:
     R_BC: { display: "$M_{BC}$" }
     R_BD: { display: "$M_{BD}$" }
     R_CD: { display: "$M_{CD}$" }
+  angle:
+    R_BC/B:
+      cos(beta):
+        display: "cos \\theta"
+      alpha:
+        display: "\\phi"

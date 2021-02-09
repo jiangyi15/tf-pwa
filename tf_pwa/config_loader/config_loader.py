@@ -40,6 +40,7 @@ from tf_pwa.data import (
 )
 from tf_pwa.fit import FitResult
 from tf_pwa.fit_improve import minimize as my_minimize
+from tf_pwa.histogram import Hist1D, interp_hist
 from tf_pwa.model import FCN, CombineFCN, Model, Model_new
 from tf_pwa.model.cfit import Model_cfit
 from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
@@ -955,7 +956,7 @@ class ConfigLoader(object):
                 # print(weights, amp.decay_group.chains_idx)
                 amp.set_used_res(used_res)
 
-            data_weights = data.get("weight", [1.0] * data_shape(data))
+            data_weights = data.get("weight", np.ones((data_shape(data),)))
             data_dict["data_weights"] = data_weights
             phsp_weights = total_weight * norm_frac
             phsp_dict["MC_total_fit"] = phsp_weights  # MC total weight
@@ -1038,6 +1039,7 @@ class ConfigLoader(object):
         color_first=True,
         **kwargs
     ):
+
         # cmap = plt.get_cmap("jet")
         # N = 10
         # colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
@@ -1072,8 +1074,11 @@ class ConfigLoader(object):
             yscale = plot_var_dic[name].get("yscale", "linear")
             if xrange is None:
                 xrange = [np.min(data_i) - 0.1, np.max(data_i) + 0.1]
-            data_x, data_y, data_err = hist_error(
-                data_i, bins=bins, weights=data_weights, xrange=xrange
+            # data_x, data_y, data_err = hist_error(
+            # data_i, bins=bins, weights=data_weights, xrange=xrange
+            # )
+            data_hist = Hist1D.histogram(
+                data_i, weights=data_weights, range=xrange, bins=bins
             )
             fig = plt.figure()
             if plot_delta or plot_pull:
@@ -1084,119 +1089,76 @@ class ConfigLoader(object):
             legends = []
             legends_label = []
 
-            le = ax.errorbar(
-                data_x,
-                data_y,
-                yerr=data_err,
-                fmt=".",
-                zorder=-2,
-                label="data",
-                color="black",
-            )  # , capsize=2)
+            le = data_hist.draw_error(
+                ax, fmt=".", zorder=-2, label="data", color="black"
+            )
 
             legends.append(le)
             legends_label.append("data")
 
-            if bg_dict:
-                le = ax.hist(
-                    bg_i,
-                    weights=bg_weight,
-                    label="back ground",
-                    bins=bins,
-                    range=xrange,
-                    histtype="stepfilled",
-                    alpha=0.5,
-                    color="grey",
-                )
-                mc_i = np.concatenate([bg_i, phsp_i])
-                mc_weights = np.concatenate([bg_weight, phsp_weights])
-                fit_y, fit_x, le2 = ax.hist(
-                    mc_i,
-                    weights=mc_weights,
-                    range=xrange,
-                    histtype="step",
-                    label="total fit",
-                    bins=bins,
-                    color="black",
-                )
-                legends.append(le2[0])
-                legends_label.append("total fit")
-                legends.append(le[2][0])
-                legends_label.append("back ground")
-            else:
-                mc_i = phsp_i
-                fit_y, fit_x, le2 = ax.hist(
-                    phsp_i,
-                    weights=phsp_weights,
-                    range=xrange,
-                    histtype="step",
-                    label="total fit",
-                    bins=bins,
-                    color="black",
-                )
-                legends.append(le2[0])
-                legends_label.append("total fit")
+            fitted_hist = Hist1D.histogram(
+                phsp_i, weights=phsp_weights, range=xrange, bins=bins
+            )
 
-            # plt.hist(data_i, label="data", bins=50, histtype="step")
+            if bg_dict:
+                bg_hist = Hist1D.histogram(
+                    bg_i, weights=bg_weight, range=xrange, bins=bins
+                )
+                le = bg_hist.draw_bar(
+                    ax, label="back ground", alpha=0.5, color="grey"
+                )
+                fitted_hist = fitted_hist + bg_hist
+                legends.append(le)
+                legends_label.append("back ground")
+
+            le2 = fitted_hist.draw(ax, label="total fit", color="black")
+            legends.append(le2[0])
+            legends_label.append("total fit")
             if color_first:
                 style = itertools.product(linestyles, colors)
             else:
                 style = itertools.product(colors, linestyles)
             for i, name_i, label, curve_style in chain_property:
                 weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name_i)]
+                hist_i = Hist1D.histogram(
+                    phsp_i,
+                    weights=weight_i,
+                    range=xrange,
+                    bins=bins * bin_scale,
+                )
                 if smooth:
-                    x, y = hist_line(
-                        phsp_i,
-                        weights=weight_i,
-                        xrange=xrange,
-                        bins=bins * bin_scale,
-                    )
                     if curve_style is None:
                         if color_first:
                             ls, color = next(style)
                         else:
                             color, ls = next(style)
-                        le3 = ax.plot(
-                            x,
-                            y,
+                        le3 = hist_i.draw_kde(
+                            ax,
                             label=label,
                             color=color,
                             linestyle=ls,
                             linewidth=1,
                         )
                     else:
-                        le3 = ax.plot(
-                            x, y, curve_style, label=label, linewidth=1
+                        le3 = hist_i.draw_kde(
+                            ax, fmt=curve_style, label=label, linewidth=1
                         )
                 else:
-                    x, y = hist_line_step(
-                        phsp_i,
-                        weights=weight_i,
-                        xrange=xrange,
-                        bins=bins * bin_scale,
-                    )
                     if curve_style is None:
                         if color_first:
                             ls, color = next(style)
                         else:
                             color, ls = next(style)
-                        le3 = ax.step(
-                            x,
-                            y,
+                        le3 = hist_i.draw(
+                            ax,
                             label=label,
                             color=color,
                             linestyle=ls,
                             linewidth=1,
-                            where="mid",
                         )
                     else:
-                        le3 = ax.step(
-                            x,
-                            y,
-                            curve_style,
-                            label=label,
-                            linewidth=1,
-                            where="mid",
+                        le3 = hist_i.draw(
+                            ax, curve_style, label=label, linewidth=1
                         )
                 legends.append(le3[0])
                 legends_label.append(label)
@@ -1221,41 +1183,43 @@ class ConfigLoader(object):
                     "{}: -lnL= {:.5}".format(display, nll), fontsize="xx-large"
                 )
             ax.set_xlabel(display + units)
-            ywidth = (max(data_x) - min(data_x)) / bins
+            ywidth = np.mean(
+                data_hist.bin_width
+            )  # (max(data_x) - min(data_x)) / bins
             ax.set_ylabel("Events/{:.3f}{}".format(ywidth, units))
             if plot_delta or plot_pull:
                 plt.setp(ax.get_xticklabels(), visible=False)
                 ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
-                y_err = fit_y - data_y
+                # y_err = fit_y - data_y
+                # if plot_pull:
+                # _epsilon = 1e-10
+                # with np.errstate(divide="ignore", invalid="ignore"):
+                # fit_err = np.sqrt(fit_y)
+                # y_err = y_err / fit_err
+                # y_err[fit_err < _epsilon] = 0.0
+                # ax2.bar(data_x, y_err, color="k", alpha=0.7, width=ywidth)
                 if plot_pull:
-                    _epsilon = 1e-10
-                    with np.errstate(divide="ignore", invalid="ignore"):
-                        fit_err = np.sqrt(fit_y)
-                        y_err = y_err / fit_err
-                    y_err[fit_err < _epsilon] = 0.0
-                ax2.bar(data_x, y_err, color="k", alpha=0.7, width=ywidth)
-                ax2.plot(
-                    [data_x[0], data_x[-1]], [0, 0], color="r", linewidth=0.5
-                )
-                ax2.plot(
-                    [data_x[0], data_x[-1]],
-                    [3, 3],
-                    color="r",
-                    linestyle="--",
-                    linewidth=0.5,
-                )
-                ax2.plot(
-                    [data_x[0], data_x[-1]],
-                    [-3, -3],
-                    color="r",
-                    linestyle="--",
-                    linewidth=0.5,
-                )
-                if plot_pull:
+                    (data_hist - fitted_hist).draw_pull()
+                    ax2.axhline(y=0, color="r", linewidth=0.5)
+                    ax2.axhline(
+                        y=3,
+                        color="r",
+                        linestyle="--",
+                        linewidth=0.5,
+                    )
+                    ax2.axhline(
+                        y=-3,
+                        color="r",
+                        linestyle="--",
+                        linewidth=0.5,
+                    )
                     ax2.set_ylabel("pull")
                     ax2.set_ylim((-5, 5))
                 else:
+                    diff_hist = data_hist - fitted_hist
+                    diff_hist.draw_bar()
                     ax2.set_ylabel("$\\Delta$Events")
+                    y_err = diff_hist.count
                     ax2.set_ylim((-max(abs(y_err)), max(abs(y_err))))
                 ax.set_xlabel("")
                 ax2.set_xlabel(display + units)
@@ -1272,6 +1236,45 @@ class ConfigLoader(object):
                     export_legend(ax, prefix + "legend.pdf")
             print("Finish plotting " + prefix + name)
             plt.close(fig)
+
+        self._2d_plot(
+            data_dict,
+            phsp_dict,
+            bg_dict,
+            prefix,
+            plot_var_dic,
+            chain_property,
+            plot_delta=plot_delta,
+            plot_pull=plot_pull,
+            save_pdf=save_pdf,
+            bin_scale=bin_scale,
+            single_legend=single_legend,
+            format=format,
+            nll=nll,
+            smooth=smooth,
+            color_first=color_first,
+            **kwargs,
+        )
+
+    def _2d_plot(
+        self,
+        data_dict,
+        phsp_dict,
+        bg_dict,
+        prefix,
+        plot_var_dic,
+        chain_property,
+        plot_delta=False,
+        plot_pull=False,
+        save_pdf=False,
+        bin_scale=3,
+        single_legend=False,
+        format="png",
+        nll=None,
+        smooth=True,
+        color_first=True,
+        **kwargs
+    ):
 
         twodplot = self.config["plot"].get("2Dplot", {})
         for k, i in twodplot.items():
@@ -1324,6 +1327,7 @@ class ConfigLoader(object):
                     print("There's no bkg input")
             # fit pdf
             if "fitted" in plot_figs:
+                phsp_weights = phsp_dict["MC_total_fit"]
                 plt.hist2d(
                     phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12
                 )
@@ -1582,17 +1586,8 @@ def hist_line(
 ):
     """interpolate data from hostgram into a line"""
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
-    x = (x[:-1] + x[1:]) / 2
-    if xrange is None:
-        xrange = (np.min(data), np.max(data))
-    if kind == "UnivariateSpline":
-        func = UnivariateSpline(x, y, s=2)
-    else:
-        func = interp1d(x, y, kind=kind)
     num = data.shape[0] * inter
-    x_new = np.linspace(np.min(x), np.max(x), num=num, endpoint=True)
-    y_new = func(x_new)
-    return x_new, y_new
+    return interp_hist(x, y, num=num, kind=kind)
 
 
 def hist_line_step(
