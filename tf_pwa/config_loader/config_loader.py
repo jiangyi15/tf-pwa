@@ -956,7 +956,7 @@ class ConfigLoader(object):
                 # print(weights, amp.decay_group.chains_idx)
                 amp.set_used_res(used_res)
 
-            data_weights = data.get("weight", [1.0] * data_shape(data))
+            data_weights = data.get("weight", np.ones((data_shape(data),)))
             data_dict["data_weights"] = data_weights
             phsp_weights = total_weight * norm_frac
             phsp_dict["MC_total_fit"] = phsp_weights  # MC total weight

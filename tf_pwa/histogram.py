@@ -19,7 +19,7 @@ def interp_hist(binning, y, num=1000, kind="UnivariateSpline"):
     if kind == "UnivariateSpline":
         func = UnivariateSpline(x, y, s=2)
     else:
-        func = interp1d(x, y, kind=kind)
+        func = interp1d(x, y, kind=kind, fill_value="extrapolate")
     x_new = np.linspace(
         np.min(binning), np.max(binning), num=num, endpoint=True
     )
@@ -172,6 +172,7 @@ class Hist1D:
             count, binning = np.histogram(m, *args, **kwargs)
             count2, _ = np.histogram(m, *args, **kwargs)
         else:
+            weights = np.asarray(weights)
             count, binning = np.histogram(m, *args, weights=weights, **kwargs)
             count2, _ = np.histogram(m, *args, weights=weights ** 2, **kwargs)
         return Hist1D(binning, count, np.sqrt(count2))
