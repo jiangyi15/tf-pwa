@@ -85,6 +85,9 @@ class ConfigLoader(object):
         self._Ngroup = 1
         self.cached_fcn = {}
         self.extra_constrains = {}
+        self.resolution_size = self.config.get("data", {}).get(
+            "resolution_size", 1
+        )
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -512,7 +515,9 @@ class ConfigLoader(object):
                 model.append(ModelCachedAmp(amp, wb))
         else:
             for wb in w_bkg:
-                model.append(Model(amp, wb))
+                model.append(
+                    Model(amp, wb, resolution_size=self.resolution_size)
+                )
         return model
 
     def _get_bg_weight(self, data=None, bg=None, display=True):
