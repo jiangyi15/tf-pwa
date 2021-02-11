@@ -191,7 +191,7 @@ class WeightedData(Hist1D):
         self.weights = weights
         super().__init__(binning, count, np.sqrt(count2))
 
-    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.2, **kwargs):
+    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
         color = kwargs.pop("color", self._cached_color)
         bw = np.mean(self.bin_width) * bin_scale * np.ones_like(self.value)
         kde = weighted_kde(self.value, self.weights, bw, kind)

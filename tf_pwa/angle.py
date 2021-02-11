@@ -144,9 +144,9 @@ class LorentzVector(tf.Tensor):
         bp = Vector3.dot(pb, LorentzVector.vect(self))
         gamma2 = tf.where(beta2 > _epsilon, (gamma - 1.0) / beta2, 0.0)
         p_r = LorentzVector.vect(self)
-        p_r += tf.reshape(gamma2 * bp, (-1, 1)) * pb
-        p_r += tf.reshape(gamma * LorentzVector.get_T(self), (-1, 1)) * pb
-        T_r = tf.reshape(gamma * (LorentzVector.get_T(self) + bp), (-1, 1))
+        p_r += tf.expand_dims(gamma2 * bp, axis=-1) * pb
+        p_r += tf.expand_dims(gamma * LorentzVector.get_T(self), axis=-1) * pb
+        T_r = tf.expand_dims(gamma * (LorentzVector.get_T(self) + bp), axis=-1)
         ret = tf.concat([T_r, p_r], -1)
         return ret
 
