@@ -14,15 +14,7 @@ from tf_pwa.cal_angle import cal_helicity_angle
 from tf_pwa.config_loader import ConfigLoader
 
 
-def main():
-    sigma = 0.005
-    r_name = "DstD"
-
-    config = ConfigLoader("config_data.yml")
-
-    decays = config.get_decay(False)
-    decay_chain = decays.get_decay_chain(r_name)
-    data = config.get_data("data")[0]
+def gauss_random_step(data, decay_chain, r_name, sigma, dat_order):
     angle = cal_helicity_angle(
         data["particle"], decay_chain.standard_topology()
     )
@@ -84,8 +76,48 @@ def main():
     # print(ret)
     # print({i: data["particle"][tp_map[i]]["p"] for i in decay_chain.outs})
 
-    pi = np.stack([ret2[i] for i in config.get_dat_order()], axis=1)
-    np.savetxt("data_gauss.dat", pi.reshape((-1, 4)))
+    pi = np.stack([ret2[i] for i in dat_order], axis=1)
+    return pi
+
+
+def gauss_random(data, decay_chain, r_name, sigma, sample_N, dat_order):
+    pi_s = []
+    for i in range(sample_N):
+        pi = gauss_random_step(data, decay_chain, r_name, sigma, dat_order)
+        pi_s.append(pi)
+    pi = np.concatenate(pi_s, axis=1).reshape((-1, 4))
+    return pi
+
+
+def main():
+    sigma = 0.005
+    r_name = "R_BC"
+
+    config = ConfigLoader("config.yml")
+    sample_N = config.resolution_size
+
+    decays = config.get_decay(False)
+    decay_chain = decays.get_decay_chain(r_name)
+    data = config.get_data("data_origin")[0]
+    phsp = config.get_data("phsp_plot")[0]
+
+    dat_order = config.get_dat_order()
+
+    generate = lambda x: gauss_random(
+        x, decay_chain, r_name, sigma, sample_N, dat_order
+    )
+
+    pi = generate(data)
+    np.savetxt("data/data.dat", pi)
+    np.savetxt(
+        "data/data_weight.dat", np.ones((pi.shape[0] // len(dat_order),))
+    )
+
+    pi = generate(phsp)
+    np.save("data/phsp_re.npy", pi)
+    np.savetxt(
+        "data/phsp_re_weight.dat", np.ones((pi.shape[0] // len(dat_order),))
+    )
 
 
 if __name__ == "__main__":

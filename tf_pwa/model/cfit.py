@@ -20,7 +20,7 @@ def f_eff(data):
 
 class Model_cfit(Model):
     def __init__(self, amp, w_bkg=0.001, bg_f=None, eff_f=None):
-        self.Amp = amp
+        super().__init__(amp, w_bkg)
         if bg_f is None:
             bg_f = get_function("default_bg")
         elif isinstance(bg_f, str):

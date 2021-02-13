@@ -1,0 +1,57 @@
+data:
+  resolution_size: 25
+  dat_order: [B, C, D]
+  data: ["data/data.dat"]
+  data_weight: ["data/data_weight.dat"]
+  data_origin: ["data/data_origin.dat"]
+  phsp: ["data/phsp.dat"]
+  phsp_plot: ["data/phsp_plot.dat"]
+  phsp_plot_re: ["data/phsp_re.npy"]
+  phsp_plot_re_weight: ["data/phsp_re_weight.dat"]
+
+decay:
+  A:
+    - [R_BC, D, has_barrier_factor: Flase]
+    - [R_CD, B, has_barrier_factor: Flase]
+  R_BC: [B, C, has_barrier_factor: Flase]
+  R_CD: [C, D, has_barrier_factor: Flase]
+
+particle:
+  $top:
+    A: { J: 0, P: -1, mass: 2.5 }
+  $finals:
+    B: { J: 0, P: -1, mass: 0.5 }
+    C: { J: 0, P: -1, mass: 0.6 }
+    D: { J: 0, P: -1, mass: 0.7 }
+  R_CD: []
+  R_BC: [R_BC1, NR]
+  R_BC1:
+    J: 0
+    P: +1
+    m0: 1.5
+    m_min: 1.4
+    m_max: 1.6
+    g0: 0.005
+    g_min: 0.001
+    g_max: 0.1
+    model: BW
+    float: mg
+  NR:
+    J: 0
+    P: +1
+    m0: 1.5
+    model: one
+
+plot:
+  mass:
+    R_BC:
+      bins: 70
+      display: "$M_{BC}$"
+      range: [1.3, 1.7]
+    R_CD:
+      bins: 70
+      display: "$M_{CD}$"
+  2Dplot:
+    m_R_CD & m_R_BC:
+      display: "$M_{CD}$ vs $M_{BC}$"
+      plot_figs: ["data", "fitted"]
