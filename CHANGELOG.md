@@ -2,11 +2,18 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.0...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.1...HEAD)
+
+**Added**
+
+- Resolution [#23](https://github.com/jiangyi15/tf-pwa/pull/23)
+
+## [v0.1.1](https://github.com/jiangyi15/tf-pwa/tree/v0.1.1)
 
 **Added**
 
 - Histogram module [#19](https://github.com/jiangyi15/tf-pwa/pull/19)
+  [#22](https://github.com/jiangyi15/tf-pwa/pull/22)
 - Plot decay struct without graphviz.
   [#20](https://github.com/jiangyi15/tf-pwa/pull/20)
 - Model with expr for transpose model.
