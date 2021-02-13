@@ -17,7 +17,7 @@ from tf_pwa.data import data_shape
 
 def gauss_sample(data, decay_chain, r_name, sigma, dat_order):
     sigma_delta = 5
-    sample_N = 20
+    sample_N = 30
 
     def gauss(delta_x):
         return tf.exp(-(delta_x ** 2) / (2 * sigma ** 2))
@@ -41,7 +41,7 @@ def gauss_sample(data, decay_chain, r_name, sigma, dat_order):
                 + data["particle"][r_particle]["m"]
             )
 
-    print("min, max: ", m_max, m_min)
+    print("min, max: ", m_min, m_max)
     mass = {}
     weights = []
     for i in data["particle"]:
@@ -69,7 +69,7 @@ def gauss_sample(data, decay_chain, r_name, sigma, dat_order):
         else:
             mass[i] = mi[None, :]
 
-    print(mass[r_particle], np.mean(mass[r_particle]))
+    # print(mass[r_particle], np.mean(mass[r_particle]))
 
     weights = tf.stack(weights)
     weights = weights / tf.reduce_sum(weights, axis=0)

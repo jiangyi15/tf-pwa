@@ -78,6 +78,7 @@ def sum_gradient(
         ys.append(y_i)
         gs.append(g_i)
     nll = sum(ys)
+    print("ll0:,", nll)
     g = list(map(sum, zip(*gs)))
     return nll, g
 
@@ -120,6 +121,7 @@ def sum_hessian(
         g_s.append(g_i)
         h_s.append(h_s_i)
     nll = tf.reduce_sum(y_s)
+    print("ll: ", nll)
     g = tf.reduce_sum(g_s, axis=0)
     h = tf.reduce_sum(h_s, axis=0)
     # h = [[sum(j) for j in zip(*i)] for i in h_s]
@@ -267,7 +269,10 @@ class BaseModel(object):
 
     def nll_grad(self, data, mcdata, batch=65000):
         weight = data.get("weight", tf.ones((data_shape(data),)))
-        alpha = tf.reduce_sum(weight ** 2) / tf.reduce_sum(weight ** 2)
+        weight_rw = tf.reduce_sum(
+            tf.reshape(weight, (-1, self.resolution_size)), axis=-1
+        )
+        alpha = tf.reduce_sum(weight_rw) / tf.reduce_sum(weight_rw ** 2)
         weight = alpha * weight
         assert (
             batch % self.resolution_size == 0
@@ -356,7 +361,10 @@ class BaseModel(object):
         weight = data.get("weight", tf.ones((data_shape(data),)))
         mc_weight = mcdata.get("weight", tf.ones((data_shape(mcdata),)))
         mc_weight = mc_weight / tf.reduce_sum(mc_weight)
-        alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight ** 2)
+        weight_rw = tf.reduce_sum(
+            tf.reshape(weight, (-1, self.resolution_size)), axis=-1
+        )
+        alpha = tf.reduce_sum(weight_rw) / tf.reduce_sum(weight_rw ** 2)
         weight = alpha * weight
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data, h_ln_data = sum_hessian(
@@ -365,6 +373,7 @@ class BaseModel(object):
             self.signal.trainable_variables,
             weight=split_generator(weight, batch),
             trans=clip_log,
+            resolution_size=self.resolution_size,
         )
         int_mc, g_int_mc, h_int_mc = sum_hessian(
             self.signal,
@@ -381,6 +390,7 @@ class BaseModel(object):
         g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
 
         h = -h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
+        print("nll: ", nll)
         return nll, g, h
 
     def set_params(self, var):
