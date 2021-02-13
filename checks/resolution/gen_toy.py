@@ -20,6 +20,7 @@ def abs2(x):
 
 
 def resolution_bw(m, m0, g0, sigma, m_min, m_max):
+    """simple breit wigner with 100 point convolution of gauss function"""
     N = 100
     delta_min = -5 * sigma
     delta_max = 5 * sigma
@@ -31,9 +32,10 @@ def resolution_bw(m, m0, g0, sigma, m_min, m_max):
     for i in range(N):
         delta = delta_min + delta_sigma * i
         m_i = delta + m
-        amp = abs2(BW(m_i, m0, g0) + 10)
+        amp = abs2(BW(m_i, m0, g0) + 10)  # BW(m) + NR
         w = tf.cast(gauss(delta, sigma), m.dtype)
         # print(w)
+        # cut for mass range
         w = tf.where((m_i > m_min) & (m_i < m_max), w, zeros)
         # print(m_min, m_max)
         amps.append(amp * w)
@@ -50,12 +52,14 @@ def simple_selection(data, weight):
 
 
 def main():
+    sigma = 0.005
+
     config = ConfigLoader("config.yml")
     decay = config.get_decay()
     m0 = decay.top.get_mass()
     m1, m2, m3 = [i.get_mass() for i in decay.outs]
 
-    print(m0, m1, m2, m3)
+    print("mass: ", m0, " -> ", m1, m2, m3)
 
     phsp = PhaseSpaceGenerator(m0, [m1, m2, m3])
     p1, p2, p3 = phsp.generate(100000)
@@ -74,10 +78,10 @@ def main():
     # plt.plot(x, np.abs(amp)**2)
     # plt.show()
 
-    print(m_BC, np.mean(m_BC), m_R, g_R)
-    amp_s2 = resolution_bw(m_BC, m_R, g_R, 0.005, m1 + m2, m0 - m3)
+    print("mass: ", m_R, "width: ", g_R)
+    amp_s2 = resolution_bw(m_BC, m_R, g_R, sigma, m1 + m2, m0 - m3)
 
-    print(amp_s2)
+    print("|A|*R: ", amp_s2)
     cut_data = simple_selection(angle, amp_s2)
 
     ps = [data_index(cut_data, ("particle", i, "p")).numpy() for i in "BCD"]

@@ -78,7 +78,7 @@ def sum_gradient(
         ys.append(y_i)
         gs.append(g_i)
     nll = sum(ys)
-    print("ll0:,", nll)
+    # print("ll0:,", nll)
     g = list(map(sum, zip(*gs)))
     return nll, g
 
@@ -121,7 +121,7 @@ def sum_hessian(
         g_s.append(g_i)
         h_s.append(h_s_i)
     nll = tf.reduce_sum(y_s)
-    print("ll: ", nll)
+    # print("ll: ", nll)
     g = tf.reduce_sum(g_s, axis=0)
     h = tf.reduce_sum(h_s, axis=0)
     # h = [[sum(j) for j in zip(*i)] for i in h_s]
@@ -390,7 +390,7 @@ class BaseModel(object):
         g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
 
         h = -h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
-        print("nll: ", nll)
+        # print("nll: ", nll)
         return nll, g, h
 
     def set_params(self, var):

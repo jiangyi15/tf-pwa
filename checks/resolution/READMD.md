@@ -1,14 +1,22 @@
 A simple examples for testing resolution.
 
-1. gen_toy.py generate toy data
+1. gen_toy.py
 
-2. gauss_sample.py using data to generate gauss point of data
+   generate toy data
 
-3. ../../fit.py fit data
+2. gauss_sample.py / gauss_random.py
 
-4. plot_resolution.py plot fit with resolution
+   using data to generate gauss point of data
 
-Or use
+3. ../../fit.py
+
+   fit data
+
+4. plot_resolution.py
+
+   plot fit with resolution
+
+Or use following command to run all scripts
 
 ```
 ./run_all.sh

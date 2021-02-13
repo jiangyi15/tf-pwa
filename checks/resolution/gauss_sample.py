@@ -15,9 +15,8 @@ from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.data import data_shape
 
 
-def gauss_sample(data, decay_chain, r_name, sigma, dat_order):
+def gauss_sample(data, decay_chain, r_name, sigma, sample_N, dat_order):
     sigma_delta = 5
-    sample_N = 30
 
     def gauss(delta_x):
         return tf.exp(-(delta_x ** 2) / (2 * sigma ** 2))
@@ -140,24 +139,25 @@ def main():
     sigma = 0.005
     sigma_delta = 5
     r_name = "R_BC"
-    sample_N = 50
 
     config = ConfigLoader("config.yml")
+
+    sample_N = config.resolution_size
 
     decays = config.get_decay(False)
     decay_chain = decays.get_decay_chain(r_name)
     data = config.get_data("data_origin")[0]
     pi, total_weights = gauss_sample(
-        data, decay_chain, "R_BC", sigma, config.get_dat_order()
+        data, decay_chain, "R_BC", sigma, sample_N, config.get_dat_order()
     )
     np.savetxt("data/data.dat", pi.reshape((-1, 4)))
     np.savetxt("data/data_weight.dat", np.reshape(total_weights, (-1,)))
 
     data = config.get_data("phsp_plot")[0]
     pi, total_weights = gauss_sample(
-        data, decay_chain, "R_BC", sigma, config.get_dat_order()
+        data, decay_chain, "R_BC", sigma, sample_N, config.get_dat_order()
     )
-    np.savetxt("data/phsp_re.dat", pi.reshape((-1, 4)))
+    np.save("data/phsp_re.npy", pi.reshape((-1, 4)))
     np.savetxt("data/phsp_re_weight.dat", np.reshape(total_weights, (-1,)))
 
 
