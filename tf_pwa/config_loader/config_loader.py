@@ -634,7 +634,7 @@ class ConfigLoader(object):
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
-            fcn = self.get_fcn()
+            fcn = self.get_fcn(batch=batch)
         else:
             fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         amp = self.get_amplitude()

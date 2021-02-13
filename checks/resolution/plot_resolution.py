@@ -19,7 +19,7 @@ def main():
     print("data loaded")
     amps = amp(phsp_re)
 
-    amps = tf.reshape(amps * phsp_re["weight"], (-1, 10))
+    amps = tf.reshape(amps * phsp_re["weight"], (-1, config.resolution_size))
     amps = tf.reduce_sum(amps, axis=-1).numpy()
 
     m_idx = config.get_data_index("mass", "R_BC")
@@ -31,7 +31,7 @@ def main():
     scale = m_data.shape[0] / np.sum(amps)
 
     get_hist = lambda m, w: Hist1D.histogram(
-        m, weights=w, range=(m_min, m_max), bins=60
+        m, weights=w, range=(m_min, m_max), bins=200
     )
 
     data_hist = get_hist(m_data, None)
@@ -39,7 +39,8 @@ def main():
     data_hist.draw_error()
     phsp_hist.draw()
     plt.ylim((0, None))
-    plt.xtitle("mass R_BC")
+    plt.xlabel("mass R_BC")
+    plt.xlim((1.3, 1.7))
     plt.savefig("re_plot.png")
 
 

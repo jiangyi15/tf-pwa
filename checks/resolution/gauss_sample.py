@@ -15,20 +15,13 @@ from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.data import data_shape
 
 
-def main():
-    sigma = 0.005
-    sigma_delta = 3
-    r_name = "R_BC"
-    sample_N = 10
+def gauss_sample(data, decay_chain, r_name, sigma, dat_order):
+    sigma_delta = 5
+    sample_N = 20
 
     def gauss(delta_x):
         return tf.exp(-(delta_x ** 2) / (2 * sigma ** 2))
 
-    config = ConfigLoader("config.yml")
-
-    decays = config.get_decay(False)
-    decay_chain = decays.get_decay_chain(r_name)
-    data = config.get_data("data")[0]
     angle = cal_helicity_angle(
         data["particle"], decay_chain.standard_topology()
     )
@@ -48,7 +41,7 @@ def main():
                 + data["particle"][r_particle]["m"]
             )
 
-    print(m_max, m_min)
+    print("min, max: ", m_max, m_min)
     mass = {}
     weights = []
     for i in data["particle"]:
@@ -65,14 +58,18 @@ def main():
                 m_max - mi,
             )
             delta_m = (delta_max - delta_min) / (sample_N + 1)
+            print("delta_min:", delta_min)
             min_m = mi + delta_min + delta_m / 2
             mi_s = []
             for j in range(sample_N):
-                mi_s.append(min_m + delta_m * j)
-                weights.append(gauss(delta_m * (j + 0.5)))
+                mi_s_i = min_m + delta_m * j
+                mi_s.append(mi_s_i)
+                weights.append(gauss(mi_s_i - mi))
             mass[i] = tf.stack(mi_s)
         else:
             mass[i] = mi[None, :]
+
+    print(mass[r_particle], np.mean(mass[r_particle]))
 
     weights = tf.stack(weights)
     weights = weights / tf.reduce_sum(weights, axis=0)
@@ -132,12 +129,36 @@ def main():
     print("ret2:", {k: v.shape for k, v in ret2.items()})
     # print({i: data["particle"][tp_map[i]]["p"] for i in decay_chain.outs})
 
-    pi = np.stack([ret2[i] for i in config.get_dat_order()], axis=-2)
+    pi = np.stack([ret2[i] for i in dat_order], axis=-2)
     pi = np.transpose(pi, (1, 0, 2, 3))
     total_weights = np.transpose(total_weights.numpy(), (1, 0))
     print(pi.shape)
-    np.savetxt("data_gauss3.dat", pi.reshape((-1, 4)))
-    np.savetxt("data_rw_weights.dat", np.reshape(total_weights, (-1,)))
+    return pi, total_weights
+
+
+def main():
+    sigma = 0.005
+    sigma_delta = 5
+    r_name = "R_BC"
+    sample_N = 50
+
+    config = ConfigLoader("config.yml")
+
+    decays = config.get_decay(False)
+    decay_chain = decays.get_decay_chain(r_name)
+    data = config.get_data("data_origin")[0]
+    pi, total_weights = gauss_sample(
+        data, decay_chain, "R_BC", sigma, config.get_dat_order()
+    )
+    np.savetxt("data/data.dat", pi.reshape((-1, 4)))
+    np.savetxt("data/data_weight.dat", np.reshape(total_weights, (-1,)))
+
+    data = config.get_data("phsp_plot")[0]
+    pi, total_weights = gauss_sample(
+        data, decay_chain, "R_BC", sigma, config.get_dat_order()
+    )
+    np.savetxt("data/phsp_re.dat", pi.reshape((-1, 4)))
+    np.savetxt("data/phsp_re_weight.dat", np.reshape(total_weights, (-1,)))
 
 
 if __name__ == "__main__":

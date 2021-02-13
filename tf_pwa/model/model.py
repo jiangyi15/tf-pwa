@@ -506,7 +506,9 @@ class Model(object):
                 [mc_weight] * data_shape(mcdata), dtype="float64"
             )
         return self.model.nll_grad(
-            {**data, "weight": weight}, {**mcdata, "weight": mc_weight}
+            {**data, "weight": weight},
+            {**mcdata, "weight": mc_weight},
+            batch=batch,
         )
 
     # @tf.function
@@ -547,7 +549,7 @@ class Model(object):
             )
         data_i = {**data, "weight": weight}
         mcdata_i = {**mcdata, "weight": mc_weight}
-        return self.model.nll_grad_hessian(data_i, mcdata_i)
+        return self.model.nll_grad_hessian(data_i, mcdata_i, batch=batch)
 
     def set_params(self, var):
         """
@@ -992,6 +994,8 @@ class FCN(object):
         :return gradients: List of real numbers. The gradients for each variable.
         :return hessian: 2-D Array of real numbers. The Hessian matrix of the variables.
         """
+        if batch is None:
+            batch = self.batch
         self.model.set_params(x)
         if type(self.model) == Model_new:
             nll, g, h = self.model.nll_grad_hessian(
@@ -1001,8 +1005,6 @@ class FCN(object):
                 mc_weight=data_split(self.mc_weight, self.batch),
             )
         else:
-            if batch is None:
-                batch = self.batch
             nll, g, h = self.model.nll_grad_hessian(
                 self.data,
                 self.mcdata,
@@ -1013,6 +1015,8 @@ class FCN(object):
         return nll, g, h
 
     def nll_grad_hessian(self, x={}, batch=None):
+        if batch is None:
+            batch = self.batch
         nll, g, h = self.get_nll_grad_hessian(x, batch)
         constr = self.gauss_constr.get_constrain_term()
         constr_grad = self.gauss_constr.get_constrain_grad()
