@@ -6,6 +6,7 @@ import os
 import re
 import time
 import warnings
+from collections import namedtuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,6 +52,8 @@ from tf_pwa.variable import Variable, VarsManager
 
 from .data import load_data_mode
 from .decay_config import DecayConfig
+
+FakeVariable = namedtuple("Variable", ["name"])
 
 
 class ConfigLoader(object):
@@ -282,9 +285,19 @@ class ConfigLoader(object):
             for p_i in d.inner:
                 i = str(p_i)
                 res_dec[i] = d
-                if isinstance(p_i.mass, Variable) or isinstance(
-                    p_i.width, Variable
+                if (
+                    False
+                    and isinstance(p_i.mass, Variable)
+                    or isinstance(p_i.width, Variable)
                 ):
+                    if isinstance(p_i.mass, Variable):
+                        p_i_mass = p_i.mass
+                    else:
+                        p_i_mass = FakeVariable(i + "_mass")
+                    if isinstance(p_i.width, Variable):
+                        p_i_width = p_i.mass
+                    else:
+                        p_i_width = FakeVariable(i + "_width")
                     # free mass and width and set bounds
                     if "m0" in self.config["particle"][i]:
                         m0 = self.config["particle"][i]["m0"]
@@ -304,12 +317,14 @@ class ConfigLoader(object):
                         if hasattr(p_i.mass, "name"):
                             self.init_value[str(p_i.mass)] = m0
                     else:
-                        self.init_value[str(p_i.mass)] = [m0, m_sigma]
+                        if hasattr(p_i.mass, "name"):
+                            self.init_value[p_i.mass.name] = [m0, m_sigma]
                     if g_sigma is None:
                         if hasattr(p_i.width, "name"):
                             self.init_value[str(p_i.width)] = g0
                     else:
-                        self.init_value[str(p_i.width)] = [g0, g_sigma]
+                        if hasattr(p_i.width, "name"):
+                            self.init_value[p_i.width.name] = [g0, g_sigma]
 
                     if (
                         "gauss_constr" in self.config["particle"][i]
@@ -375,7 +390,7 @@ class ConfigLoader(object):
                             self.bound_dic[str(p_i.width)] = (lower, upper)
                         else:
                             self._neglect_when_set_params.append(
-                                str(p_i.width)
+                                str(p_i.width)  # .name
                             )
                     else:
                         self._neglect_when_set_params.append(
@@ -385,7 +400,7 @@ class ConfigLoader(object):
                             i + "_width"
                         )  # p_i.width.name
 
-                if "params" in self.config["particle"][i]:
+                if False and "params" in self.config["particle"][i]:
                     params_dic = self.config["particle"][i]["params"]
                     p_list = []
                     for v in params_dic:

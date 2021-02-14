@@ -38,6 +38,9 @@ class DecayConfig(BaseConfig):
             "bw_l": "bw_l",
             "running_width": "running_width",
         }
+        for k, v in {"m": "mass", "g": "width"}.items():
+            for i in ["min", "max", "range", "sigma"]:
+                self.particle_key_map[k + "_" + i] = v + "_" + i
         self.decay_key_map = {"model": "model"}
         self.dec = self.decay_item(self.config["decay"])
         (
