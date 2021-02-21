@@ -452,7 +452,7 @@ class Model(object):
                     bg_weight, dtype=get_config("dtype")
                 )
             weight = tf.concat([weight, bg_weight], axis=0)
-        print(weight.shape)
+        # print(weight.shape)
         if alpha:
             weight_r = tf.reshape(weight, (-1, self.resolution_size))
             weight_r = tf.reduce_sum(weight_r, axis=-1)

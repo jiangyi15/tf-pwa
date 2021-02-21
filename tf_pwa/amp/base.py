@@ -352,36 +352,6 @@ class ParticleDecay(HelicityDecay):
         return ret * amp
 
 
-@regist_decay("default", 3)
-@regist_decay("AngSam3", 3)
-class AngSam3Decay(AmpDecay, AmpBase):
-    def init_params(self):
-        a = self.core.J
-        self.gi = self.add_var(
-            "G_mu", is_complex=True, shape=(_spin_int(2 * a + 1),)
-        )
-        try:
-            self.gi.set_fix_idx(fix_idx=0, fix_vals=(1.0, 0.0))
-        except Exception as e:
-            print(e)
-
-    def get_amp(self, data, data_extra=None, **kwargs):
-        a = self.core
-        b = self.outs[0]
-        c = self.outs[1]
-        d = self.outs[2]
-        gi = tf.stack(self.gi())
-        ang = data["ang"]
-        D_conj = get_D_matrix_lambda(
-            ang, a.J, a.spins, tuple(_spin_range(-a.J, a.J))
-        )
-        ret = tf.cast(gi, D_conj.dtype) * D_conj
-        ret = tf.reduce_sum(ret, axis=-1)
-        ret = tf.reshape(ret, (-1, len(a.spins), 1, 1, 1))
-        ret = tf.tile(ret, [1, 1, len(b.spins), len(c.spins), len(d.spins)])
-        return ret
-
-
 @regist_decay("helicity_full")
 class HelicityDecayNP(HelicityDecay):
     def init_params(self):
