@@ -1,6 +1,6 @@
 from tf_pwa.tensorflow_wrapper import tf
 
-from . import Particle, Variable, register_particle
+from .core import Particle, Variable, register_particle
 
 
 def cal_monentum(m, ma, mb):
