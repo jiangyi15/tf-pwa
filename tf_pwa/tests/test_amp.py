@@ -122,6 +122,42 @@ def test_gs():
     )
 
 
+def test_BW():
+    a = get_particle("BW", J=1, P=-1, model="BW", mass=3.6, width=0.01)
+    b = [get_particle(i, J=0, P=-1) for i in "ac"]
+    get_decay(a, b)
+    a.init_params()
+    b = a.get_amp(
+        {"m": np.array(1.0)},
+        {"|q|": np.array(1.0), "|q0|": np.array(1.0)},
+        all_data={},
+    )
+
+
+def simple_run(name):
+    a = get_particle(name, J=1, P=-1, model=name, mass=3.6, width=0.01)
+    b = [get_particle(i, J=0, P=-1) for i in "ac"]
+    get_decay(a, b)
+    a.init_params()
+    b = a.get_amp(
+        {"m": np.array(1.0)},
+        {
+            "|q|": np.array(1.0),
+            "|q0|": np.array(1.0),
+            "|q|2": np.array(1.0),
+            "|q0|2": np.array(1.0),
+        },
+        all_data={},
+    )
+
+
+def test_one():
+    simple_run("one")
+    simple_run("exp")
+    simple_run("exp_com")
+    simple_run("BWR_normal")
+
+
 def test_model_new():
     decs, particle = get_test_decay()
     amp = AmplitudeModel(decs)
