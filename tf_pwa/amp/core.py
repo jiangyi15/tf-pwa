@@ -940,11 +940,13 @@ class DecayChain(BaseDecayChain, AmpBase):
         for i in self.inner:
             if len(i.decay) >= 1:
                 decay_i = i.decay[0]
+                found = False
                 for j in i.decay:
                     if j in self:
                         decay_i = j
+                        found = True
                         break
-                else:
+                if not found:
                     raise IndexError(
                         "not found {} decay in {}".format(i, self)
                     )
@@ -1042,11 +1044,13 @@ class DecayGroup(BaseDecayGroup):
         for chains in chain_maps:
             for decay_chain in chains:
                 chain_topo = decay_chain.standard_topology()
+                found = False
                 for i in data_decay.keys():
                     if i == chain_topo:
                         data_decay_i = data_decay[i]
+                        found = True
                         break
-                else:
+                if not found:
                     raise KeyError("not found {}".format(chain_topo))
                 data_c = rename_data_dict(data_decay_i, chains[decay_chain])
                 data_p = rename_data_dict(data_particle, chains[decay_chain])
@@ -1071,11 +1075,13 @@ class DecayGroup(BaseDecayGroup):
         for chains in chain_maps:
             for decay_chain in chains:
                 chain_topo = decay_chain.standard_topology()
+                found = False
                 for i in data_decay.keys():
                     if i == chain_topo:
                         data_decay_i = data_decay[i]
+                        found = True
                         break
-                else:
+                if not found:
                     raise KeyError("not found {}".format(chain_topo))
                 data_c = rename_data_dict(data_decay_i, chains[decay_chain])
                 data_p = rename_data_dict(data_particle, chains[decay_chain])
@@ -1099,11 +1105,13 @@ class DecayGroup(BaseDecayGroup):
         for chains in chain_maps:
             for decay_chain in chains:
                 chain_topo = decay_chain.standard_topology()
+                found = False
                 for i in data_decay.keys():
                     if i == chain_topo:
                         data_decay_i = data_decay[i]
+                        found = True
                         break
-                else:
+                if not found:
                     raise KeyError("not found {}".format(chain_topo))
                 data_c = rename_data_dict(data_decay_i, chains[decay_chain])
                 data_p = rename_data_dict(data_particle, chains[decay_chain])
