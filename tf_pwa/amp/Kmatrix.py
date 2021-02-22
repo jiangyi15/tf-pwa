@@ -82,7 +82,7 @@ class KmatrixSingleChannelParticle(Particle):
             decay = self.decay[0]
             self.bw_l = min(decay.get_l_list())
 
-        self.symbol = sym.simplify(
+        self.symbol = sym.together(
             KMatrix_single(self.n_pole, self.m1, self.m2, self.bw_l, self.d)
         )
         self.function = opt_lambdify(

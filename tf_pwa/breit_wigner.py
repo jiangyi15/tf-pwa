@@ -343,7 +343,7 @@ def Bprime_polynomial(l, z):
     }
     l = int(l + 0.01)
     if l not in coeff:
-        coeff[l] = get_bprime_coeff(l)
+        coeff[l] = [float(i) for i in get_bprime_coeff(l)]
         # raise NotImplementedError
     z = tf.convert_to_tensor(z)
     cof = [tf.convert_to_tensor(i, z.dtype) for i in coeff[l]]
@@ -382,5 +382,5 @@ def get_bprime_coeff(l):
     Hjw = theta.subs({"x": sym.I * w})
     Hjw2 = sym.Poly(Hjw * Hjw.conjugate(), w)
     coeffs = Hjw2.as_dict()
-    ret = [float(coeffs.get((2 * l - 2 * i,), 0.0)) for i in range(l + 1)]
+    ret = [coeffs.get((2 * l - 2 * i,), 0) for i in range(l + 1)]
     return ret
