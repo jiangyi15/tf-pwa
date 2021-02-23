@@ -21,7 +21,7 @@ particle:
     B: { J: 1, P: -1 }
     C: { J: 1, P: -1 }
     D: { J: 0, P: -1 }
-  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1 }
+  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, params: { mass_range: [4.0, 4.2] } }
   R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3 }
   R_CD: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
 

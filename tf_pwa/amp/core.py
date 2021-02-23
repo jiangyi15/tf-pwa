@@ -182,8 +182,11 @@ class AmpBase(object):
         """
         default add_var method
         """
-        name = get_name(self, names)
+        name = self.get_variable_name(names)
         return Variable(name, shape, is_complex, **kwargs)
+
+    def get_variable_name(self, name=""):
+        return get_name(self, name)
 
     def amp_shape(self):
         raise NotImplementedError
