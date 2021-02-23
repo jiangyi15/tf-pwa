@@ -543,13 +543,15 @@ class DecayChain(object):
         def deep_search(idx, base):
             base_step = 2
             max_step = len(base)
+            found = False
             while base_step <= max_step:
                 for i in deep_ordered_iter(base, base_step):
                     check = sum_list([base[j] for j in i])
                     if sorted(check) == sorted(idx[1]):
+                        found = True
                         return i
                 base_step += 1
-            else:
+            if not found:
                 raise Exception("not found in searching")
 
         s_dict = split_len(decay_dict)
@@ -874,10 +876,12 @@ class DecayGroup(object):
         particles = [BaseParticle(str(i)) for i in names]
         for decay_chain in self.chains:
             all_particles = list(decay_chain.get_all_particles())
+            found = True
             for i in particles:
                 if i not in all_particles:
+                    found = False
                     break
-            else:
+            if found:
                 return decay_chain
         raise ValueError("Not found such decay chain: {}".format(names))
 

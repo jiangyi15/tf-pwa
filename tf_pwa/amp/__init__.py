@@ -12,3 +12,4 @@ from .base import *
 # pylint: disable=unused-wildcard-import,unused-import
 from .core import *
 from .flatte import ParticleFlatte
+from .Kmatrix import KmatrixSingleChannelParticle
