@@ -40,7 +40,6 @@ from tf_pwa.data import (
 )
 from tf_pwa.fit import FitResult
 from tf_pwa.fit_improve import minimize as my_minimize
-from tf_pwa.histogram import Hist1D, interp_hist
 from tf_pwa.model import FCN, CombineFCN, Model, Model_new
 from tf_pwa.model.cfit import Model_cfit
 from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
@@ -308,9 +307,7 @@ class ConfigLoader(object):
 
                 variable_prefix = p_i.get_variable_name()
 
-                set_prefix_constrains(
-                    self.vm, variable_prefix, params_dic, self
-                )
+                set_prefix_constrains(self.vm, p_i, params_dic, self)
 
                 simple_map = {"m": "mass", "g": "width"}
 
@@ -320,9 +317,10 @@ class ConfigLoader(object):
                     for k, v in gauss_constr.items():
                         if v:
                             name = simple_map.get(k, k)
-                            var0 = self.vm.get(variable_prefix + name)
-                            self.gauss_constr_dic[variable_prefix + name] = (
-                                var0,
+                            full_name = variable_prefix + name
+                            var0 = self.vm.get(full_name)
+                            self.gauss_constr_dic[full_name] = (
+                                var0.value,
                                 v,
                             )
                         else:
@@ -795,22 +793,23 @@ class ConfigLoader(object):
             json.dump(val, f, indent=2)
 
 
-def set_prefix_constrains(vm, prefix, params_dic, self):
+def set_prefix_constrains(vm, base, params_dic, self):
+    prefix = base.get_variable_name()
     p_list = []
     for v in params_dic:
-        if v[-6:] == "_range" or v[-6:] == "_sigma":
-            vname = v[:-6]
-        elif v[-5:] == "_free":
-            vname = v[:-5]
-        elif v[-7:] == "_constr":
-            vname = v[:-7]
-        else:
-            vname = v
+        vname = v
+        for tail in ["_range", "_sigma", "_free", "_constr", "_min", "_max"]:
+            if v.endswith(tail):
+                vname = v[: -len(tail)]
+                break
+
         if vname not in p_list:
+            print(vname, v)
             p_list.append(vname)
-            vv = vm.variables.get(prefix + vname, None)
+            vv = base.get_var(vname)
+            print(vv, prefix + vname)
             # if isinstance(vv, Variable):# getattr(p_i, vname)
-            if not isinstance(vv, Variable):
+            if vv is None:
                 continue
             p_sigma = params_dic.get(vname + "_sigma", None)
             if vname in params_dic and params_dic[vname] is not None:
@@ -830,7 +829,16 @@ def set_prefix_constrains(vm, prefix, params_dic, self):
             p_range = vname + "_range"
             if p_range in params_dic and params_dic[p_range] is not None:
                 lower, upper = params_dic[p_range]
-                vm.set_bound({vv.name: (lower, upper)})
+                self.bound_dic[vv.name] = (lower, upper)
+                # vm.set_bound({vv.name: (lower, upper)})
+            else:
+                lower = params_dic.get(vname + "_min")
+                upper = params_dic.get(vname + "_max")
+                print(lower, upper)
+                if lower is not None or upper is not None:
+                    self.bound_dic[vv.name] = (lower, upper)
+                    # vm.set_bound({vv.name: (lower, upper)})
+
                 # self.bound_dic[vv.name] = (lower, upper)
             # elif p_sigma is not None and p_value is not None:
             #    p_10sigma = 10 * p_sigma

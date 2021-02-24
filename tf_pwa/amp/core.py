@@ -182,8 +182,15 @@ class AmpBase(object):
         """
         default add_var method
         """
+        if not hasattr(self, "_variables_map"):
+            self._variables_map = {}
         name = self.get_variable_name(names)
-        return Variable(name, shape, is_complex, **kwargs)
+        var = Variable(name, shape, is_complex, **kwargs)
+        self._variables_map[names] = var
+        return var
+
+    def get_var(self, name):
+        return getattr(self, "_variables_map", {}).get(name)
 
     def get_variable_name(self, name=""):
         return get_name(self, name)
@@ -310,6 +317,7 @@ class Particle(BaseParticle, AmpBase):
 
     def get_mass(self):
         if callable(self.mass):
+            print(self, self.mass())
             return self.mass()
         return self.mass
 
