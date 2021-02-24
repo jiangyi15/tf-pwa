@@ -317,7 +317,6 @@ class Particle(BaseParticle, AmpBase):
 
     def get_mass(self):
         if callable(self.mass):
-            print(self, self.mass())
             return self.mass()
         return self.mass
 

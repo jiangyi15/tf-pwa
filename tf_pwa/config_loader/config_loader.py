@@ -804,10 +804,10 @@ def set_prefix_constrains(vm, base, params_dic, self):
                 break
 
         if vname not in p_list:
-            print(vname, v)
+            # print(vname, v)
             p_list.append(vname)
             vv = base.get_var(vname)
-            print(vv, prefix + vname)
+            # print(vv, prefix + vname)
             # if isinstance(vv, Variable):# getattr(p_i, vname)
             if vv is None:
                 continue
@@ -834,7 +834,7 @@ def set_prefix_constrains(vm, base, params_dic, self):
             else:
                 lower = params_dic.get(vname + "_min")
                 upper = params_dic.get(vname + "_max")
-                print(lower, upper)
+                # print(lower, upper)
                 if lower is not None or upper is not None:
                     self.bound_dic[vv.name] = (lower, upper)
                     # vm.set_bound({vv.name: (lower, upper)})
