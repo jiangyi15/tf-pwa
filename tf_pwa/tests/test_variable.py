@@ -48,7 +48,7 @@ def test_combine_vm():
 def test_minimize():
     with variable_scope() as vm:
         m = Variable("R_m", value=2.1)
-        vm.set_bound({"R_m": (-2, 3)})
+        vm.set_bound({"R_m": [-2, 3]})
 
         def f():
             return m() * m()
@@ -69,7 +69,7 @@ def test_minimize2():
 
     with variable_scope() as vm:
         a = Variable("R_m", cplx=True)
-        # vm.set_bound({"R_m": (-2, 3)})
+        vm.set_bound({"R_mr": (-2, None)})
 
         def f(x):
             fx = tf.cos(x) + tf.abs(a())
@@ -78,3 +78,62 @@ def test_minimize2():
         ret = vm.minimize(nll_funciton(f, data, phsp))
         print(ret)
         assert abs(float(np.abs(a())) - 1.0) < 0.2
+
+
+def test_minimize():
+    with variable_scope() as vm:
+        m = Variable("R_m", value=2.1)
+        vm.set_bound({"R_m": (None, 3)})
+
+        def f():
+            return m() * m()
+
+        from scipy.optimize import minimize as mini
+
+        ret = vm.minimize(
+            f, method=lambda g, x: mini(g, x, jac=True, method="L-BFGS-B")
+        )
+        print(ret)
+        assert abs(m().numpy()) < 1e-6
+
+
+def test_polar():
+    with variable_scope() as vm:
+        a = Variable("a", cplx=True)
+        b = a().numpy()
+        vm.rp2xy_all()
+        c = a().numpy()
+        vm.xy2rp_all()
+        d = a().numpy()
+        vm.std_polar_all()
+        e = vm.get("ai")
+        vm.trans_params(True)
+        f = a().numpy()
+        assert np.allclose(b, c)
+        assert np.allclose(c, d)
+        assert np.allclose(d, f)
+        assert -3.2 < e and e < 3.2
+
+
+def test_refresh_vars():
+    with variable_scope() as vm:
+        Variable("a", cplx=True)
+        Variable("b", value=1.0)
+        Variable("c", value=1.0, range_=[0, 3])
+
+        Variable("b", value=1.0)
+        Variable("d", value=1.0, fix=True)
+        vm.refresh_vars()
+
+
+def test_rename():
+    with variable_scope() as vm:
+        Variable("a", value=1.0)
+        vm.rename_var("a", "b")
+        assert vm.get("b") == 1.0
+        assert "a" not in vm.variables
+        a = Variable("d", cplx=True)  # BUG: cannot use "a"
+        a.set_value([2, 3])
+        vm.rename_var("d", "c", True)
+        assert vm.get("cr") == 2
+        assert vm.get("ci") == 3

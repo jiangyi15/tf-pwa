@@ -137,11 +137,12 @@ class VarsManager(object):
                     trainable=trainable,
                 )
         else:  # constant value
-            if name in self.bnd_dic:
-                value = self.bnd_dic[name].get_y2x(value)
+            # if name in self.bnd_dic:
+            # value = self.bnd_dic[name].get_y2x(value)
             self.variables[name] = tf.Variable(
                 value, dtype=self.dtype, trainable=trainable
             )
+            self.init_val[name] = value
 
         if trainable:
             self.trainable_vars.append(name)
@@ -633,11 +634,7 @@ class VarsManager(object):
 
     @staticmethod
     def _std_polar_angle(p, a=-np.pi, b=np.pi):
-        twopi = b - a
-        while p <= a:
-            p.assign_add(twopi)
-        while p >= b:
-            p.assign_add(-twopi)
+        return (p - a) % (b - a) + a
 
     def std_polar(self, name):
         """
