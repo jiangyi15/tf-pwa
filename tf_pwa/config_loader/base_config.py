@@ -12,7 +12,7 @@ def load_config(file_name, share_dict=None):
         if file_name in share_dict:
             return load_config(share_dict[file_name])
         with open(file_name) as f:
-            ret = yaml.safe_load(f)
+            ret = yaml.load(f, yaml.FullLoader)
         return ret
     raise TypeError("not support config {}".format(type(file_name)))
 
@@ -22,7 +22,7 @@ class BaseConfig(object):
         self.config = load_config(file_name, share_dict)
 
     def __getitem__(self, key):
-        return self.config[key]
+        return self.config.get(key)
 
     def __setitem__(self, key, value):
         self.config[key] = value

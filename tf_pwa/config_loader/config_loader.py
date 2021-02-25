@@ -48,16 +48,19 @@ from tf_pwa.root_io import has_uproot, save_dict_to_root
 from tf_pwa.utils import time_print
 from tf_pwa.variable import Variable, VarsManager
 
+from .base_config import BaseConfig
 from .data import load_data_mode
 from .decay_config import DecayConfig
 
 
-class ConfigLoader(object):
+class ConfigLoader(BaseConfig):
     """class for loading config.yml"""
 
-    def __init__(self, file_name, vm=None, share_dict={}):
+    def __init__(self, file_name, vm=None, share_dict=None):
+        if share_dict is None:
+            share_dict = {}
+        super().__init__(file_name, share_dict)
         self.share_dict = share_dict
-        self.config = self.load_config(file_name)
         self.decay_config = DecayConfig(self.config, share_dict)
         self.dec = self.decay_config.dec
         self.particle_map, self.particle_property = (
@@ -79,9 +82,7 @@ class ConfigLoader(object):
             self.config.get("plot", {}), self.decay_struct
         )
         self._neglect_when_set_params = []
-        self.data = load_data_mode(
-            self.config.get("data", None), self.decay_struct
-        )
+        self.data = load_data_mode(self["data"], self.decay_struct)
         self.inv_he = None
         self._Ngroup = 1
         self.cached_fcn = {}

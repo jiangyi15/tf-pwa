@@ -17,3 +17,9 @@ def test_fit(gen_toy):
         "--no-GPU",
     ]
     exec("from fit import main; main()")
+
+
+def test_main_fit(gen_toy):
+    from tf_pwa.app.fit import fit
+
+    fit("tf_pwa/tests/config_toy.yml", "tf_pwa/tests/exp_params.json")

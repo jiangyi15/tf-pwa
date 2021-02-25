@@ -488,7 +488,7 @@ class VarsManager(object):
         if name not in self.variables:
             raise Exception("{} not found".format(name))
         if not val_in_fit or name not in self.bnd_dic:
-            return self.variables[name]  # tf.Variable
+            return self.variables[name].numpy()  # tf.Variable
         else:
             return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
 
@@ -564,18 +564,9 @@ class VarsManager(object):
         :return: List of real numbers.
         """
         vals = []
-        if not val_in_fit:
-            for name in self.trainable_vars:
-                xval = self.get(name).numpy()
-                vals.append(xval)
-        else:
-            for name in self.trainable_vars:
-                xval = self.get(name).numpy()
-                if name in self.bnd_dic:
-                    yval = self.bnd_dic[name].get_y2x(xval)
-                else:
-                    yval = xval
-                vals.append(yval)
+        for name in self.trainable_vars:
+            xval = self.get(name, val_in_fit)
+            vals.append(xval)
         return vals  # list (for list of tf.Variable use self.trainable_variables; for dict of all vars, use self.variables)
 
     def get_all_dic(self, trainable_only=False):
@@ -727,6 +718,35 @@ class VarsManager(object):
         dydx = np.array(dydxs)
         hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
         return hess_inv
+
+    def minimize(self, fcn, jac=False, method="BFGS", mini_kwargs={}):
+        """
+        minimize a give function
+        """
+        if hasattr(fcn, "nll_grad"):
+            f = fcn.nll_grad
+        else:
+
+            def f(x):
+                self.set_all(x)
+                with tf.GradientTape() as tape:
+                    y = fcn()
+                g = tape.gradient(y, self.trainable_variables)
+                return float(y), [float(i) for i in g]
+
+        x0 = self.get_all_val(True)
+
+        f2 = self.trans_fcn_grad(f)
+        if isinstance(method, str):
+            from scipy.optimize import minimize as mini
+
+            ret = mini(f2, x0, jac=True, method=method, **mini_kwargs)
+        else:
+            ret = method(f2, x0, **mini_kwargs)
+        self.set_all(ret.x, val_in_fit=True)
+        ret.x = np.array(self.get_all_val())
+        ret.hess_inv = self.trans_error_matrix(ret.hess_inv, ret.x)
+        return ret
 
 
 class Bound(object):
