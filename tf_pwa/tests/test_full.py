@@ -74,7 +74,7 @@ def test_build_angle_amplitude(toy_config):
     data = toy_config.get_data("data")
     dec = toy_config.get_amplitude().decay_group
     amp_dict = build_amp.build_angle_amp_matrix(dec, data[0])
-    assert len(amp_dict) == 3
+    assert len(amp_dict[1]) == 3
 
 
 @pytest.fixture
