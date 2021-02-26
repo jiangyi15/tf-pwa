@@ -820,6 +820,11 @@ class DecayGroup(object):
     def __iter__(self):
         return iter(self.chains)
 
+    def __getitem__(self, idx):
+        if isinstance(idx, int):
+            return self.chains[idx]
+        raise NotImplementedError
+
     def get_decay_chain(self, id_):
         """get decay chain from identity string"""
         if isinstance(id_, int):

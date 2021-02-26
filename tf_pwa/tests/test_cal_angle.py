@@ -11,9 +11,15 @@ def test_process():
     }
     # st = {b: [b], c: [c], d: [d], a: [b, c, d], r: [b, d]}
     decs = DecayGroup(DecayChain.from_particles(a, [b, c, d]))
+    print(decs)
     data = cal_angle_from_momentum(p, decs)
+    assert isinstance(data, CalAngleData)
     data = add_weight(data)
     print(data_shape(data, all_list=True))
     print(len(list(split_generator(data, 5000))))
     data = data_to_numpy(data)
     assert data_shape(data) == 1
+    data.get_weight()
+    data.get_mass("(B, C)")
+    dec = data.get_decay()[0]
+    data.get_angle(dec, "B")
