@@ -153,3 +153,12 @@ Zc_4210:
     expr: a * BWR
     where:
       a: -1.0
+
+Kmatrix_S:
+  J: 1
+  P: 1
+  m0: 4.21
+  # trans model examples
+  model: KMatrixSingleChannel
+  mass_list: [4.21, 4.31]
+  width_list: [0.03, 0.06]
