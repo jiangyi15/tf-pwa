@@ -7,6 +7,20 @@
 **Added**
 
 - Resolution [#23](https://github.com/jiangyi15/tf-pwa/pull/23)
+- Kmatrix in single channel and multiple pole.
+  [#25](https://github.com/jiangyi15/tf-pwa/pull/25)
+- Add `decay_params` and `production_params` in particle config.
+  [#28](https://github.com/jiangyi15/tf-pwa/pull/25)
+
+**Changed**
+
+- Split `amp` and `config_loader` module.
+  [#24](https://github.com/jiangyi15/tf-pwa/pull/24)
+  [#26](https://github.com/jiangyi15/tf-pwa/pull/26)
+- Change the VarsManager with bound.
+  [#26](https://github.com/jiangyi15/tf-pwa/pull/26)
+- Use angle_amp in `cached_amp: True` instead of amp/m_dep
+  [#27](https://github.com/jiangyi15/tf-pwa/pull/27)
 
 ## [v0.1.1](https://github.com/jiangyi15/tf-pwa/tree/v0.1.1)
 

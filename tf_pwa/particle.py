@@ -260,6 +260,7 @@ class BaseDecay(object):
         disable=False,
         p_break=False,
         curve_style=None,
+        **kwargs
     ):
         self._name = name
         self.core = core
@@ -275,6 +276,8 @@ class BaseDecay(object):
             for i in outs:
                 i.add_creator(self)
         self.curve_style = curve_style
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
     @property
     def name(self):

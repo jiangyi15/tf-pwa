@@ -144,7 +144,15 @@ def get_decay(core, outs, model="default", **kwargs):
     """method for getting decay of model"""
     num_outs = len(outs)
     id_ = (num_outs, model)
-    return get_config(DECAY_MODEL)[id_](core, outs, **kwargs)
+
+    prod_params = {}
+    for i in outs:
+        prod_params.update(getattr(i, "production_params", {}))
+
+    decay_params = getattr(core, "decay_params", {})
+    new_kwargs = {**prod_params, **decay_params, **kwargs}
+
+    return get_config(DECAY_MODEL)[id_](core, outs, **new_kwargs)
 
 
 def data_device(data):
@@ -445,7 +453,7 @@ class AmpDecay(Decay, AmpBase):
 
 @regist_decay("default")
 @regist_decay("gls-bf")
-class HelicityDecay(AmpDecay, AmpBase):
+class HelicityDecay(AmpDecay):
     """default decay model"""
 
     def __init__(

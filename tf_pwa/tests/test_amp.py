@@ -192,6 +192,25 @@ def test_trans_model():
     assert np.allclose(f.numpy(), d.numpy())
 
 
+def test_decay_params():
+    a = get_particle(
+        "a",
+        decay_params={"a": 3},
+    )
+    b = get_particle(
+        "b",
+        production_params={"a": 1, "b": 2},
+    )
+    c = get_particle(
+        "c",
+        production_params={"a": 1, "c": 1},
+    )
+    dec = get_decay(a, [b, c])
+    assert dec.a == 3
+    assert dec.b == 2
+    assert dec.c == 1
+
+
 def test_dec():
     s = """
 
