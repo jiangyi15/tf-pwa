@@ -53,32 +53,13 @@ def build_params_vector(dg, data):
     return ret
 
 
-def cached_amp(dg, data):
-
-    idx, c_amp = build_amp_matrix(dg, data)
-    n_data = data_shape(data)
-
-    @tf.function
-    def _amp():
-        pv = build_params_vector(dg, data)
-        ret = []
-        for i, j in zip(pv, c_amp):
-            a = tf.reshape(i, [n_data, -1] + [1] * (len(j[0].shape) - 1))
-            ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
-        # print(ret)
-        amp = tf.reduce_sum(ret, axis=0)
-        return amp
-
-    return _amp
-
-
 def cached_amp2s(dg, data):
 
     _amp = cached_amp(dg, data)
 
     @time_print
     @tf.function
-    def _amp2s():
+    def _amp2s():  # pragma: no cover # because of tf_funciton
         amp = _amp()
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
@@ -118,11 +99,34 @@ def build_angle_amp_matrix(dec, data, weight=None):
     for k, i in enumerate(dec):
         dec.set_used_chains([k])
         tmp = []
-        for j, amp in enumerate(build_sum_amplitude(dec, i, data)):
+        for j, amp in enumerate(build_sum_angle_amplitude(dec, i, data)):
             tmp.append(amp)
         hij.append(tmp)
     dec.set_used_chains(used_chains)
+    return list(dec), hij
+
+
+def amp_matrix_as_dict(dec, hij):
     ret = {}
     for i, d in zip(hij, dec):
         ret[d] = i
     return ret
+
+
+def cached_amp(dg, data, matrix_method=build_angle_amp_matrix):
+
+    idx, c_amp = matrix_method(dg, data)
+    n_data = data_shape(data)
+
+    @tf.function
+    def _amp():
+        pv = build_params_vector(dg, data)
+        ret = []
+        for i, j in zip(pv, c_amp):
+            a = tf.reshape(i, [n_data, -1] + [1] * (len(j[0].shape) - 1))
+            ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
+        # print(ret)
+        amp = tf.reduce_sum(ret, axis=0)
+        return amp
+
+    return _amp

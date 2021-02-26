@@ -143,7 +143,7 @@ def fit_scipy(
 
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         x0 = np.array(fcn.vm.get_all_val(True))
-        print(x0, fcn.vm.get_all_dic())
+        # print(x0, fcn.vm.get_all_dic())
         # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
         if method == "test":
             try:

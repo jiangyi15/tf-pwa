@@ -286,7 +286,7 @@ class ModelCachedAmp(Model):
         weight = list(weight)
         if data_id not in self.cached_data:
             self.cached_data[data_id] = [
-                build_amp.build_amp_matrix(self.Amp.decay_group, i)[1]
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
                 for i in data
             ]
         ln_data, g_ln_data = sum_gradient_data2(
@@ -302,7 +302,7 @@ class ModelCachedAmp(Model):
         mcdata = list(mcdata)
         if mc_id not in self.cached_data:
             self.cached_data[mc_id] = [
-                build_amp.build_amp_matrix(self.Amp.decay_group, i)[1]
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
                 for i in mcdata
             ]
         int_mc, g_int_mc = sum_gradient_data2(
