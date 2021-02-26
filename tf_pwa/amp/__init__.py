@@ -7,9 +7,8 @@ DecayGroup: addition (+)
         Decay, Particle(Propagator)
 
 """
-from .base import *
-
 # pylint: disable=unused-wildcard-import,unused-import
+from .base import *
 from .core import *
 from .flatte import ParticleFlatte
 from .Kmatrix import KmatrixSingleChannelParticle

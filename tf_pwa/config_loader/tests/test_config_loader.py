@@ -1,3 +1,5 @@
+import yaml
+
 from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.tests.common import write_temp_file
 
@@ -50,4 +52,8 @@ def test_load():
         print(cs)
         with write_temp_file(cs) as g:
             config = ConfigLoader(g)
+            with open(g) as f:
+                data = yaml.load(f)
+            config2 = ConfigLoader(data)
     config.get_amplitude()
+    config2.get_amplitude()

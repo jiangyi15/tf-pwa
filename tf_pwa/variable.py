@@ -137,11 +137,12 @@ class VarsManager(object):
                     trainable=trainable,
                 )
         else:  # constant value
-            if name in self.bnd_dic:
-                value = self.bnd_dic[name].get_y2x(value)
+            # if name in self.bnd_dic:
+            # value = self.bnd_dic[name].get_y2x(value)
             self.variables[name] = tf.Variable(
                 value, dtype=self.dtype, trainable=trainable
             )
+            self.init_val[name] = value
 
         if trainable:
             self.trainable_vars.append(name)
@@ -395,8 +396,8 @@ class VarsManager(object):
                         break
                 if has_same:
                     continue
-                val = self.get(name).numpy()
-                self.set(name, self.bnd_dic[name].get_y2x(val))
+                # val = self.get(name).numpy()
+                # self.set(name, self.bnd_dic[name].get_y2x(val))
 
     def _remove_bound(self, name):
         if name in self.variables:
@@ -407,7 +408,7 @@ class VarsManager(object):
                     break
             if not has_same:
                 value = self.get(name, val_in_fit=False)
-                self.set(name, value)
+                # self.set(name, value)
         del self.bnd_dic[name]
 
     def remove_bound(self):
@@ -487,10 +488,10 @@ class VarsManager(object):
         """
         if name not in self.variables:
             raise Exception("{} not found".format(name))
-        if val_in_fit or name not in self.bnd_dic:
-            return self.variables[name]  # tf.Variable
+        if not val_in_fit or name not in self.bnd_dic:
+            return self.variables[name].numpy()  # tf.Variable
         else:
-            return self.bnd_dic[name].get_x2y(self.variables[name].numpy())
+            return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
 
     def set(self, name, value, val_in_fit=True):
         """
@@ -499,8 +500,8 @@ class VarsManager(object):
         :param name: String
         :param value: Real number
         """
-        if not val_in_fit and name in self.bnd_dic:
-            value = self.bnd_dic[name].get_y2x(value)
+        if val_in_fit and name in self.bnd_dic:
+            value = self.bnd_dic[name].get_x2y(value)
         if name in self.variables:
             self.variables[name].assign(value)
         else:
@@ -564,18 +565,9 @@ class VarsManager(object):
         :return: List of real numbers.
         """
         vals = []
-        if val_in_fit:
-            for name in self.trainable_vars:
-                xval = self.get(name).numpy()
-                vals.append(xval)
-        else:
-            for name in self.trainable_vars:
-                xval = self.get(name).numpy()
-                if name in self.bnd_dic:
-                    yval = self.bnd_dic[name].get_x2y(xval)
-                else:
-                    yval = xval
-                vals.append(yval)
+        for name in self.trainable_vars:
+            xval = self.get(name, val_in_fit)
+            vals.append(xval)
         return vals  # list (for list of tf.Variable use self.trainable_variables; for dict of all vars, use self.variables)
 
     def get_all_dic(self, trainable_only=False):
@@ -590,18 +582,18 @@ class VarsManager(object):
         if trainable_only:
             for i in self.trainable_vars:
                 val = self.variables[i].numpy()
-                if i in self.bnd_dic:
-                    val = self.bnd_dic[i].get_x2y(val)
+                # if i in self.bnd_dic:
+                #     val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
         else:
             for i in self.variables:
                 val = self.variables[i].numpy()
-                if i in self.bnd_dic:
-                    val = self.bnd_dic[i].get_x2y(val)
+                # if i in self.bnd_dic:
+                #    val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
         return dic
 
-    def set_all(self, vals):  # use either dict or list
+    def set_all(self, vals, val_in_fit=False):  # use either dict or list
         """
         Set values for some variables.
 
@@ -609,11 +601,11 @@ class VarsManager(object):
         """
         if type(vals) == dict:
             for name in vals:
-                self.set(name, vals[name], val_in_fit=False)
+                self.set(name, vals[name], val_in_fit=val_in_fit)
         else:
             i = 0
             for name in self.trainable_vars:
-                self.set(name, vals[i])
+                self.set(name, vals[i], val_in_fit)
                 i += 1
 
     def rp2xy_all(self, name_list=None):
@@ -642,11 +634,7 @@ class VarsManager(object):
 
     @staticmethod
     def _std_polar_angle(p, a=-np.pi, b=np.pi):
-        twopi = b - a
-        while p <= a:
-            p.assign_add(twopi)
-        while p >= b:
-            p.assign_add(-twopi)
+        return (p - a) % (b - a) + a
 
     def std_polar(self, name):
         """
@@ -727,6 +715,35 @@ class VarsManager(object):
         dydx = np.array(dydxs)
         hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
         return hess_inv
+
+    def minimize(self, fcn, jac=False, method="BFGS", mini_kwargs={}):
+        """
+        minimize a give function
+        """
+        if hasattr(fcn, "nll_grad"):
+            f = fcn.nll_grad
+        else:
+
+            def f(x):
+                self.set_all(x)
+                with tf.GradientTape() as tape:
+                    y = fcn()
+                g = tape.gradient(y, self.trainable_variables)
+                return float(y), [float(i) for i in g]
+
+        x0 = self.get_all_val(True)
+
+        f2 = self.trans_fcn_grad(f)
+        if isinstance(method, str):
+            from scipy.optimize import minimize as mini
+
+            ret = mini(f2, x0, jac=True, method=method, **mini_kwargs)
+        else:
+            ret = method(f2, x0, **mini_kwargs)
+        self.set_all(ret.x, val_in_fit=True)
+        ret.x = np.array(self.get_all_val())
+        ret.hess_inv = self.trans_error_matrix(ret.hess_inv, ret.x)
+        return ret
 
 
 class Bound(object):
