@@ -189,7 +189,7 @@ def data_generator(data, fun=_data_split, args=(), kwargs=None, MAX_ITER=1000):
                 ks.append(k)
                 vs.append(_gen(v))
             for s_data in zip(*vs):
-                yield dict(zip(ks, s_data))
+                yield type(dat)(zip(ks, s_data))
         elif isinstance(dat, list):
             if not dat:
                 for i in range(MAX_ITER):
@@ -241,7 +241,9 @@ def data_map(data, fun, args=(), kwargs=None):
     """Apply fun for each data. It returns the same structure."""
     kwargs = kwargs if kwargs is not None else {}
     if isinstance(data, dict):
-        return {k: data_map(v, fun, args, kwargs) for k, v in data.items()}
+        return type(data)(
+            {k: data_map(v, fun, args, kwargs) for k, v in data.items()}
+        )
     if isinstance(data, list):
         return [data_map(data_i, fun, args, kwargs) for data_i in data]
     if isinstance(data, tuple):
@@ -252,7 +254,7 @@ def data_map(data, fun, args=(), kwargs=None):
 def data_struct(data):
     """get the structure of data, keys and shape"""
     if isinstance(data, dict):
-        return {k: data_struct(v) for k, v in data.items()}
+        return type(data)({k: data_struct(v) for k, v in data.items()})
     if isinstance(data, list):
         return [data_struct(data_i) for data_i in data]
     if isinstance(data, tuple):
@@ -300,7 +302,9 @@ def data_merge(*data, axis=0):
         assert all([isinstance(i, dict) for i in data]), "not all type same"
         all_idx = [set(list(i)) for i in data]
         idx = set.intersection(*all_idx)
-        return {i: data_merge(*[data_i[i] for data_i in data]) for i in idx}
+        return type(data[0])(
+            {i: data_merge(*[data_i[i] for data_i in data]) for i in idx}
+        )
     if isinstance(data[0], list):
         assert all([isinstance(i, list) for i in data]), "not all type same"
         return [data_merge(*data_i) for data_i in zip(*data)]

@@ -55,3 +55,4 @@ def test_weight():
     hist4 = WeightedData(data, bins=30)
     assert hist1.get_count() == hist3.get_count()
     assert hist2.get_count() == hist4.get_count()
+    assert hist1.scale_to(hist2) == 1 / np.mean(weight)
