@@ -298,6 +298,7 @@ def data_cut(data, expr, var_map=None):
 
 def data_merge(*data, axis=0):
     """This function merges data with the same structure."""
+    assert len(data) > 0
     if isinstance(data[0], dict):
         assert all([isinstance(i, dict) for i in data]), "not all type same"
         all_idx = [set(list(i)) for i in data]

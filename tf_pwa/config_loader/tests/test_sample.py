@@ -7,9 +7,9 @@ from tf_pwa.tests.test_full import gen_toy, toy_config
 
 
 def test_generate_phsp(toy_config):
-    data = toy_config.sampling(1000, force=False)
+    data = toy_config.generate_toy(1000, force=False)
     assert data_shape(data) >= 1000
-    data = toy_config.sampling(1000)
+    data = toy_config.generate_toy(1000)
     assert data_shape(data) == 1000
 
 
@@ -41,7 +41,7 @@ particle:
 def test_chain_phsp():
     dic = yaml.full_load(config_text)
     config = ConfigLoader(dic)
-    data = config.sampling(10)
+    data = config.generate_toy(10)
     data.mass_hist("(C, F, G, H)").draw()
     import matplotlib.pyplot as plt
 

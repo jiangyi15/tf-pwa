@@ -64,9 +64,8 @@ class PhaseSpaceGenerator(object):
 
         # loop until number of generated events above required
         while force and n_gen < n_iter:
-            n_iter2 = int(
-                1.01 * (n_total - n_gen) / (n_gen + 1) * n_iter
-            )  # guess the total events required
+            # guess the total events required
+            n_iter2 = int(1.01 * (n_total - n_gen) / (n_gen + 1) * n_iter)
             n_iter2 = min(n_iter2, 4000000)
             mass2 = self.generate_mass(n_iter2)
             mass_f2 = self.flatten_mass(mass2)

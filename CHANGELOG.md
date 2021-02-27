@@ -10,7 +10,11 @@
 - Kmatrix in single channel and multiple pole.
   [#25](https://github.com/jiangyi15/tf-pwa/pull/25)
 - Add `decay_params` and `production_params` in particle config.
-  [#28](https://github.com/jiangyi15/tf-pwa/pull/25)
+  [#28](https://github.com/jiangyi15/tf-pwa/pull/28)
+- Add `CalAngleData` class for all data after cal_angle.
+  [#29](https://github.com/jiangyi15/tf-pwa/pull/29)
+- Add more general method of phasespace generating, and interface in
+  ConfigLoader. [#30](https://github.com/jiangyi15/tf-pwa/pull/30)
 
 **Changed**
 

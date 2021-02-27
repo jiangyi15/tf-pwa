@@ -8,7 +8,7 @@ def plot_hist(binning, count, ax=plt, **kwargs):
     a = np.zeros((n + 2,))
     b = np.zeros((n + 2,))
     a[:-1] = binning
-    a[-1] = binning[-1] + binning[-1] - binning[-2]
+    a[-1] = binning[-1] + (binning[-1] - binning[-2]) / 20
     b[1:-1] = count
     return ax.step(a, b, **kwargs)
 

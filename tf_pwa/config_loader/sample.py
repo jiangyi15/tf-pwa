@@ -10,22 +10,26 @@ from .config_loader import ConfigLoader
 
 
 @ConfigLoader.register_function()
-def sampling(config, N=1000, force=True):
+def generate_toy(config, N=1000, force=True, max_N=100000):
     decay_group = config.get_decay()
     amp = config.get_amplitude()
 
     def gen(M):
         pi = generate_phsp(config, M)
-        return cal_angle_from_momentum(pi, decay_group)
+        return cal_angle_from_momentum(pi, config.get_decay(False))
 
     all_data = []
     n_gen = 0
+    n_accept = 0
+    n_total = 0
     test_N = 10 * N
-    while N > n_gen:
+    while N > n_accept:
+        test_N = abs(min(max_N, test_N))
         data = single_sampling(gen, amp, test_N)
-        n_gen += data_shape(data)
-        test_N = int(test_N * (N - n_gen + 10) / (n_gen + 10))
-        print(n_gen)
+        n_gen = data_shape(data)
+        n_total += test_N
+        n_accept += n_gen
+        test_N = int(1.01 * n_total / (n_accept + 1) * (N - n_accept))
         all_data.append(data)
 
     ret = data_merge(*all_data)
