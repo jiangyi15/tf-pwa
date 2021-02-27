@@ -487,7 +487,7 @@ class DecayChain(object):
     def __repr__(self):
         return "{}".format(list(self.chain))
 
-    @functools.lru_cache()
+    @simple_cache_fun  # functools.lru_cache()
     def sorted_table(self):
         """
         A topology independent structure.

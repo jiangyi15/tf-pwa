@@ -102,8 +102,9 @@ def get_particle_model(name):
 def get_particle_model_name(p):
     all_model = get_config(PARTICLE_MODEL)
     for k, v in all_model.items():
-        if type(v) == type(p):
+        if type(p) is v:
             return k
+    return str(type(p))
 
 
 def get_particle(*args, model="default", **kwargs):
@@ -961,7 +962,7 @@ class DecayChain(BaseDecayChain, AmpBase):
     def get_amp_particle(self, data_p, data_c, all_data=None):
         amp_p = []
         if not self.inner:
-            return None
+            return 1.0
         for i in self.inner:
             if len(i.decay) >= 1:
                 decay_i = i.decay[0]
