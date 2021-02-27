@@ -34,4 +34,6 @@ def test_process():
     p = data.get_momentum("(B, D)")
     assert p.shape[-1] == 4
 
+    data.savetxt("cal_angle_file.txt", ["C", "D"])
+    data.savetxt("cal_angle_file.txt")
     hist = data.mass_hist("(C, D)")
