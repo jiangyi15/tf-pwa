@@ -68,15 +68,6 @@ try:
 except ImportError:  # python version < 3.7
     from collections import Iterable
 
-from abc import ABCMeta
-
-
-class DictData(metaclass=ABCMeta):
-    pass
-
-
-DictData.register(dict)
-
 
 def set_random_seed(seed):
     """

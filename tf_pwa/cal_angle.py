@@ -55,7 +55,6 @@ import numpy as np
 from .angle import SU2M, EulerAngle, LorentzVector, Vector3, _epsilon
 from .config import get_config
 from .data import (
-    DictData,
     data_index,
     data_merge,
     data_shape,
@@ -76,13 +75,18 @@ class CalAngleData(dict):
     def get_mass(self, name):
         return data_index(self, ("particle", name, "m"))
 
+    def get_momentum(self, name):
+        return data_index(self, ("particle", name, "p"))
+
     def get_weight(self):
         if "weight" in self:
             return self["weight"]
         return tf.zeros(data_shape(self))
 
     def get_angle(self, decay, p):
-        """ get angle of decay which product particle p"""
+        """ get hilicity angle of decay which product particle p"""
+        if isinstance(decay, str):
+            decay = self.get_decay().get_decay_chain(decay)
         dec = decay.standard_topology()
         dec_map = decay.topology_map()
         dec_i = decay[0]
@@ -92,7 +96,7 @@ class CalAngleData(dict):
                 break
         p_name = data_index(dec_map, p)
         dec_name = dec_map[dec_i]
-        return data_index(self, ("decay", dec, dec_name, p_name))
+        return data_index(self, ("decay", dec, dec_name, p_name, "ang"))
 
 
 def struct_momentum(p, center_mass=True) -> dict:

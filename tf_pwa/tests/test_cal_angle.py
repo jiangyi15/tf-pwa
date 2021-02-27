@@ -1,3 +1,5 @@
+import numpy as np
+
 from tf_pwa.cal_angle import *
 from tf_pwa.data import *
 
@@ -21,5 +23,13 @@ def test_process():
     assert data_shape(data) == 1
     data.get_weight()
     data.get_mass("(B, C)")
-    dec = data.get_decay()[0]
-    data.get_angle(dec, "B")
+    dec = data.get_decay().get_decay_chain("(B, C)")
+    dec2 = data.get_decay()[0]
+    ang = data.get_angle(dec, "B")
+    ang2 = data.get_angle("(B, C)", "B")
+    assert ang is ang2
+    assert "alpha" in ang
+    assert "beta" in ang
+    assert np.allclose(ang["gamma"], 0)
+    p = data.get_momentum("(B, D)")
+    assert p.shape[-1] == 4
