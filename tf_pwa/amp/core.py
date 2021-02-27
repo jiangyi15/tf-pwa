@@ -99,6 +99,13 @@ def get_particle_model(name):
     return all_model.get(name, None)
 
 
+def get_particle_model_name(p):
+    all_model = get_config(PARTICLE_MODEL)
+    for k, v in all_model.items():
+        if type(v) == type(p):
+            return k
+
+
 def get_particle(*args, model="default", **kwargs):
     """method for getting particle of model"""
     if isinstance(model, dict):

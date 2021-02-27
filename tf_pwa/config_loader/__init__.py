@@ -7,3 +7,4 @@ from .config_loader import (
 from .extra import *
 from .multi_config import MultiConfig
 from .plot import export_legend, hist_error, hist_line
+from .sample import sampling

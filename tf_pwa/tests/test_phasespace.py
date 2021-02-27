@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from tf_pwa.phasespace import *
 
@@ -22,3 +23,8 @@ def test_generate_phsp():
     (a, b), c = generate_phsp(5.0, ((3.0, (1.0, 1.0)), 1.0))
     assert np.allclose(LorentzVector.M(a + b + c), 5.0)
     # assert np.sum(np.abs((a+b+c)[:,1:])) < 2e-5
+
+
+def test_error():
+    with pytest.raises(ValueError):
+        PhaseSpaceGenerator(1, [0.3, 0.4, 0.5]).generate(10)
