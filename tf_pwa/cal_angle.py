@@ -64,6 +64,7 @@ from .data import (
     load_dat_file,
     split_generator,
 )
+from .histogram import Hist1D
 from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
 from .tensorflow_wrapper import tf
 
@@ -97,6 +98,10 @@ class CalAngleData(dict):
         p_name = data_index(dec_map, p)
         dec_name = dec_map[dec_i]
         return data_index(self, ("decay", dec, dec_name, p_name, "ang"))
+
+    def mass_hist(self, name, bins="sqrt", **kwargs):
+        data = data_to_numpy(self.get_mass(name))
+        return Hist1D.histogram(data, bins=bins, **kwargs)
 
 
 def struct_momentum(p, center_mass=True) -> dict:

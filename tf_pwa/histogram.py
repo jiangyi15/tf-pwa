@@ -177,6 +177,14 @@ class Hist1D:
             count2, _ = np.histogram(m, *args, weights=weights ** 2, **kwargs)
         return Hist1D(binning, count, np.sqrt(count2))
 
+    def scale_to(self, other):
+        scale_factor = other.get_count() / self.get_count()
+        bin_width_factor = np.mean(other.bin_width) / np.mean(self.bin_width)
+        scale = scale_factor * bin_width_factor
+        self.count *= scale
+        self.error *= scale
+        return scale
+
     def get_count(self):
         return np.sum(self.count)
 
@@ -221,3 +229,8 @@ class WeightedData(Hist1D):
             ret.count = self.count * other
             return ret
         raise NotImplementedError
+
+    def scale_to(self, other):
+        scale = super().scale_to(other)
+        self.weights *= scale
+        return scale

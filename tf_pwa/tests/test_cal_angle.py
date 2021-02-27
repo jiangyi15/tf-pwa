@@ -33,3 +33,5 @@ def test_process():
     assert np.allclose(ang["gamma"], 0)
     p = data.get_momentum("(B, D)")
     assert p.shape[-1] == 4
+
+    hist = data.mass_hist("(C, D)")
