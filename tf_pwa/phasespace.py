@@ -177,3 +177,92 @@ class PhaseSpaceGenerator(object):
             p = get_p(emmax, emmin, self.m_mass[-n - 1])
             wtmax *= p
         self.m_wtMax = tf.convert_to_tensor(wtmax, dtype="float64")
+
+
+def _get_generator(struct):
+    ret = []
+    idxs = []
+
+    # depth first flatten
+    def _flatten(s, idx=()):
+        m0, mi = s
+        mi_real = []
+        for i, m_i in enumerate(mi):
+            if isinstance(m_i, (tuple, list)):
+                tmp = m_i[0]
+                _flatten(m_i, idx=(*idx, i))
+            else:
+                tmp = m_i
+            mi_real.append(tmp)
+        ret.append((m0, mi_real))
+        idxs.append(idx)
+
+    _flatten(struct)
+
+    gen = [PhaseSpaceGenerator(m0, mi) for m0, mi in ret]
+    return idxs, gen
+
+
+def _restruct_pi(struct, idxs, pi_s):
+    def empty_pi(struct):
+        m0, mi = struct
+        mi_real = []
+        for i, m_i in enumerate(mi):
+            if isinstance(m_i, (tuple, list)):
+                tmp = empty_pi(m_i)
+            else:
+                tmp = [None]
+            mi_real.append(tmp)
+        return [[None], mi_real]
+
+    ret = empty_pi(struct)
+
+    def loop_index(tree, idx):
+        for i in idx:
+            tree = tree[1][i]
+        return tree
+
+    iters = list(zip(idxs, pi_s))
+    for idx, pi in iters[::-1]:
+        head, tree = loop_index(ret, idx)
+        for i, j in zip(tree, pi):
+            if isinstance(i[0], list):
+                i[0][0] = j
+            else:
+                i[0] = j
+
+    def tree_boost(p0, tree):
+        if isinstance(tree, list):
+            return [tree_boost(p0, i) for i in tree]
+        if p0 is not None:
+            return LorentzVector.rest_vector(LorentzVector.neg(p0), tree)
+        return tree
+
+    for idx in idxs:
+        all_tree = loop_index(ret, idx)
+        head, tree = all_tree
+        all_tree[1] = tree_boost(head[0], tree)
+        # print(all_tree[0], sum(i[0] if not isinstance(i[0],list) else i[0][0] for i in all_tree[1]))
+
+    def strip_tree(tree):
+        if len(tree) == 1:
+            return tree[0]
+        m1, mi = tree
+        return [strip_tree(i) for i in mi]
+
+    return strip_tree(ret)
+
+
+def generate_phsp(m0, mi, N=1000):
+    """general method to generate decay chain phase sapce
+    >>> (a, b), c = generate_phsp(1.0, (
+    ...                                 (0.3, (0.1, 0.1)),
+    ...                                  0.2),
+    ...                            N = 10)
+    >>> assert np.allclose(LorentzVector.M(a+b+c), 1.0)
+
+    """
+    struct = (m0, mi)
+    idxs, gen = _get_generator(struct)
+    pi = [i.generate(N) for i in gen]
+    return _restruct_pi(struct, idxs, pi)

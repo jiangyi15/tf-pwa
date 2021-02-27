@@ -103,6 +103,13 @@ class CalAngleData(dict):
         data = data_to_numpy(self.get_mass(name))
         return Hist1D.histogram(data, bins=bins, **kwargs)
 
+    def savetxt(self, file_name, order=None):
+        if order is None:
+            order = self.get_decay().outs
+        pi = [data_to_numpy(self.get_momentum(i)) for i in order]
+        pi = np.stack(pi).transpose((1, 0, 2)).reshape((-1, 4))
+        np.savetxt(file_name, pi)
+
 
 def struct_momentum(p, center_mass=True) -> dict:
     """

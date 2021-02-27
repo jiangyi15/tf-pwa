@@ -643,6 +643,7 @@ class ConfigLoader(BaseConfig):
             if hasattr(cls, my_name):
                 warnings.warn("override function {}".format(name))
             setattr(cls, my_name, f)
+            return f
 
         return _f
 

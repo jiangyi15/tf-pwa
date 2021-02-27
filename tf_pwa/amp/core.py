@@ -99,6 +99,14 @@ def get_particle_model(name):
     return all_model.get(name, None)
 
 
+def get_particle_model_name(p):
+    all_model = get_config(PARTICLE_MODEL)
+    for k, v in all_model.items():
+        if type(p) is v:
+            return k
+    return str(type(p))
+
+
 def get_particle(*args, model="default", **kwargs):
     """method for getting particle of model"""
     if isinstance(model, dict):
@@ -954,7 +962,7 @@ class DecayChain(BaseDecayChain, AmpBase):
     def get_amp_particle(self, data_p, data_c, all_data=None):
         amp_p = []
         if not self.inner:
-            return None
+            return 1.0
         for i in self.inner:
             if len(i.decay) >= 1:
                 decay_i = i.decay[0]
