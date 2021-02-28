@@ -175,6 +175,43 @@ class VarsManager(object):
             self.add_real_var(name=var_i, value=fix_vals[1], trainable=False)
         self.complex_vars[name] = polar
 
+    def add_cartesiancp_var(
+        self, name, polar=None, trainable=True, fix_vals=(1.0, 0.0, 0.0, 0.0)
+    ):
+        """
+        Add a complex variable. Two real variables named **name+'r'** and **name+'i'** will be added into
+        **self.variables**. The initial values will be given automatically according to its form of coordinate.
+
+        :param name: The name of the complex variable.
+        :param polar: Boolean. If it's **True**, **name+'r'** and **name+'i'** are defined in polar coordinate; otherwise they are defined in Cartesian coordinate.
+        :param trainable: Boolean. If it's **True**, real variables **name+'r'** and **name+'i'** will be trainable.
+        :param fix_vals: Length-4 array. If **trainable=False**, the fixed values for **name+'r'** and **name+'i'** are **fix_vals[0]**, **fix_vals[1]** respectively.
+        """
+        if polar is None:
+            polar = self.polar
+        # if chargeconjugate is None:
+        # chargeconjugate = self.chargeconjugate
+        var_r = name + "r"
+        var_i = name + "i"
+        var_deltar = name + "deltar"
+        var_deltai = name + "deltai"
+        if trainable:
+            self.add_real_var(name=var_r, range_=(-1, 1))
+            self.add_real_var(name=var_i, range_=(-1, 1))
+            self.add_real_var(name=var_deltar, range_=(-1, 1))
+            self.add_real_var(name=var_deltai, range_=(-1, 1))
+        else:
+            self.add_real_var(name=var_r, value=fix_vals[0], trainable=False)
+            self.add_real_var(name=var_i, value=fix_vals[1], trainable=False)
+            self.add_real_var(
+                name=var_deltar, value=fix_vals[2], trainable=False
+            )
+            self.add_real_var(
+                name=var_deltai, value=fix_vals[3], trainable=False
+            )
+
+        self.complex_vars[name] = polar
+
     def remove_var(self, name):
         """
         Remove a variable from **self.variables**. More specifically, two variables (**name+'r'** and **name+'i'**)
@@ -868,7 +905,14 @@ class Variable(object):
     """
 
     def __init__(
-        self, name, shape=None, cplx=False, vm=None, overwrite=True, **kwargs
+        self,
+        name,
+        shape=None,
+        cplx=False,
+        vm=None,
+        overwrite=True,
+        is_cp=False,
+        **kwargs
     ):
         if shape is None:
             shape = []
@@ -901,7 +945,11 @@ class Variable(object):
             shape = [shape]
         self.shape = shape
         self.cplx = cplx
-        if cplx:
+        self.cp_effect = is_cp
+        if is_cp:
+            # print("Variable init cplx_cpvar" )
+            self.cplx_cpvar(**kwargs)
+        elif cplx:
             self.cplx_var(**kwargs)
         else:
             self.real_var(**kwargs)
@@ -950,6 +998,34 @@ class Variable(object):
             func, self.shape, self.name, polar=polar, fix_vals=fix_vals
         )
 
+    def cplx_cpvar(
+        self, polar=True, fix=False, fix_vals=(1.0, 0.0, 0.0, 0.0), value=0.0
+    ):
+        """
+        It implements interface to ``VarsManager.add_complex_var()``, but supports variables that are not of non-shape.
+
+        :param polar: Boolean. Whether the variable is defined in polar coordinate or in Cartesian coordinate.
+        :param fix: Boolean. Whether the variable is fixed. It's enabled only if ``self.shape is None``.
+        :param fix_vals: Length-4 tuple. The value of the fixed complex variable is ``fix_vals[0]+fix_vals[1]j``.
+        """
+        if not hasattr(fix_vals, "__len__"):
+            fix_vals = [fix_vals, 0.0, 0.0, 0.0]
+
+        def func(name, idx, **kwargs):
+            trainable = not fix
+            # print("Variable cplx_cpvar")
+            self.vm.add_cartesiancp_var(name, polar, trainable, fix_vals)
+            self.vm.var_head[self].append(name)
+
+        _shape_func(
+            func,
+            self.shape,
+            self.name,
+            polar=polar,
+            fix_vals=fix_vals,
+            value=value,
+        )
+
     def __repr__(self):
         return self.name
 
@@ -966,7 +1042,12 @@ class Variable(object):
             var_name = self.name
             for i in index:
                 var_name += "_" + str(index[i])
-            if self.cplx == True:
+            if self.cp_effect == True:
+                self.vm.set(var_name + "r", value[0])
+                self.vm.set(var_name + "i", value[1])
+                self.vm.set(var_name + "deltar", value[2])
+                self.vm.set(var_name + "deltai", value[3])
+            elif self.cplx == True:
                 self.vm.set(var_name + "r", value[0])
                 self.vm.set(var_name + "i", value[1])
             else:
@@ -979,7 +1060,36 @@ class Variable(object):
                     val = val[i]
                 return val
 
-            if self.cplx == True:
+            if self.cp_effect == True:
+                if value.shape[:-1] == ():
+
+                    def func(name, idx, **kwargs):
+                        self.vm.set(name + "r", value[0])
+                        self.vm.set(name + "i", value[1])
+                        self.vm.set(name + "deltar", value[2])
+                        self.vm.set(name + "deltai", value[3])
+
+                elif value.shape[:-1] == tuple(self.shape):
+
+                    def func(name, idx, **kwargs):
+                        self.vm.set(
+                            name + "r", _get_val_from_index(value, idx)[0]
+                        )
+                        self.vm.set(
+                            name + "i", _get_val_from_index(value, idx)[1]
+                        )
+                        self.vm.set(
+                            name + "deltar", _get_val_from_index(value, idx)[2]
+                        )
+                        self.vm.set(
+                            name + "deltai", _get_val_from_index(value, idx)[3]
+                        )
+
+                else:
+                    raise Exception(
+                        "The shape of value should be ", self.shape
+                    )
+            elif self.cplx == True:
                 if value.shape[:-1] == ():
 
                     def func(name, idx, **kwargs):
@@ -1097,7 +1207,17 @@ class Variable(object):
         :param value: Real number. The fixed value
         """
         if not self.shape:
-            if self.cplx:
+            if self.cp_effect:
+                if value is None:
+                    value = [None, None, None, None]
+                else:
+                    cplx_value = complex(value)
+                    value = [cplx_value.real, 0.0, 0.0, 0.0]
+                    self.vm.set_fix(self.name + "r", value[0])
+                    self.vm.set_fix(self.name + "i", value[1])
+                    self.vm.set_fix(self.name + "deltar", value[2])
+                    self.vm.set_fix(self.name + "deltai", value[3])
+            elif self.cplx:
                 if value is None:
                     value = [None, None]
                 else:
@@ -1115,7 +1235,12 @@ class Variable(object):
         Set free this Variable. Note only non-shape Variable supports this method.
         """
         if not self.shape:
-            if self.cplx:
+            if self.cp_effect:
+                self.vm.set_fix(self.name + "r", unfix=True)
+                self.vm.set_fix(self.name + "i", unfix=True)
+                self.vm.set_fix(self.name + "deltar", unfix=True)
+                self.vm.set_fix(self.name + "deltai", unfix=True)
+            elif self.cplx:
                 self.vm.set_fix(self.name + "r", unfix=True)
                 self.vm.set_fix(self.name + "i", unfix=True)
             else:
@@ -1149,7 +1274,40 @@ class Variable(object):
             free_idx = [free_idx]
         free_idx_str = ["_" + str(i) for i in free_idx]
 
-        if self.cplx:
+        if self.cp_effect:
+            print(
+                "I am cp_effect for set_fix_idx  fix_idx_str",
+                fix_idx_str,
+                " fix_vals ",
+                fix_vals,
+            )
+            # print("I am cp_effect for set_fix_idx  free_idx_str", free_idx_str)
+            if fix_vals is None:
+                print("fix_vals is None", fix_vals)
+                fix_vals = [None, None, None, None]
+            elif not hasattr(fix_vals, "__len__"):
+                fix_vals = [fix_vals, 0.0, fix_vals, 0.0]
+            if len(fix_vals) < 4:
+                fix_vals = (*fix_vals, 0, 0)
+            print("fix_vals ", fix_vals)
+
+            def func(name, idx):
+                for ss in fix_idx_str:
+                    if name.endswith(ss):
+                        # print("set_fix_idx set name+r ", name)
+                        self.vm.set_fix(name + "r", value=fix_vals[0])
+                        self.vm.set_fix(name + "i", value=fix_vals[1])
+                        self.vm.set_fix(name + "deltar", value=fix_vals[2])
+                        self.vm.set_fix(name + "deltai", value=fix_vals[3])
+                for ss in free_idx_str:
+                    if name.endswith(ss):
+                        self.vm.set_fix(name + "r", unfix=True)
+                        self.vm.set_fix(name + "i", unfix=True)
+                        self.vm.set_fix(name + "deltar", unfix=True)
+                        self.vm.set_fix(name + "deltai", unfix=True)
+
+            _shape_func(func, self.shape, self.name)
+        elif self.cplx:
             if fix_vals is None:
                 fix_vals = [None, None]
             elif not hasattr(fix_vals, "__len__"):
@@ -1228,7 +1386,7 @@ class Variable(object):
 
         _shape_func(func, self.shape, "")
 
-    def __call__(self):
+    def __call__(self, charge=1):
         var_list = np.ones(shape=self.shape).tolist()
         if self.shape:
 
@@ -1237,7 +1395,21 @@ class Variable(object):
                 idx_str = name.split("_")[-len(self.shape) :]
                 for i in idx_str[:-1]:
                     tmp = tmp[int(i)]
-                if self.cplx:
+
+                if self.cp_effect:
+                    if (name in self.vm.complex_vars) and self.vm.complex_vars[
+                        name
+                    ]:
+                        real = (
+                            self.vm.variables[name + "r"]
+                            + charge * self.vm.variables[name + "deltar"]
+                        )
+                        imag = (
+                            self.vm.variables[name + "i"]
+                            + charge * self.vm.variables[name + "deltai"]
+                        )
+                        tmp[int(idx_str[-1])] = tf.complex(real, imag)
+                elif self.cplx:
                     if (name in self.vm.complex_vars) and self.vm.complex_vars[
                         name
                     ]:

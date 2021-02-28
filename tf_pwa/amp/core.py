@@ -840,10 +840,13 @@ class DecayChain(BaseDecayChain, AmpBase):
         self.need_amp_particle = True
 
     def init_params(self, name=""):
-        self.total = self.add_var(name + "total", is_complex=True, shape=[1])
+        self.total = self.add_var(
+            name + "total", is_complex=True, is_cp=True, shape=[1]
+        )
+        # self.total = self.add_var(name + "total", is_complex=True, shape=[1])
 
-    def get_amp_total(self):
-        return tf.stack(self.total())
+    def get_amp_total(self, charge=1):
+        return tf.stack(self.total(charge))
 
     def product_gls(self):
         ret = self.get_all_factor()
@@ -867,10 +870,18 @@ class DecayChain(BaseDecayChain, AmpBase):
 
         if self.need_amp_particle:
             rs = self.get_amp_particle(data_p, data_c, all_data=all_data)
-            total = self.get_amp_total()
-            # print(total)
+            total_pos = self.get_amp_total(1)
+            total_neg = self.get_amp_total(-1)
+            # print("total_pos", total_pos)
+            # print("total_neg", total_neg)
             if rs is not None:
-                total = total * tf.cast(rs, total.dtype)
+                charge = all_data.get("charge_conjugation", 1) > 0
+                # print("charge", charge)
+                total = tf.where(
+                    charge,
+                    total_pos * tf.cast(rs, total_pos.dtype),
+                    total_neg * tf.cast(rs, total_neg.dtype),
+                )
             # print(total)*self.get_amp_total()
             amp_d.append(total)
             indices.append([])
@@ -951,10 +962,20 @@ class DecayChain(BaseDecayChain, AmpBase):
 
         if self.need_amp_particle:
             rs = self.get_amp_particle(data_p, data_c, all_data=all_data)
-            total = self.get_amp_total()
-            # print(total)
+            # total = self.get_amp_total()
+            total_pos = self.get_amp_total(1)
+            total_neg = self.get_amp_total(-1)
+            # print("total_pos", total_pos)
+            # print("total_neg", total_neg)
             if rs is not None:
-                total = total * tf.cast(rs, total.dtype)
+                charge = all_data.get("charge_conjugation", 1) > 0
+                # print("charge", charge)
+                total = tf.where(
+                    charge,
+                    total_pos * tf.cast(rs, total_pos.dtype),
+                    total_neg * tf.cast(rs, total_neg.dtype),
+                )
+            # print(total)
             # print(total)*self.get_amp_total()
             amp_d.append(total)
         return amp_d
