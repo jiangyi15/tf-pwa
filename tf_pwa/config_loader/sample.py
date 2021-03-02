@@ -15,8 +15,7 @@ def generate_toy(config, N=1000, force=True, max_N=100000):
     amp = config.get_amplitude()
 
     def gen(M):
-        pi = generate_phsp(config, M)
-        return cal_angle_from_momentum(pi, config.get_decay(False))
+        return generate_phsp(config, M)
 
     all_data = []
     n_gen = 0
@@ -51,7 +50,7 @@ def single_sampling(phsp, amp, N):
 
 
 @ConfigLoader.register_function()
-def generate_phsp(config, N=1000):
+def generate_phsp_p(config, N=1000):
     decay_group = config.get_decay()
 
     m0, mi, idx = build_phsp_chain(decay_group)
@@ -64,6 +63,12 @@ def generate_phsp(config, N=1000):
         return tree
 
     return {k: loop_index(pi, idx[k]) for k in decay_group.outs}
+
+
+@ConfigLoader.register_function()
+def generate_phsp(config, N=1000):
+    p = generate_phsp_p(config, N)
+    return cal_angle_from_momentum(p, config.get_decay(False))
 
 
 def build_phsp_chain(decay_group):

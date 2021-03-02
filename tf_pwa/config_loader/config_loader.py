@@ -60,6 +60,7 @@ class ConfigLoader(BaseConfig):
         if share_dict is None:
             share_dict = {}
         super().__init__(file_name, share_dict)
+        self.config["data"] = self.config.get("data", {})
         self.share_dict = share_dict
         self.decay_config = DecayConfig(self.config, share_dict)
         self.dec = self.decay_config.dec
@@ -606,6 +607,7 @@ class ConfigLoader(BaseConfig):
         data=None,
         phsp=None,
         bg=None,
+        inmc=None,
         batch=10000,
         using_cached=False,
     ):
