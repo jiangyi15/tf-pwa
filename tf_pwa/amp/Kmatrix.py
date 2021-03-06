@@ -29,7 +29,7 @@ def Bl(l, q, q0, d=3):
     return Fb(l, q, d) / Fb(l, q0, d)
 
 
-def KMatrix_single(n_pole, m1, m2, l, d=3, bkg=0):
+def KMatrix_single(n_pole, m1, m2, l, d=3, bkg=0, Kb=0):
     m = sym.Symbol("m", positive=True)
     mi = [sym.Symbol(f"m{i}", positive=True) for i in range(n_pole)]
     g0i = [sym.Symbol(f"g{i}", real=True) for i in range(n_pole)]
@@ -55,6 +55,7 @@ def KMatrix_single(n_pole, m1, m2, l, d=3, bkg=0):
         denominator = mi[i] ** 2 - m ** 2
         tmp = tmp / denominator
         K = tmp + K
+    k = K + Kb
 
     P = 0
     for i in range(n_pole):
