@@ -211,6 +211,18 @@ def test_decay_params():
     assert dec.c == 1
 
 
+def test_no_mass0():
+    a = get_particle("a", mass=1.0, width=0.5, P=1)
+    c = get_particle("c")
+    d = get_particle("d")
+    dec1 = get_decay(a, [c, d])
+    decs = DecayGroup([[dec1]])
+    amp = AmplitudeModel(decs, polar=False)
+    assert all(not i for i in amp.vm.complex_vars.values())
+    amp2 = AmplitudeModel(decs, polar=True)
+    assert all(amp2.vm.complex_vars.values())
+
+
 def test_dec():
     s = """
 
