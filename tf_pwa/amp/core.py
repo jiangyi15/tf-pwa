@@ -834,14 +834,15 @@ class AngSam3Decay(AmpDecay, AmpBase):
 class DecayChain(BaseDecayChain, AmpBase):
     """A list of Decay as a chain decay"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, is_cp=False, **kwargs):
+        self.is_cp = is_cp
         super(DecayChain, self).__init__(*args, **kwargs)
         self.aligned = True
         self.need_amp_particle = True
 
     def init_params(self, name=""):
         self.total = self.add_var(
-            name + "total", is_complex=True, is_cp=True, shape=[1]
+            name + "total", is_complex=True, is_cp=self.is_cp, shape=[1]
         )
         # self.total = self.add_var(name + "total", is_complex=True, shape=[1])
 
@@ -858,6 +859,18 @@ class DecayChain(BaseDecayChain, AmpBase):
             ret.append(i.get_g_ls())
         return ret
 
+    def get_cp_amp_total(self, charge=1):
+        if not self.is_cp:
+            return self.get_amp_total()
+        total_pos = self.get_amp_total(1)
+        total_neg = self.get_amp_total(-1)
+        # print("total_pos", total_pos)
+        # print("total_neg", total_neg)
+        charge_cond = charge > 0
+        # print("charge", charge)
+        total = tf.where(charge_cond, total_pos, total_neg)
+        return total
+
     def get_amp(self, data_c, data_p, all_data=None, base_map=None):
         base_map = self.get_base_map(base_map)
         iter_idx = ["..."]
@@ -870,18 +883,12 @@ class DecayChain(BaseDecayChain, AmpBase):
 
         if self.need_amp_particle:
             rs = self.get_amp_particle(data_p, data_c, all_data=all_data)
-            total_pos = self.get_amp_total(1)
-            total_neg = self.get_amp_total(-1)
-            # print("total_pos", total_pos)
-            # print("total_neg", total_neg)
+
+            total = self.get_cp_amp_total(
+                charge=all_data.get("charge_conjugation", 1)
+            )
             if rs is not None:
-                charge = all_data.get("charge_conjugation", 1) > 0
-                # print("charge", charge)
-                total = tf.where(
-                    charge,
-                    total_pos * tf.cast(rs, total_pos.dtype),
-                    total_neg * tf.cast(rs, total_neg.dtype),
-                )
+                total = total * tf.cast(rs, total.dtype)
             # print(total)*self.get_amp_total()
             amp_d.append(total)
             indices.append([])
@@ -962,19 +969,14 @@ class DecayChain(BaseDecayChain, AmpBase):
 
         if self.need_amp_particle:
             rs = self.get_amp_particle(data_p, data_c, all_data=all_data)
-            # total = self.get_amp_total()
-            total_pos = self.get_amp_total(1)
-            total_neg = self.get_amp_total(-1)
+            total = self.get_cp_amp_total(
+                all_data.get("charge_conjugation", 1)
+            )
             # print("total_pos", total_pos)
             # print("total_neg", total_neg)
             if rs is not None:
-                charge = all_data.get("charge_conjugation", 1) > 0
+                total = total * tf.cast(rs, total.dtype)
                 # print("charge", charge)
-                total = tf.where(
-                    charge,
-                    total_pos * tf.cast(rs, total_pos.dtype),
-                    total_neg * tf.cast(rs, total_neg.dtype),
-                )
             # print(total)
             # print(total)*self.get_amp_total()
             amp_d.append(total)
