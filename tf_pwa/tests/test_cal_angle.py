@@ -16,6 +16,7 @@ def test_process():
     print(decs)
     data = cal_angle_from_momentum(p, decs)
     assert isinstance(data, CalAngleData)
+    data.get_weight()
     data = add_weight(data)
     print(data_shape(data, all_list=True))
     print(len(list(split_generator(data, 5000))))

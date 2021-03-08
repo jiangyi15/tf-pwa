@@ -165,7 +165,7 @@ def add_weight(data: dict, weight: float = 1.0) -> dict:
         {...} => {..., "weight": weights}
     """
     data_size = data_shape(data)
-    weight = [1.0] * data_size
+    weight = [weight] * data_size
     data["weight"] = np.array(weight)
     return data
 
