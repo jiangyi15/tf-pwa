@@ -97,16 +97,21 @@ particle:
   R_CD: []
   # NR(BC)SP: {J: 1, P: -1, model: one}
 
+# The following config is used for DecayChain
+# decay_chain:
+#   $all:
+#      is_cp: True
+
 # constrains for params [WIP]
 constrains:
   # particle:
-  # equal:
-  # mass: [[D1_2430p, D1_2430]]
+  #   equal:
+  #     mass: [[D1_2430p, D1_2430]]
   decay: { fix_chain_idx: 0, fix_chain_val: 1 }
   # fix_var:
-  # "A->R_CD.BR_CD->C.D_total_0r": 1.0
+  #   "A->R_CD.BR_CD->C.D_total_0r": 1.0
   # var_range:
-  # "A->R_CD.BR_CD->C.D_total_0r": [1.0, null]
+  #   "A->R_CD.BR_CD->C.D_total_0r": [1.0, null]
   # var_equal:
   #   -  ["A->R_CD.BR_CD->C.D_total_0r", "A->R_BD.CR_BD->B.D_total_0r"]
 

@@ -25,6 +25,7 @@ def set_min_max(dic, name, name_min, name_max):
 class DecayConfig(BaseConfig):
     def __init__(self, dic, share_dict={}):
         self.config = dic
+        self.decay_chain_config = dic.get("decay_chain", {})
         self.share_dict = share_dict
         self.particle_key_map = {
             "Par": "P",
@@ -53,6 +54,7 @@ class DecayConfig(BaseConfig):
                 self.particle_property,
                 self.top,
                 self.finals,
+                self.decay_chain_config,
             )
         )
         self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
@@ -195,6 +197,7 @@ class DecayConfig(BaseConfig):
         particle_params=None,
         top=None,
         finals=None,
+        chain_params={},
     ):
         """  get decay structure for decay dict"""
         particle_map = particle_map if particle_map is not None else {}
@@ -263,5 +266,6 @@ class DecayConfig(BaseConfig):
         ret = []
         for i in dec_chain:
             if sorted(DecayChain(i).outs) == sorted(finals):
-                ret.append(i)
+                all_params = chain_params.get("$all", {})
+                ret.append(DecayChain(i, **all_params))
         return ret
