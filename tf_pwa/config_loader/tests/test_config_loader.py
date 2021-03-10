@@ -15,7 +15,7 @@ decay:
     - - R2
       - c
     - [R3, d, model: default]
-    R1: [c, d, l_list: [0]]
+    R1: [c, d, l_list: [1]]
     R2:
       - b
       - d
@@ -30,7 +30,7 @@ particle:
     $finals:
         b: {{J: 1, P: -1}}
         c: {{J: 1, P: -1}}
-        d: {{J: 1, P: -1}}
+        d: {{J: 0, P: -1}}
     R1: [R1_a, R1_b]
     R2: {{J: 1, P: -1, mass: 2.3, width: 0.03}}
     R3: {{J: 1, P: -1, mass: 2.3, width: 0.03}}
