@@ -19,6 +19,7 @@ from tf_pwa.amp import (
     AmplitudeModel,
     DecayChain,
     DecayGroup,
+    HelicityDecay,
     get_decay,
     get_particle,
 )
@@ -208,6 +209,7 @@ class ConfigLoader(BaseConfig):
             "use_tf_function", False
         )
         decay_group = self.full_decay
+        self.check_valid_jp(decay_group)
         if vm is None:
             vm = self.vm
         if vm in self.amps:
@@ -218,6 +220,12 @@ class ConfigLoader(BaseConfig):
         self.add_constraints(amp)
         self.amps[vm] = amp
         return amp
+
+    def check_valid_jp(self, decay_group):
+        for decay_chain in decay_group:
+            for dec in decay_chain:
+                if isinstance(dec, HelicityDecay):
+                    dec.check_valid_jp()
 
     def add_constraints(self, amp):
         constrains = self.config.get("constrains", {})

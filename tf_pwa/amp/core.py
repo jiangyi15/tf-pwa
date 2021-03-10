@@ -490,6 +490,16 @@ class HelicityDecay(AmpDecay):
         if ls_list is not None:
             self.ls_list = tuple([tuple(i) for i in ls_list])
 
+    def check_valid_jp(self):
+        if len(self.get_ls_list()) == 0:
+            if not self.p_break:
+                raise ValueError(
+                    """invalid spin parity for {}, maybe you should set `p_break: True` for weak decay""".format(
+                        self
+                    )
+                )
+            raise ValueError("invalid spin parity for {}".format(self))
+
     def set_ls(self, ls):
         if self.total_ls is None:
             self.total_ls = self.get_ls_list()

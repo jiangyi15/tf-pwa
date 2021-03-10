@@ -78,6 +78,18 @@ def test_amp():
         amp(data)
 
 
+def test_valid_jp():
+    a = get_particle("a", J=0, P=-1)
+    b = get_particle("b", J=0, P=+1)
+    c = get_particle("c", J=0, P=-1)
+    d = get_particle("d", J=0, P=-1)
+    with pytest.raises(ValueError):
+        get_decay(a, [c, d]).check_valid_jp()
+    with pytest.raises(ValueError):
+        get_decay(a, [c, d], p_break=True).check_valid_jp()
+    get_decay(a, [b, d]).check_valid_jp()
+
+
 def test_simple_resonances():
     @simple_resonance("xxx")
     def f(m, s=3.0):

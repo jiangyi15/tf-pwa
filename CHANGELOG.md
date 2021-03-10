@@ -26,7 +26,7 @@
 - Use angle_amp in `cached_amp: True` instead of amp/m_dep
   [#27](https://github.com/jiangyi15/tf-pwa/pull/27)
 
-## [v0.1.1](https://github.com/jiangyi15/tf-pwa/tree/v0.1.1)
+## [v0.1.1](https://github.com/jiangyi15/tf-pwa/tree/v0.1.1) (2021-02-12)
 
 **Added**
 
@@ -48,7 +48,7 @@
   ![0](https://latex.codecogs.com/gif.latex?\phi&space;+&space;\pi&space;\rightarrow&space;\phi&space;-&space;\pi)
   [#59d2fad](https://github.com/jiangyi15/tf-pwa/commit/59d2fad750ef3ccc9f3a5aed8b4ae6b8560d527f)
 
-## [v0.1.0](https://github.com/jiangyi15/tf-pwa/tree/v0.1.0)
+## [v0.1.0](https://github.com/jiangyi15/tf-pwa/tree/v0.1.0) (2021-01-15)
 
 Backup vesion before some changes.
 
