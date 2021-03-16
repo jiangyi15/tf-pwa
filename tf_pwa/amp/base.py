@@ -246,7 +246,7 @@ class ParticleLass(Particle):
 
         .. math::
           e^{2i\delta_B} = \cos 2 \delta_B + i \sin 2\delta_B
-                         = \frac{2 cot \delta_B }{cot^2 \delta_B +1 } + i \frac{cot^2\delta_B -1 }{cot^2 \delta_B +1}
+                         = \frac{cot^2\delta_B -1 }{cot^2 \delta_B +1} + i \frac{2 cot \delta_B }{cot^2 \delta_B +1 }
 
         """
         m = data["m"]
@@ -257,9 +257,9 @@ class ParticleLass(Particle):
         a, r = tf.abs(self.a()), tf.abs(self.r())
         cot_delta_B = (1.0 / a) / q + 0.5 * r * q
         cot2_delta_B = cot_delta_B * cot_delta_B
-        expi_2delta_B = tf.complex(2 * cot_delta_B, cot2_delta_B - 1)
+        expi_2delta_B = tf.complex(cot2_delta_B - 1, 2 * cot_delta_B)
         expi_2delta_B /= tf.cast(cot2_delta_B + 1, expi_2delta_B.dtype)
-        ret = 1.0 / tf.complex(q * cot_delta_B, q)
+        ret = 1.0 / tf.complex(q * cot_delta_B, -q)
         ret = tf.cast(m, ret.dtype) * ret
         ret += (
             expi_2delta_B

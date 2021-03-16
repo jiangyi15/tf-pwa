@@ -312,7 +312,7 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
     General Decay object
     """
 
-    @functools.lru_cache()
+    @simple_cache_fun  # functools.lru_cache()
     def get_ls_list(self):
         """
         It has interface to ``tf_pwa.particle.GetA2BC_LS_list(ja, jb, jc, pa, pb, pc)``

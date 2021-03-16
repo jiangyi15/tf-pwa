@@ -48,8 +48,8 @@ def plot_partial_wave(
         data = self.get_data("data")
         bg = self.get_data("bg")
         phsp = self.get_phsp_plot()
-        if bg is None:
-            bg = [bg] * len(data)
+    if bg is None:
+        bg = [bg] * len(data)
     amp = self.get_amplitude()
     self._Ngroup = len(data)
     ws_bkg = [
