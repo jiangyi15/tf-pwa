@@ -214,6 +214,8 @@ def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
     ret = []
     for s in _spin_range(s_min, s_max):
         for l in _spin_range(abs(ja - s), ja + s):
+            if l % 1.0 < 0.7 and l % 1.0 > 0.3:  # half int
+                break
             l = _spin_int(l)
             if not p_break:
                 if l % 2 == dl:

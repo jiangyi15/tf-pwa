@@ -79,15 +79,16 @@ def test_amp():
 
 
 def test_valid_jp():
-    a = get_particle("a", J=0, P=-1)
+    a = get_particle("a", J=0.5, P=-1)
     b = get_particle("b", J=0, P=+1)
-    c = get_particle("c", J=0, P=-1)
+    c = get_particle("c", J=1, P=-1)
     d = get_particle("d", J=0, P=-1)
+    print(get_decay(a, [c, d], p_break=True).get_ls_list())
     with pytest.raises(ValueError):
-        get_decay(a, [c, d]).check_valid_jp()
+        get_decay(b, [c, d]).check_valid_jp()
     with pytest.raises(ValueError):
         get_decay(a, [c, d], p_break=True).check_valid_jp()
-    get_decay(a, [b, d]).check_valid_jp()
+    get_decay(b, [c, d], p_break=True).check_valid_jp()
 
 
 def test_simple_resonances():

@@ -25,6 +25,8 @@
   [#26](https://github.com/jiangyi15/tf-pwa/pull/26)
 - Use angle_amp in `cached_amp: True` instead of amp/m_dep
   [#27](https://github.com/jiangyi15/tf-pwa/pull/27)
+- Fix wrong LASS model.
+  [#52d3eda](https://github.com/jiangyi15/tf-pwa/commit/52d3eda7b1cda7315764666aef329245735fef78)
 
 ## [v0.1.1](https://github.com/jiangyi15/tf-pwa/tree/v0.1.1) (2021-02-12)
 
