@@ -68,6 +68,22 @@ def KMatrix_single(n_pole, m1, m2, l, d=3, bkg=0, Kb=0):
 
 @register_particle("KMatrixSingleChannel")
 class KmatrixSingleChannelParticle(Particle):
+    """
+    K matrix model for single channel multi pole.
+
+    .. math::
+        K = \\sum_{i} \\frac{m_i \\Gamma_i(m)}{m_i^2 - m^2 }
+
+    .. math::
+        P = \\sum_{i} \\frac{\\beta_i m_0 \\Gamma_0 }{ m_i^2 - m^2}
+
+    the barrier factor is included in gls
+
+    .. math::
+        R(m) = (1-iK)^{-1} P
+
+    """
+
     def __init__(self, *args, **kwargs):
         self.d = 3
         super().__init__(*args, **kwargs)
