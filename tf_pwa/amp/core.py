@@ -148,17 +148,20 @@ def trans_model(model):
     return _TempModel
 
 
-def get_decay(core, outs, model="default", **kwargs):
+def get_decay(core, outs, **kwargs):
     """method for getting decay of model"""
     num_outs = len(outs)
-    id_ = (num_outs, model)
 
     prod_params = {}
     for i in outs:
         prod_params.update(getattr(i, "production_params", {}))
 
     decay_params = getattr(core, "decay_params", {})
+
     new_kwargs = {**prod_params, **decay_params, **kwargs}
+
+    model = new_kwargs.get("model", "default")
+    id_ = (num_outs, model)
 
     return get_config(DECAY_MODEL)[id_](core, outs, **new_kwargs)
 
