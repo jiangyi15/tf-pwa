@@ -4,6 +4,13 @@
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.1...HEAD)
 
+**Numeric**
+
+- Use infered constant mass for calculating |p0| instead of mass in data.
+  [#32](https://github.com/jiangyi15/tf-pwa/pull/32)
+
+## [v0.1.2](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-03-20)
+
 **Added**
 
 - Resolution [#23](https://github.com/jiangyi15/tf-pwa/pull/23)
