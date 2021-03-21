@@ -335,6 +335,10 @@ class Particle(BaseParticle, AmpBase):
         return ()
 
     def get_mass(self):
+        if self.mass is None:
+            warnings.warn(
+                f"The mass of {self} is None, may be you should calculate amplitude first to infer mass"
+            )
         if callable(self.mass):
             return self.mass()
         return self.mass

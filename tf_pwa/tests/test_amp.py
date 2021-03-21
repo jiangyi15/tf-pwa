@@ -95,6 +95,7 @@ def test_get_relative_momentum():
     a = get_particle("a", J=0, P=1)
     b = get_particle("b", J=0, P=1)
     c = get_particle("c", J=0, P=1, mass=2.0)
+    a.get_mass()
     d = get_decay(a, [b, c])
     d.init_params()
     data = {
