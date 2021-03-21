@@ -234,6 +234,7 @@ class ConfigLoader(BaseConfig):
         self.add_decay_constraints(amp, constrains.get("decay", {}))
         self.add_particle_constraints(amp, constrains.get("particle", {}))
         self.add_fix_var_constraints(amp, constrains.get("fix_var", {}))
+        self.add_free_var_constraints(amp, constrains.get("free_var", []))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
         for k, v in self.extra_constrains.items():
@@ -259,6 +260,13 @@ class ConfigLoader(BaseConfig):
         for k, v in dic.items():
             print("fix var: ", k, "=", v)
             amp.vm.set_fix(k, v)
+
+    def add_free_var_constraints(self, amp, dic=None):
+        if dic is None:
+            dic = []
+        for k in dic:
+            print("free var: ", k)
+            amp.vm.set_fix(k, unfix=True)
 
     def add_var_range_constraints(self, amp, dic=None):
         if dic is None:

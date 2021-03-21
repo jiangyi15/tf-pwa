@@ -57,3 +57,14 @@ def test_load():
             config2 = ConfigLoader(data)
     config.get_amplitude()
     config2.get_amplitude()
+
+
+def test_constrains():
+    with write_temp_file(resonancs_str) as f:
+        cs = config_str.format(file_name=f)
+        print(cs)
+        with write_temp_file(cs) as g:
+            config = ConfigLoader(g)
+
+    amp = config.get_amplitude()
+    config.add_free_var_constraints(amp)

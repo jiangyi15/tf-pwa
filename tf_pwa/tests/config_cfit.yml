@@ -34,6 +34,8 @@ constrains:
   decay: null
   var_equal:
     - ["A->R_BC.DR_BC->B.C_total_0r", "A->R_BD.CR_BD->B.D_total_0r"]
+  free_var:
+    - "R_BC_mass"
 
 plot:
   mass:
