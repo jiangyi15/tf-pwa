@@ -530,8 +530,10 @@ class HelicityDecay(AmpDecay):
         """"""
 
         def _get_mass(p):
-            if from_data or p.mass is None:
+            if from_data:
                 return data[p]["m"]
+            if p.mass is None:
+                p.mass = tf.reduce_mean(data[p]["m"])
             return p.get_mass()
 
         m0 = _get_mass(self.core)
@@ -543,8 +545,10 @@ class HelicityDecay(AmpDecay):
         """"""
 
         def _get_mass(p):
-            if from_data or p.mass is None:
+            if from_data:
                 return data[p]["m"]
+            if p.mass is None:
+                p.mass = tf.reduce_mean(data[p]["m"])
             return p.get_mass()
 
         m0 = _get_mass(self.core)
