@@ -91,6 +91,28 @@ def test_valid_jp():
     get_decay(b, [c, d], p_break=True).check_valid_jp()
 
 
+def test_get_relative_momentum():
+    a = get_particle("a", J=0, P=1)
+    b = get_particle("b", J=0, P=1)
+    c = get_particle("c", J=0, P=1, mass=2.0)
+    a.get_mass()
+    d = get_decay(a, [b, c])
+    d.init_params()
+    data = {
+        a: {"m": np.array([5.0])},
+        b: {"m": np.array([1.0])},
+        c: {"m": np.array([2.0])},
+    }
+    p1 = d.get_relative_momentum(data)
+    p2 = d.get_relative_momentum(data, False)
+
+    p3 = d.get_relative_momentum2(data)
+    p4 = d.get_relative_momentum2(data, False)
+
+    assert p1 ** 2 == p3
+    assert p2 ** 2 == p4
+
+
 def test_simple_resonances():
     @simple_resonance("xxx")
     def f(m, s=3.0):

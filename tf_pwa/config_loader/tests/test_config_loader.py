@@ -53,7 +53,7 @@ def test_load():
         with write_temp_file(cs) as g:
             config = ConfigLoader(g)
             with open(g) as f:
-                data = yaml.load(f)
+                data = yaml.full_load(f)
             config2 = ConfigLoader(data)
     config.get_amplitude()
     config2.get_amplitude()
