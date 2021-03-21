@@ -526,15 +526,17 @@ class HelicityDecay(AmpDecay):
         except Exception as e:
             print(e, self, self.get_ls_list())
 
+    def _get_particle_mass(self, p, data, from_data=False):
+        if from_data:
+            return data[p]["m"]
+        if p.mass is None:
+            p.mass = tf.reduce_mean(data[p]["m"])
+        return p.get_mass()
+
     def get_relative_momentum(self, data, from_data=False):
         """"""
 
-        def _get_mass(p):
-            if from_data:
-                return data[p]["m"]
-            if p.mass is None:
-                p.mass = tf.reduce_mean(data[p]["m"])
-            return p.get_mass()
+        _get_mass = lambda p: self._get_particle_mass(p, data, from_data)
 
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
@@ -544,12 +546,7 @@ class HelicityDecay(AmpDecay):
     def get_relative_momentum2(self, data, from_data=False):
         """"""
 
-        def _get_mass(p):
-            if from_data:
-                return data[p]["m"]
-            if p.mass is None:
-                p.mass = tf.reduce_mean(data[p]["m"])
-            return p.get_mass()
+        _get_mass = lambda p: self._get_particle_mass(p, data, from_data)
 
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
