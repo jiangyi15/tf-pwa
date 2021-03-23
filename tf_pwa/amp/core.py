@@ -494,6 +494,7 @@ class HelicityDecay(AmpDecay):
         self.single_gls = False
         self.ls_index = None
         self.total_ls = None
+        self.barrier_factor_norm = barrier_factor_norm
         self.ls_list = None
         if ls_list is not None:
             self.ls_list = tuple([tuple(i) for i in ls_list])
