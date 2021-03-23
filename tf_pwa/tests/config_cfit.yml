@@ -16,7 +16,7 @@ decay:
     - [R_CD, B]
   R_BC: [B, C]
   R_BD: [B, D]
-  R_CD: [C, D]
+  R_CD: [C, D, barrier_factor_norm: True]
 
 particle:
   $top:
