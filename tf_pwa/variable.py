@@ -1352,6 +1352,14 @@ class Variable(object):
                 "Only shape==() real var supports 'set_bound' method."
             )
 
+    def set_same_ratio(self, unfix=False):
+        assert self.cplx, "variable should be complex"
+
+        def func(name, idx):
+            self.vm.set_fix(name + "r", value=1.0, unfix=unfix)
+
+        _shape_func(func, self.shape, self.name)
+
     def r_shareto(self, Var):
         """
         Share the radium component to another Variable of the same shape. Only complex Variable supports this method.

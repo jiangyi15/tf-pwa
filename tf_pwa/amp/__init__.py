@@ -12,3 +12,4 @@ from .base import *
 from .core import *
 from .flatte import ParticleFlatte
 from .Kmatrix import KmatrixSingleChannelParticle
+from .split_ls import ParticleBWRLS

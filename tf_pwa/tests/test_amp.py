@@ -290,3 +290,19 @@ End
 
     inner = list(inner)
     assert inner[0].decay[0].params == ["one", "zero"]
+
+
+def test_split_ls():
+    a = get_particle("a", J=1, P=1, mass=6.0, width=0.02, model="BWR_LS")
+    b = get_particle("b", J=1, P=-1)
+    c = get_particle("c", J=0, P=-1)
+    d = get_particle("d", J=0, P=-1)
+    t = get_particle("t", J=0, P=-1)
+    dec = get_decay(a, [b, c])
+    dec2 = get_decay(t, [a, d], p_break=True)
+    dg = DecayGroup([DecayChain([dec, dec2])])
+    amp = AmplitudeModel(dg)
+    p = dict(zip([b, c, d], test_data[0]))
+    data = cal_angle_from_momentum(p, dg)
+    amp1 = amp(data)
+    assert False

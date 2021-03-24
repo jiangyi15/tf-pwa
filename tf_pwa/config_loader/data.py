@@ -34,7 +34,7 @@ def register_data_mode(name=None, f=None):
             my_name = name
         config = get_config(DATA_MODE)
         if my_name in config:
-            warnings.warn("Override mode {}", my_name)
+            warnings.warn("Override mode {}".format(my_name))
         config[my_name] = g
         return g
 
