@@ -305,4 +305,3 @@ def test_split_ls():
     p = dict(zip([b, c, d], test_data[0]))
     data = cal_angle_from_momentum(p, dg)
     amp1 = amp(data)
-    assert False
