@@ -19,6 +19,9 @@ class ParticleDecayLS(HelicityDecay):
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
+        if len(ls) <= 0:
+            print("no aviable ls", self, self.get_ls_list())
+            return
         if self.same_ratio:
             if self.same_phase:
                 self.g_ls = self.add_var(
@@ -31,6 +34,7 @@ class ParticleDecayLS(HelicityDecay):
                     "g_ls", is_complex=True, shape=(len(ls),)
                 )
                 self.g_ls.set_same_ratio()
+                self.g_ls.set_fix_idx(fix_idx=0, fix_vals=(1.0, 0.0))
         else:
             if self.same_phase:
                 self.g_ls = self.add_var(
