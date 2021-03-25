@@ -383,7 +383,7 @@ class SimpleResonances(Particle):
             q0 = args[1].get("|q0|", 1.0)
         m0 = self.get_mass()
         g0 = self.get_width()
-        return self(m, m0=m0, g0=g0, q=q, q0=q0)
+        return self(m, m0=m0, g0=g0, q=q, q0=q0, **kwargs)
 
 
 class FloatParams(float):

@@ -31,7 +31,7 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     var_args = {}
     var_names = fcn.vm.trainable_vars
     for i in var_names:
-        var_args[i] = fcn.vm.get(i).numpy()
+        var_args[i] = fcn.vm.get(i)
         if i in bounds_dict:
             var_args["limit_{}".format(i)] = bounds_dict[i]
         var_args["error_" + i] = 0.1
