@@ -134,7 +134,7 @@ class ParticleBWRLS(ParticleLS):
         m0 = self.get_mass()
         m1 = self.decay[0].outs[0].get_mass()
         m2 = self.decay[0].outs[1].get_mass()
-        ls = self.decay[0].get_l_list()
+        ls = self.decay[0].get_ls_list()
         q2 = get_relative_p2(m, m1, m2)
         q02 = get_relative_p2(m0, m1, m2)
         return self.get_ls_amp(m, ls, q2, q02)

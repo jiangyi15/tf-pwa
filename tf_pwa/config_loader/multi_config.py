@@ -242,9 +242,7 @@ class MultiConfig(object):
 
     def get_params(self, trainable_only=False):
         # _amps = self.get_fcn()
-        if trainable_only:
-            return self.vm.get_all_dic(False)
-        return self.vm.variables
+        return self.vm.get_all_dic(trainable_only)
 
     def set_params(self, params, neglect_params=None):
         _amps = self.get_amplitudes()
