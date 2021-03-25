@@ -106,7 +106,7 @@ class ParticleBWRLS(ParticleLS):
         return ret
 
     def get_barrier_factor(self, ls, q2, q02, d):
-        return [tf.sqrt(q2 / q02) * Bprime_q2(i, q2, q02, d) for i in ls]
+        return [tf.sqrt(q2 / q02)**i * Bprime_q2(i, q2, q02, d) for i in ls]
 
     def get_ls_amp(self, m, ls, q2, q02, d=3.0):
         gammai = self.factor_gamma(ls)
