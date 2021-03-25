@@ -497,7 +497,6 @@ class VarsManager(object):
                 return
             var = self.variables[name_list[0]]
             for name in name_list[1:]:
-                print("name", name)
                 if name in self.trainable_vars:
                     self.trainable_vars.remove(name)
                 else:
@@ -1352,13 +1351,16 @@ class Variable(object):
                 "Only shape==() real var supports 'set_bound' method."
             )
 
-    def set_same_ratio(self, unfix=False):
+    def set_same_ratio(self):
         assert self.cplx, "variable should be complex"
 
+        var = []
+
         def func(name, idx):
-            self.vm.set_fix(name + "r", value=1.0, unfix=unfix)
+            var.append(name)
 
         _shape_func(func, self.shape, self.name)
+        self.vm.set_share_r(var)
 
     def r_shareto(self, Var):
         """

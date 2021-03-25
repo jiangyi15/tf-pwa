@@ -240,9 +240,11 @@ class MultiConfig(object):
             self.fit_params.set_error(err)
         return err
 
-    def get_params(self, trainable_only=True):
+    def get_params(self, trainable_only=False):
         # _amps = self.get_fcn()
-        return self.vm.get_all_dic(trainable_only)
+        if trainable_only:
+            return self.vm.get_all_dic(False)
+        return self.vm.variables
 
     def set_params(self, params, neglect_params=None):
         _amps = self.get_amplitudes()

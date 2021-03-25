@@ -807,7 +807,7 @@ class ConfigLoader(BaseConfig):
         return True
 
     def save_params(self, file_name):
-        params = self.get_params()
+        params = self.get_params(False)
         val = {k: float(v) for k, v in params.items()}
         with open(file_name, "w") as f:
             json.dump(val, f, indent=2)
