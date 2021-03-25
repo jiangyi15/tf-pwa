@@ -79,9 +79,36 @@ class ParticleLS(Particle):
 
 @register_particle("BWR_LS")
 class ParticleBWRLS(ParticleLS):
+    """
+
+    Breit wigner with split ls running width
+
+    .. math::
+        R_i (m) = \\frac{g_i}{m_0^2 - m^2 - im_0 \\Gamma_0 \\frac{\\rho}{\\rho_0} (\\sum_{i} g_i^2)
+
+    the partial width fractor is
+
+    .. math::
+        g_i = \\gamma_i \\frac{q^l}{q_0^l} B_{l_i}'(q,q_0,d)
+
+    and keep normalize as
+
+    .. math::
+        \\sum_{i} \\gamma_i^2 = 1.
+
+    The normalize is done by (\\cos \\theta_0, \\sin\\theta_0 \\cos \\theta_1, \cdots, \\prod_i \\sin\\theta_i)
+
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.decay_params = {"same_ratio": True, **self.decay_params}
+        self.same_ratio = kwargs.get("same_ratio", True)
+        self.same_phase = kwargs.get("same_phase", False)
+        self.decay_params = {
+            "same_ratio": self.same_ratio,
+            "same_phase": self.same_phase,
+            **self.decay_params,
+        }
         self.theta = []
 
     def init_params(self):
@@ -106,7 +133,7 @@ class ParticleBWRLS(ParticleLS):
         return ret
 
     def get_barrier_factor(self, ls, q2, q02, d):
-        return [tf.sqrt(q2 / q02)**i * Bprime_q2(i, q2, q02, d) for i in ls]
+        return [tf.sqrt(q2 / q02) ** i * Bprime_q2(i, q2, q02, d) for i in ls]
 
     def get_ls_amp(self, m, ls, q2, q02, d=3.0):
         gammai = self.factor_gamma(ls)
