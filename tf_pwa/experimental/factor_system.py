@@ -19,9 +19,11 @@ Each component is a path for root to a leaf.
 
 We can add some options to change the possible combination. (TODO)
 
-
 """
+import contextlib
 import itertools
+
+from tf_pwa.variable import _shape_func
 
 
 def get_all_chain(a):
@@ -47,9 +49,6 @@ def get_prod_chain(i):
         yield i
 
 
-from tf_pwa.variable import _shape_func
-
-
 def get_chain_name(chain):
     ret = []
     for i in chain:
@@ -73,9 +72,6 @@ def get_chain_name(chain):
                 tmp.append(i.name)
         ret.append(tmp)
     return itertools.product(*ret)
-
-
-import contextlib
 
 
 @contextlib.contextmanager
