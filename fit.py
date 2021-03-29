@@ -59,7 +59,9 @@ def fit(config, init_params="", method="BFGS", loop=1, maxiter=500):
             print("\nusing RANDOM parameters", flush=True)
         # try to fit
         try:
-            fit_result = config.fit(batch=65000, method=method, maxiter=maxiter)
+            fit_result = config.fit(
+                batch=65000, method=method, maxiter=maxiter
+            )
         except KeyboardInterrupt:
             config.save_params("break_params.json")
             raise
@@ -131,7 +133,9 @@ def write_some_results_combine(config, fit_result, save_root=False):
     from tf_pwa.applications import fit_fractions
 
     for i, c in enumerate(config.configs):
-        c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i), save_root=save_root)
+        c.plot_partial_wave(
+            fit_result, prefix="figure/s{}_".format(i), save_root=save_root
+        )
 
     for it, config_i in enumerate(config.configs):
         print("########## fit fractions {}:".format(it))
@@ -188,7 +192,9 @@ def main():
     )
     parser.add_argument("-m", "--method", default="BFGS", dest="method")
     parser.add_argument("-l", "--loop", type=int, default=1, dest="loop")
-    parser.add_argument("-x", "--maxiter", type=int, default=500, dest="maxiter")
+    parser.add_argument(
+        "-x", "--maxiter", type=int, default=2000, dest="maxiter"
+    )
     parser.add_argument("-r", "--save_root", default=False, dest="save_root")
     parser.add_argument(
         "--total-same", action="store_true", default=False, dest="total_same"
@@ -200,11 +206,15 @@ def main():
         devices = "/device:CPU:0"
     with tf.device(devices):
         config = load_config(results.config, results.total_same)
-        fit_result = fit(config, results.init, results.method, results.loop, results.maxiter)
+        fit_result = fit(
+            config, results.init, results.method, results.loop, results.maxiter
+        )
         if isinstance(config, ConfigLoader):
             write_some_results(config, fit_result, save_root=results.save_root)
         else:
-            write_some_results_combine(config, fit_result, save_root=results.save_root)
+            write_some_results_combine(
+                config, fit_result, save_root=results.save_root
+            )
 
 
 if __name__ == "__main__":
