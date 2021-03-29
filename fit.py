@@ -130,11 +130,16 @@ def write_some_results(config, fit_result, save_root=False):
         fit_frac_string += "{} {}\n".format(
             name, error_print(fit_frac[i], err_frac.get(i, None))
         )
+    fit_frac_tmp = fit_frac_string.split("\n")[1:]
+    fit_frac_string = ""
+    for ff in fit_frac_tmp:
+        if "xB" not in ff:
+            fit_frac_string += f"{ff}\n"
     print(fit_frac_string)
     save_frac_csv("fit_frac.csv", fit_frac)
     save_frac_csv("fit_frac_err.csv", err_frac)
-    # from frac_table import frac_table
-    # frac_table(fit_frac_string)
+    from frac_table import frac_table
+    frac_table(fit_frac_string)
     # chi2, ndf = config.cal_chi2(mass=["R_BC", "R_CD"], bins=[[2,2]]*4)
 
 

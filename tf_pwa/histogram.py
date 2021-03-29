@@ -102,7 +102,8 @@ class Hist1D:
 
     def draw_pull(self, ax=plt, **kwargs):
         with np.errstate(divide="ignore", invalid="ignore"):
-            y_error = np.where(self.error == 0, 0, self.count / self.error)
+            pull_err = np.where(self.error < 1, 1, self.error)
+            y_error = self.count / pull_err
         return ax.bar(
             self.bin_center,
             y_error,
