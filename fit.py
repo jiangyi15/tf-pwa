@@ -40,7 +40,7 @@ def load_config(config_file="config.yml", total_same=False):
     return MultiConfig(config_files, total_same=total_same)
 
 
-def fit(config, init_params="", method="BFGS", loop=1):
+def fit(config, init_params="", method="BFGS", loop=1, maxiter=500):
     """
     simple fit script
     """
@@ -59,7 +59,7 @@ def fit(config, init_params="", method="BFGS", loop=1):
             print("\nusing RANDOM parameters", flush=True)
         # try to fit
         try:
-            fit_result = config.fit(batch=65000, method=method)
+            fit_result = config.fit(batch=65000, method=method, maxiter=maxiter)
         except KeyboardInterrupt:
             config.save_params("break_params.json")
             raise
@@ -85,23 +85,24 @@ def fit(config, init_params="", method="BFGS", loop=1):
     fit_result.save_as("final_params.json")
 
     # calculate parameters error
-    fit_error = config.get_params_error(fit_result, batch=13000)
-    fit_result.set_error(fit_error)
-    fit_result.save_as("final_params.json")
-    pprint(fit_error)
+    if maxiter is not 0:
+        fit_error = config.get_params_error(fit_result, batch=13000)
+        fit_result.set_error(fit_error)
+        fit_result.save_as("final_params.json")
+        pprint(fit_error)
 
-    print("\n########## fit results:")
-    print("Fit status: ", fit_result.success)
-    print("Minimal -lnL = ", fit_result.min_nll)
-    for k, v in config.get_params().items():
-        print(k, error_print(v, fit_error.get(k, None)))
+        print("\n########## fit results:")
+        print("Fit status: ", fit_result.success)
+        print("Minimal -lnL = ", fit_result.min_nll)
+        for k, v in config.get_params().items():
+            print(k, error_print(v, fit_error.get(k, None)))
 
     return fit_result
 
 
-def write_some_results(config, fit_result):
+def write_some_results(config, fit_result, save_root=False):
     # plot partial wave distribution
-    config.plot_partial_wave(fit_result, plot_pull=True)
+    config.plot_partial_wave(fit_result, plot_pull=True, save_root=save_root)
 
     # calculate fit fractions
     phsp_noeff = config.get_phsp_noeff()
@@ -125,12 +126,12 @@ def write_some_results(config, fit_result):
     # chi2, ndf = config.cal_chi2(mass=["R_BC", "R_CD"], bins=[[2,2]]*4)
 
 
-def write_some_results_combine(config, fit_result):
+def write_some_results_combine(config, fit_result, save_root=False):
 
     from tf_pwa.applications import fit_fractions
 
     for i, c in enumerate(config.configs):
-        c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i))
+        c.plot_partial_wave(fit_result, prefix="figure/s{}_".format(i), save_root=save_root)
 
     for it, config_i in enumerate(config.configs):
         print("########## fit fractions {}:".format(it))
@@ -187,6 +188,8 @@ def main():
     )
     parser.add_argument("-m", "--method", default="BFGS", dest="method")
     parser.add_argument("-l", "--loop", type=int, default=1, dest="loop")
+    parser.add_argument("-x", "--maxiter", type=int, default=500, dest="maxiter")
+    parser.add_argument("-r", "--save_root", default=False, dest="save_root")
     parser.add_argument(
         "--total-same", action="store_true", default=False, dest="total_same"
     )
@@ -197,11 +200,11 @@ def main():
         devices = "/device:CPU:0"
     with tf.device(devices):
         config = load_config(results.config, results.total_same)
-        fit_result = fit(config, results.init, results.method, results.loop)
+        fit_result = fit(config, results.init, results.method, results.loop, results.maxiter)
         if isinstance(config, ConfigLoader):
-            write_some_results(config, fit_result)
+            write_some_results(config, fit_result, save_root=results.save_root)
         else:
-            write_some_results_combine(config, fit_result)
+            write_some_results_combine(config, fit_result, save_root=results.save_root)
 
 
 if __name__ == "__main__":
