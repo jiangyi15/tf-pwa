@@ -217,6 +217,9 @@ class AmpBase(object):
     def amp_shape(self):
         raise NotImplementedError
 
+    def get_factor_variable(self):
+        return []
+
 
 @contextlib.contextmanager
 def variable_scope(vm=None):
@@ -531,6 +534,9 @@ class HelicityDecay(AmpDecay):
             self.g_ls.set_fix_idx(fix_idx=0, fix_vals=(1.0, 0.0))
         except Exception as e:
             print(e, self, self.get_ls_list())
+
+    def get_factor_variable(self):
+        return [(self.g_ls,)]
 
     def _get_particle_mass(self, p, data, from_data=False):
         if from_data:
@@ -868,6 +874,18 @@ class DecayChain(BaseDecayChain, AmpBase):
         )
         # self.total = self.add_var(name + "total", is_complex=True, shape=[1])
 
+    def get_factor_variable(self):
+        a = []
+        for i in self:
+            tmp = i.get_factor_variable()
+            if tmp:
+                a.append(tmp)
+        for j in self.inner:
+            tmp = j.get_factor_variable()
+            if tmp:
+                a.append(tmp)
+        return [tuple([self.total] + a)]
+
     def get_amp_total(self, charge=1):
         return tf.stack(self.total(charge))
 
@@ -1078,7 +1096,7 @@ class DecayChain(BaseDecayChain, AmpBase):
         return ret
 
 
-class DecayGroup(BaseDecayGroup):
+class DecayGroup(BaseDecayGroup, AmpBase):
     """ A Group of Decay Chains with the same final particles."""
 
     def __init__(self, chains):
@@ -1100,6 +1118,12 @@ class DecayGroup(BaseDecayGroup):
                 if j not in inited_set:
                     j.init_params()
                     inited_set.add(j)
+
+    def get_factor_variable(self):
+        ret = []
+        for i in self:
+            ret += i.get_factor_variable()
+        return ret
 
     def get_amp(self, data):
         """
