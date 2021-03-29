@@ -90,18 +90,25 @@ def flatten_all(x):
     return [x]
 
 
-def get_all_partial_amp(amp, data):
+def get_all_partial_amp(amp, data, strip_part=[]):
     var = amp.decay_group.get_factor_variable()
     chains = list(get_all_chain(var))
+
     part = []
     for i in chains:
         part += list(get_chain_name(i))
 
-    all_var = flatten_all(part)
+    ret_part = []
+    for j in strip_variable(part, strip_part):
+        ret_part.append(j)
+    all_var = flatten_all(ret_part)
+
     ret = []
-    for i in part:
+    id_ = []
+    for i in ret_part:
         ret.append(partial_amp(amp, data, all_var, flatten_all(i)))
-    return ret
+        id_.append(get_id_variable(all_var, i))
+    return id_, ret
 
 
 def partial_amp(amp, data, all_va, need_va):
@@ -109,4 +116,30 @@ def partial_amp(amp, data, all_va, need_va):
         others_va = set(all_va) - set(need_va)
         amp.vm.set_all({i: 0.0 for i in others_va})
         ret = amp(data)
+    return ret
+
+
+def strip_variable(var_all, part=[]):
+    def match(x):
+        for i in part:
+            if i in x:
+                return True
+        return False
+
+    cached_list = [frozenset()]
+
+    for j in var_all:
+        j = flatten_all(j)
+        after_strip = [k for k in j if not match(k)]
+        if frozenset(after_strip) in cached_list:
+            continue
+        yield after_strip
+        cached_list.append(frozenset(after_strip))
+
+
+def get_id_variable(all_var, var):
+    var = flatten_all(var)
+    ret = frozenset(set(var) - (set(all_var) - set(var)))
+    if len(ret) == 0:
+        return frozenset(var)
     return ret

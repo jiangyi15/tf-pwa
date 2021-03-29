@@ -11,11 +11,12 @@ def test_partial_amp(toy_config):
     tw = amp(phsp)
     phsp = toy_config.generate_phsp(100000)
     tw = amp(phsp)
-    pw = fs.get_all_partial_amp(amp, phsp)
+    id_, pw = fs.get_all_partial_amp(amp, phsp, ["g_ls"])
     mas = phsp.get_mass("(B, C)").numpy()
     plt.hist(mas, 100, weights=tw.numpy(), histtype="step")
-    for i in pw:
-        plt.hist(mas, 100, weights=i.numpy(), histtype="step")
+    for name, i in zip(id_, pw):
+        plt.hist(mas, 100, weights=i.numpy(), histtype="step", label=str(name))
     plt.yscale("log")
+    plt.legend()
     plt.ylim((0.1, None))
     plt.savefig("factor_system.png")
