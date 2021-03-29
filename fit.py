@@ -205,10 +205,6 @@ def main():
     parser.add_argument("-x", "--maxiter", type=int, default=500, dest="maxiter")
     parser.add_argument("-r", "--save_root", default=False, dest="save_root")
     parser.add_argument(
-        "-x", "--maxiter", type=int, default=2000, dest="maxiter"
-    )
-    parser.add_argument("-r", "--save_root", default=False, dest="save_root")
-    parser.add_argument(
         "--total-same", action="store_true", default=False, dest="total_same"
     )
     results = parser.parse_args()
