@@ -1,176 +1,244 @@
-# configuration files
-# using YAML format,see more: https://yaml.org/
-# required PyYAML module
-# this file use indentation to indicate hierarchy
-
-# data entry is the data file name list used for fit
 data:
-  # 4-momentum order of final particles in dat files [option]
-  # the `finals` in `particle` will be used by default.
-  # it is necessary when dat files has momentum out of final particles
-  dat_order: [B, C, D]
-  # basic data files, every line is `E px py pz` as 4-momentum of a particle,
-  # and every m lines group as m final particls
-  data: ["data/data4600_new.dat"]
-  # data weight file, each line for a weight
-  # data_weight: ["data/data_weight.dat"]
-  # phase space data for normalize amplitude
-  phsp: ["data/PHSP4600_new.dat"]
-  # phase space weight file, each line for a weight
-  # phsp_weight: ["data/phsp_weight.dat"]
-  # phase space without efficiencies, used for calculating fit fraction.
-  # phsp_noeff: ["data/PHSP4600_noeff.dat"]
-  # much more phase space, used for plotting
-  # phsp_plot: ["data/PHSP4600_plot.dat"]
-  # optional weight background data, need bg_weight
-  bg: ["data/bg4600_new.dat"]
-  # background weight
-  bg_weight: 0.731
-  # inject MC in data
-  # inmc: ["data/inMC.dat"]
-  # inject_ratio: 0.01
-  # float_inmc_ratio_in_pdf: False
-  # whether boost data to center mass frame first
-  # center_mass: True
-  # cached data file
-  # cached_data: "data/all_data.npy"
-  # data_charge: ["data/data4600_cc.dat"] # charge conjugation condition same as weight
+    data: [["../B02DstmD0Kp/data/dt_DstDKRun1.dat"],["../B02DstmD0Kp/data/dt_DstDKRun2.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun1.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun2.dat"]]
+    data_charge: [["../B02DstmD0Kp/data/dt_DstDKRun1_cc.dat"],["../B02DstmD0Kp/data/dt_DstDKRun2_cc.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun2_cc.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun2_cc.dat"]]
+    
+    phsp: [["../B02DstmD0Kp/data/PHSP_DstDKRun1.dat"],["../B02DstmD0Kp/data/PHSP_DstDKRun2.dat"],["../B02DstmD0Kp/data/PHSP_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/PHSP_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/PHSP_D_K3piRun1.dat"],["../B02DstmD0Kp/data/PHSP_D_K3piRun2.dat"]]
+    phsp_noeff: ["../B02DstmD0Kp/data/PHSP30w.dat"]
+    
+    bg: [["../B02DstmD0Kp/data/sb_DstDKRun1.dat"],["../B02DstmD0Kp/data/sb_DstDKRun2.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun1.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun2.dat"]]
+    bg_charge: [["../B02DstmD0Kp/data/sb_DstDKRun1_cc.dat"],["../B02DstmD0Kp/data/sb_DstDKRun2_cc.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun2_cc.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun2_cc.dat"]]
+    bg_weight: [0.571, 0.585, 0.590, 0.587, 0.578, 0.591]
+    
+    inmc: [["../B02DstmD0Kp/data/oPHSP_DstDKRun1.dat"],["../B02DstmD0Kp/data/oPHSP_DstDKRun2.dat"],["../B02DstmD0Kp/data/oPHSP_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/oPHSP_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/oPHSP_D_K3piRun1.dat"],["../B02DstmD0Kp/data/oPHSP_D_K3piRun2.dat"]]
+    inject_ratio: 0.00
+    #float_inmc_ratio_in_pdf: False
+    #random_z: True
+    dat_order: [C, D, E, F] # D0 K+ D0_D*- pi-_D*-
+    r_boost: True
+    use_tf_function: False
+    #cached_int: False
 
-# `decay` describe the decay structure, each node can be a list of particle name
+
 decay:
-  # each entry is a list of direct decay particle, or a list or the list.
-  # `dec_file` entry for loading `*.dec` files will be supported in the feature.
-  # `-` is often used for list in yaml
-  A:
-    # for example A -> R_CD + B, R_CD -> C + D
-    # the optional `key: value` mean option parameters of the decay
-    # note there, R1 is overrated by `particle` entry as R1 and R11
-    - [R_CD, B, model: default]
-    - - R_BD
-      - C
-      - model: "default"
-    - - R_BC
-      - D
-  # set l_list to allow only l=0
-  # -   [ NR(BC)SP, D, curve_style: "g-", {has_barrier_factor: False, l_list: [0]}]
-  # -   [B, C, D, curve_style: "darkgreen"]
-  R_CD:
-    - C
-    - D
-  R_BD: [B, D]
-  R_BC: [B, C]
-  # set l_list to allow only l=1
-  # NR(BC)SP: [B, C, {has_barrier_factor: False, l_list: [1]}]
+    A:
+    - [R_CD, B, model: default, p_break: True]
+    - [R_BD, C, model: default, p_break: True, curve_style: "orange"]
+    - [R_BC, D, model: default, p_break: True, curve_style: "orange"]
+    - [Ds1_2700_2860, B, model: default, p_break: True, has_barrier_factor: True]
+    #- [B, C, D, curve_style: "darkgreen"]
+    - [NR(D*K)SP, C, p_break: True, curve_style: "g-", l_list: [0]]
+    - [NR(D*K)PS, C, p_break: True, curve_style: "g--", l_list: [1]]
+    - [NR(D*K)PD, C, p_break: True, curve_style: "g-.", l_list: [1]]
+    - [NR(D*K)PP, C, p_break: True, curve_style: "g:", l_list: [1]]
+    - [NR(DK)PS, B, p_break: True, curve_style: "b-", l_list: [1]]
+    - [NR(DK)SP, B, p_break: True, curve_style: "b--", l_list: [0]]
+    - [NR(DK)PP, B, p_break: True, curve_style: "b-.", l_list: [1]]
+    - [NR(DK)DP, B, p_break: True, curve_style: "b:", l_list: [2]]
+    - [NR(D*D)SP, D, p_break: True, curve_style: "c-", l_list: [0]]
+    - [NR(D*D)PS, D, p_break: True, curve_style: "c--", l_list: [1]]
+    - [NR(D*D)PD, D, p_break: True, curve_style: "c-.", l_list: [1]]
+    - [NR(D*D)PP, D, p_break: True, curve_style: "c:", l_list: [1]]
+
+    - [Ds1_2700_SP, B, model: default, p_break: True, l_list: [0]]
+    - [Ds1_2700_PP, B, model: default, p_break: True, l_list: [1]]
+    - [Ds1_2700_DP, B, model: default, p_break: True, l_list: [2]]
+    - [Zc_3900_PS, D, model: default, p_break: True, l_list: [1], curve_style: "orange"]
+    - [Zc_3900_PD, D, model: default, p_break: True, l_list: [1], curve_style: "magenta"]
+
+
+    R_CD: [C, D]
+    R_BD: [B, D]
+    R_BC: [B, C]
+    Ds1_2700_2860: [C, D, has_barrier_factor: False]
+    NR(D*K)SP: [B, D, l_list: [1]]
+    NR(D*K)PS: [B, D, l_list: [0]]
+    NR(D*K)PD: [B, D, l_list: [2]]
+    NR(D*K)PP: [B, D, l_list: [1]]
+    NR(DK)PS: [C, D, l_list: [0]]
+    NR(DK)SP: [C, D, l_list: [1]]
+    NR(DK)PP: [C, D, l_list: [1]]
+    NR(DK)DP: [C, D, l_list: [1]]
+    NR(D*D)SP: [B, C, l_list: [1]]
+    NR(D*D)PS: [B, C, l_list: [0]]
+    NR(D*D)PD: [B, C, l_list: [2]]
+    NR(D*D)PP: [B, C, l_list: [1]]
+
+    Ds1_2700_SP: [C, D, l_list: [1]]
+    Ds1_2700_PP: [C, D, l_list: [1]]
+    Ds1_2700_DP: [C, D, l_list: [1]]
+    Zc_3900_PS: [B, C, l_list: [0]]
+    Zc_3900_PD: [B, C, l_list: [2]]
+
+    B: [E, F, has_barrier_factor: False]
+
 
 # `particle` describe the particle included
-# top, finals, include are used as keywords
 particle:
-  # top decay particle
-  $top:
-    A:
-      J: 1 # spin, use 1/2 or 0.5 for half spin
-      P: -1 # parity, alias: `Par`
-      spins: [-1, 1] # list of possible of spin-projected quantum numbers
-  # final particles
-  $finals:
-    B:
-      J: 1
-      P: -1
-    C:
-      J: 1
-      P: -1
-    D:
-      J: 0
-      P: -1
-  # map for possible resonances in the same position
-  # each entry is a list of resonances id [option]
-  # include detailed parameters defined in `Resonances.yml`
-  $include: Resonances.sample.yml
-  R_BD:
-    - D2_2460p
-    - D1_2430p
-    - D1_2420p
-  R_BC: [Zc_4025, Zc_4160]
-  # by default the node is `name: [name]`
-  # set `[]` for particle which is not in real decays,
-  # just used for calculating angle data.
-  R_CD: []
-  # NR(BC)SP: {J: 1, P: -1, model: one}
+    $top:
+        A: # B0
+            J: 0
+            P: -1
+            #spins: [-1,1]
 
-# The following config is used for DecayChain
-# decay_chain:
-#   $all:
-#      is_cp: True
+    $finals:
+        C: # D0
+            J: 0
+            P: -1
+        D: # K+
+            J: 0
+            P: -1
+        E: # D0_D*-
+            J: 0
+            P: -1
+        F: # pi-_D*-
+            J: 0
+            P: -1
+
+    B: {J: 1, P: -1, m0: 2.01026, model: one} # D*-
+
+    $include: Resonances.yml
+    R_BD: []
+      #- DstarK
+      #- X1_2900
+    R_BC: []
+      #- Zc_Xm
+      #- Zc_3900m
+      #- Zc_4200m
+      #- Zc_4430m
+      #- X_4020m
+      #- X_4050m
+      #- X_4055m
+      #- X_4250m
+    R_CD:
+      #- Dsp
+      - Ds2_2573p
+      - Ds3_2860p
+      #- Ds2_3040p
+    Ds1_2700_2860: {J: 1, P: -1, m0: 2.83, model: KmatrixDK,
+                    params: {
+                        mass1: 2.7083, mass2: 2.859, #width1: 0.12, width2: 0.159,
+                        mass1_free: True, mass2_free: True, mass1_range: [2.6, 2.8], mass2_range: [2.8, 3.1],
+
+                        G1a: 0.063, G1a_free: True, G1r: 0.91, G1r_free: True,
+                        G1r_sigma: 0.18,
+                        G1r_constr: True,
+
+                        G2a: 0.076, G2a_free: True, G2r: 1.10, G2r_free: True,
+                        G2r_sigma: 0.24,
+                        G2r_constr: True,
+
+                        beta1: [1,0], beta1_free: False, beta2: [1,0], beta2_free: True,}}
+
+    NR(D*K)SP: [] #{J: 0, P: -1, m0: 3.0, model: one,}
+    NR(D*K)PS: [] #{J: 1, P: 1, m0: 3.0, model: one,}
+    NR(D*K)PD: [] #{J: 1, P: 1, m0: 3.0, model: one}
+    NR(D*K)PP: [] #{J: 1, P: -1, m0: 3.0, model: one,}
+    NR(DK)PS: {J: 0, P: 1, m0: 2.83, model: exp2, params: {a: 0.1, a_free: True}}
+    NR(DK)SP: {J: 1, P: -1, m0: 2.83, model: one}
+    NR(DK)PP: [] #{J: 1, P: -1, m0: 2.83, model: one}
+    NR(DK)DP: [] #{J: 1, P: -1, m0: 2.83, model: one}
+    NR(D*D)SP: [] #{J: 0, P: -1, m0: 4.36, model: one}
+    NR(D*D)PS: [] #{J: 1, P: 1, m0: 4.36, model: one}
+    NR(D*D)PD: [] #{J: 1, P: 1, m0: 4.36, model: one}
+    NR(D*D)PP: [] #{J: 1, P: -1, m0: 4.36, model: one}
+
+    Ds1_2700_SP: [] #{J: 1, P: -1, m0: 2.7083, g0: 0.12}
+    Ds1_2700_PP: [] #{J: 1, P: -1, m0: 2.7083, g0: 0.12}
+    Ds1_2700_DP: [] #{J: 1, P: -1, m0: 2.7083, g0: 0.12}
+    Zc_3900_PS: [] #{J: 1, P: 1, m0: 3.8822, g0: 0.0265, bw_l: 0}
+    Zc_3900_PD: [] #{J: 1, P: 1, m0: 3.8822, g0: 0.0265, bw_l: 0}
+    Zc_4430_PS: [] #{J: 1, P: 1, m0: 4.478, g0: 0.181, bw_l: 0}
+    Zc_4430_PD: [] #{J: 1, P: 1, m0: 4.478, g0: 0.181, bw_l: 0}
+
 
 # constrains for params [WIP]
 constrains:
-  # particle:
-  #   equal:
-  #     mass: [[D1_2430p, D1_2430]]
-  decay: { fix_chain_idx: 0, fix_chain_val: 1 }
-  # fix_var:
-  #   "A->R_CD.BR_CD->C.D_total_0r": 1.0
-  # var_range:
-  #   "A->R_CD.BR_CD->C.D_total_0r": [1.0, null]
-  # var_equal:
-  #   -  ["A->R_CD.BR_CD->C.D_total_0r", "A->R_BD.CR_BD->B.D_total_0r"]
+    particle: null
+    decay: {fix_chain_idx: 0, fix_chain_val: 1}
+
 
 # plot describe the configuration of plotting 1-d data distribution
 plot:
-  # plot configuration TODO
-  config:
-    bins: 50
-  # invariant mass
-  mass:
-    R_CD:
-      # label of display
-      # use `$$` for latex math
-      display: "$M_{CD}$"
-      # upper_ylim: 200
-      # trans: x*x
-    R_BD:
-      display: "$M_{BD}$"
-    R_BC:
-      display: "$M_{BC}$"
-  # helicity angle
-  angle:
-    # If it named as `[.../]A/R_BC`, it refer to the  decay A -> R_BC ... in the decay chain has A and R_BC,
-    # the angle is determined by the last 2 particles, the other order is random.
-    # for example, D->E+F in [A->R_BC+D, D->E+F, R_BC->B+C] is `R_BC/D/E` or `A/R_BC/D/E` or `R_BC/A/D/E`
-    A/R_CD:
-      # include "alpha, cos(beta), gamma", # add `cos` for cos(beta)
-      alpha:
-        display: "$\\phi_{1}$" # the default is "A/0:$\alpha$"
-      cos(beta):
-        display: "$\\cos(\\theta_1)$" # the default is "A/0:$\beta$"
-        range: [-1, 1] # range for plot
-    A/R_BD:
-      alpha:
-        display: "$\\phi_{2}$"
-      cos(beta):
-        display: "$\\cos(\\theta_2)$"
-    A/R_BC:
-      alpha:
-        display: "$\\phi_{3}$"
-      cos(beta):
-        display: "$\\cos(\\theta_3)$"
-    R_BC/B:
-      alpha:
-        display: "$\\phi_{11}$"
-      cos(beta):
-        display: "$\\cos(\\theta_{11})$"
-    R_CD/C:
-      alpha:
-        display: "$\\phi_{1}$"
-      cos(beta):
-        display: "$\\cos(\\theta_{21})$"
-    R_BD/B:
-      alpha:
-        display: "$\\phi_{1}$"
-      cos(beta):
-        display: "$\\cos(\\theta_{31})$"
-  # 2D plot
-  2Dplot:
-    m_R_CD & m_R_BC:
-      display: "$M_{CD}$ vs $M_{BC}$"
-      plot_figs: ["data", "sideband", "fitted"]
+    # plot configuration TODO
+    combine_plot: True
+    config:
+        bins: 100
+    # invariant mass
+    mass: # B: D^{*-} C: D^0 D: K^+
+        R_CD:
+            # label of display
+            # use `$$` for latex math
+            display: "$M_{D^0K^+}$"
+            #legend: False
+            #trans: x*x
+            #units: "$GeV^2$"
+            #upper_ylim: 250
+        R_BD:
+            display: "$M_{D^{*-}K^+}$"
+            #legend: False
+            #trans: x*x
+            #units: "$GeV^2$"
+            #upper_ylim: 90
+        R_BC:
+            display: "$M_{D^{*-}D^0}$"
+            #legend: False
+            #trans: x*x
+            #units: "$GeV^2$"
+            #upper_ylim: 110
+    # helicity angle
+    angle:
+        # each entry is `particle[/number]` means the decay of particle, number is the order.
+        A/R_CD:
+            # include "alpha, cos(beta), gamma", # add `cos` for cos(beta)
+            alpha:
+                display: "$\\phi_{D^0K^+}$" # the default is "A/1:$\alpha$"
+            cos(beta):
+                display: "$\\cos(\\theta_{D^0K^+})$" # the default is "A/1:$\beta$"
+                range: [-1, 1] # range for plot
+        R_CD/C:
+            alpha:
+                display: "$\\phi^{D^0K^+}_{D^0}$"
+            cos(beta):
+                display: "$\\cos(\\theta^{D^0K^+}_{D^0})$"
+        R_CD/B/E:
+            alpha:
+                display: "$\\phi^{D^{*-}_{B^0}}_{D^0_{D^{*-}}}$"
+            cos(beta):
+                display: "$\\cos(\\theta^{D^{*-}_{B^0}}_{D^0_{D^{*-}}})$"
+
+        A/R_BD:
+            alpha:
+                display: "$\\phi_{D^{*-}K^+}$"
+            cos(beta):
+                display: "$\\cos(\\theta_{D^{*-}K^+})$"
+        R_BD/B:
+            alpha:
+                display: "$\\phi^{D^{*-}K^+}_{D^{*-}}$"
+            cos(beta):
+                display: "$\\cos(\\theta^{D^{*-}K^+}_{D^{*-}})$"
+        R_BD/B/E:
+            alpha:
+                display: "$\\phi^{D^{*-}_{D^{*-}K^+}}_{D^0_{D^{*-}}}$"
+            cos(beta):
+                display: "$\\cos(\\theta^{D^{*-}_{D^{*-}K^+}}_{D^0_{D^{*-}}})$"
+
+        A/R_BC:
+            alpha:
+                display: "$\\phi_{D^{*-}D^0}$"
+            cos(beta):
+                display: "$\\cos(\\theta_{D^{*-}D^0})$"
+        R_BC/B:
+            alpha:
+                display: "$\\phi^{D^{*-}D^0}_{D^{*-}}$"
+            cos(beta):
+                display: "$\\cos(\\theta^{D^{*-}D^0}_{D^{*-}})$"
+        R_BC/B/E:
+            alpha:
+                display: "$\\phi^{D^{*-}_{D^{*-}D^0}}_{D^0_{D^{*-}}}$"
+            cos(beta):
+                display: "$\\cos(\\theta^{D^{*-}_{D^{*-}D^0}}_{D^0_{D^{*-}}})$"
+    # 2D plot
+    #2Dplot:
+    #    m_R_CD & m_R_BC:
+    #        display: "$M_{D^0K^+}^2$ vs $M_{D^{*-}D^0}^2$"
+    #        plot_figs: ["fitted"]
