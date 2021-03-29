@@ -36,6 +36,117 @@ class ParticleExp(Particle):
         a = tf.abs(self.a())
         return tf.complex(tf.exp(-a * mass * mass), zeros)
 
+@regist_particle("KmatrixDK")
+class ParticleKmatrixDK(Particle):
+    def init_params(self):
+        self.mass1 = self.add_var("mass1", fix=True)
+        self.mass2 = self.add_var("mass2", fix=True)
+        #self.width1 = self.add_var("width1", fix=True) # is not used
+        #self.width2 = self.add_var("width2", fix=True)
+
+        # ratio 0.91+-0.18 sq 0.954+-0.094
+        self.G1a = self.add_var("G1a") # 2700->DK 0.72357 0.57009 
+        self.G1r = self.add_var("G1r") # 2700->D*K 0.69025 0.76551
+        # ratio 1.10 +- 0.24 sq 1.049+-0.114
+        self.G2a = self.add_var("G2a") # 2860->DK 0.69007 0.68775
+        self.G2r = self.add_var("G2r") # 2860->D*K 0.72375 0.50498
+
+        self.beta1 = self.add_var("beta1", is_complex=True)
+        self.beta2 = self.add_var("beta2", is_complex=True)
+
+        self.mdaughtera1 = 1.86483 # D0
+        self.mdaughtera2 = 0.493677 # Kp
+        self.mdaughterb1 = 2.00696 # D*0
+        self.mdaughterb2 = self.mdaughtera2 # Kp
+        self.d = 3.0
+
+
+    def get_amp(self, data, data_c=None, **kwargs):
+        m = data["m"]
+        m1 = self.mass1()
+        m2 = self.mass2()
+        m1_m = m1**2 - m**2
+        m2_m = m2**2 - m**2
+        m_mlist = 1/tf.stack([m1_m, m2_m])
+        
+        D, rho = self.get_D_rho(m)
+        K, P = self.get_K_P(m)
+
+        rhoDD = rho*D*D
+        iKrhoDD = tf.complex(np.float64(0), tf.einsum("ijs,jks->sik", K, rhoDD))
+        KK = tf.eye(2, dtype=iKrhoDD.dtype) - iKrhoDD
+        KK00 = KK[:,0,0]
+        KK01 = KK[:,0,1]
+        KK10 = KK[:,1,0]
+        KK11 = KK[:,1,1]
+        invdenom = KK00*KK11-KK01*KK10
+        iKinv = tf.einsum("ijk->kij",tf.stack([[KK11/invdenom, -KK01/invdenom], [-KK10/invdenom, KK00/invdenom]]))
+        #iKinv = tf.linalg.inv(KK)
+        DiKinv = tf.einsum("ijs,sjk->iks", tf.cast(D,iKinv.dtype), iKinv)
+        AK = tf.einsum("ijs,js->is", DiKinv, P)
+
+        ret = AK[0]#*tf.cast(barrier, AK.dtype)
+        return ret
+
+
+    def get_D_rho(self, m):
+        m1 = self.mass1()
+        m2 = self.mass2()
+        La = 1
+        Lb = 1
+
+        qa = get_relative_p(m, self.mdaughtera1, self.mdaughtera2)
+        qb = get_relative_p(m, self.mdaughterb1, self.mdaughterb2)
+
+        rhoa = 2*qa/m
+        rhob = 2*qb/m
+        zeros =tf.zeros_like(rhoa)
+        rho = tf.stack([[rhoa, zeros],
+                        [zeros, rhob]])
+
+        Da = (qa / Bprime_num(La, qa, self.d))**La * self.d**La
+        Db = (qb / Bprime_num(Lb, qb, self.d))**Lb * self.d**Lb
+        D = tf.stack([[Da, zeros],
+                      [zeros, Db]])
+        return D, rho
+
+    def get_K_P(self, m):
+        m1 = self.mass1()
+        m2 = self.mass2()
+        u1 = m1**2 - m**2
+        u2 = m2**2 - m**2
+
+        G1a = tf.abs(self.G1a())
+        G1r = tf.abs(self.G1r())
+        G2a = tf.abs(self.G2a())
+        G2r = tf.abs(self.G2r())
+        q1a = get_relative_p(m1, self.mdaughtera1, self.mdaughtera2)
+        q1b = get_relative_p(m1, self.mdaughterb1, self.mdaughterb2)
+        q2a = get_relative_p(m2, self.mdaughtera1, self.mdaughtera2)
+        q2b = get_relative_p(m2, self.mdaughterb1, self.mdaughterb2)
+        g1afactor = m1*m1/2/q1a/q1a/q1a * (q1a*q1a+1/self.d/self.d)
+        g1bfactor = m1*m1/2/q1b/q1b/q1b * (q1b*q1b+1/self.d/self.d)
+        g2afactor = m2*m2/2/q2a/q2a/q2a * (q2a*q2a+1/self.d/self.d)
+        g2bfactor = m2*m2/2/q2b/q2b/q2b * (q2b*q2b+1/self.d/self.d)
+
+        g1a = tf.sqrt(G1a*g1afactor)
+        g1b = tf.sqrt(G1a*G1r*g1bfactor)
+        g2a = tf.sqrt(G2a*g2afactor)
+        g2b = tf.sqrt(G2a*G2r*g2bfactor)
+
+        beta1 = self.beta1()
+        beta2 = self.beta2()
+
+        Kaa = g1a*g1a/u1 + g2a*g2a/u2
+        Kab = g1a*g1b/u1 + g2a*g2b/u2
+        Kbb = g1b*g1b/u1 + g2b*g2b/u2
+        Kmatrix = tf.stack([[Kaa, Kab],
+                            [Kab, Kbb]])
+
+        Pa = beta1 * tf.cast(g1a/u1,beta1.dtype) + beta2 * tf.cast(g2a/u2,beta2.dtype) # to DK
+        Pb = beta1 * tf.cast(g1b/u1,beta1.dtype) + beta2 * tf.cast(g2b/u2,beta2.dtype) # to D*K
+        Pvector = tf.stack([Pa, Pb])
+        return Kmatrix, Pvector #tf.transpose(Pvector) # it'll be much slower if transpose here
 
 def json_print(dic):
     """print parameters as json"""
