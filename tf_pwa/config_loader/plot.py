@@ -231,7 +231,7 @@ def _cal_partial_wave(
     plot_var_dic,
     chain_property,
     save_root=False,
-    bin_scale=3,
+    bin_scale=1,
     res=None,
     batch=65000,
     **kwargs
@@ -347,7 +347,7 @@ def _plot_partial_wave(
     plot_delta=False,
     plot_pull=False,
     save_pdf=False,
-    bin_scale=3,
+    bin_scale=1,
     single_legend=False,
     format="png",
     nll=None,
@@ -474,7 +474,7 @@ def _plot_partial_wave(
                     )
                 else:
                     le3 = hist_i.draw(
-                        ax, curve_style, label=label, linewidth=1
+                        ax, color=curve_style[0], linestyle=curve_style[1:], label=label, linewidth=1
                     )
             legends.append(le3[0])
             legends_label.append(label)

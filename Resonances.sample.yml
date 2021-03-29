@@ -1,164 +1,142 @@
-# Resonance configure list
-# yaml format version , see more: https://yaml.org/
-# required pyyaml module
 
-# head resonance
-# resonance name as id
-# quotation marks are option
-# head resonance will has head fixed to 1.0
+# BD (D*K)
+DstarK: {
+  Chain: -21, J: 1, Par: -1,
+  m0: 3, m_max: 3.6, m_min: 2.4,
+  g0: 0.1, g_max: 0.5, g_min: 0.0001,
+  float: mg,
+}
 
-D2_2460:
-  # spin [required]
-  J: 2
-  # parity (alias `Par`) [required]
-  P: 1
-  # resonance mass (alias `mass`)  : m_0 [required]
-  m0: 2.4607 # m_sigma: 0.1,
-  m_max: 2.4611
-  m_min: 2.4603 # if max or min is not given, it will be +- 10*sigma
-  # resonance width (alias `mass`): \Gamma_0 [required]
-  g0: 0.0475 # m_sigma: 0.01,
-  g_max: 0.0486
-  g_min: 0.0464 # if max or min is not given, it will be +- 10*sigma
-  # set mass and gamma as variables
-  #float: mg,
-  # add gaussian constraint term (e.g. mean = m0, sigma = m_sigma)
+# CD (D0K)
+Dsp: {
+  Chain: 101, J: 1, Par: -1,
+  m0: 3, m_max: 3.5, m_min: 2.3,
+  g0: 0.1, g_max: 0.5, g_min: 0.0001,
+  float: mg,
+}
+
+Ds2_2573p: {
+  Chain: 121, J: 2, Par: 1,
+  m0: 2.5691, m_sigma: 0.0008, m_max: 2.5771, m_min: 2.5611,
+  g0: 0.0169, g_sigma: 0.0007, g_max: 0.0249, g_min: 0.0089,
+}
+
+Ds1_2700_2860: {
+  Chain: 111, J: 1, Par: -1,
+  params: {
+    #mass1: 2.7083, mass2: 2.859,
+    #width1: 0.12, width2: 0.159,
+    #g1a_range: [-1,1],
+    #g1b_range: [-1,1],
+    #g2a_range: [-1,1],
+    #g2b_range: [-1,1],
+  },
+  m0: 2.83,
+  bw: Kmatrix,
+}
+
+Ds1_2700p: {
+  Chain: 111, J: 1, Par: -1,
+  m0: 2.7083, m_sigma: 0.004, m_max: 2.7483, m_min: 2.6683,
+  g0: 0.12, g_sigma: 0.011, g_max: 0.35, g_min: 0.05,
+  float: ,
+  gauss_constr: ,
+}
+
+Ds1_2860p: {
+  Chain: 113, J: 1, Par: -1,
+  m0: 2.859, m_sigma: 0.027, m_max: 3.129, m_min: 2.609,
+  g0: 0.159, g_sigma: 0.08, g_max: 0.8, g_min: 0.0001,
+  float: ,
+  gauss_constr: ,
+}
+
+Ds3_2860p: {
+  Chain: 131, J: 3, Par: -1,
+  m0: 2.8605, m_sigma: 0.007, m_max: 2.93, m_min: 2.79,
+  g0: 0.053, g_sigma: 0.01, g_max: 0.1, g_min: 0.001,
+}
+
+Ds1_3040p: {
+  Chain: 199, J: 1, Par: -1,
+  m0: 3.044, m_sigma: 0.03, m_max: 3.344, m_min: 2.949,
+  g0: 0.239, g_sigma: 0.057, g_max: 0.7, g_min: 0.0001,
+}
+
+
+# BC (D*D0)
+Zc_Xm: {
+  Chain: 14, J: 2, Par: -1,
+  m0: 4.248, m_max: 5.2, m_min: 3.8,
+  g0: 0.1, g_max: 0.5, g_min: 0.0001,
+  float: mg,
+}
+
+Zc_3900m: {
+  Chain: 12, J: 1, Par: 1,
+  m0: 3.8822, m_sigma: 0.002, m_max: 3.9022, m_min: 3.8622,
+  g0: 0.0265, g_sigma: 0.0028, g_max: 0.05, g_min: 0.0001,
+  float: ,
   #gauss_constr: mg,
-  # Breit Wigner formula [option]
-  bw: default
-  # whether used in decay
-  disable: False
+}
 
-Ds1_2700_2860:
-  J: 1
-  P: -1
-  params:
-    mass1: 2.7083
-    mass2: 2.859
-    width1: 0.12
-    width2: 0.159
-    mass1_range: [2.7, 2.72]
-    mass1_sigma: 0.008
-    mass1_free: True
-    mass1_constr: False
-  m0: 2.83
-  bw: Kmatrix
-
-#other resonance
-D2_2460p:
-  J: 2
-  P: 1
-  # coef_head make D2_2460p to use the params of D2_2460 by the same name
-  # only the total phase angle different
-  coef_head: "D2_2460"
-  g0: 0.0467
-  g_max: 0.0479
-  g_min: 0.0455
-  m0: 2.4654
-  m_max: 2.4667
-  m_min: 2.4644
-
-# or you can used `{}` to avoid indent
-D1_2420:
-  {
-    J: 1,
-    Par: 1,
-    g0: 0.0317,
-    g_max: 0.0342,
-    g_min: 0.0292,
-    m0: 2.4208,
-    m_max: 2.4213,
-    m_min: 2.4203,
-  }
-
-D1_2420p:
-  {
-    J: 1,
-    Par: 1,
-    coef_head: "D1_2420",
-    g0: 0.025,
-    g_max: 0.021,
-    g_min: 0.019,
-    m0: 2.4232,
-    m_max: 2.4256,
-    m_min: 2.4208,
-  }
-
-D1_2430:
-  {
-    J: 1,
-    Par: 1,
-    g0: 0.384,
-    g_max: 0.514,
-    g_min: 0.274,
-    m0: 2.427,
-    m_max: 2.467,
-    m_min: 2.387,
-  }
-
-D1_2430p:
-  {
-    J: 1,
-    Par: 1,
-    coef_head: "D1_2430",
-    g0: 0.384,
-    g_max: 0.514,
-    g_min: 0.274,
-    m0: 2.427,
-    m_max: 2.467,
-    m_min: 2.387,
-  }
-
-#D0_2550: {
-#  J: 0, Par: -1,
-#  m0: 2.518,
-#  g0: 0.199,
-#}
-
-#D0_2550p: {
-#  J: 0, Par: -1,
-#  coef_head: "D0_2550",
-#  m0: 2.518,
-#  g0: 0.199,
-#}
-
-#D1_2600: {
-#  J: 1, Par: -1,
-#  m0: 2.6419,
-#  g0: 0.149,
-#}
-
-#D1_2600p: {
-#  J: 1, Par: -1,
-#  coef_head: "D1_2600",
-#  m0: 2.6419,
-#  g0: 0.149,
-#}
-
-Zc_4025:
-  { J: 1, Par: 1, g0: 0.0248, m0: 4.0263 }
-  #total: 1.0,
-
-Zc_4160:
-  { J: 1, Par: 1, g0: 0.0921485, m0: 4.17329 }
+Zc_4200m: {
+  Chain: 14, J: 1, Par: 1,
+  m0: 4.196, m_sigma: 0.035, m_max: 4.5, m_min: 3.9,
+  g0: 0.37, g_sigma: 0.14, g_max: 1.0, g_min: 0.0001,
   #float: mg,
+  #gauss_constr: mg,
+}
 
-Zc_4210:
-  J: 1
-  P: 1
-  m0: 4.21
-  g0: 0.11
-  # trans model examples
-  model:
-    expr: a * BWR
-    where:
-      a: -1.0
+Zc_4430m: {
+  Chain: 16, J: 1, Par: 1,
+  m0: 4.478, m_sigma: 0.018, m_max: 4.628, m_min: 4.298,
+  g0: 0.181, g_sigma: 0.031, g_max: 0.5, g_min: 0.0001,
+  float: mg,
+  #gauss_constr: mg,
+}
 
-Kmatrix_S:
-  J: 1
-  P: 1
-  m0: 4.21
-  # trans model examples
-  model: KMatrixSingleChannel
-  mass_list: [4.21, 4.31]
-  width_list: [0.03, 0.06]
+
+X_4020m: {
+  Chain: 91, J: 1, Par: 1,
+  m0: 4.0241, m_sigma: 0.0019, m_max: 4.0431, m_min: 4.0051,
+  g0: 0.013, g_sigma: 0.005, g_max: 0.063, g_min: 0.0001,
+  #float: mg,
+  #gauss_constr: mg,
+}
+
+X_4050m: {
+  Chain: 92, J: 1, Par: 1,
+  m0: 4.051, m_sigma: 0.04, m_max: 4.295, m_min: 3.618,
+  g0: 0.082, g_sigma: 0.05, g_max: 0.6, g_min: 0.0001,
+  #float: mg,
+  #gauss_constr: mg,
+}
+
+X_4055m: {
+  Chain: 93, J: 1, Par: 1,
+  m0: 4.054, m_sigma: 0.0032, m_max: 4.086, m_min: 4.022,
+  g0: 0.045, g_sigma: 0.0125, g_max: 0.17, g_min: 0.0001,
+  #float: mg,
+  #gauss_constr: mg,
+}
+
+X_4100m: {
+  Chain: 95, J: 1, Par: 1,
+  m0: 4.096, m_sigma: 0.03, m_max: 5, m_min: 3.8,
+  g0: 0.152, g_sigma: 0.083, g_max: 1, g_min: 0.0001,
+}
+
+X_4250m: {
+  Chain: 94, J: 1, Par: 1,
+  m0: 4.248, m_sigma: 0.18, m_max: 5, m_min: 3.8,
+  g0: 0.177, g_sigma: 0.3, g_max: 1, g_min: 0.0001,
+  #float: mg,
+  #gauss_constr: mg,
+}
+
+X1_2900: {
+  J: 1, Par: -1,
+  m0: 2.9041, m_sigma: 0.005,
+  g0: 0.11, g_sigma: 0.012,
+}
