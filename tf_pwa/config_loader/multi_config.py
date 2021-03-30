@@ -146,14 +146,14 @@ class MultiConfig(object):
 
         return args_name, x0, args, bnds
 
-    def fit(self, datas=None, batch=65000, method="BFGS"):
+    def fit(self, datas=None, batch=65000, method="BFGS", maxiter=None):
         fcn = self.get_fcn(datas=datas)
         # fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2), flush=True)
         print("initial NLL: ", fcn({}))
         self.fit_params = fit(
-            fcn=fcn, method=method, bounds_dict=self.bound_dic
+            fcn=fcn, method=method, bounds_dict=self.bound_dic, maxiter=maxiter
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
