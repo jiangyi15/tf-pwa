@@ -76,7 +76,7 @@ class ParticleLS(Particle):
 class ParticleBWRLS(ParticleLS):
     """
 
-    Breit wigner with split ls running width
+    Breit Wigner with split ls running width
 
     .. math::
         R_i (m) = \\frac{g_i}{m_0^2 - m^2 - im_0 \\Gamma_0 \\frac{\\rho}{\\rho_0} (\\sum_{i} g_i^2)}
@@ -91,7 +91,7 @@ class ParticleBWRLS(ParticleLS):
     .. math::
         \\sum_{i} \\gamma_i^2 = 1.
 
-    The normalize is done by (\\cos \\theta_0, \\sin\\theta_0 \\cos \\theta_1, \\cdots, \\prod_i \\sin\\theta_i)
+    The normalize is done by (:math:`\\cos \\theta_0, \\sin\\theta_0 \\cos \\theta_1, \\cdots, \\prod_i \\sin\\theta_i`)
 
     """
 

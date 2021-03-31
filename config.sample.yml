@@ -52,8 +52,10 @@ decay:
     - - R_BC
       - D
   # set l_list to allow only l=0
-  # -   [ NR(BC)SP, D, curve_style: "g-", {has_barrier_factor: False, l_list: [0]}]
-  # -   [B, C, D, curve_style: "darkgreen"]
+  # - [ NR(BC)SP, D, curve_style: "g-", {has_barrier_factor: False, l_list: [0]}]
+  # - [B, C, D, curve_style: "darkgreen"]
+  # - [R_BC2, D, p_break: True] # allow P parity violate
+  # R_BC2: [B, C, c_break: False] # enable C parity select C=(-1)^(l+s)
   R_CD:
     - C
     - D
