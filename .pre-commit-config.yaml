@@ -43,24 +43,19 @@ repos:
     hooks:
       - id: prettier
 
-  - repo: local
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.8.0
     hooks:
       - id: isort
-        name: isort
-        entry: isort
-        language: system
-        types:
-          - python
 
+  - repo: https://github.com/pre-commit/mirrors-pylint
+    rev: v2.5.0 # Use the sha / tag you want to point at
+    hooks:
       - id: pylint
-        name: pylint
-        entry: pylint --rcfile=.pylintrc --score=no
-        language: system
-        types:
-          - python
+        args: ["--rcfile=.pylintrc", "--score=no"]
 
+  - repo: https://github.com/myint/rstcheck
+    rev: 3f92957 # Use the sha / tag you want to point at
+    hooks:
       - id: rstcheck
-        name: rstcheck
-        entry: rstcheck
-        language: system
         files: \.(inc|rst)$
