@@ -21,36 +21,6 @@ Ds2_2573p: {
   g0: 0.0169, g_sigma: 0.0007, g_max: 0.0249, g_min: 0.0089,
 }
 
-Ds1_2700_2860: {
-  Chain: 111, J: 1, Par: -1,
-  params: {
-    #mass1: 2.7083, mass2: 2.859,
-    #width1: 0.12, width2: 0.159,
-    #g1a_range: [-1,1],
-    #g1b_range: [-1,1],
-    #g2a_range: [-1,1],
-    #g2b_range: [-1,1],
-  },
-  m0: 2.83,
-  bw: Kmatrix,
-}
-
-Ds1_2700p: {
-  Chain: 111, J: 1, Par: -1,
-  m0: 2.7083, m_sigma: 0.004, m_max: 2.7483, m_min: 2.6683,
-  g0: 0.12, g_sigma: 0.011, g_max: 0.35, g_min: 0.05,
-  float: ,
-  gauss_constr: ,
-}
-
-Ds1_2860p: {
-  Chain: 113, J: 1, Par: -1,
-  m0: 2.859, m_sigma: 0.027, m_max: 3.129, m_min: 2.609,
-  g0: 0.159, g_sigma: 0.08, g_max: 0.8, g_min: 0.0001,
-  float: ,
-  gauss_constr: ,
-}
-
 Ds3_2860p: {
   Chain: 131, J: 3, Par: -1,
   m0: 2.8605, m_sigma: 0.007, m_max: 2.93, m_min: 2.79,
