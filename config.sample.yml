@@ -1,15 +1,15 @@
 data:
-    data: [["../B02DstmD0Kp/data/dt_DstDKRun1.dat"],["../B02DstmD0Kp/data/dt_DstDKRun2.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun1.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun2.dat"]]
-    data_charge: [["../B02DstmD0Kp/data/dt_DstDKRun1_cc.dat"],["../B02DstmD0Kp/data/dt_DstDKRun2_cc.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/dt_Dst_K3piRun2_cc.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/dt_D_K3piRun2_cc.dat"]]
+        data: [["../dataDstarDK/dat/dt_DstDKRun1.dat"],["../dataDstarDK/dat/dt_DstDKRun2.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun1.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun2.dat"],["../dataDstarDK/dat/dt_D_K3piRun1.dat"],["../dataDstarDK/dat/dt_D_K3piRun2.dat"]]
+    data_charge: [["../dataDstarDK/dat/dt_DstDKRun1_cc.dat"],["../dataDstarDK/dat/dt_DstDKRun2_cc.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun1_cc.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun2_cc.dat"],["../dataDstarDK/dat/dt_D_K3piRun1_cc.dat"],["../dataDstarDK/dat/dt_D_K3piRun2_cc.dat"]]
     
-    phsp: [["../B02DstmD0Kp/data/PHSP_DstDKRun1.dat"],["../B02DstmD0Kp/data/PHSP_DstDKRun2.dat"],["../B02DstmD0Kp/data/PHSP_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/PHSP_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/PHSP_D_K3piRun1.dat"],["../B02DstmD0Kp/data/PHSP_D_K3piRun2.dat"]]
-    phsp_noeff: ["../B02DstmD0Kp/data/PHSP30w.dat"]
+    phsp: [["../dataDstarDK/dat/PHSP_DstDKRun1.dat"],["../dataDstarDK/dat/PHSP_DstDKRun2.dat"],["../dataDstarDK/dat/PHSP_Dst_K3piRun1.dat"],["../dataDstarDK/dat/PHSP_Dst_K3piRun2.dat"],["../dataDstarDK/dat/PHSP_D_K3piRun1.dat"],["../dataDstarDK/dat/PHSP_D_K3piRun2.dat"]]
+    phsp_noeff: ["../dataDstarDK/dat/PHSP30w.dat"]
     
-    bg: [["../B02DstmD0Kp/data/sb_DstDKRun1.dat"],["../B02DstmD0Kp/data/sb_DstDKRun2.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun1.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun2.dat"]]
-    bg_charge: [["../B02DstmD0Kp/data/sb_DstDKRun1_cc.dat"],["../B02DstmD0Kp/data/sb_DstDKRun2_cc.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/sb_Dst_K3piRun2_cc.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun1_cc.dat"],["../B02DstmD0Kp/data/sb_D_K3piRun2_cc.dat"]]
+    bg: [["../dataDstarDK/dat/sb_DstDKRun1.dat"],["../dataDstarDK/dat/sb_DstDKRun2.dat"],["../dataDstarDK/dat/sb_Dst_K3piRun1.dat"],["../dataDstarDK/dat/sb_Dst_K3piRun2.dat"],["../dataDstarDK/dat/sb_D_K3piRun1.dat"],["../dataDstarDK/dat/sb_D_K3piRun2.dat"]]
+    bg_charge: [["../dataDstarDK/dat/sb_DstDKRun1_cc.dat"],["../dataDstarDK/dat/sb_DstDKRun2_cc.dat"],["../dataDstarDK/dat/sb_Dst_K3piRun1_cc.dat"],["../dataDstarDK/dat/sb_Dst_K3piRun2_cc.dat"],["../dataDstarDK/dat/sb_D_K3piRun1_cc.dat"],["../dataDstarDK/dat/sb_D_K3piRun2_cc.dat"]]
     bg_weight: [0.571, 0.585, 0.590, 0.587, 0.578, 0.591]
     
-    inmc: [["../B02DstmD0Kp/data/oPHSP_DstDKRun1.dat"],["../B02DstmD0Kp/data/oPHSP_DstDKRun2.dat"],["../B02DstmD0Kp/data/oPHSP_Dst_K3piRun1.dat"],["../B02DstmD0Kp/data/oPHSP_Dst_K3piRun2.dat"],["../B02DstmD0Kp/data/oPHSP_D_K3piRun1.dat"],["../B02DstmD0Kp/data/oPHSP_D_K3piRun2.dat"]]
+    inmc: [["../dataDstarDK/dat/oPHSP_DstDKRun1.dat"],["../dataDstarDK/dat/oPHSP_DstDKRun2.dat"],["../dataDstarDK/dat/oPHSP_Dst_K3piRun1.dat"],["../dataDstarDK/dat/oPHSP_Dst_K3piRun2.dat"],["../dataDstarDK/dat/oPHSP_D_K3piRun1.dat"],["../dataDstarDK/dat/oPHSP_D_K3piRun2.dat"]]
     inject_ratio: 0.00
     #float_inmc_ratio_in_pdf: False
     #random_z: True
@@ -113,7 +113,7 @@ particle:
 
     B: {J: 1, P: -1, m0: 2.01026, model: one} # D*-
 
-    $include: Resonances.yml
+    $include: Resonances.sample.yml
     R_BD: []
       #- DstarK
       #- X1_2900
