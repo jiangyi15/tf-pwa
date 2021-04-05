@@ -24,8 +24,16 @@ decay:
     - [R_CD, B, model: default, p_break: True]
     - [R_BD, C, model: default, p_break: True, curve_style: "orange"]
     - [R_BC, D, model: default, p_break: True, curve_style: "orange"]
+    # BW
+    - [Ds1_2700p, B, model: default, curve_style: "g-", p_break: True]
+    - [Ds1_2860p, B, model: default, curve_style: "g--", p_break: True]
+    # KM
     - [Ds1_2700_2860, B, model: default, p_break: True, has_barrier_factor: True]
-    #- [B, C, D, curve_style: "darkgreen"]
+    # MI
+    - [DK(1-)SP, B, p_break: True, curve_style: "g-", l_list: [0]]
+    - [DK(1-)PP, B, p_break: True, curve_style: "c-.", l_list: [1]]
+    - [DK(1-)DP, B, p_break: True, curve_style: "b--", l_list: [2]]
+    
     - [NR(D*K)SP, C, p_break: True, curve_style: "g-", l_list: [0]]
     - [NR(D*K)PS, C, p_break: True, curve_style: "g--", l_list: [1]]
     - [NR(D*K)PD, C, p_break: True, curve_style: "g-.", l_list: [1]]
@@ -49,7 +57,16 @@ decay:
     R_CD: [C, D]
     R_BD: [B, D]
     R_BC: [B, C]
+    # BW
+    Ds1_2700p: [C, D, has_barrier_factor: True]
+    Ds1_2860p: [C, D, has_barrier_factor: True]
+    # KM
     Ds1_2700_2860: [C, D, has_barrier_factor: False]
+    # MI
+    DK(1-)SP: [C, D, l_list: [1]]
+    DK(1-)PP: [C, D, l_list: [1]]
+    DK(1-)DP: [C, D, l_list: [1]]
+    
     NR(D*K)SP: [B, D, l_list: [1]]
     NR(D*K)PS: [B, D, l_list: [0]]
     NR(D*K)PD: [B, D, l_list: [2]]
@@ -114,6 +131,12 @@ particle:
       - Ds2_2573p
       - Ds3_2860p
       #- Ds2_3040p
+    # BW
+    Ds1_2700p: [] #{J: 1, Par: -1, m0: 2.7083, m_sigma: 0.004, m_max: 2.7483, m_min: 2.6683,
+                #float: , gauss_constr: , g0: 0.12, g_sigma: 0.011, g_max: 0.35, g_min: 0.05}
+    Ds1_2860p: [] #{J: 1, Par: -1, m0: 2.859, m_sigma: 0.027, m_max: 3.129, m_min: 2.609,
+                #float: , gauss_constr: , g0: 0.159, g_sigma: 0.08, g_max: 0.8, g_min: 0.0001}
+    # KM
     Ds1_2700_2860: {J: 1, P: -1, m0: 2.83, model: KmatrixDK,
                     params: {
                         mass1: 2.7083, mass2: 2.859, #width1: 0.12, width2: 0.159,
@@ -128,6 +151,10 @@ particle:
                         G2r_constr: True,
 
                         beta1: [1,0], beta1_free: False, beta2: [1,0], beta2_free: True,}}
+    # MI
+    DK(1-)SP: [] #{J: 1, P: -1, mass: 2.83, model: spline_c, points: [2.2, 2.35, 2.45, 2.55, 2.65, 2.75, 2.85, 2.95, 3.05, 3.2, 3.4]}
+    DK(1-)PP: [] #{J: 1, P: -1, mass: 2.83, model: spline_c, points: [2.2, 2.35, 2.45, 2.55, 2.65, 2.75, 2.85, 2.95, 3.05, 3.2, 3.4]}
+    DK(1-)DP: [] #{J: 1, P: -1, mass: 2.83, model: spline_c, points: [2.2, 2.35, 2.45, 2.55, 2.65, 2.75, 2.85, 2.95, 3.05, 3.2, 3.4]}
 
     NR(D*K)SP: [] #{J: 0, P: -1, m0: 3.0, model: one,}
     NR(D*K)PS: [] #{J: 1, P: 1, m0: 3.0, model: one,}
