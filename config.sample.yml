@@ -1,5 +1,5 @@
 data:
-        data: [["../dataDstarDK/dat/dt_DstDKRun1.dat"],["../dataDstarDK/dat/dt_DstDKRun2.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun1.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun2.dat"],["../dataDstarDK/dat/dt_D_K3piRun1.dat"],["../dataDstarDK/dat/dt_D_K3piRun2.dat"]]
+    data: [["../dataDstarDK/dat/dt_DstDKRun1.dat"],["../dataDstarDK/dat/dt_DstDKRun2.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun1.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun2.dat"],["../dataDstarDK/dat/dt_D_K3piRun1.dat"],["../dataDstarDK/dat/dt_D_K3piRun2.dat"]]
     data_charge: [["../dataDstarDK/dat/dt_DstDKRun1_cc.dat"],["../dataDstarDK/dat/dt_DstDKRun2_cc.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun1_cc.dat"],["../dataDstarDK/dat/dt_Dst_K3piRun2_cc.dat"],["../dataDstarDK/dat/dt_D_K3piRun1_cc.dat"],["../dataDstarDK/dat/dt_D_K3piRun2_cc.dat"]]
     
     phsp: [["../dataDstarDK/dat/PHSP_DstDKRun1.dat"],["../dataDstarDK/dat/PHSP_DstDKRun2.dat"],["../dataDstarDK/dat/PHSP_Dst_K3piRun1.dat"],["../dataDstarDK/dat/PHSP_Dst_K3piRun2.dat"],["../dataDstarDK/dat/PHSP_D_K3piRun1.dat"],["../dataDstarDK/dat/PHSP_D_K3piRun2.dat"]]
