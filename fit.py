@@ -11,9 +11,11 @@ import matplotlib
 matplotlib.use("agg")
 
 import tensorflow as tf
+import numpy as np
 
 # examples of custom particle model
-from tf_pwa.amp import regist_particle, Particle
+from tf_pwa.amp import regist_particle, Particle, get_relative_p
+from tf_pwa.breit_wigner import Bprime_num
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import extra_amp, extra_data
 from tf_pwa.utils import error_print, tuple_table
