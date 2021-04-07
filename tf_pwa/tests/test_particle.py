@@ -26,6 +26,20 @@ def test_particle():
     print(a.get_resonances())
 
 
+def test_ls():
+    a = BaseParticle("a", 1, -1, C=1)
+    b = BaseParticle("b", 1, -1)
+    c = BaseParticle("c", 1, -1)
+    dec = Decay(a, [b, c])
+    ls = dec.get_ls_list()
+    assert len(ls) == 4
+    a = BaseParticle("a", 1, -1, C=1)
+    b = BaseParticle("b", 1, -1)
+    c = BaseParticle("c", 1, -1)
+    dec = Decay(a, [b, c], c_break=False)
+    ls = dec.get_ls_list()
+
+
 def test_topology():
     a = BaseParticle("a")
     b = BaseParticle("B")
