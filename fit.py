@@ -19,6 +19,8 @@ from tf_pwa.breit_wigner import Bprime_num
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import extra_amp, extra_data
 from tf_pwa.utils import error_print, tuple_table
+#from tensorflow.python.ops.special_math_ops import _einsum_v1 as einsum
+from tensorflow import einsum
 
 
 @regist_particle("exp2")
@@ -75,17 +77,17 @@ class ParticleKmatrixDK(Particle):
         K, P = self.get_K_P(m)
 
         rhoDD = rho*D*D
-        iKrhoDD = tf.complex(np.float64(0), tf.einsum("ijs,jks->sik", K, rhoDD))
+        iKrhoDD = tf.complex(np.float64(0), einsum("ijs,jks->sik", K, rhoDD))
         KK = tf.eye(2, dtype=iKrhoDD.dtype) - iKrhoDD
         KK00 = KK[:,0,0]
         KK01 = KK[:,0,1]
         KK10 = KK[:,1,0]
         KK11 = KK[:,1,1]
         invdenom = KK00*KK11-KK01*KK10
-        iKinv = tf.einsum("ijk->kij",tf.stack([[KK11/invdenom, -KK01/invdenom], [-KK10/invdenom, KK00/invdenom]]))
+        iKinv = einsum("ijk->kij",tf.stack([[KK11/invdenom, -KK01/invdenom], [-KK10/invdenom, KK00/invdenom]]))
         #iKinv = tf.linalg.inv(KK)
-        DiKinv = tf.einsum("ijs,sjk->iks", tf.cast(D,iKinv.dtype), iKinv)
-        AK = tf.einsum("ijs,js->is", DiKinv, P)
+        DiKinv = einsum("ijs,sjk->iks", tf.cast(D,iKinv.dtype), iKinv)
+        AK = einsum("ijs,js->is", DiKinv, P)
 
         ret = AK[0]#*tf.cast(barrier, AK.dtype)
         return ret
