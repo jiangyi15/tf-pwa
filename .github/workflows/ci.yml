@@ -61,6 +61,9 @@ jobs:
         run: |
           conda install --file requirements-min.txt -y
           python -m pip install -e . --no-deps
+          conda install pre-commit -c conda-forge -y
+          pre-commit install
+          pre-commit run -a
       - name: Test imports
         run: |
           python -c "import tf_pwa"

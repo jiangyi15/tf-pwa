@@ -70,6 +70,7 @@ class BaseParticle(object):
         name,
         J=0,
         P=-1,
+        C=None,
         spins=None,
         mass=None,
         width=None,
@@ -84,6 +85,7 @@ class BaseParticle(object):
             J = eval(J)
         self.J = J
         self.P = P
+        self.C = C
         if spins is None:
             spins = tuple(_spin_range(-J, J))
         self.spins = tuple(
@@ -188,12 +190,14 @@ class ParticleList(UserList):
         return super(ParticleList, self).__add__(other)
 
 
-def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
+def GetA2BC_LS_list(
+    ja, jb, jc, pa=None, pb=None, pc=None, p_break=False, ca=None
+):
     """
     The :math:`L-S` coupling for the decay :math:`A\\rightarrow BC`, where :math:`L` is the orbital
     angular momentum of :math:`B` and :math:`B`, and :math:`S` is the superposition of their spins.
     It's required that :math:`|J_B-J_C|\leq S \leq J_B+J_C` and :math:`|L-S|\leq J_A \leq L+S`. It's also required by the conservation of
-    parity that :math:`L` is even if :math:`P_A P_B P_C=1`; otherwise :math:`L` is odd.
+    P parity that :math:`L` is keep :math:`P_A = P_B P_C  (1-)^{l}`.
 
     :param ja: `J` of particle `A`
     :param jb: `J` of particle `B`
@@ -202,6 +206,7 @@ def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
     :param pb: `P` of particle `B`
     :param pc: `P` of particle `C`
     :param p_break: allow p voilate
+    :param ca: enabel c partity select c=(-1)^(l+s)
     :return: List of :math:`(l,s)` pairs.
     """
     if pa is None or pb is None or pc is None:
@@ -217,6 +222,9 @@ def GetA2BC_LS_list(ja, jb, jc, pa=None, pb=None, pc=None, p_break=False):
             if l % 1.0 < 0.7 and l % 1.0 > 0.3:  # half int
                 break
             l = _spin_int(l)
+            if ca is not None:
+                if ca != (-1) ** (l + s):
+                    continue
             if not p_break:
                 if l % 2 == dl:
                     ret.append((l, s))
@@ -261,6 +269,7 @@ class BaseDecay(object):
         name=None,
         disable=False,
         p_break=False,
+        c_break=True,
         curve_style=None,
         **kwargs
     ):
@@ -268,6 +277,7 @@ class BaseDecay(object):
         self.core = core
         self.outs = tuple(outs)
         self.p_break = p_break
+        self.c_break = c_break
         if hasattr(self.core, "disable") and self.core.disable:
             disable = True
         for i in self.outs:
@@ -320,6 +330,7 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         It has interface to ``tf_pwa.particle.GetA2BC_LS_list(ja, jb, jc, pa, pb, pc)``
         :return: List of (l,s) pairs
         """
+        ca = self.core.C if not self.c_break else None
         ja = self.core.J
         jb = self.outs[0].J
         jc = self.outs[1].J
@@ -327,7 +338,9 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         pb = self.outs[0].P
         pc = self.outs[1].P
         return tuple(
-            GetA2BC_LS_list(ja, jb, jc, pa, pb, pc, p_break=self.p_break)
+            GetA2BC_LS_list(
+                ja, jb, jc, pa, pb, pc, p_break=self.p_break, ca=ca
+            )
         )
 
     # @functools.lru_cache()

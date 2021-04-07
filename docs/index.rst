@@ -22,6 +22,7 @@ A detailed configuration file sample (with all usable parameters) can be found *
    phasespace
    resolution
    auto_examples/index
+   developer
    api
    particle_model
    FAQ
