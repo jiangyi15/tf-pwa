@@ -429,6 +429,22 @@ def Getp(M_0, M_1, M_2):
     return tf.sqrt(q) / (2 * M_0)
 
 
+def Getp2(M_0, M_1, M_2):
+    """
+    Consider a two-body decay :math:`M_0\\rightarrow M_1M_2`. In the rest frame of :math:`M_0`, the momentum of
+    :math:`M_1` and :math:`M_2` are definite.
+
+    :param M_0: The invariant mass of :math:`M_0`
+    :param M_1: The invariant mass of :math:`M_1`
+    :param M_2: The invariant mass of :math:`M_2`
+    :return: the momentum of :math:`M_1` (or :math:`M_2`)
+    """
+    M12S = M_1 + M_2
+    M12D = M_1 - M_2
+    p = (M_0 - M12S) * (M_0 + M12S) * (M_0 - M12D) * (M_0 + M12D)
+    return p / (4 * M_0 * M_0)
+
+
 def get_relative_momentum(data: dict, decay_chain: DecayChain):
     """
     add add rest frame momentum scalar from data momentum.
@@ -446,6 +462,25 @@ def get_relative_momentum(data: dict, decay_chain: DecayChain):
         ret["decay"][decay] = {}
         ret["decay"][decay]["|q|"] = p
     return ret
+
+
+def add_relative_momentum(data: dict):
+    """
+    add add rest frame momentum scalar from data momentum.
+
+    from `{"particle": {A: {"m": ...}, ...}, "decay": {A->B+C: {...}, ...}`
+
+    to `{"particle": {A: {"m": ...}, ...},"decay": {[A->B+C,...]: {A->B+C:{...,"|q|": ...},...},...}`
+    """
+    data_p = data["particle"]
+    for decay_chain in data["decay"]:
+        for decay in decay_chain:
+            m0 = data_p[decay.core]["m"]
+            m1 = data_p[decay.outs[0]]["m"]
+            m2 = data_p[decay.outs[1]]["m"]
+            p2 = Getp2(m0, m1, m2)
+            data["decay"][decay_chain][decay]["|q|2"] = p2
+    return data
 
 
 def prepare_data_from_decay(
@@ -565,6 +600,7 @@ def cal_angle_from_momentum_single(
         data_p, decs, using_topology, r_boost=r_boost, random_z=random_z
     )
     data = {"particle": data_p, "decay": data_d}
+    add_relative_momentum(data)
     return CalAngleData(data)
 
 
