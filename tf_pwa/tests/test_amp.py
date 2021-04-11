@@ -246,6 +246,22 @@ def test_decay_params():
     assert dec.c == 1
 
 
+def test_decay_ls_amp():
+    a = get_particle("a", mass=1.0, width=0.5, P=1)
+    c = get_particle("c")
+    d = get_particle("d")
+    dec1 = get_decay(a, [c, d])
+    dec1.init_params()
+    rnd = np.random.random((10,))
+    ma = np.ones_like(rnd)
+    mb = 0.3 * np.ones_like(rnd)
+    ang = {"alpha": rnd, "beta": rnd, "gamma": rnd}
+    data = {c: ang, d: ang}
+    data_p = {a: {"m": ma}, c: {"m": mb}, d: {"m": mb}}
+    dec1.get_ls_amp(data, data_p)
+    dec1.get_ls_amp({**data, "|q|2": mb}, data_p)
+
+
 def test_no_mass0():
     a = get_particle("a", mass=1.0, width=0.5, P=1)
     c = get_particle("c")
