@@ -21,7 +21,7 @@ import math
 import numpy as np
 
 from .tensorflow_wrapper import tf
-
+import nvtx.plugins.tf as tf_nvtx
 
 def _spin_int(x):
     if isinstance(x, int):
@@ -152,6 +152,7 @@ def small_d_matrix(theta, j):
     :param j: Integer :math:`2j` in the formula???
     :return: The d-matrices array. Same length as theta
     """
+    theta, small_id = tf_nvtx.ops.start(theta, "small_d_matrix")
     a = tf.reshape(tf.range(0, j + 1, 1), (1, -1))
 
     half_theta = 0.5 * theta
@@ -170,7 +171,9 @@ def small_d_matrix(theta, j):
     ret = tf.matmul(sc, w)
     # ret = tf.einsum("il,lab->iab", sc, w)
 
-    return tf.reshape(ret, (-1, j + 1, j + 1))
+    ret = tf.reshape(ret, (-1, j + 1, j + 1))
+    ret = tf_nvtx.ops.end(ret, small_id)
+    return ret
 
 
 def exp_i(theta, mi):
@@ -189,7 +192,7 @@ def exp_i(theta, mi):
     exp_theta = tf.exp(im_theta)
     return exp_theta
 
-
+@tf_nvtx.ops.trace("D_matrix_conj")
 def D_matrix_conj(alpha, beta, gamma, j):
     """
     The conjugated D-matrix element with indices (:math:`m_1,m_2`) is
@@ -205,7 +208,6 @@ def D_matrix_conj(alpha, beta, gamma, j):
     :return: Array of the conjugated D-matrices. Same shape as **alpha**, **beta**, and **gamma**
     """
     m = tf.reshape(np.arange(-j / 2, j / 2 + 1, 1), (1, -1))
-
     d = small_d_matrix(beta, j)
     expi_alpha = tf.reshape(exp_i(alpha, m), (-1, j + 1, 1))
     expi_gamma = tf.reshape(exp_i(gamma, m), (-1, 1, j + 1))
