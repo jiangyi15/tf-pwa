@@ -64,7 +64,7 @@ def delta_D_index(j, la, lb, lc):
 def _tuple_delta_D_index(j, la, lb, lc):
     ln = _spin_int(2 * j + 1)
     ret = []
-    max_idx = _spin_int(j + j) * _spin_int(j + j)
+    max_idx = ln * ln
     for i_a, la_i in enumerate(la):
         for i_b, lb_i in enumerate(lb):
             for i_c, lc_i in enumerate(lc):
@@ -252,13 +252,17 @@ def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     :param lc:
     :return:
     """
+    beta, d_id = tf_nvtx.ops.start(angle["beta"], "delta D_matrix")
+    angle["beta"] = beta
     d = get_D_matrix_for_angle(angle, _spin_int(2 * ja))
     if lc is None:
-        return tf.reshape(
+        ret =  tf.reshape(
             Dfun_delta_v2(d, ja, la, lb, (0,)), (-1, len(la), len(lb))
         )
     else:
-        return Dfun_delta_v2(d, ja, la, lb, lc)
+        ret = Dfun_delta_v2(d, ja, la, lb, lc)
+    ret = tf_nvtx.ops.end(ret, d_id)
+    return ret
 
 
 def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
@@ -270,12 +274,15 @@ def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     alpha = angle["alpha"]
     beta = angle["beta"]
     gamma = angle["gamma"]
+    beta, d_id = tf_nvtx.ops.start(beta, "delta D_matrix")
     if lc is None:
-        return tf.reshape(
+        ret = tf.reshape(
             tf_pwa_op.delta_D(alpha, beta, gamma, ja, la, lb, (0,)), (-1, len(la), len(lb))
         )
     else:
-        return tf_pwa_op.delta_D(alpha, beta, gamma, ja, la, lb, lc)
+        ret = tf_pwa_op.delta_D(alpha, beta, gamma, ja, la, lb, lc)
+    ret = tf_nvtx.ops.end(ret, d_id)
+    return ret
 
 
 

@@ -33,7 +33,7 @@ from tf_pwa.tensorflow_wrapper import tf
 from tf_pwa.variable import Variable, VarsManager
 
 # from pysnooper import snoop
-
+import nvtx.plugins.tf as tf_nvtx
 
 PARTICLE_MODEL = "particle_model"
 regist_config(PARTICLE_MODEL, {})
@@ -317,6 +317,10 @@ class Particle(BaseParticle, AmpBase):
                 self.width = self.add_var("width", value=self.width, fix=True)
 
     def get_amp(self, data, data_c, **kwargs):
+        m = data["m"]
+        m, m_id = tf_nvtx.ops.start(m, "Particle.get_amp")
+        data = simple_deepcopy(data)
+        data["m"] = m
         mass = self.get_mass()
         width = self.get_width()
         if width is None:
@@ -332,6 +336,7 @@ class Particle(BaseParticle, AmpBase):
             ret = BWR(data["m"], mass, width, q, q0, self.bw_l, self.d)
             # ret = tf.where(q0 > 0, ret, tf.zeros_like(ret))
             # ret = tf.where(q > 0, ret, tf.zeros_like(ret))
+        ret = tf_nvtx.ops.end(ret, m_id)
         return ret
 
     def amp_shape(self):
@@ -606,6 +611,8 @@ class HelicityDecay(AmpDecay):
         return tf.convert_to_tensor(ret)
 
     def get_helicity_amp(self, data, data_p, **kwargs):
+        zeros = tf.convert_to_tensor(0.0+0.0j, dtype="complex128")
+        zeros, m_id = tf_nvtx.ops.start(zeros, "Decay.get_helicity_amp", trainable=True)
         m_dep = self.get_ls_amp(data, data_p, **kwargs)
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
         n_ls = len(self.get_ls_list())
@@ -625,6 +632,8 @@ class HelicityDecay(AmpDecay):
         ret = tf.reshape(
             H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins))
         )
+
+        ret = tf_nvtx.ops.end(ret+zeros, m_id)
         return ret
 
     def get_angle_helicity_amp(self, data, data_p, **kwargs):
@@ -675,6 +684,8 @@ class HelicityDecay(AmpDecay):
         return m_dep
 
     def get_ls_amp(self, data, data_p, **kwargs):
+        zeros = tf.convert_to_tensor(0.0+0.0j, dtype="complex128")
+        zeros , m_id = tf_nvtx.ops.start(zeros, "get_ls_amp", trainable=True)
         g_ls = self.get_g_ls()
         # print(g_ls)
         q0 = self.get_relative_momentum2(data_p, False)
@@ -692,6 +703,7 @@ class HelicityDecay(AmpDecay):
             m_dep = mag * tf.cast(bf, mag.dtype)
         else:
             m_dep = g_ls
+        m_dep = tf_nvtx.ops.end(m_dep + zeros, m_id)
         return m_dep
 
     def get_angle_g_ls(self):
@@ -746,7 +758,13 @@ class HelicityDecay(AmpDecay):
         a = self.core
         b = self.outs[0]
         c = self.outs[1]
+        
         ang = data[b]["ang"]
+        beta = ang["beta"]
+        # zeros = tf.zeros_like(beta)
+        # zeros, m_id = tf_nvtx.ops.start(zeros, "Decay.get_amp")
+        zeros = tf.convert_to_tensor(0.0+0.0j, dtype="complex128")
+        zeros, m_id = tf_nvtx.ops.start(zeros, "Decay.get_amp", trainable=True)
         D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
         H = self.get_helicity_amp(data, data_p, **kwargs)
         H = tf.reshape(
@@ -775,6 +793,7 @@ class HelicityDecay(AmpDecay):
                     ret = tf.reshape(ret, D_shape)
                     ret = dt * ret
                     ret = tf.reduce_sum(ret, axis=j + 2)
+        ret = tf_nvtx.ops.end(ret+zeros, m_id)
         return ret
 
     def get_angle_amp(self, data, data_p, **kwargs):
@@ -912,6 +931,9 @@ class DecayChain(BaseDecayChain, AmpBase):
         return total
 
     def get_amp(self, data_c, data_p, all_data=None, base_map=None):
+        m = data_p[self.top]["m"]
+        zeros = tf.convert_to_tensor(0.0+0.0j, dtype="complex128")
+        zeros, m_id = tf_nvtx.ops.start(zeros, "DecayChain.get_amp", trainable=True)
         base_map = self.get_base_map(base_map)
         iter_idx = ["..."]
         amp_d = []
@@ -958,6 +980,7 @@ class DecayChain(BaseDecayChain, AmpBase):
         # print(self, ret[0])
         # exit()
         # ret = einsum(idx_s, *amp_d)
+        ret = tf_nvtx.ops.end(ret + zeros, m_id)
         return ret
 
     def get_angle_amp(self, data_c, data_p, all_data=None, base_map=None):
@@ -1129,6 +1152,9 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         """
         calculate the amplitude as complex number
         """
+        m = data["particle"][self.top]["m"]
+        zeros = tf.convert_to_tensor(0.0+0.0j, dtype="complex128")
+        zeros, m_id = tf_nvtx.ops.start(zeros, "DecayGroup.get_amp", trainable=True)
         data_particle = data["particle"]
         data_decay = data["decay"]
 
@@ -1156,6 +1182,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                 )
                 ret.append(amp)
         ret = tf.reduce_sum(ret, axis=0)
+        ret = tf_nvtx.ops.end(ret+zeros, m_id)
         return ret
 
     def get_m_dep(self, data):
@@ -1221,12 +1248,17 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         """
         calculat the amplitude modular square
         """
+        m = data["particle"][self.top]["m"]
+        zeros = tf.convert_to_tensor(0.0, dtype="float64")
+        zeros, m_id = tf_nvtx.ops.start(zeros, "DecayGroup.sum_amp", trainable=True)
+        data = simple_deepcopy(data)
         if not cached:
             data = simple_deepcopy(data)
         amp = self.get_amp(data)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         idx = list(range(1, len(amp2s.shape)))
         sum_A = tf.reduce_sum(amp2s, idx)
+        sum_A = tf_nvtx.ops.end(sum_A + zeros, m_id)
         return sum_A
 
     # @simple_cache_fun

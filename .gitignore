@@ -6,6 +6,7 @@ __pycache__
 
 tf_pwa/version.py
 
+*.qdrep
 *.npy
 *.json
 *.log

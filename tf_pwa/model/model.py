@@ -14,6 +14,7 @@ from ..tensorflow_wrapper import tf
 from ..utils import time_print
 from ..variable import Variable
 
+import nvtx.plugins.tf as tf_nvtx
 
 def get_shape(x):
     if hasattr(x, "shape"):
@@ -30,6 +31,8 @@ def _resolution_shape(x):
 
 def _batch_sum(f, data_i, weight_i, trans, resolution_size, args, kwargs):
     weight_shape = (-1, min(_resolution_shape(weight_i), resolution_size))
+    weight_i = tf.convert_to_tensor(weight_i)
+    weight_i, m_id = tf_nvtx.ops.start(weight_i, "batch sum", trainable=True)
     part_y = f(data_i, *args, **kwargs)
     weight_i = tf.cast(weight_i, part_y.dtype)
     rw = tf.reshape(weight_i, weight_shape)
@@ -40,6 +43,7 @@ def _batch_sum(f, data_i, weight_i, trans, resolution_size, args, kwargs):
     part_y = part_y / event_w
     part_y = trans(part_y)
     y_i = tf.reduce_sum(event_w * part_y)
+    y_i = tf_nvtx.ops.end(y_i, m_id)
     return y_i
 
 
@@ -269,6 +273,8 @@ class BaseModel(object):
 
     def nll_grad(self, data, mcdata, batch=65000):
         weight = data.get("weight", tf.ones((data_shape(data),)))
+        zeros = tf.convert_to_tensor(0.0+0.0j, dtype="complex128")
+        zeros, m_id = tf_nvtx.ops.start(zeros, "DecayGroup.get_amp", trainable=True)
         weight_rw = tf.reduce_sum(
             tf.reshape(weight, (-1, self.resolution_size)), axis=-1
         )
@@ -300,6 +306,7 @@ class BaseModel(object):
             map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
         )
         nll = -ln_data + sw * tf.math.log(int_mc)
+        nll = tf_nvtx.end(nll+zeros, m_id)
         return nll, g
 
     @property
