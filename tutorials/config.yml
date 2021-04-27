@@ -2,6 +2,7 @@ data:
   dat_order: [B, C, D]
   data: ["data/data.dat"]
   phsp: ["data/PHSP.dat"]
+  use_tf_function: True
 
 decay:
   A:

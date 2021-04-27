@@ -192,6 +192,10 @@ def exp_i(theta, mi):
     exp_theta = tf.exp(im_theta)
     return exp_theta
 
+import tf_pwa_op
+
+small_d_matrix = tf_nvtx.ops.trace("small_d_matrix")(tf_pwa_op.small_d)
+
 @tf_nvtx.ops.trace("D_matrix_conj")
 def D_matrix_conj(alpha, beta, gamma, j):
     """
@@ -255,3 +259,23 @@ def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
         )
     else:
         return Dfun_delta_v2(d, ja, la, lb, lc)
+
+
+def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
+    """
+    Get the D-matrix element
+
+    :param angle: 
+    """
+    alpha = angle["alpha"]
+    beta = angle["beta"]
+    gamma = angle["gamma"]
+    if lc is None:
+        return tf.reshape(
+            tf_pwa_op.delta_D(alpha, beta, gamma, ja, la, lb, (0,)), (-1, len(la), len(lb))
+        )
+    else:
+        return tf_pwa_op.delta_D(alpha, beta, gamma, ja, la, lb, lc)
+
+
+
