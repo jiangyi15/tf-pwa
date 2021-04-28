@@ -64,7 +64,7 @@ def delta_D_index(j, la, lb, lc):
 def _tuple_delta_D_index(j, la, lb, lc):
     ln = _spin_int(2 * j + 1)
     ret = []
-    max_idx = _spin_int(j + j) * _spin_int(j + j)
+    max_idx = ln * ln
     for i_a, la_i in enumerate(la):
         for i_b, lb_i in enumerate(lb):
             for i_c, lc_i in enumerate(lc):
