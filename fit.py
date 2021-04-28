@@ -40,7 +40,7 @@ def load_config(config_file="config.yml", total_same=False):
     return MultiConfig(config_files, total_same=total_same)
 
 
-def fit(config, init_params="", method="BFGS", loop=1, maxiter=500):
+def fit(config, vm, init_params="", method="BFGS", loop=1, maxiter=500):
     """
     simple fit script
     """
@@ -59,6 +59,8 @@ def fit(config, init_params="", method="BFGS", loop=1, maxiter=500):
             print("\nusing RANDOM parameters", flush=True)
         # try to fit
         try:
+            # vm.rp2xy_all()
+            vm.std_polar_all()
             fit_result = config.fit(
                 batch=65000, method=method, maxiter=maxiter
             )
@@ -139,6 +141,7 @@ def write_some_results_combine(config, fit_result, save_root=False):
 
     for it, config_i in enumerate(config.configs):
         print("########## fit fractions {}:".format(it))
+        print(f"nll{it}", config_i.get_fcn()({}).numpy())
         mcdata = config_i.get_phsp_noeff()
         fit_frac, err_frac = fit_fractions(
             config_i.get_amplitude(),
@@ -186,16 +189,24 @@ def main():
     parser.add_argument(
         "--no-GPU", action="store_false", default=True, dest="has_gpu"
     )
-    parser.add_argument("-c", "--config", default="config.yml", dest="config")
+    parser.add_argument(
+        "-c", "--config", default="config.yml", dest="config"
+    )
     parser.add_argument(
         "-i", "--init_params", default="init_params.json", dest="init"
     )
-    parser.add_argument("-m", "--method", default="BFGS", dest="method")
-    parser.add_argument("-l", "--loop", type=int, default=1, dest="loop")
+    parser.add_argument(
+        "-m", "--method", default="BFGS", dest="method"
+    )
+    parser.add_argument(
+        "-l", "--loop", type=int, default=1, dest="loop"
+    )
     parser.add_argument(
         "-x", "--maxiter", type=int, default=2000, dest="maxiter"
     )
-    parser.add_argument("-r", "--save_root", default=False, dest="save_root")
+    parser.add_argument(
+        "-r", "--save_root", default=False, dest="save_root"
+    )
     parser.add_argument(
         "--total-same", action="store_true", default=False, dest="total_same"
     )
@@ -206,11 +217,17 @@ def main():
         devices = "/device:CPU:0"
     with tf.device(devices):
         config = load_config(results.config, results.total_same)
+        try:
+            vm = config.get_amplitudes()[0].vm
+        else:
+            vm = config.get_amplitude().vm
         fit_result = fit(
-            config, results.init, results.method, results.loop, results.maxiter
+            config, vm, results.init, results.method, results.loop, results.maxiter
         )
         if isinstance(config, ConfigLoader):
-            write_some_results(config, fit_result, save_root=results.save_root)
+            write_some_results(
+                config, fit_result, save_root=results.save_root
+            )
         else:
             write_some_results_combine(
                 config, fit_result, save_root=results.save_root

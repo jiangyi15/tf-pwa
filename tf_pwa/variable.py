@@ -678,17 +678,19 @@ class VarsManager(object):
         phase part is between :math:`-\\pi` to :math:`\\pi`.
         :param name: String
         """
-        self.xy2rp(name)
+        if self.complex_vars[name] is not True: # it is a xy complex
+            return
         r = self.variables[name + "r"]
         p = self.variables[name + "i"]
         if r < 0:
             r.assign(tf.abs(r))
             if type(self.complex_vars[name]) == list:
+                print("$$$!@@!deprecated in variable.VarsManager.std_polar") # could be deprecated
                 for name_r in self.complex_vars[name]:
                     self.variables[name_r[:-1] + "i"].assign_add(np.pi)
             else:
                 p.assign_add(np.pi)
-        self._std_polar_angle(p)
+        p.assign(self._std_polar_angle(p))
 
     def std_polar_all(self):  # std polar expression: r>0, -pi<p<pi
         """
