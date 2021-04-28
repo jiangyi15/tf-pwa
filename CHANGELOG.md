@@ -2,7 +2,27 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.1...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.2...HEAD)
+
+## [v0.1.4](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-03-20)
+
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.3...v0.1.4)
+
+**Numeric**
+
+- fix bugs of D function [#43](https://github.com/jiangyi15/tf-pwa/pull/43)
+
+## [v0.1.3](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-03-20)
+
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.2...v0.1.3)
+
+**Added**
+
+- Model: BWR_LS [#3](https://github.com/jiangyi15/tf-pwa/pull/33)
+- More options in fit.py
+  [#35](https://github.com/jiangyi15/tf-pwa/pull/35)[#38](https://github.com/jiangyi15/tf-pwa/pull/38)
+- C parity selection, `c_break: False`
+  [#36](https://github.com/jiangyi15/tf-pwa/pull/36)
 
 **Numeric**
 
@@ -10,6 +30,8 @@
   [#32](https://github.com/jiangyi15/tf-pwa/pull/32)
 
 ## [v0.1.2](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-03-20)
+
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.1...v0.1.2)
 
 **Added**
 
@@ -36,6 +58,8 @@
   [#52d3eda](https://github.com/jiangyi15/tf-pwa/commit/52d3eda7b1cda7315764666aef329245735fef78)
 
 ## [v0.1.1](https://github.com/jiangyi15/tf-pwa/tree/v0.1.1) (2021-02-12)
+
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.0...v0.1.1)
 
 **Added**
 
@@ -79,6 +103,8 @@ Backup vesion before some changes.
 - Plot style [#9](https://github.com/jiangyi15/tf-pwa/pull/9)
 
 ## [v0.0.3](https://github.com/jiangyi15/tf-pwa/tree/v0.0.3) (2020-07-25)
+
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.0.2...v0.0.3)
 
 Configuration file system
 
