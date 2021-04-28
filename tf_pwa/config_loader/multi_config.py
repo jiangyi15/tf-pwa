@@ -146,6 +146,7 @@ class MultiConfig(object):
 
         return args_name, x0, args, bnds
 
+    @time_print
     def fit(self, datas=None, batch=65000, method="BFGS", maxiter=None):
         fcn = self.get_fcn(datas=datas)
         # fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
@@ -219,12 +220,14 @@ class MultiConfig(object):
     def reinit_params(self):
         self.get_fcn().vm.refresh_vars(self.bound_dic)
 
-    def get_params_error(self, params=None, batch=10000, using_cached=False):
+    def get_params_error(
+        self, params=None, datas=None, batch=10000, using_cached=False
+    ):
         if params is None:
             params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        fcn = self.get_fcn(batch=batch)
+        fcn = self.get_fcn(datas, batch=batch)
         if using_cached and self.inv_he is not None:
             hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
         else:
