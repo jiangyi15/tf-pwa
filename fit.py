@@ -219,7 +219,7 @@ def main():
         config = load_config(results.config, results.total_same)
         try:
             vm = config.get_amplitudes()[0].vm
-        else:
+        except:
             vm = config.get_amplitude().vm
         fit_result = fit(
             config, vm, results.init, results.method, results.loop, results.maxiter
