@@ -2,23 +2,23 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.2...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.4...HEAD)
 
-## [v0.1.4](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-03-20)
+## [v0.1.4](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-04-28)
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.3...v0.1.4)
 
-**Numeric**
+**<font color=red>Numeric</font>**
 
 - fix bugs of D function [#43](https://github.com/jiangyi15/tf-pwa/pull/43)
 
-## [v0.1.3](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-03-20)
+## [v0.1.3](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-04-28)
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.2...v0.1.3)
 
 **Added**
 
-- Model: BWR_LS [#3](https://github.com/jiangyi15/tf-pwa/pull/33)
+- Model: BWR_LS [#33](https://github.com/jiangyi15/tf-pwa/pull/33)
 - More options in fit.py
   [#35](https://github.com/jiangyi15/tf-pwa/pull/35)[#38](https://github.com/jiangyi15/tf-pwa/pull/38)
 - C parity selection, `c_break: False`
