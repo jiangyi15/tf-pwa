@@ -35,7 +35,7 @@ do
 done
 echo "using ${new_json_file} as params file"
 
-newer_file=`find -cnewer ${new_json_file} | grep -v trash | grep -E ".*\.(C|json|root|log|png|txt|pdf)"`
+newer_file=`find -cnewer ${new_json_file} | grep -v trash | grep -E ".*\.(C|json|root|log|png|txt|pdf|csv)"`
 for i in ${newer_file};
 do
   cache_file ${i}
