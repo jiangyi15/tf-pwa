@@ -261,6 +261,7 @@ def Gamma2(m, gamma0, q2, q02, L, m0, d):
     return gammaM
 
 
+
 def Bprime_q2(L, q2, q02, d):
     """
     Blatt-Weisskopf barrier factors.
@@ -271,7 +272,6 @@ def Bprime_q2(L, q2, q02, d):
     z = q2 * d ** 2
     bp = Bprime_polynomial(L, z0) / Bprime_polynomial(L, z)
     return tf.sqrt(tf.where(bp > 0, bp, 1.0))
-
 
 def Bprime_num(L, q, d):
     """

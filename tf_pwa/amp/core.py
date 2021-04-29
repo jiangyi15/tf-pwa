@@ -277,6 +277,8 @@ def get_relative_p2(m_0, m_1, m_2):
     # print("p", tf.where(p==0), m_0, m_1, m_2)
     return p / (2 * m_0) ** 2
 
+from tf_pwa_op import get_relative_p2, get_relative_p
+import tf_pwa_op
 
 def _ad_hoc(m0, m_max, m_min):
     r"""ad-hoc formula
@@ -318,7 +320,7 @@ class Particle(BaseParticle, AmpBase):
 
     def get_amp(self, data, data_c, **kwargs):
         m = data["m"]
-        m, m_id = tf_nvtx.ops.start(m, "Particle.get_amp")
+        m, m_id = tf_nvtx.ops.start(m, "Particle.get_amp", trainable=True)
         data = simple_deepcopy(data)
         data["m"] = m
         mass = self.get_mass()
@@ -588,12 +590,12 @@ class HelicityDecay(AmpDecay):
         ja = self.core.J
         jb = self.outs[0].J
         jc = self.outs[1].J
-        n = _spin_int(2 * jb + 1), _spin_int(2 * jc + 1)
+        n = len(self.outs[0].spins), len(self.outs[1].spins)
         ret = np.zeros(shape=(m, *n))
         for i, ls_i in enumerate(ls):
             l, s = ls_i
-            for i1, lambda_b in enumerate(_spin_range(-jb, jb)):
-                for i2, lambda_c in enumerate(_spin_range(-jc, jc)):
+            for i1, lambda_b in enumerate(self.outs[0].spins):
+                for i2, lambda_c in enumerate(self.outs[1].spins):
                     ret[i][i1][i2] = (
                         np.sqrt((2 * l + 1) / (2 * ja + 1))
                         * cg_coef(
@@ -744,6 +746,21 @@ class HelicityDecay(AmpDecay):
             # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
             ret.append(tf.reshape(tmp, (-1, 1)))
         ret = tf.concat(ret, axis=-1)
+        mass_dep = self.get_barrier_factor_mass(mass)
+        return ret * mass_dep
+    
+    def get_barrier_factor2(self, mass, q2, q02, d):
+        ls = self.get_l_list()
+        ret = []
+        l = tf.convert_to_tensor(ls)
+        l_2 = l/2
+        ret = tf.pow(tf.reshape(q2, (-1,1)), l_2)
+        if self.has_bprime:
+            bf = tf.stop_gradient(tf_pwa_op.blattweisskopf(l, q2, q02, d))
+            ret = ret * bf
+            if self.barrier_factor_norm:
+                ret = ret/tf.pow(tf.reshape(q02, (-1,1)), l_2)
+            # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
         mass_dep = self.get_barrier_factor_mass(mass)
         return ret * mass_dep
 

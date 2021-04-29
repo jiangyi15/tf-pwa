@@ -66,7 +66,7 @@ def _tuple_delta_D_index(j, la, lb, lc):
     ret = []
     max_idx = ln * ln
     for i_a, la_i in enumerate(la):
-        for i_b, lb_i in enumerate(lb):
+        for i_b                                                                                   , lb_i in enumerate(lb):
             for i_c, lc_i in enumerate(lc):
                 delta = lb_i - lc_i
                 if abs(delta) <= j:
