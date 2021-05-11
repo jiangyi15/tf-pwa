@@ -1155,6 +1155,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                     data_c, data_p, base_map=base_map, all_data=data
                 )
                 ret.append(amp)
+                # print(decay_chain, amp[:10])
         ret = tf.reduce_sum(ret, axis=0)
         return ret
 
@@ -1167,25 +1168,28 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         chain_maps = self.get_chains_map(used_chains)
         base_map = self.get_base_map()
         ret = []
-        for chains in chain_maps:
-            for decay_chain in chains:
-                chain_topo = decay_chain.standard_topology()
-                found = False
-                for i in data_decay.keys():
-                    if i == chain_topo:
-                        data_decay_i = data_decay[i]
-                        found = True
-                        break
-                if not found:
-                    raise KeyError("not found {}".format(chain_topo))
-                data_c = rename_data_dict(data_decay_i, chains[decay_chain])
-                data_p = rename_data_dict(data_particle, chains[decay_chain])
-                # print("$$$$$",data_c)
-                # print("$$$$$",data_p)
-                amp = decay_chain.get_m_dep(
-                    data_c, data_p, base_map=base_map, all_data=data
-                )
-                ret.append(amp)
+        for decay_chain in used_chains:
+            for chains in chain_maps:
+                if str(decay_chain) in [str(i) for i in chains]:
+                    maps = chains[decay_chain]
+                    break
+            chain_topo = decay_chain.standard_topology()
+            found = False
+            for i in data_decay.keys():
+                if i == chain_topo:
+                    data_decay_i = data_decay[i]
+                    found = True
+                    break
+            if not found:
+                raise KeyError("not found {}".format(chain_topo))
+            data_c = rename_data_dict(data_decay_i, maps)
+            data_p = rename_data_dict(data_particle, maps)
+            # print("$$$$$",data_c)
+            # print("$$$$$",data_p)
+            amp = decay_chain.get_m_dep(
+                data_c, data_p, base_map=base_map, all_data=data
+            )
+            ret.append(amp)
         # ret = tf.reduce_sum(ret, axis=0)
         return ret
 
@@ -1197,23 +1201,26 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         chain_maps = self.get_chains_map(used_chains)
         base_map = self.get_base_map()
         ret = []
-        for chains in chain_maps:
-            for decay_chain in chains:
-                chain_topo = decay_chain.standard_topology()
-                found = False
-                for i in data_decay.keys():
-                    if i == chain_topo:
-                        data_decay_i = data_decay[i]
-                        found = True
-                        break
-                if not found:
-                    raise KeyError("not found {}".format(chain_topo))
-                data_c = rename_data_dict(data_decay_i, chains[decay_chain])
-                data_p = rename_data_dict(data_particle, chains[decay_chain])
-                amp = decay_chain.get_angle_amp(
-                    data_c, data_p, base_map=base_map, all_data=data
-                )
-                ret.append(amp)
+        for decay_chain in used_chains:
+            for chains in chain_maps:
+                if str(decay_chain) in [str(i) for i in chains]:
+                    maps = chains[decay_chain]
+                    break
+            chain_topo = decay_chain.standard_topology()
+            found = False
+            for i in data_decay.keys():
+                if i == chain_topo:
+                    data_decay_i = data_decay[i]
+                    found = True
+                    break
+            if not found:
+                raise KeyError("not found {}".format(chain_topo))
+            data_c = rename_data_dict(data_decay_i, maps)
+            data_p = rename_data_dict(data_particle, maps)
+            amp = decay_chain.get_angle_amp(
+                data_c, data_p, base_map=base_map, all_data=data
+            )
+            ret.append(amp)
         # ret = tf.reduce_sum(ret, axis=0)
         return amp
 
