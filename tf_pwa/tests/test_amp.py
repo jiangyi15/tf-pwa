@@ -262,6 +262,23 @@ def test_decay_ls_amp():
     dec1.get_ls_amp({**data, "|q|2": mb}, data_p)
 
 
+def test_polarization():
+    a = get_particle("a", J=0.5, P=1, polarization="vector")
+    c = get_particle("c", J=0.5, P=1)
+    d = get_particle("d", J=0, P=-1)
+    b = get_particle("b", J=0, P=-1)
+    r = get_particle("r", mass=1.0, width=0.5, J=0.5, P=1)
+    dec2 = get_decay(r, [c, d])
+    dec1 = get_decay(a, [r, b])
+    decs = DecayGroup([[dec1, dec2]])
+    amp = AmplitudeModel(decs, polar=False)
+    print(amp.get_params())
+    for p_data in test_data:
+        p = dict(zip([b, c, d], p_data))
+        data = cal_angle_from_momentum(p, decs)
+        amp(data)
+
+
 def test_no_mass0():
     a = get_particle("a", mass=1.0, width=0.5, P=1)
     c = get_particle("c")
