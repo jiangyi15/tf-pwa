@@ -263,6 +263,110 @@ class ModelCachedAmp(Model):
         self.cached_amp = build_amp.build_amp2s(amp.decay_group)
         self.cached_data = {}
 
+    def sum_nll_grad_bacth(self, data):
+        data_id = id(data)
+        data = list(data)
+        weight = [i.get("weight", tf.ones((data_shape(i),))) for i in data]
+        if data_id not in self.cached_data:
+            self.cached_data[data_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in data
+            ]
+        ln_data, g_ln_data = sum_gradient_data2(
+            self.cached_amp,
+            self.Amp.trainable_variables,
+            data,
+            self.cached_data[data_id],
+            weight=weight,
+            trans=clip_log,
+        )
+        return -ln_data, [-i for i in g_ln_data]
+
+    def sum_log_integral_grad_batch(self, mcdata, ndata):
+        mc_id = id(mcdata)
+        mcdata = list(mcdata)
+        mc_weight = [i["weight"] for i in mcdata]
+        if mc_id not in self.cached_data:
+            self.cached_data[mc_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in mcdata
+            ]
+        int_mc, g_int_mc = sum_gradient_data2(
+            self.cached_amp,
+            self.Amp.trainable_variables,
+            mcdata,
+            self.cached_data[mc_id],
+            weight=mc_weight,
+        )
+        return tf.math.log(int_mc) * ndata, [
+            ndata / int_mc * i for i in g_int_mc
+        ]
+
+        # @tf.function
+
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
+        """
+        ``self.nll_grad()`` is replaced by this one???
+
+        .. math::
+          - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
+            -\\sum_{x_i \\in data } w_i \\frac{\\partial}{\\partial \\theta_k} \\ln f(x_i;\\theta_k)
+            + (\\sum w_j ) \\left( \\frac{ \\partial }{\\partial \\theta_k} \\sum_{x_i \\in mc} f(x_i;\\theta_k) \\right)
+              \\frac{1}{ \\sum_{x_i \\in mc} f(x_i;\\theta_k) }
+
+        :param data:
+        :param mcdata:
+        :param weight:
+        :param mc_weight:
+        :return:
+        """
+        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
+        data_id = id(data)
+        data = list(data)
+        weight = list(weight)
+        if data_id not in self.cached_data:
+            self.cached_data[data_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in data
+            ]
+        ln_data, g_ln_data = sum_gradient_data2(
+            self.cached_amp,
+            self.Amp.trainable_variables,
+            data,
+            self.cached_data[data_id],
+            weight=weight,
+            trans=clip_log,
+        )
+        # print(ln_data, ln_data2, np.allclose(g_ln_data, g_ln_data2))
+        mc_id = id(mcdata)
+        mcdata = list(mcdata)
+        if mc_id not in self.cached_data:
+            self.cached_data[mc_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in mcdata
+            ]
+        int_mc, g_int_mc = sum_gradient_data2(
+            self.cached_amp,
+            self.Amp.trainable_variables,
+            mcdata,
+            self.cached_data[mc_id],
+            weight=mc_weight,
+        )
+
+        # int_mc2, g_int_mc2 = sum_gradient(self.Amp, mcdata,
+        #                                self.Amp.trainable_variables, weight=mc_weight)
+        #
+        # print("exp", int_mc, g_int_mc)
+        # print("now", int_mc2, g_int_mc2)
+        sw = tf.cast(sw, ln_data.dtype)
+
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
+        nll = -ln_data + sw * tf.math.log(int_mc)
+
+        return nll, g
+
     # @tf.function
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
         """

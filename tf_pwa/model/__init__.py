@@ -1,1 +1,8 @@
-from .model import FCN, CombineFCN, ConstrainModel, Model, Model_new
+from .model import (
+    FCN,
+    CombineFCN,
+    ConstrainModel,
+    MixLogLikehoodFCN,
+    Model,
+    Model_new,
+)

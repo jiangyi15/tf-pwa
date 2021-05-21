@@ -41,7 +41,7 @@ from tf_pwa.data import (
 )
 from tf_pwa.fit import FitResult
 from tf_pwa.fit_improve import minimize as my_minimize
-from tf_pwa.model import FCN, CombineFCN, Model, Model_new
+from tf_pwa.model import FCN, CombineFCN, MixLogLikehoodFCN, Model, Model_new
 from tf_pwa.model.cfit import Model_cfit
 from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
 from tf_pwa.particle import split_particle_type
@@ -234,7 +234,6 @@ class ConfigLoader(BaseConfig):
         self.add_decay_constraints(amp, constrains.get("decay", {}))
         self.add_particle_constraints(amp, constrains.get("particle", {}))
         self.add_fix_var_constraints(amp, constrains.get("fix_var", {}))
-        self.add_free_var_constraints(amp, constrains.get("free_var", []))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
         for k, v in self.extra_constrains.items():
@@ -260,13 +259,6 @@ class ConfigLoader(BaseConfig):
         for k, v in dic.items():
             print("fix var: ", k, "=", v)
             amp.vm.set_fix(k, v)
-
-    def add_free_var_constraints(self, amp, dic=None):
-        if dic is None:
-            dic = []
-        for k in dic:
-            print("free var: ", k)
-            amp.vm.set_fix(k, unfix=True)
 
     def add_var_range_constraints(self, amp, dic=None):
         if dic is None:
@@ -506,6 +498,20 @@ class ConfigLoader(BaseConfig):
             bg = [None] * self._Ngroup
         model = self._get_model(vm=vm, name=name)
         fcns = []
+        print(self.config["data"].get("using_mix_likelihood", False))
+        if self.config["data"].get("using_mix_likelihood", False):
+            print("  Using Mix Likelihood")
+            fcn = MixLogLikehoodFCN(
+                model,
+                data,
+                phsp,
+                bg=bg,
+                batch=batch,
+                gauss_constr=self.gauss_constr_dic,
+            )
+            if all_data is None:
+                self.cached_fcn[vm] = fcn
+            return fcn
         for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
             if self.config["data"].get("model", "auto") == "cfit":
                 fcns.append(
@@ -579,6 +585,7 @@ class ConfigLoader(BaseConfig):
             fcn = self.get_fcn(batch=batch)
         else:
             fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
+        print("sss")
         amp = self.get_amplitude()
         print("decay chains included: ")
         for i in self.full_decay:
@@ -807,7 +814,7 @@ class ConfigLoader(BaseConfig):
         return True
 
     def save_params(self, file_name):
-        params = self.get_params(False)
+        params = self.get_params()
         val = {k: float(v) for k, v in params.items()}
         with open(file_name, "w") as f:
             json.dump(val, f, indent=2)
