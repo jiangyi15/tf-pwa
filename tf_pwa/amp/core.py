@@ -1275,12 +1275,14 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         if self.polarization == "vector":
             px, py, pz = [i() for i in self.polarization_vector]
             zeros = tf.zeros_like(px)
-            ones = tf.zeros_like(px)
-            rho00 = tf.complex(ones + pz, px)
-            rho11 = tf.complex(ones - pz, px)
+            ones = tf.ones_like(px)
+            rho00 = tf.complex(ones + pz, zeros)
+            rho11 = tf.complex(ones - pz, zeros)
             rho01 = tf.complex(px, -py)
             rho10 = tf.complex(pz, py)
-            return 0.5 * tf.stack([[rho00, rho01], [rho10, rho11]])
+            ret = 0.5 * tf.stack([[rho00, rho01], [rho10, rho11]])
+            # print(ret)
+            return ret
         raise NotImplementedError
 
     # @simple_cache_fun
