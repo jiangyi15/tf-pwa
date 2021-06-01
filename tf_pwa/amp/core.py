@@ -1279,7 +1279,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             rho00 = tf.complex(ones + pz, zeros)
             rho11 = tf.complex(ones - pz, zeros)
             rho01 = tf.complex(px, -py)
-            rho10 = tf.complex(pz, py)
+            rho10 = tf.complex(px, py)
             ret = 0.5 * tf.stack([[rho00, rho01], [rho10, rho11]])
             # print(ret)
             return ret
