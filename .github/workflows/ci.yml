@@ -64,9 +64,9 @@ jobs:
           conda install pre-commit -c conda-forge -y
           pre-commit install
           pre-commit run -a
-          export HDF5_DISABLE_VERSION_CHECK=2
       - name: Test imports
         run: |
+          export HDF5_DISABLE_VERSION_CHECK=2
           python -c "import tf_pwa"
 
   pytest:
