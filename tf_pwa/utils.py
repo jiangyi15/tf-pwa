@@ -274,3 +274,41 @@ def tuple_table(fit_frac):
         table[0][i + 1] = name
 
     return table
+
+
+def fit_normal(data, weights=None):
+    """
+    Fit data distribution with Gaussian distribution. Though minimize the negative log likelihood function
+
+    .. math::
+        - \\ln L = \\frac{1}{2}\\sum w_i \\frac{(\\mu - x_i )^2}{\\sigma^2} + (\\sum w_i) \\ln (\\sqrt{2\pi} \\sigma )
+
+    the fit result can be solved as
+
+    .. math::
+        \\frac{\\partial (-\\ln L)}{\\partial \\mu} = 0 \\Rightarrow \\bar{\\mu} = \\frac{\\sum w_i x_i}{ \\sigma^2 \\sum w_i}
+
+    .. math::
+        \\frac{\\partial (-\\ln L)}{\\partial \\sigma} = 0 \\Rightarrow \\bar{\\sigma} = \\sqrt{\\frac{\\sum w_i (\\bar{\\mu} - x_i)^2}{\\sum w_i}}
+
+    From hessian
+
+    .. math::
+        \\frac{\\partial^2 (-\\ln L)}{\\partial \\mu^2} = \\frac{\\sum w_i}{\\sigma^2}
+
+    .. math::
+        \\frac{\\partial^2 (-\\ln L)}{\\partial \\sigma^2} = 3\\sum \\frac{\\sum w_i (\\mu - x)^2}{\\sigma^4} - \\frac{\\sum w_i}{\\sigma^2}
+
+    the error matrix can wrotten as  [[ :math:`\\bar{\\sigma}^2/N` , 0], [0, :math:`\\bar{\\sigma}^2/(2N)` ]] .
+
+    """
+    if weights is None:
+        weights = np.ones_like(data)
+    else:
+        weights = np.sum(weights) / np.sum(weights ** 2) * weights
+    N = np.sum(weights)
+    mu = np.sum(weights * data) / N
+    sigma = np.sqrt(np.sum(weights * (data - mu) ** 2) / N)
+    mu_error = sigma / np.sqrt(N)
+    sigma_error = mu_error / np.sqrt(2)
+    return np.array([mu, sigma]), np.array([mu_error, sigma_error])

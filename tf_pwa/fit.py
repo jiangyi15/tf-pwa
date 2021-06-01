@@ -15,7 +15,7 @@ class LargeNumberError(ValueError):
 
 def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     try:
-        from iminuit import Minuit
+        import iminuit
     except ImportError:
         raise RuntimeError(
             "You haven't installed iminuit so you can't use Minuit to fit."
@@ -28,6 +28,27 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     :param minos:
     :return:
     """
+    if int(iminuit.__version__[0]) < 2:
+        return fit_minuit_v1(
+            fcn, bounds_dict=bounds_dict, hesse=hesse, minos=minos, **kwargs
+        )
+    return fit_minuit_v2(
+        fcn, bounds_dict=bounds_dict, hesse=hesse, minos=minos, **kwargs
+    )
+
+
+def fit_minuit_v1(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
+
+    """
+
+    :param fcn:
+    :param bounds_dict:
+    :param hesse:
+    :param minos:
+    :return:
+    """
+    from iminuit import Minuit
+
     var_args = {}
     var_names = fcn.vm.trainable_vars
     for i in var_names:
@@ -39,7 +60,7 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     f_g = Cached_FG(fcn.nll_grad)
     m = Minuit(
         f_g.fun,
-        forced_parameters=var_names,
+        name=var_names,
         errordef=0.5,
         grad=f_g.grad,
         print_level=2,
@@ -65,6 +86,102 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
         dict(m.values), fcn, m.fval, ndf=ndf, success=m.migrad_ok()
     )
     ret.set_error(dict(m.errors))
+    return ret
+
+
+def fit_minuit_v2(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
+
+    """
+
+    :param fcn:
+    :param bounds_dict:
+    :param hesse:
+    :param minos:
+    :return:
+    """
+    from iminuit import Minuit
+
+    var_args = {}
+    var_names = fcn.vm.trainable_vars
+    x0 = []
+    for i in var_names:
+        x0.append(fcn.vm.get(i))
+        var_args[i] = fcn.vm.get(i)
+        if i in bounds_dict:
+            var_args["limit_{}".format(i)] = bounds_dict[i]
+        # var_args["error_" + i] = 0.1
+
+    f_g = Cached_FG(fcn.nll_grad)
+    m = Minuit(
+        f_g.fun,
+        np.array(x0),
+        name=var_names,
+        grad=f_g.grad,
+    )
+    m.strategy = 0
+    for i in var_names:
+        if i in bounds_dict:
+            m.limits[i] = bounds_dict[i]
+    m.errordef = 0.5
+    m.print_level = 2
+    print("########## begin MIGRAD")
+    now = time.time()
+    m.migrad()  # (ncall=10000))#,precision=5e-7))
+    print("MIGRAD Time", time.time() - now)
+    if hesse:
+        print("########## begin HESSE")
+        now = time.time()
+        m.hesse()
+        print("HESSE Time", time.time() - now)
+    if minos:
+        print("########## begin MINOS")
+        now = time.time()
+        m.minos()  # (var="")
+        print("MINOS Time", time.time() - now)
+    ndf = len(var_names)
+    ret = FitResult(
+        dict(zip(var_names, m.values)), fcn, m.fval, ndf=ndf, success=m.valid
+    )
+    # print(m.errors)
+    ret.set_error(dict(zip(var_names, m.errors)))
+    return ret
+
+
+def fit_root_fitter(fcn):
+    from array import array
+
+    import ROOT
+
+    var_names = fcn.vm.trainable_vars
+    x0 = []
+    for i in var_names:
+        x0.append(fcn.vm.get(i))
+    f_g = Cached_FG(fcn.nll_grad)
+
+    class MyMultiGenFCN(ROOT.Math.IMultiGenFunction):
+        def NDim(self):
+            return len(x0)
+
+        def DoEval(self, x):
+            return f_g.fun(x)
+
+        def Clone(self):
+            x = MyMultiGenFCN()
+            ROOT.SetOwnership(x, False)
+            return x
+
+    fitter = ROOT.Fit.Fitter()
+    myMultiGenFCN = MyMultiGenFCN()
+    params = array("d", x0)
+    fitter.FitFCN(myMultiGenFCN, params)
+    fit_result = fitter.Result()
+    x = dict(zip(var_names, [fit_result.Parameter(i) for i in range(len(x0))]))
+    xerr = dict(zip(var_names, [fit_result.Error(i) for i in range(len(x0))]))
+    ndf = len(var_names)
+    ret = FitResult(
+        x, fcn, fit_result.MinFcnValue(), ndf=ndf, success=fit_result.IsValid()
+    )
+    ret.set_error(xerr)
     return ret
 
 
@@ -234,6 +351,9 @@ def fit_scipy(
         success = s.success
     elif method in ["iminuit"]:
         m = fit_minuit(fcn)
+        return m
+    elif method in ["root"]:
+        m = fit_root_fitter(fcn)
         return m
     else:
         raise Exception("unknown method")

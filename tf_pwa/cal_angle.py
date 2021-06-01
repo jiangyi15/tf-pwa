@@ -82,7 +82,7 @@ class CalAngleData(dict):
     def get_weight(self):
         if "weight" in self:
             return self["weight"]
-        return tf.ones(data_shape(self))
+        return tf.ones(data_shape(self), dtype=get_config("dtype"))
 
     def get_angle(self, decay, p):
         """ get hilicity angle of decay which product particle p"""
