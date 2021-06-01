@@ -87,6 +87,13 @@ def toy_config2(gen_toy, fit_result):
 
 
 @pytest.fixture
+def toy_config3(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_toy3.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
+@pytest.fixture
 def fit_result(toy_config):
     return toy_config.fit()
 
@@ -141,3 +148,7 @@ def test_fit_combine(toy_config2):
     toy_config2.fit()
     toy_config2.get_params_error()
     print(toy_config2.get_params())
+
+
+def test_mix_likelihood(toy_config3):
+    toy_config3.fit(maxiter=1)
