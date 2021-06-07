@@ -42,7 +42,7 @@ from tf_pwa.data import (
 from tf_pwa.fit import FitResult
 from tf_pwa.fit_improve import minimize as my_minimize
 from tf_pwa.model import FCN, CombineFCN, MixLogLikehoodFCN, Model, Model_new
-from tf_pwa.model.cfit import Model_cfit
+from tf_pwa.model.cfit import Model_cfit, Model_cfit_cached
 from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
 from tf_pwa.particle import split_particle_type
 from tf_pwa.root_io import has_uproot, save_dict_to_root
@@ -439,7 +439,14 @@ class ConfigLoader(BaseConfig):
             if not isinstance(w_bkg, list):
                 w_bkg = [w_bkg]
             for wb in w_bkg:
-                model.append(Model_cfit(amp, wb, bg_function, eff_function))
+                if self.config["data"].get("cached_amp", False):
+                    model.append(
+                        Model_cfit_cached(amp, wb, bg_function, eff_function)
+                    )
+                else:
+                    model.append(
+                        Model_cfit(amp, wb, bg_function, eff_function)
+                    )
         elif "inmc" in self.config["data"]:
             float_wmc = self.config["data"].get(
                 "float_inmc_ratio_in_pdf", False
@@ -506,7 +513,7 @@ class ConfigLoader(BaseConfig):
             bg = [None] * self._Ngroup
         model = self._get_model(vm=vm, name=name)
         fcns = []
-        print(self.config["data"].get("using_mix_likelihood", False))
+        # print(self.config["data"].get("using_mix_likelihood", False))
         if self.config["data"].get("using_mix_likelihood", False):
             print("  Using Mix Likelihood")
             fcn = MixLogLikehoodFCN(
@@ -593,7 +600,7 @@ class ConfigLoader(BaseConfig):
             fcn = self.get_fcn(batch=batch)
         else:
             fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
-        print("sss")
+        # print("sss")
         amp = self.get_amplitude()
         print("decay chains included: ")
         for i in self.full_decay:
