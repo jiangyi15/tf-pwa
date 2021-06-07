@@ -4,6 +4,7 @@ from ..config import create_config
 from ..data import data_shape, split_generator
 from ..tensorflow_wrapper import tf
 from .model import Model, clip_log, sum_gradient, sum_hessian
+from .opt_int import build_amp, sum_gradient_data2
 
 set_function, get_function, register_function = create_config()
 
@@ -191,3 +192,63 @@ class Model_cfit(Model):
             + g_ll_bg * h_int_bg
         )
         return -ll, g, -h
+
+
+class Model_cfit_cached(Model_cfit):
+    def __init__(self, amp, w_bkg=0.001, bg_f=None, eff_f=None):
+        super().__init__(amp, w_bkg, bg_f, eff_f)
+        self.cached_amp = build_amp.build_amp2s(amp.decay_group)
+        self.cached_data = {}
+
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
+        var = self.vm.trainable_variables
+        data_id = id(data)
+        mc_id = id(mcdata)
+        mcdata = list(mcdata)
+        mc_weight = list(mc_weight)
+
+        if data_id not in self.cached_data:
+            self.cached_data[data_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in data
+            ]
+
+        if mc_id not in self.cached_data:
+            self.cached_data[mc_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in mcdata
+            ]
+
+        int_sig, g_int_sig = sum_gradient_data2(
+            self.cached_amp,
+            self.Amp.trainable_variables,
+            mcdata,
+            self.cached_data[mc_id],
+            weight=mc_weight,
+        )
+
+        int_bg, g_int_bg = sum_gradient(self.bg, mcdata, var, mc_weight)
+        v_int_sig, v_int_bg = (
+            tf.Variable(int_sig, dtype="float64"),
+            tf.Variable(int_bg, dtype="float64"),
+        )
+
+        def prob(x, c_data):
+            return (1 - self.w_bkg) * self.eff(x) * self.cached_amp(
+                x, c_data
+            ) / v_int_sig + self.w_bkg * self.bg(x) / v_int_bg
+
+        ll, g_ll = sum_gradient_data2(
+            prob,
+            var + [v_int_sig, v_int_bg],
+            data,
+            self.cached_data[data_id],
+            weight=weight,
+            trans=clip_log,
+        )
+        g_ll_sig, g_ll_bg = g_ll[-2], g_ll[-1]
+        g = [
+            -g_ll[i] - g_int_sig[i] * g_ll_sig - g_int_bg[i] * g_ll_bg
+            for i in range(len(var))
+        ]
+        return -ll, g
