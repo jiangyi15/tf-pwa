@@ -754,7 +754,7 @@ class VarsManager(object):
         hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
         return hess_inv
 
-    def minimize(self, fcn, jac=False, method="BFGS", mini_kwargs={}):
+    def minimize(self, fcn, jac=True, method="BFGS", mini_kwargs={}):
         """
         minimize a give function
         """
@@ -766,8 +766,10 @@ class VarsManager(object):
                 self.set_all(x)
                 with tf.GradientTape() as tape:
                     y = fcn()
-                g = tape.gradient(y, self.trainable_variables)
-                return float(y), [float(i) for i in g]
+                g = tape.gradient(
+                    y, self.trainable_variables, unconnected_gradients="zero"
+                )
+                return float(y), np.array([float(i) for i in g])
 
         x0 = self.get_all_val(True)
 
@@ -775,9 +777,22 @@ class VarsManager(object):
         if isinstance(method, str):
             from scipy.optimize import minimize as mini
 
-            ret = mini(f2, x0, jac=True, method=method, **mini_kwargs)
+            if jac != True:
+
+                def f(x):
+                    self.set_all(x)
+                    y = fcn()
+                    return float(y)
+
+                ret = mini(
+                    f, np.array(x0), jac=jac, method=method, **mini_kwargs
+                )
+            else:
+                ret = mini(
+                    f2, np.array(x0), jac=jac, method=method, **mini_kwargs
+                )
         else:
-            ret = method(f2, x0, **mini_kwargs)
+            ret = method(f2, np.array(x0), **mini_kwargs)
         self.set_all(ret.x, val_in_fit=True)
         ret.x = np.array(self.get_all_val())
         ret.hess_inv = self.trans_error_matrix(ret.hess_inv, ret.x)

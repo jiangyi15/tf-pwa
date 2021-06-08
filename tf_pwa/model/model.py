@@ -267,6 +267,30 @@ class BaseModel(object):
             tf.reduce_sum(weight * ln_data) - sw * tf.math.log(int_mc)
         )
 
+    def sum_nll_grad_bacth(self, data):
+        weight = [i.get("weight", tf.ones((data_shape(i),))) for i in data]
+        ln_data, g_ln_data = sum_gradient(
+            self.signal,
+            data,
+            self.signal.trainable_variables,
+            weight=weight,
+            trans=clip_log,
+            resolution_size=self.resolution_size,
+        )
+        return -ln_data, [-i for i in g_ln_data]
+
+    def sum_log_integral_grad_batch(self, mcdata, ndata):
+        mc_weight = [i["weight"] for i in mcdata]
+        int_mc, g_int_mc = sum_gradient(
+            self.signal,
+            mcdata,
+            self.signal.trainable_variables,
+            weight=mc_weight,
+        )
+        return tf.math.log(int_mc) * ndata, [
+            ndata / int_mc * i for i in g_int_mc
+        ]
+
     def nll_grad(self, data, mcdata, batch=65000):
         weight = data.get("weight", tf.ones((data_shape(data),)))
         weight_rw = tf.reduce_sum(
@@ -461,6 +485,19 @@ class Model(object):
             )
             return data, alpha * weight
         return data, weight
+
+    def mix_data_bakcground(self, data, bg):
+        ret, weight = self.get_weight_data(
+            data, weight=data.get_weight(), bg=bg, alpha=True
+        )
+        ret["weight"] = weight
+        return ret
+
+    def sum_nll_grad_bacth(self, data):
+        return self.model.sum_nll_grad_bacth(data)
+
+    def sum_log_integral_grad_batch(self, mcdata, ndata):
+        return self.model.sum_log_integral_grad_batch(mcdata, ndata)
 
     def nll(
         self,
@@ -1156,3 +1193,71 @@ class CombineFCN(object):
         constr_grad = self.gauss_constr.get_constrain_grad()
         constr_hessian = self.gauss_constr.get_constrain_hessian()
         return nll + constr, g + constr_grad, h + constr_hessian
+
+
+class MixLogLikehoodFCN(CombineFCN):
+
+    """
+    This class implements methods to calculate the NLL as well as its derivatives for a general function.
+
+    :param model: List of model object.
+    :param data: List of data array.
+    :param mcdata: list of MCdata array.
+    :param bg: list of Background array.
+    :param batch: The length of array to calculate as a vector at a time. How to fold the data array may depend on the GPU computability.
+    """
+
+    def __init__(
+        self,
+        model,
+        data,
+        mcdata,
+        bg=None,
+        batch=65000,
+        gauss_constr={},
+    ):
+        self.cached_nll = 0.0
+        assert model is not None, "model required"
+        assert data is not None, "data required"
+        assert mcdata is not None, "mcdata required"
+        self.fcns = []
+        self.cached_nll = 0.0
+        if bg is None:
+            bg = _loop_generator(None)
+        self.datas = []
+        self.weight_phsps = []
+        self.n_datas = []
+        self.model = model
+        for model_i, data_i, mcdata_i, bg_i in zip(model, data, mcdata, bg):
+            data_s = model_i.mix_data_bakcground(data_i, bg_i)
+            self.datas.append(data_s)
+            weight_phsp = type(mcdata_i)(
+                {k: v for k, v in mcdata_i.items()}
+            )  # simple copy
+            w = weight_phsp.get_weight()
+            weight_phsp["weight"] = w / tf.reduce_sum(w)
+            self.n_datas.append(tf.reduce_sum(data_s.get_weight()))
+            self.weight_phsps.append(list(split_generator(weight_phsp, batch)))
+            self.fcns.append(FCN(model_i, data_i, mcdata_i, bg_i))
+        self.data_merge = list(split_generator(data_merge(*self.datas), batch))
+        self.vm = self.model[0].vm
+        self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
+
+    def get_nll_grad(self, x={}):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        [i.set_params(x) for i in self.model]
+        nlls = []
+        gs = []
+        nll, g = self.model[0].sum_nll_grad_bacth(self.data_merge)
+        nlls.append(nll)
+        gs.append(g)
+        for i, k, l in zip(self.model, self.weight_phsps, self.n_datas):
+            nll, g = i.sum_log_integral_grad_batch(k, l)
+            nlls.append(nll)
+            gs.append(g)
+        print(sum(nlls))
+        return sum(nlls), tf.reduce_sum(gs, axis=0)
