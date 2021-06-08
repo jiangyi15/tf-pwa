@@ -37,6 +37,13 @@ def build_amp_matrix(dec, data, weight=None):
     return index, hij
 
 
+def _prod(ls):
+    ret = 1
+    for i in ls:
+        ret *= i
+    return ret
+
+
 def build_params_vector(dg, data):
     n_data = data_shape(data)
     m_dep = dg.get_m_dep(data)
@@ -45,10 +52,11 @@ def build_params_vector(dg, data):
         tmp = i[0]
         if tmp.shape[0] == 1:
             tmp = tf.tile(tmp, [n_data] + [1] * (len(tmp.shape) - 1))
-        tmp = tf.reshape(tmp, (n_data, -1))
+        tmp = tf.reshape(tmp, (-1, _prod(tmp.shape[1:])))
         for j in i[1:]:
-            tmp2 = tf.reshape(j, (j.shape[0], -1))
-            tmp = tf.reshape(tmp[:, :, None] * tmp2[:, None, :], (n_data, -1))
+            tmp2 = tf.reshape(j, (-1, _prod(j.shape[1:])))
+            tmp = tmp[:, :, None] * tmp2[:, None, :]
+            tmp = tf.reshape(tmp, (-1, _prod(tmp.shape[1:])))
         ret.append(tmp)
     return ret
 
@@ -68,14 +76,15 @@ def cached_amp2s(dg, data):
 
 
 def build_amp2s(dg):
-    @tf.function
+    @tf.function(experimental_relax_shapes=True)
     def _amp2s(data, cached_data):
         n_data = data_shape(data)
         pv = build_params_vector(dg, data)
         ret = []
         for i, j in zip(pv, cached_data):
             # print(j)
-            a = tf.reshape(i, [n_data, -1] + [1] * (len(j[0].shape) - 1))
+            # print(i.shape)
+            a = tf.reshape(i, [-1, i.shape[1]] + [1] * (len(j[0].shape) - 1))
             ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
         # print(ret)
         amp = tf.reduce_sum(ret, axis=0)

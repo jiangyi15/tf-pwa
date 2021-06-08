@@ -104,6 +104,7 @@ def test_cfit(gen_toy):
     fcn = config.get_fcn()
     fcn({})
     fcn.nll_grad({})
+    config.plot_partial_wave()
 
 
 def test_cfit_cached(gen_toy):

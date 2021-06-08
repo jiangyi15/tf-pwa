@@ -21,6 +21,35 @@ from tf_pwa.root_io import has_uproot, save_dict_to_root
 from .config_loader import ConfigLoader
 
 
+def _get_cfit_bg(self, data, phsp):
+    model = self._get_model()
+    bg_function = [i.bg for i in model]
+    w_bkg = [i.w_bkg for i in model]
+    phsp_weight = []
+    for data_i, phsp_i, w, bg_f in zip(data, phsp, w_bkg, bg_function):
+        ndata = np.sum(data_i.get_weight())
+        nbg = ndata * w
+        w_bg = bg_f(phsp_i) * phsp_i.get_weight()
+        phsp_weight.append(-w_bg / np.sum(w_bg) * nbg)
+    return [
+        type(phsp_i)({**phsp_i, "weight": w})
+        for phsp_i, w in zip(phsp, phsp_weight)
+    ]
+
+
+def _get_cfit_eff_phsp(self, phsp):
+    model = self._get_model()
+    eff_function = [i.eff for i in model]
+    phsp_weight = []
+    for phsp_i, eff_f in zip(phsp, eff_function):
+        w_eff = eff_f(phsp_i) * phsp_i.get_weight()
+        phsp_weight.append(w_eff)
+    return [
+        type(phsp_i)({**phsp_i, "weight": w})
+        for phsp_i, w in zip(phsp, phsp_weight)
+    ]
+
+
 @ConfigLoader.register_function()
 def plot_partial_wave(
     self,
@@ -49,7 +78,12 @@ def plot_partial_wave(
         bg = self.get_data("bg")
         phsp = self.get_phsp_plot()
     if bg is None:
-        bg = [bg] * len(data)
+        if self.config["data"].get("model", "auto") == "cfit":
+            bg = _get_cfit_bg(self, data, phsp)
+        else:
+            bg = [bg] * len(data)
+    if self.config["data"].get("model", "auto") == "cfit":
+        phsp = _get_cfit_eff_phsp(self, phsp)
     amp = self.get_amplitude()
     self._Ngroup = len(data)
     ws_bkg = [
