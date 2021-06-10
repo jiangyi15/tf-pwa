@@ -507,13 +507,21 @@ def _plot_partial_wave(
                         linewidth=1,
                     )
                 else:
-                    le3 = hist_i.draw(
-                        ax,
-                        color=curve_style[0],
-                        linestyle=curve_style[1:],
-                        label=label,
-                        linewidth=1,
-                    )
+                    try:
+                        le3 = hist_i.draw(
+                            ax,
+                            color=curve_style[0],
+                            linestyle=curve_style[1:],
+                            label=label,
+                            linewidth=1,
+                        )
+                    except:
+                        le3 = hist_i.draw(
+                            ax,
+                            color=curve_style,
+                            label=label,
+                            linewidth=1,
+                        )
             legends.append(le3[0])
             legends_label.append(label)
         if yscale == "log":
