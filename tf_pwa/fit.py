@@ -359,7 +359,7 @@ def fit_scipy(
         return fit_newton_cg(fcn, method, False)
     elif method in ["Newton-CG-p", "trust-krylov-p", "trust-ncg-p"]:
         fcn.vm.set_bound(bounds_dict)
-        return fit_newton_cg(fcn, method, True)
+        return fit_newton_cg(fcn, method[:-2], True)
     elif method in ["iminuit"]:
         m = fit_minuit(fcn)
         return m
@@ -438,7 +438,7 @@ def fit_newton_cg(
 
     if use_hessp:
         s = minimize(
-            f_g, x0, jac=True, hess=lambda x: hessp(x)[1], method=method
+            f_g, x0, jac=True, hessp=lambda x, p: hessp(x, p)[1], method=method
         )
     else:
         s = minimize(
@@ -448,7 +448,7 @@ def fit_newton_cg(
     xn = s.x
     ndf = s.x.shape[0]
     min_nll = s.fun
-    if not success:
+    if not s.success:
         if np.min(np.abs(s.jac)) < gtol:
             s.success = True
             s.message = s.message + "\n But gradients allow"

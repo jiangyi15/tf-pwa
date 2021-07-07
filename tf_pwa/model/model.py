@@ -1343,6 +1343,25 @@ class CombineFCN(object):
         constr_hessian = self.gauss_constr.get_constrain_hessian()
         return nll + constr, g + constr_grad, h + constr_hessian
 
+    def get_grad_hessp(self, x, p, batch):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        hs = []
+        gs = []
+        for i in self.fcns:
+            g, h = i.get_grad_hessp(x, p, batch)
+            hs.append(h)
+            gs.append(g)
+        return tf.reduce_sum(gs, axis=0), tf.reduce_sum(hs, axis=0)
+
+    def grad_hessp(self, x, p, batch=None):
+        grad, hessp = self.get_grad_hessp(x, p, batch)
+        constr_grad = self.gauss_constr.get_constrain_grad()
+        return grad + constr_grad, hessp
+
 
 class MixLogLikehoodFCN(CombineFCN):
 
