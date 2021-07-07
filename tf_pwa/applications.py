@@ -6,6 +6,7 @@ going into every modules. There are some example files where you can figure out 
 """
 import os
 import time
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -205,10 +206,20 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
         params
     )  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
-    if check_positive_definite(h.numpy()):
-        inv_he = np.linalg.inv(h.numpy())
+    h = h.numpy()
+    if check_positive_definite(h):
+        inv_he = np.linalg.inv(h)
     else:
-        inv_he = np.linalg.pinv(h.numpy())
+        e, v = np.linalg.eig(h)
+        diag_add = max(0.0, -np.min(e) * 1.1)
+        if diag_add > 0.0:
+            warnings.warn(
+                "error matrix not positive, force add {}".format(diag_add)
+            )
+        h = h + np.diag(np.ones_like(e) * diag_add)
+        h = np.linalg.pinv(h)
+        inv_he = np.linalg.pinv(h)
+
     if save_npy:
         np.save("error_matrix.npy", inv_he)
     diag_he = inv_he.diagonal()
