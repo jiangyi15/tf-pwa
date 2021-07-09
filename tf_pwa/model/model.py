@@ -161,7 +161,7 @@ def sum_grad_hessp(
                     f, data_i, weight_i, trans, resolution_size, args, kwargs
                 )
             g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
-        hessp = acc.jvp(g_i)
+        hessp = acc.jvp(g_i, unconnected_gradients="zero")
         y_s.append(y_i)
         g_s.append(g_i)
         h_s.append(hessp)
