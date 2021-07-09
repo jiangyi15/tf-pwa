@@ -309,7 +309,7 @@ def fit_scipy(
                 break
             if abs(s.fun - min_nll) < 1e-3:
                 break
-        f_g(s.x)  # make sure fit results same as variable
+        fcn.vm.set_trans_var(s.x)  # make sure fit results same as variable
         print(s)
         # xn = s.x  # fcn.vm.get_all_val()  # bd.get_y(s.x)
 
@@ -349,7 +349,7 @@ def fit_scipy(
         except LargeNumberError:
             return except_result(fcn, len(x0))
         xn = s.x
-        fcn.nll_grad(xn)
+        fcn.vm.set_var(xn)
         print(s)
         ndf = s.x.shape[0]
         min_nll = s.fun
@@ -381,7 +381,7 @@ def fit_scipy(
             xn[i] += 1e-5
             gs.append((nll0 - nll1) / 2e-5)
             print(args_name[i], gs[i], gs0[i])
-    params = fcn.vm.get_all_dic()
+    params = fcn.get_params()  # vm.get_all_dic()
     return FitResult(
         params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv
     )
@@ -444,7 +444,7 @@ def fit_newton_cg(
         s = minimize(
             f_g, x0, jac=True, hess=lambda x: hess(x)[2], method=method
         )
-    f_g(s.x)
+    fcn.vm.set_trans_var(s.x)
     xn = s.x
     ndf = s.x.shape[0]
     min_nll = s.fun

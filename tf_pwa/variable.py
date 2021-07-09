@@ -375,6 +375,8 @@ class VarsManager(object):
 
         for name in set(bound_dic) - set(init_val):
             _min, _max = bound_dic[name]
+            if name not in self.trainable_vars:
+                continue
             if _min is not None:
                 if _max is not None:
                     val = tf.random.uniform(
@@ -707,6 +709,21 @@ class VarsManager(object):
             self.std_polar_all()
         else:
             self.rp2xy_all()
+
+    def set_trans_var(self, xvals):
+        """
+        :math:`y = y(x)`
+
+        :param fcn_grad: The return of class **tf_pwa.model**???
+        :return:
+        """
+
+        xvals = np.array(xvals)
+        yvals = xvals.copy()
+        for i, name in enumerate(self.trainable_vars):
+            if name in self.bnd_dic:
+                yvals[i] = self.bnd_dic[name].get_x2y(xvals[i])
+        self.set_all(yvals)
 
     def trans_fcn_grad(self, fcn_grad):  # bound transform fcn and grad
         """
