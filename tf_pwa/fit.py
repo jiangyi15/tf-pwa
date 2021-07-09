@@ -7,6 +7,7 @@ from scipy.optimize import BFGS, basinhopping, minimize
 
 from .fit_improve import Cached_FG
 from .fit_improve import minimize as my_minimize
+from .utils import time_print
 
 
 class LargeNumberError(ValueError):
@@ -308,15 +309,17 @@ def fit_scipy(
                 break
             if abs(s.fun - min_nll) < 1e-3:
                 break
+        fcn.vm.set_trans_var(s.x)  # make sure fit results same as variable
         print(s)
-
         # xn = s.x  # fcn.vm.get_all_val()  # bd.get_y(s.x)
-        fcn.vm.set_all(s.x, True)
+
+        # fcn.vm.set_all(s.x, True)
         ndf = s.x.shape[0]
         min_nll = s.fun
         success = s.success
         hess_inv = fcn.vm.trans_error_matrix(s.hess_inv, s.x)
         fcn.vm.remove_bound()
+
         xn = fcn.vm.get_all_val()
     elif method in ["L-BFGS-B"]:
 
@@ -346,9 +349,17 @@ def fit_scipy(
         except LargeNumberError:
             return except_result(fcn, len(x0))
         xn = s.x
+        fcn.vm.set_var(xn)
+        print(s)
         ndf = s.x.shape[0]
         min_nll = s.fun
         success = s.success
+    elif method in ["Newton-CG", "trust-krylov", "trust-ncg", "trust-exact"]:
+        fcn.vm.set_bound(bounds_dict)
+        return fit_newton_cg(fcn, method, False)
+    elif method in ["Newton-CG-p", "trust-krylov-p", "trust-ncg-p"]:
+        fcn.vm.set_bound(bounds_dict)
+        return fit_newton_cg(fcn, method[:-2], True)
     elif method in ["iminuit"]:
         m = fit_minuit(fcn)
         return m
@@ -370,10 +381,83 @@ def fit_scipy(
             xn[i] += 1e-5
             gs.append((nll0 - nll1) / 2e-5)
             print(args_name[i], gs[i], gs0[i])
-    fcn.vm.set_all(xn)
-    params = fcn.vm.get_all_dic()
+    params = fcn.get_params()  # vm.get_all_dic()
     return FitResult(
         params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv
+    )
+
+
+def fit_newton_cg(
+    fcn, method="Newton-CG", use_hessp=False, check_hess=False, gtol=1e-4
+):
+    vm = fcn.vm
+
+    points = []
+
+    def callback(x):
+        points.append(fcn.vm.get_all_val())
+        # if len(nlls) > maxiter:
+        #    with open("fit_curve.json", "w") as f:
+        #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
+        #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
+        print(fcn.cached_nll)
+
+    # bd = Bounds(bnds)
+
+    f_g = vm.trans_fcn_grad(fcn.nll_grad)
+    if use_hessp:
+        hessp = vm.trans_grad_hessp(fcn.grad_hessp)
+    else:
+        hess = vm.trans_f_grad_hess(fcn.nll_grad_hessian)
+        hess = time_print(hess)
+    f_g = Cached_FG(f_g)
+
+    x0 = np.array(vm.get_all_val(True))
+
+    if check_hess:
+        # check if hessp works well
+        # hess(x0, x0)
+        gs = []
+        for i, _ in enumerate(x0):
+            x0[i] += 1e-3
+            _, g1 = f_g(x0)
+            x0[i] -= 2e-3
+            _, g2 = f_g(x0)
+            x0[i] += 1e-3
+            gs.append((g1 - g2) / 2e-3)
+        gs = np.array(gs)
+
+        # print(gs)
+        if use_hessp:
+            p = np.random.random(x0.shape)
+            print("check", hessp(x0, p)[1], "==", np.dot(gs, p))
+            p = np.random.random(x0.shape)
+            print("check", hessp(x0, p)[1], "==", np.dot(gs, p))
+        else:
+            print(hess(x0)[2] - gs)
+
+    if use_hessp:
+        s = minimize(
+            f_g, x0, jac=True, hessp=lambda x, p: hessp(x, p)[1], method=method
+        )
+    else:
+        s = minimize(
+            f_g, x0, jac=True, hess=lambda x: hess(x)[2], method=method
+        )
+    fcn.vm.set_trans_var(s.x)
+    xn = s.x
+    ndf = s.x.shape[0]
+    min_nll = s.fun
+    if not s.success:
+        if np.min(np.abs(s.jac)) < gtol:
+            s.success = True
+            s.message = s.message + "\n But gradients allow"
+    success = s.success
+    print(s)
+    # fcn.vm.set_all(xn)
+    params = fcn.get_params()
+    return FitResult(
+        params, fcn, min_nll, ndf=ndf, success=success, hess_inv=None
     )
 
 

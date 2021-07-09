@@ -375,6 +375,8 @@ class VarsManager(object):
 
         for name in set(bound_dic) - set(init_val):
             _min, _max = bound_dic[name]
+            if name not in self.trainable_vars:
+                continue
             if _min is not None:
                 if _max is not None:
                     val = tf.random.uniform(
@@ -708,6 +710,21 @@ class VarsManager(object):
         else:
             self.rp2xy_all()
 
+    def set_trans_var(self, xvals):
+        """
+        :math:`y = y(x)`
+
+        :param fcn_grad: The return of class **tf_pwa.model**???
+        :return:
+        """
+
+        xvals = np.array(xvals)
+        yvals = xvals.copy()
+        for i, name in enumerate(self.trainable_vars):
+            if name in self.bnd_dic:
+                yvals[i] = self.bnd_dic[name].get_x2y(xvals[i])
+        self.set_all(yvals)
+
     def trans_fcn_grad(self, fcn_grad):  # bound transform fcn and grad
         """
         :math:`F(x)=F(y(x))`, :math:`G(x)=\\frac{dF}{dx}=\\frac{dF}{dy}\\frac{dy}{dx}`
@@ -733,6 +750,83 @@ class VarsManager(object):
             return fcn, grad
 
         return fcn_t
+
+    def trans_grad_hessp(self, f):  # bound transform fcn and grad
+        """
+        :math:`F(x)=F(y(x))`, :math:`G(x)=\\frac{dF}{dx}=\\frac{dF}{dy}\\frac{dy}{dx}`
+
+        :param fcn_grad: The return of class **tf_pwa.model**???
+        :return:
+        """
+
+        def f_wrap(xvals, p):
+            xvals = np.array(xvals)
+            yvals = xvals.copy()
+            dydxs = []
+            dydxs2 = []
+            i = 0
+            for name in self.trainable_vars:
+                if name in self.bnd_dic:
+                    yvals[i] = self.bnd_dic[name].get_x2y(xvals[i])
+                    dydxs.append(self.bnd_dic[name].get_dydx(xvals[i]))
+                    dydxs2.append(self.bnd_dic[name].get_d2ydx2(xvals[i]))
+                else:
+                    dydxs.append(1)
+                    dydxs2.append(0)
+                i += 1
+
+            dydxs = np.array(dydxs)
+            dydxs2 = np.array(dydxs2)
+
+            # print(xvals.shape, p.shape, dydxs.shape, len(self.trainable_vars))
+
+            grad_yv, hessp_yv = f(yvals, p * dydxs)
+            grad = np.array(grad_yv) * dydxs
+            # print("trans", p, grad, hessp_yv * dydxs + grad_yv * dydxs2)
+            return grad, hessp_yv * dydxs + grad_yv * dydxs2 * p
+
+        return f_wrap
+
+    def trans_f_grad_hess(self, f):  # bound transform fcn and grad
+        """
+        :math:`F(x)=F(y(x))`, :math:`G(x)=\\frac{dF}{dx}=\\frac{dF}{dy}\\frac{dy}{dx}`
+
+        :param fcn_grad: The return of class **tf_pwa.model**???
+        :return:
+        """
+
+        def f_wrap(xvals):
+            xvals = np.array(xvals)
+            yvals = xvals.copy()
+            dydxs = []
+            dydxs2 = []
+            i = 0
+            for name in self.trainable_vars:
+                if name in self.bnd_dic:
+                    yvals[i] = self.bnd_dic[name].get_x2y(xvals[i])
+                    dydxs.append(self.bnd_dic[name].get_dydx(xvals[i]))
+                    dydxs2.append(self.bnd_dic[name].get_d2ydx2(xvals[i]))
+                else:
+                    dydxs.append(1)
+                    dydxs2.append(0)
+                i += 1
+
+            dydxs = np.array(dydxs)
+            dydxs2 = np.array(dydxs2)
+
+            # print(yvals) # , xvals.shape, p.shape, dydxs.shape, len(self.trainable_vars))
+
+            f2, grad_yv, hessp_yv = f(yvals)
+            grad = np.array(grad_yv) * dydxs
+            # print("trans", p, grad, hessp_yv * dydxs + grad_yv * dydxs2)
+            return (
+                f2,
+                grad,
+                dydxs[:, None] * hessp_yv * dydxs[None, :]
+                + np.diag(grad_yv * dydxs2),
+            )
+
+        return f_wrap
 
     def trans_error_matrix(self, hess_inv, xvals):
         """
@@ -829,7 +923,7 @@ class Bound(object):
                     self.func = "a-1+sqrt(x**2+1)"
                 else:
                     self.func = "(b-a)*(sin(x)+1)/2+a"
-        self.f, self.df, self.inv = self.get_func()
+        self.f, self.df, self.df2, self.inv = self.get_func()
 
     def __repr__(self):
         return "[" + str(self.lower) + ", " + str(self.upper) + "]"
@@ -844,10 +938,11 @@ class Bound(object):
         f = sy.sympify(self.func)
         f = f.subs({a: self.lower, b: self.upper})
         df = sy.diff(f, x)
+        df2 = sy.diff(df, x)
         inv = sy.solve(f - y, x)
         if hasattr(inv, "__len__"):
             inv = inv[-1]
-        return f, df, inv
+        return f, df, df2, inv
 
     def get_x2y(self, val):  # var->gls
         """
@@ -883,6 +978,18 @@ class Bound(object):
         """
         x = sy.symbols("x")
         return float(self.df.evalf(subs={x: val}))
+
+    def get_d2ydx2(
+        self, val
+    ):  # gradient in fitting: dNLL/dx = dNLL/dy * dy/dx
+        """
+        To calculate the derivative :math:`\\frac{dy}{dx}`.
+
+        :param val: Real number *x*
+        :return: Real number :math:`\\frac{dy}{dx}`
+        """
+        x = sy.symbols("x")
+        return float(self.df2.evalf(subs={x: val}))
 
 
 def _get_val_from_index(val, index):

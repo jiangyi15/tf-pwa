@@ -113,6 +113,7 @@ def sum_hessian(
                 )
             g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
         h_s_i = []
+        # h_s_i  = tape0.jacobian(tf.stack(g_i), var, unconnected_gradients="zero")
         for gi in g_i:
             # 2nd order derivative
             h_s_i.append(tape0.gradient(gi, var, unconnected_gradients="zero"))
@@ -124,6 +125,52 @@ def sum_hessian(
     # print("ll: ", nll)
     g = tf.reduce_sum(g_s, axis=0)
     h = tf.reduce_sum(h_s, axis=0)
+    # h = [[sum(j) for j in zip(*i)] for i in h_s]
+    return nll, g, h
+
+
+def sum_grad_hessp(
+    f,
+    p,
+    data,
+    var,
+    weight=1.0,
+    trans=tf.identity,
+    resolution_size=1,
+    args=(),
+    kwargs=None,
+):
+    """
+    The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
+    which is the matrix of the second-order derivative.
+
+    :return: Real number NLL, list gradient, 2-D list hessian
+    """
+    kwargs = kwargs if kwargs is not None else {}
+    if isinstance(weight, float):
+        weight = _loop_generator(weight)
+    y_s = []
+    g_s = []
+    h_s = []
+    from tensorflow.python.eager import forwardprop
+
+    for data_i, weight_i in zip(data, weight):
+        with forwardprop.ForwardAccumulator(var, list(p)) as acc:
+            with tf.GradientTape() as tape:
+                y_i = _batch_sum(
+                    f, data_i, weight_i, trans, resolution_size, args, kwargs
+                )
+            g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
+        hessp = acc.jvp(g_i, unconnected_gradients="zero")
+        y_s.append(y_i)
+        g_s.append(g_i)
+        h_s.append(hessp)
+        # print(hessp)
+    nll = tf.reduce_sum(y_s)
+    # print("ll: ", nll)
+    g = tf.reduce_sum(g_s, axis=0)
+    h = tf.reduce_sum(h_s, axis=0)
+    # print(h)
     # h = [[sum(j) for j in zip(*i)] for i in h_s]
     return nll, g, h
 
@@ -371,6 +418,65 @@ class BaseModel(object):
         nll = -ln_data + sw * tf.math.log(int_mc)
         return nll, g
 
+    def grad_hessp_batch(self, p, data, mcdata, weight, mc_weight):
+        """
+        ``self.nll_grad()`` is replaced by this one???
+
+        .. math::
+          - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
+            -\\sum_{x_i \\in data } w_i \\frac{\\partial}{\\partial \\theta_k} \\ln f(x_i;\\theta_k)
+            + (\\sum w_j ) \\left( \\frac{ \\partial }{\\partial \\theta_k} \\sum_{x_i \\in mc} f(x_i;\\theta_k) \\right)
+              \\frac{1}{ \\sum_{x_i \\in mc} f(x_i;\\theta_k) }
+
+        :param data:
+        :param mcdata:
+        :param weight:
+        :param mc_weight:
+        :return:
+        """
+        if not hasattr(self, "hess_product_vector_i"):
+            self.hess_product_vector_i = [tf.Variable(i) for i in p]
+        for i, j in zip(self.hess_product_vector_i, p):
+            i.assign(j)
+        weight = list(weight)
+        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
+        ln_data, g_ln_data, hessp_ln_data = sum_grad_hessp(
+            self.signal,
+            self.hess_product_vector_i,
+            data,
+            self.signal.trainable_variables,
+            weight=weight,
+            trans=clip_log,
+            resolution_size=self.resolution_size,
+        )
+
+        # print("hessp_ln_data",hessp_ln_data)
+
+        int_mc, g_int_mc, hessp_int_mc = sum_grad_hessp(
+            self.signal,
+            self.hess_product_vector_i,
+            mcdata,
+            self.signal.trainable_variables,
+            weight=mc_weight,
+        )
+
+        # print("hessp_int_mc", hessp_int_mc)
+
+        sw = tf.cast(sw, ln_data.dtype)
+
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
+
+        g_int_mc = np.array(g_int_mc)
+        hessp2 = sw * (
+            hessp_int_mc / int_mc
+            - g_int_mc * np.dot(p, g_int_mc) / int_mc ** 2
+        )
+        # print("hessp2", hessp2)
+        # print("ret", g, hessp2 - hessp_ln_data)
+        return g, hessp2 - hessp_ln_data
+
     def nll_grad_hessian(self, data, mcdata, batch=25000):
         """
         The parameters are the same with ``self.nll()``, but it will return Hessian as well.
@@ -556,6 +662,29 @@ class Model(object):
             {**data, "weight": weight},
             {**mcdata, "weight": mc_weight},
             batch=batch,
+        )
+
+    # @tf.function
+    def grad_hessp_batch(self, p, data, mcdata, weight, mc_weight):
+        """
+        ``self.nll_grad()`` is replaced by this one???
+
+        .. math::
+          - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
+            -\\sum_{x_i \\in data } w_i \\frac{\\partial}{\\partial \\theta_k} \\ln f(x_i;\\theta_k)
+            + (\\sum w_j ) \\left( \\frac{ \\partial }{\\partial \\theta_k} \\sum_{x_i \\in mc} f(x_i;\\theta_k) \\right)
+              \\frac{1}{ \\sum_{x_i \\in mc} f(x_i;\\theta_k) }
+
+        :param data:
+        :param mcdata:
+        :param weight:
+        :param mc_weight:
+        :return:
+        """
+        data_i = ({**i, "weight": j} for i, j in zip(data, weight))
+        mcdata_i = ({**i, "weight": j} for i, j in zip(mcdata, mc_weight))
+        return self.model.grad_hessp_batch(
+            p, data_i, mcdata_i, weight, mc_weight
         )
 
     # @tf.function
@@ -1070,6 +1199,26 @@ class FCN(object):
         constr_hessian = self.gauss_constr.get_constrain_hessian()
         return nll + constr, g + constr_grad, h + constr_hessian
 
+    @time_print
+    def grad_hessp(self, x, p, batch=None):
+        if batch is None:
+            batch = self.batch
+        g, h = self.get_grad_hessp(x, p, batch)
+        constr_grad = self.gauss_constr.get_constrain_grad()
+        constr_hessian = 0.0  # self.gauss_constr.get_constrain_hessp(p)
+        return g + constr_grad, h + constr_hessian
+
+    def get_grad_hessp(self, x, p, batch):
+        self.model.set_params(x)
+        grad, hessp = self.model.grad_hessp_batch(
+            p,
+            self.batch_data,
+            self.batch_mcdata,
+            weight=list(data_split(self.weight, self.batch)),
+            mc_weight=self.batch_mc_weight,
+        )
+        return grad, hessp
+
 
 class CombineFCN(object):
     """
@@ -1193,6 +1342,25 @@ class CombineFCN(object):
         constr_grad = self.gauss_constr.get_constrain_grad()
         constr_hessian = self.gauss_constr.get_constrain_hessian()
         return nll + constr, g + constr_grad, h + constr_hessian
+
+    def get_grad_hessp(self, x, p, batch):
+        """
+        :param x: List. Values of variables.
+        :return nll: Real number. The value of NLL.
+        :return gradients: List of real numbers. The gradients for each variable.
+        """
+        hs = []
+        gs = []
+        for i in self.fcns:
+            g, h = i.get_grad_hessp(x, p, batch)
+            hs.append(h)
+            gs.append(g)
+        return tf.reduce_sum(gs, axis=0), tf.reduce_sum(hs, axis=0)
+
+    def grad_hessp(self, x, p, batch=None):
+        grad, hessp = self.get_grad_hessp(x, p, batch)
+        constr_grad = self.gauss_constr.get_constrain_grad()
+        return grad + constr_grad, hessp
 
 
 class MixLogLikehoodFCN(CombineFCN):

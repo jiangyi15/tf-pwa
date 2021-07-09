@@ -78,6 +78,52 @@ def sum_gradient_data2(
     return nll, g
 
 
+def sum_grad_hessp_data2(
+    f,
+    p,
+    var,
+    data,
+    data2,
+    weight=1.0,
+    trans=tf.identity,
+    resolution_size=1,
+    args=(),
+    kwargs=None,
+):
+    """
+    The parameters are the same with ``sum_gradient()``, but this function will return hessian as well,
+    which is the matrix of the second-order derivative.
+
+    :return: Real number NLL, list gradient, 2-D list hessian
+    """
+    kwargs = kwargs if kwargs is not None else {}
+    if isinstance(weight, float):
+        weight = _loop_generator(weight)
+    y_s = []
+    g_s = []
+    h_s = []
+    from tensorflow.python.eager import forwardprop
+
+    for data_i, c_data_i, weight_i in zip(data, data2, weight):
+        with forwardprop.ForwardAccumulator(var, list(p)) as acc:
+            with tf.GradientTape() as tape:
+                part_y = trans(f(data_i, c_data_i, *args, **kwargs))
+                y_i = tf.reduce_sum(tf.cast(weight_i, part_y.dtype) * part_y)
+            g_i = tape.gradient(y_i, var, unconnected_gradients="zero")
+        hessp = acc.jvp(g_i, unconnected_gradients="zero")
+        y_s.append(y_i)
+        g_s.append(g_i)
+        h_s.append(hessp)
+        # print(hessp)
+    nll = tf.reduce_sum(y_s)
+    # print("ll: ", nll)
+    g = tf.reduce_sum(g_s, axis=0)
+    h = tf.reduce_sum(h_s, axis=0)
+    # print(h)
+    # h = [[sum(j) for j in zip(*i)] for i in h_s]
+    return nll, g, h
+
+
 class ModelCachedInt(Model):
     """
     This class implements methods to calculate NLL as well as its derivatives for an amplitude model with Cached Int.
@@ -430,3 +476,80 @@ class ModelCachedAmp(Model):
         nll = -ln_data + sw * tf.math.log(int_mc)
 
         return nll, g
+
+    def grad_hessp_batch(self, p, data, mcdata, weight, mc_weight):
+        """
+        ``self.nll_grad()`` is replaced by this one???
+
+        .. math::
+          - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
+            -\\sum_{x_i \\in data } w_i \\frac{\\partial}{\\partial \\theta_k} \\ln f(x_i;\\theta_k)
+            + (\\sum w_j ) \\left( \\frac{ \\partial }{\\partial \\theta_k} \\sum_{x_i \\in mc} f(x_i;\\theta_k) \\right)
+              \\frac{1}{ \\sum_{x_i \\in mc} f(x_i;\\theta_k) }
+
+        :param data:
+        :param mcdata:
+        :param weight:
+        :param mc_weight:
+        :return:
+        """
+        if not hasattr(self, "hess_product_vector_i"):
+            self.hess_product_vector_i = [tf.Variable(i) for i in p]
+        for i, j in zip(self.hess_product_vector_i, p):
+            i.assign(j)
+        data_id = id(data)
+        data = list(data)
+        weight = list(weight)
+        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
+        if data_id not in self.cached_data:
+            self.cached_data[data_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in data
+            ]
+        # print(ln_data, ln_data2, np.allclose(g_ln_data, g_ln_data2))
+        mc_id = id(mcdata)
+        mcdata = list(mcdata)
+        if mc_id not in self.cached_data:
+            self.cached_data[mc_id] = [
+                build_amp.build_angle_amp_matrix(self.Amp.decay_group, i)[1]
+                for i in mcdata
+            ]
+
+        ln_data, g_ln_data, hessp_ln_data = sum_grad_hessp_data2(
+            self.cached_amp,
+            self.hess_product_vector_i,
+            self.Amp.trainable_variables,
+            data,
+            self.cached_data[data_id],
+            weight=weight,
+            trans=clip_log,
+            resolution_size=self.resolution_size,
+        )
+
+        # print("hessp_ln_data",hessp_ln_data)
+
+        int_mc, g_int_mc, hessp_int_mc = sum_grad_hessp_data2(
+            self.cached_amp,
+            self.hess_product_vector_i,
+            self.Amp.trainable_variables,
+            mcdata,
+            self.cached_data[mc_id],
+            weight=mc_weight,
+        )
+
+        # print("hessp_int_mc", hessp_int_mc)
+
+        sw = tf.cast(sw, ln_data.dtype)
+
+        g = list(
+            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+        )
+
+        g_int_mc = np.array(g_int_mc)
+        hessp2 = sw * (
+            hessp_int_mc / int_mc
+            - g_int_mc * np.dot(p, g_int_mc) / int_mc ** 2
+        )
+        # print("hessp2", hessp2)
+        # print("ret", g, hessp2 - hessp_ln_data)
+        return g, hessp2 - hessp_ln_data
