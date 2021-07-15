@@ -3,6 +3,7 @@ import copy
 from tf_pwa.amp.core import get_particle_model_name
 from tf_pwa.cal_angle import cal_angle_from_momentum
 from tf_pwa.data import data_mask, data_merge, data_shape
+from tf_pwa.particle import BaseParticle
 from tf_pwa.phasespace import generate_phsp as generate_phsp_o
 from tf_pwa.tensorflow_wrapper import tf
 
@@ -47,6 +48,93 @@ def single_sampling(phsp, amp, N):
     cut = rnd * tf.reduce_max(weight) * 1.1 < weight
     data = data_mask(data, cut)
     return data
+
+
+@ConfigLoader.register_function()
+def generate_toy2(
+    config, N=1000, force=True, gen=None, gen_p=None, max_N=100000
+):
+    """
+    A more accurate method for generating toy data.
+
+    :param N: number of events.
+    :param force: if romove extra data generated.
+    :param gen: optional function for generate phase space, the return value is same as config.get_data.
+    :param gen_p:  optional function for generate phase space, the return value is dict as `{B: pb, C: pc, D: pd}`.
+    :param max_N: max number of events for every try.
+
+    """
+
+    decay_group = config.get_decay()
+    amp = config.get_amplitude()
+
+    if gen is None:
+        if gen_p is not None:
+
+            def gen(N):
+                p = gen_p(N)
+                p = {
+                    BaseParticle(k) if isinstance(k, str) else k: v
+                    for k, v in p.items()
+                }
+                return cal_angle_from_momentum(p, config.get_decay(False))
+
+        else:
+
+            def gen(M):
+                return generate_phsp(config, M)
+
+    all_data = []
+    n_gen = 0
+    n_accept = 0
+    n_total = 0
+    test_N = 10 * N
+    if not hasattr(config, "max_amplitude"):
+        config.max_amplitude = None
+
+    while N > n_accept:
+        test_N = abs(min(max_N, test_N))
+        data, new_max_weight = single_sampling2(
+            gen, amp, test_N, config.max_amplitude
+        )
+        n_gen = data_shape(data)
+        n_total += test_N
+        if (
+            config.max_amplitude is not None
+            and new_max_weight > config.max_amplitude
+            and len(all_data) > 0
+        ):
+            tmp = data_merge(*all_data)
+            rnd = tf.random.uniform((n_accept,), config.max_amplitude.dtype)
+            cut = rnd * new_max_weight / config.max_amplitude < 1.0
+            tmp = data_mask(tmp, cut)
+            all_data = [tmp]
+            n_accept = data_shape(tmp)
+        else:
+            config.max_amplitude = new_max_weight
+        n_accept += n_gen
+        test_N = int(1.01 * n_total / (n_accept + 1) * (N - n_accept))
+        all_data.append(data)
+
+    ret = data_merge(*all_data)
+
+    if force:
+        cut = tf.range(data_shape(ret)) < N
+        ret = data_mask(ret, cut)
+
+    return ret
+
+
+def single_sampling2(phsp, amp, N, max_weight=None):
+    data = phsp(N)
+    weight = amp(data)
+    new_max_weight = tf.reduce_max(weight)
+    if max_weight is None or max_weight < new_max_weight:
+        max_weight = new_max_weight * 1.01
+    rnd = tf.random.uniform(weight.shape, dtype=weight.dtype)
+    cut = rnd * max_weight < weight
+    data = data_mask(data, cut)
+    return data, max_weight
 
 
 @ConfigLoader.register_function()

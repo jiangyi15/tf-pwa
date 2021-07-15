@@ -11,6 +11,17 @@ def test_generate_phsp(toy_config):
     assert data_shape(data) >= 1000
     data = toy_config.generate_toy(1000)
     assert data_shape(data) == 1000
+    data = toy_config.generate_toy2(1000)
+    assert data_shape(data) == 1000
+    data = toy_config.generate_toy2(1000, gen=toy_config.generate_phsp)
+    assert data_shape(data) == 1000
+    data = toy_config.generate_toy2(1000, gen_p=toy_config.generate_phsp_p)
+    assert data_shape(data) == 1000
+    gen_p2 = lambda N: {
+        str(k): v for k, v in toy_config.generate_phsp_p(N).items()
+    }
+    data = toy_config.generate_toy2(1000, gen_p=gen_p2)
+    assert data_shape(data) == 1000
 
 
 config_text = """
