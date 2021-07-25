@@ -287,7 +287,7 @@ def cal_helicity_angle(
                         ang["alpha"]
                     )
                     if i.core in r_matrix:
-                        r_matrix[j] = r * r_matrix[i.core] * b_matrix[i.core]
+                        r_matrix[j] = r * b_matrix[i.core] * r_matrix[i.core]
                     else:
                         r_matrix[j] = r
                 if len(i.outs) == 3:
