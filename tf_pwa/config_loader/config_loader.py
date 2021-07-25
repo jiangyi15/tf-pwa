@@ -28,6 +28,7 @@ from tf_pwa.applications import (
     corr_coef_matrix,
     fit,
     fit_fractions,
+    num_hess_inv_3point,
 )
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.data import (
@@ -648,6 +649,7 @@ class ConfigLoader(BaseConfig):
         inmc=None,
         batch=10000,
         using_cached=False,
+        method=None,
     ):
         if params is None:
             params = {}
@@ -658,6 +660,10 @@ class ConfigLoader(BaseConfig):
         fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         if using_cached and self.inv_he is not None:
             hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
+        elif method == "3-point":
+            self.inv_he = num_hess_inv_3point(fcn, params)
+            diag_he = self.inv_he.diagonal()
+            hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         else:
             hesse_error, self.inv_he = cal_hesse_error(
                 fcn, params, check_posi_def=True, save_npy=True

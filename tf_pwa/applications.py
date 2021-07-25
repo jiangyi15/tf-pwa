@@ -227,6 +227,34 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     return hesse_error, inv_he
 
 
+def num_hess_inv_3point(fcn, params={}, _epsilon=5e-4):
+    """
+    This function calculates the errors of all trainable variables.
+    The errors are given by the square root of the diagonal of the inverse Hessian matrix.
+
+    :param model: Model.
+    :return hesse_error: List of errors.
+    :return inv_he: The inverse Hessian matrix.
+    """
+    var_names = fcn.vm.trainable_vars
+    old_params = fcn.get_params()
+    fcn(params)
+    f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+    hess = []
+    x0 = np.array(fcn.vm.get_all_val(True))
+    for i in range(len(var_names)):
+        x0[i] += _epsilon
+        _, g1 = f_g(x0)
+        x0[i] -= 2 * _epsilon
+        _, g2 = f_g(x0)
+        x0[i] += _epsilon
+        hess.append([(i - j) / 2 / _epsilon for i, j in zip(g1, g2)])
+    hess_inv = np.linalg.inv(hess)
+    fcn(old_params)
+    hess_inv = fcn.vm.trans_error_matrix(hess_inv, x0)
+    return hess_inv
+
+
 def gen_data(
     amp,
     Ndata,
