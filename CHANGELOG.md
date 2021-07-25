@@ -2,9 +2,30 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.4...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.5...HEAD)
 
-## [v0.1.4](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-04-28)
+## [v0.1.5](https://github.com/jiangyi15/tf-pwa/tree/v0.1.4) (2021-07-25)
+
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.4...v0.1.5)
+
+**<font color=red>Numeric</font>**
+
+- Fix bugs of aligned angle of wrong order of boost and rotation.
+  [#51](https://github.com/jiangyi15/tf-pwa/pull/51)
+
+**Added**
+
+- Polarization and density matrix.
+  [#45](https://github.com/jiangyi15/tf-pwa/pull/45)
+- Plot for cfit. [#48](https://github.com/jiangyi15/tf-pwa/pull/48)
+- Some possible optimize options.
+  [#46](https://github.com/jiangyi15/tf-pwa/pull/46)
+  [#47](https://github.com/jiangyi15/tf-pwa/pull/47)
+  [#49](https://github.com/jiangyi15/tf-pwa/pull/49)
+- New method of generate toy.
+  [#50](https://github.com/jiangyi15/tf-pwa/pull/50)
+
+## [v0.1.4](https://github.com/jiangyi15/tf-pwa/tree/v0.1.4) (2021-04-28)
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.3...v0.1.4)
 
@@ -12,7 +33,7 @@
 
 - fix bugs of D function [#43](https://github.com/jiangyi15/tf-pwa/pull/43)
 
-## [v0.1.3](https://github.com/jiangyi15/tf-pwa/tree/v0.1.2) (2021-04-28)
+## [v0.1.3](https://github.com/jiangyi15/tf-pwa/tree/v0.1.3) (2021-04-28)
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.2...v0.1.3)
 

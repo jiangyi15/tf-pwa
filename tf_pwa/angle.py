@@ -331,12 +331,14 @@ class SU2M(dict):
         beta = tf.math.acos(cosbeta)
         m_1 = tf.abs(x[0][0])
         m_2 = tf.abs(x[1][0])
-        alpha_p_gamma = tf.math.imag(
-            tf.math.log(x[1][1] / tf.complex(m_1, zeros))
-        )
-        alpha_m_gamma = -tf.math.imag(
-            tf.math.log(x[1][0] / tf.complex(m_2, zeros))
-        )
+        # alpha_p_gamma = tf.math.imag(
+        #     tf.math.log(x[1][1] / tf.complex(m_1, zeros))
+        # )
+        alpha_p_gamma = tf.math.angle(x[1][1])
+        alpha_m_gamma = -tf.math.angle(x[1][0])
+        # -tf.math.imag(
+        #    tf.math.log(x[1][0] / tf.complex(m_2, zeros))
+        # )
         alpha = alpha_p_gamma + alpha_m_gamma
         gamma = alpha_p_gamma - alpha_m_gamma
         return EulerAngle(alpha, beta, gamma)
