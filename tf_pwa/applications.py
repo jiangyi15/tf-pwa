@@ -192,9 +192,8 @@ def calPWratio(params, POLAR=True):
 '''
 
 
-def force_pos_def(inv_he):
+def force_pos_def_minuit2(inv_he):
     """
-
     force positive defined of error matrix
 
         from minuit2 https://github.com/root-project/root/blob/master/math/minuit2/sec/MnPosDef.cxx
@@ -218,6 +217,7 @@ def force_pos_def(inv_he):
     inv_he += np.diag(diag_i * dg)
     warnings.warn("Added to diagonal of Error Matrix a value {}".format(dgmin))
     diag2 = np.diagonal(inv_he)
+    diag2 = np.where(diag2 < 0, 1, diag2)
     e = 1 / np.sqrt(diag2)
     p = inv_he.copy() / diag[:, None] / diag[None, :]
     p = np.triu(p, 0)
@@ -233,6 +233,36 @@ def force_pos_def(inv_he):
         "Matrix forced pos-def by adding to diagonal {}".format(padd)
     )
     return inv_he
+
+
+def force_pos_def(h):
+    """
+    from pricession lost hessian matrix
+    eigen value is small
+
+    dot(H, v[:,i] = e[i] v[:,i]
+    dot(H, v)[:,i] = e[i] v[:,i]
+    dot(inv(v), dot(H, v)) = diag(e)
+    H = dot(v, dot(diag(e), inv(v))
+
+    """
+    e, v = np.linalg.eig(h)
+    inv_he = np.linalg.pinv(h)
+    e_min = np.min(e)
+    if e_min > 0:
+        return inv_he
+    if e_min > -1e-3:  # pricession cause small nagtive eigen value
+        idx = np.argmin(e)
+        e_new = np.where(e < 0, e - e_min * 1.1, e)
+        warnings.warn(
+            "Matrix forced pos-def by adding {} to eigen value".format(
+                -e_min * 1.1
+            )
+        )
+        h = np.dot(v, np.dot(np.diag(e_new), np.linalg.inv(v)))
+        inv_he = np.linalg.inv(h)
+        return inv_he
+    return force_pos_def_minuit2(inv_he)
 
 
 def cal_hesse_error(
@@ -258,7 +288,7 @@ def cal_hesse_error(
     else:
         inv_he = np.linalg.pinv(h)
         if force_pos:
-            inv_he = force_pos_def(inv_he)
+            inv_he = force_pos_def(h)
 
     if save_npy:
         np.save("error_matrix.npy", inv_he)
