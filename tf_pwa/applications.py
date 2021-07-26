@@ -249,9 +249,10 @@ def force_pos_def(h):
     e, v = np.linalg.eig(h)
     inv_he = np.linalg.pinv(h)
     e_min = np.min(e)
+    e_max = np.max(np.abs(e))
     if e_min > 0:
         return inv_he
-    if e_min > -1e-3:  # pricession cause small nagtive eigen value
+    if e_min > -0.00001 * e_max:  # pricession cause small nagtive eigen value
         idx = np.argmin(e)
         e_new = np.where(e < 0, e - e_min * 1.1, e)
         warnings.warn(
@@ -295,6 +296,60 @@ def cal_hesse_error(
     diag_he = inv_he.diagonal()
     hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
     return hesse_error, inv_he
+
+
+def cal_hesse_correct(fcn, params={}, corr_params={}, force_pos=True):
+    t = time.time()
+    nll, g, h = fcn.nll_grad_hessian(params)
+    # data_w,mcdata,weight=weights,batch=50000)
+    h = h.numpy()
+    var_names = fcn.vm.trainable_vars
+    params0 = fcn.get_params()
+    x0 = np.array([params0[k] for k in var_names])
+    idxs = [var_names.index(k) for k in corr_params]
+    # calculate hessian matrix for special params
+    _epsilon = 1e-3
+    _epsilon2 = _epsilon * 2
+    x = x0.copy()
+    for i in idxs:
+        for j in range(len(var_names)):
+            if j in idxs and i > j:
+                continue
+            if i == j:
+                x[i] += 2 * _epsilon
+                nll_pp = fcn(x)
+                x[i] -= _epsilon
+                nll_pm = fcn(x)
+                x[i] -= 2 * _epsilon
+                nll_mp = fcn(x)
+                x[i] -= _epsilon
+                nll_mm = fcn(x)
+                x[i] += 2 * _epsilon
+                gp = (nll_pp - nll_mp) / 3 / _epsilon
+                gm = (nll_mp - nll_mm) / 3 / _epsilon
+                new_hi = (gp - gm) / _epsilon
+                h[i, i] = new_hi
+            else:
+                x[i] += _epsilon
+                x[j] += _epsilon
+                nll_pp = fcn(x)
+                x[j] -= 2 * _epsilon
+                nll_pm = fcn(x)
+                x[j] += _epsilon
+                x[i] -= 2 * _epsilon
+                x[j] += _epsilon
+                nll_mp = fcn(x)
+                x[j] -= 2 * _epsilon
+                nll_mm = fcn(x)
+                x[j] += _epsilon
+                x[i] += _epsilon
+                gp = (nll_pp - nll_pm) / _epsilon2
+                gm = (nll_mp - nll_mm) / _epsilon2
+                new_hi = (gp - gm) / _epsilon2
+                h[i, j] = new_hi
+                h[j, i] = new_hi
+    print("Time for calculating errors:", time.time() - t)
+    return h
 
 
 def num_hess_inv_3point(fcn, params={}, _epsilon=5e-4):
