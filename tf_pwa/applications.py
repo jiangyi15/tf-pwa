@@ -192,7 +192,52 @@ def calPWratio(params, POLAR=True):
 '''
 
 
-def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
+def force_pos_def(inv_he):
+    """
+
+    force positive defined of error matrix
+
+        from minuit2 https://github.com/root-project/root/blob/master/math/minuit2/sec/MnPosDef.cxx
+    """
+    inv_he = np.array(inv_he)
+    finfo = np.info(inv_he.dtype)
+    # print(finfo, inv_he.dtype)
+    if finfo is not None:
+        eps = finfo.eps
+    else:
+        eps = 2.220446049250313e-16  # float64
+    eps2 = 2 * np.sqrt(eps)
+
+    diag = np.diagonal(inv_he)
+    diag_i = np.ones_like(diag)
+    dgmin = np.min(diag)
+    if dgmin > 0:
+        return inv_he
+    epspdf = max(1e-6, eps2)
+    dg = 0.5 + epspdf - dgmin
+    inv_he += np.diag(diag_i * dg)
+    warnings.warn("Added to diagonal of Error Matrix a value {}".format(dgmin))
+    diag2 = np.diagonal(inv_he)
+    e = 1 / np.sqrt(diag2)
+    p = inv_he.copy() / diag[:, None] / diag[None, :]
+    p = np.triu(p, 0)
+    e, v = np.linalg.eig(p)
+    pmin = np.min(e)
+    pmax = max(np.max(np.abs(e)), 1)
+    if pmin > epspdf * pmax:
+        return inv_he
+
+    padd = 0.001 * pmax - pmin
+    inv_he += np.diag(np.diag(inv_he) * padd)
+    warnings.warn(
+        "Matrix forced pos-def by adding to diagonal {}".format(padd)
+    )
+    return inv_he
+
+
+def cal_hesse_error(
+    fcn, params={}, check_posi_def=True, force_pos=True, save_npy=True
+):
     """
     This function calculates the errors of all trainable variables.
     The errors are given by the square root of the diagonal of the inverse Hessian matrix.
@@ -207,18 +252,13 @@ def cal_hesse_error(fcn, params={}, check_posi_def=True, save_npy=True):
     )  # data_w,mcdata,weight=weights,batch=50000)
     print("Time for calculating errors:", time.time() - t)
     h = h.numpy()
-    if check_positive_definite(h):
+    inv_he = np.linalg.inv(h)
+    if check_posi_def and check_positive_definite(inv_he):
         inv_he = np.linalg.inv(h)
     else:
-        e, v = np.linalg.eig(h)
-        diag_add = max(0.0, -np.min(e) * 1.1)
-        if diag_add > 0.0:
-            warnings.warn(
-                "error matrix not positive, force add {}".format(diag_add)
-            )
-        h = h + np.diag(np.ones_like(e) * diag_add)
-        h = np.linalg.pinv(h)
         inv_he = np.linalg.pinv(h)
+        if force_pos:
+            inv_he = force_pos_def(inv_he)
 
     if save_npy:
         np.save("error_matrix.npy", inv_he)

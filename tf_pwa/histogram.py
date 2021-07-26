@@ -98,7 +98,11 @@ class Hist1D:
         x = np.linspace(
             self.binning[0], self.binning[-1], self.count.shape[0] * 10
         )
-        return ax.plot(x, kde(x), color=color, **kwargs)
+        if "fmt" in kwargs:
+            fmt = kwargs.pop("fmt")
+            return ax.plot(x, kde(x), fmt, color=color, **kwargs)
+        else:
+            return ax.plot(x, kde(x), color=color, **kwargs)
 
     def draw_pull(self, ax=plt, **kwargs):
         with np.errstate(divide="ignore", invalid="ignore"):

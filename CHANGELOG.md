@@ -4,7 +4,7 @@
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.5...HEAD)
 
-## [v0.1.5](https://github.com/jiangyi15/tf-pwa/tree/v0.1.4) (2021-07-25)
+## [v0.1.5](https://github.com/jiangyi15/tf-pwa/tree/v0.1.5) (2021-07-25)
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.4...v0.1.5)
 
