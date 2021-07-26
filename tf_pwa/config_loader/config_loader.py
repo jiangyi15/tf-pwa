@@ -24,10 +24,12 @@ from tf_pwa.amp import (
     get_particle,
 )
 from tf_pwa.applications import (
+    cal_hesse_correct,
     cal_hesse_error,
     corr_coef_matrix,
     fit,
     fit_fractions,
+    force_pos_def,
     num_hess_inv_3point,
 )
 from tf_pwa.cal_angle import prepare_data_from_decay
@@ -650,9 +652,18 @@ class ConfigLoader(BaseConfig):
         batch=10000,
         using_cached=False,
         method=None,
+        force_pos=True,
+        correct_params=None,
     ):
+        """
+        calculate parameters error
+        """
         if params is None:
             params = {}
+        if correct_params is None:
+            correct_params = []
+            if method is None:
+                method = "correct"
         if data is None:
             data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
@@ -664,9 +675,21 @@ class ConfigLoader(BaseConfig):
             self.inv_he = num_hess_inv_3point(fcn, params)
             diag_he = self.inv_he.diagonal()
             hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
+        elif method == "correct":
+            h = cal_hesse_correct(fcn, params, correct_params)
+            if force_pos:
+                self.inv_he = force_pos_def(h)
+            else:
+                self.inv_he = np.linalg.pinv(h)
+            diag_he = self.inv_he.diagonal()
+            hesse_error = np.sqrt(np.fabs(diag_he)).tolist()
         else:
             hesse_error, self.inv_he = cal_hesse_error(
-                fcn, params, check_posi_def=True, save_npy=True
+                fcn,
+                params,
+                check_posi_def=True,
+                save_npy=True,
+                force_pos=force_pos,
             )
         # print("parameters order")
         # print(fcn.model.Amp.vm.trainable_vars)

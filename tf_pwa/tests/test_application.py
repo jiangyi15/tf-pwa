@@ -1,6 +1,6 @@
 import numpy as np
 
-from tf_pwa.application import force_pos_def
+from tf_pwa.applications import force_pos_def
 
 
 def test_force_pos():

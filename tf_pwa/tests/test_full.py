@@ -141,6 +141,9 @@ def test_fit(toy_config, fit_result):
     toy_config.plot_partial_wave(prefix="toy_data/figure", color_first=False)
     toy_config.get_params_error(fit_result)
     toy_config.get_params_error(fit_result, method="3-point")
+    toy_config.get_params_error(
+        fit_result, correct_params=["A->R_CD.BR_CD->C.D_total_0i"]
+    )
     fit_result.save_as("toy_data/final_params.json")
     fit_frac, frac_err = toy_config.cal_fitfractions()
     tuple_table(fit_frac)
