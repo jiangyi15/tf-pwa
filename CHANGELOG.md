@@ -4,6 +4,17 @@
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.5...HEAD)
 
+**<font color=red>Numeric</font>**
+
+- Support parity transfomation, for charge conjugation process. The old method
+  is still aviable for `cp_trans: False`
+  [#53](https://github.com/jiangyi15/tf-pwa/pull/53)
+
+**Changed**
+
+- Force hessian matrix positive defined by adding some value for eigen value.
+  [#52](https://github.com/jiangyi15/tf-pwa/pull/52)
+
 ## [v0.1.5](https://github.com/jiangyi15/tf-pwa/tree/v0.1.5) (2021-07-25)
 
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.4...v0.1.5)
