@@ -483,8 +483,13 @@ def add_relative_momentum(data: dict):
     return data
 
 
+def parity_trans(p, charges):
+    charges = charges[: p.shape[0], None]
+    return tf.where(charges > 0, p, LorentzVector.neg(p))
+
+
 def prepare_data_from_decay(
-    fnames, decs, particles=None, dtype=None, **kwargs
+    fnames, decs, particles=None, dtype=None, charges=None, **kwargs
 ):
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
@@ -500,6 +505,8 @@ def prepare_data_from_decay(
     if particles is None:
         particles = sorted(decs.outs)
     p = load_dat_file(fnames, particles, dtype=dtype)
+    if charges is not None:
+        p = {k: parity_trans(v, charges) for k, v in p.items()}
     data = cal_angle_from_momentum(p, decs, **kwargs)
     return data
 

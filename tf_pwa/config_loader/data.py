@@ -141,6 +141,8 @@ class SimpleData:
         center_mass = self.dic.get("center_mass", True)
         r_boost = self.dic.get("r_boost", False)
         random_z = self.dic.get("random_z", False)
+        cp_trans = self.dic.get("cp_trans", False)
+        charges = None if charge is None else self.load_weight_file(charge)
         data = prepare_data_from_decay(
             files,
             self.decay_struct,
@@ -148,6 +150,7 @@ class SimpleData:
             center_mass=center_mass,
             r_boost=r_boost,
             random_z=random_z,
+            charges=charges if cp_trans else None,
         )
         if weights is not None:
             if isinstance(weights, float):
@@ -162,8 +165,11 @@ class SimpleData:
                     "weight format error: {}".format(type(weights))
                 )
         if charge is not None:
-            charges = self.load_weight_file(charge)
-            data["charge_conjugation"] = charges[: data_shape(data)]
+            if cp_trans:
+                data["charge_conjugation"] = np.ones((data_shape(data),))
+                data["charge_conjugation2"] = charges[: data_shape(data)]
+            else:
+                data["charge_conjugation"] = charges[: data_shape(data)]
         else:
             data["charge_conjugation"] = np.ones((data_shape(data),))
         return data
