@@ -31,3 +31,8 @@ def test_load_data(gen_toy):
     data = load_data_mode(data_file, dec, "simple")
     w2 = data.get_data("bg")["weight"]
     assert np.allclose(w1, w2)
+
+    data = load_data_mode({**data_file, "cp_trans": True}, dec, "simple")
+    np.savetxt("toy_data/test_charge.dat", np.random.random(w2.shape) > 0.5)
+    p1 = data.load_data("toy_data/bg.dat", charge="toy_data/test_charge.dat")
+    assert np.sum(p1["charge_conjugation"] - 1) == 0
