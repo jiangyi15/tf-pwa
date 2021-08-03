@@ -141,7 +141,7 @@ class SimpleData:
         center_mass = self.dic.get("center_mass", True)
         r_boost = self.dic.get("r_boost", False)
         random_z = self.dic.get("random_z", False)
-        cp_trans = self.dic.get("cp_trans", False)
+        cp_trans = self.dic.get("cp_trans", True)
         charges = None if charge is None else self.load_weight_file(charge)
         data = prepare_data_from_decay(
             files,
