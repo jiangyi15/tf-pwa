@@ -5,7 +5,11 @@ import warnings
 import numpy as np
 
 from tf_pwa.amp import get_particle
-from tf_pwa.cal_angle import prepare_data_from_decay
+from tf_pwa.cal_angle import (
+    cal_angle_from_momentum,
+    load_dat_file,
+    parity_trans,
+)
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import (
     data_index,
@@ -131,6 +135,26 @@ class SimpleData:
         weight = data.get("weight", np.ones((data_shape(data),)))
         return np.sum(weight)
 
+    def load_p4(self, fnames):
+        particles = self.get_dat_order()
+        p = load_dat_file(fnames, particles)
+        return p
+
+    def cal_angle(self, p4):
+        if isinstance(p4, (list, tuple)):
+            p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
+        center_mass = self.dic.get("center_mass", True)
+        r_boost = self.dic.get("r_boost", False)
+        random_z = self.dic.get("random_z", False)
+        data = cal_angle_from_momentum(
+            p4,
+            self.decay_struct,
+            center_mass=center_mass,
+            r_boost=r_boost,
+            random_z=random_z,
+        )
+        return data
+
     def load_data(
         self, files, weights=None, weights_sign=1, charge=None
     ) -> dict:
@@ -138,20 +162,12 @@ class SimpleData:
         if files is None:
             return None
         order = self.get_dat_order()
-        center_mass = self.dic.get("center_mass", True)
-        r_boost = self.dic.get("r_boost", False)
-        random_z = self.dic.get("random_z", False)
-        cp_trans = self.dic.get("cp_trans", True)
         charges = None if charge is None else self.load_weight_file(charge)
-        data = prepare_data_from_decay(
-            files,
-            self.decay_struct,
-            order,
-            center_mass=center_mass,
-            r_boost=r_boost,
-            random_z=random_z,
-            charges=charges if cp_trans else None,
-        )
+        p4 = self.load_p4(files)
+        cp_trans = self.dic.get("cp_trans", True)
+        if cp_trans and charges:
+            p = {k: parity_trans(v, charges) for k, v in p.items()}
+        data = self.cal_angle(p4)
         if weights is not None:
             if isinstance(weights, float):
                 data["weight"] = np.array(

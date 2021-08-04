@@ -49,6 +49,7 @@ The full data structure provided is ::
 Inner nodes are named as tuple of particles.
 
 """
+import itertools
 
 import numpy as np
 
@@ -550,7 +551,7 @@ def get_chain_data(data, decay_chain=None):
     return ret
 
 
-def cal_angle_from_momentum(
+def cal_angle_from_momentum_base(
     p,
     decs: DecayGroup,
     using_topology=True,
@@ -574,6 +575,61 @@ def cal_angle_from_momentum(
             )
         )
     return data_merge(*ret)
+
+
+def identical_particles_swap(id_particles):
+    ret = []
+    for i in id_particles:
+        ret.append(list(itertools.permutations(i)))
+    print(ret)
+    for i in itertools.product(*ret):
+        yield i
+
+
+def identical_particles_swap_p(p4, id_particles):
+    for comb in identical_particles_swap(id_particles):
+        all_keys = tuple(p4.keys())
+        name_map = {str(k): k for k in all_keys}
+        swap_map = {}
+        for c, p_list in zip(comb, id_particles):
+            for ci, pi in zip(c, p_list):
+                swap_map[ci] = name_map[pi]
+        new_order = tuple([swap_map.get(str(i), i) for i in all_keys])
+        if all_keys == new_order:
+            continue
+        yield (new_order, comb), dict(zip(new_order, p4.values()))
+
+
+def cal_angle_from_momentum(
+    p,
+    decs: DecayGroup,
+    using_topology=True,
+    center_mass=False,
+    r_boost=True,
+    random_z=False,
+    batch=65000,
+) -> CalAngleData:
+    """
+    Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
+
+    :param p: 4-momentum data
+    :param decs: DecayGroup
+    :return: Dictionary of data
+    """
+    ret = []
+    id_particles = decs.identical_particles
+    data = cal_angle_from_momentum_base(
+        p, decs, using_topology, center_mass, r_boost, random_z, batch
+    )
+    if id_particles is None or len(id_particles) == 0:
+        return data
+    else:
+        data["id_swap"] = {}
+        for i, pi in identical_particles_swap_p(p, id_particles):
+            data["id_swap"][i] = cal_angle_from_momentum_base(
+                pi, decs, using_topology, center_mass, r_boost, random_z, batch
+            )
+        return data
 
 
 def cal_angle_from_momentum_single(

@@ -1233,6 +1233,29 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         # ret = tf.reduce_sum(ret, axis=0)
         return amp
 
+    @functools.lru_cache()
+    def get_swap_factor(self, key):
+        factor = 1.0
+        for i, j in zip(self.identical_particles, key[1]):
+            p = self.get_particle(i[0])
+            if int(p.J * 2) % 2 == 0:
+                continue
+            for m, n in zip(i, j):
+                if m != n:
+                    factor *= -1.0
+        return factor
+
+    def get_amp2(self, data):
+        amp = self.get_amp(data)
+        id_swap = data.get("id_swap", {})
+        for k, v in id_swap.items():
+            new_data = {**data, **v}
+            factor = self.get_swap_factor(k)
+            amp_swap = factor * self.get_amp(new_data)
+            # print(k, amp, amp_swap)
+            amp = amp + amp_swap
+        return amp
+
     def sum_amp(self, data, cached=True):
         """
         calculat the amplitude modular square
@@ -1241,7 +1264,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             data = simple_deepcopy(data)
         if self.polarization != "none":
             return self.sum_amp_polarization(data)
-        amp = self.get_amp(data)
+        amp = self.get_amp2(data)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         idx = list(range(1, len(amp2s.shape)))
         sum_A = tf.reduce_sum(amp2s, idx)

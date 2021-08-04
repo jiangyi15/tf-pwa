@@ -828,6 +828,7 @@ class DecayGroup(object):
                 if j not in resonances:
                     resonances.append(j)
         self.resonances = list(resonances)
+        self.identical_particles = []
 
     def __repr__(self):
         return "{}".format(self.chains)
