@@ -165,8 +165,8 @@ class SimpleData:
         charges = None if charge is None else self.load_weight_file(charge)
         p4 = self.load_p4(files)
         cp_trans = self.dic.get("cp_trans", True)
-        if cp_trans and charges:
-            p = {k: parity_trans(v, charges) for k, v in p.items()}
+        if cp_trans and charges is not None:
+            p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
         data = self.cal_angle(p4)
         if weights is not None:
             if isinstance(weights, float):
@@ -181,11 +181,7 @@ class SimpleData:
                     "weight format error: {}".format(type(weights))
                 )
         if charge is not None:
-            if cp_trans:
-                data["charge_conjugation"] = np.ones((data_shape(data),))
-                data["charge_conjugation2"] = charges[: data_shape(data)]
-            else:
-                data["charge_conjugation"] = charges[: data_shape(data)]
+            data["charge_conjugation"] = charges[: data_shape(data)]
         else:
             data["charge_conjugation"] = np.ones((data_shape(data),))
         return data

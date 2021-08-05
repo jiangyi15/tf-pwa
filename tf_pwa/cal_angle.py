@@ -581,7 +581,6 @@ def identical_particles_swap(id_particles):
     ret = []
     for i in id_particles:
         ret.append(list(itertools.permutations(i)))
-    print(ret)
     for i in itertools.product(*ret):
         yield i
 
