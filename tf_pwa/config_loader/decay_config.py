@@ -7,6 +7,7 @@ import yaml
 from tf_pwa.amp import (
     DecayChain,
     DecayGroup,
+    HelicityDecay,
     get_decay,
     get_particle,
     split_particle_type,
@@ -22,7 +23,34 @@ def set_min_max(dic, name, name_min, name_max):
         )
 
 
+def decay_chain_cut_ls(decay):
+    for i in decay:
+        if isinstance(i, HelicityDecay):
+            if len(i.get_ls_list()) == 0:
+                return False, f"{i} ls not aviable {i.get_ls_list()}"
+    return True, ""
+
+
+def decay_chain_cut_mass(decay):
+    for i in decay:
+        if isinstance(i, HelicityDecay):
+            if i.core.mass is None or any([j.mass is None for j in i.outs]):
+                continue
+            # print(i, i.core.mass, [j.mass for j in i.outs])
+            if i.core.mass < sum([j.mass for j in i.outs]):
+                return (
+                    False,
+                    f"{i} mass break {i.core.mass} < {[j.mass for j in i.outs]}",
+                )
+    return True, ""
+
+
 class DecayConfig(BaseConfig):
+    decay_chain_cut_list = {
+        "ls_cut": decay_chain_cut_ls,
+        "mass_cut": decay_chain_cut_mass,
+    }
+
     def __init__(self, dic, share_dict={}):
         self.config = dic
         self.decay_chain_config = dic.get("decay_chain", {})
@@ -39,6 +67,7 @@ class DecayConfig(BaseConfig):
             "bw_l": "bw_l",
             "running_width": "running_width",
         }
+        self.cut_list = self.config["data"].get("decay_chain_cut", ["ls_cut"])
         self.decay_key_map = {"model": "model"}
         self.dec = self.decay_item(self.config["decay"])
         (
@@ -57,7 +86,17 @@ class DecayConfig(BaseConfig):
                 self.decay_chain_config,
             )
         )
-        self.decay_struct = DecayGroup(self.get_decay_struct(self.dec))
+        if self.config["data"].get("cp_trans", True):
+            self.disable_allow_cc(self.full_decay)
+        self.decay_struct = DecayGroup(
+            self.get_decay_struct(self.dec, process_cut=False)
+        )
+        identical_particles = self.config["data"].get(
+            "identical_particles", None
+        )
+        if identical_particles is not None:
+            self.decay_struct.identical_particles = identical_particles
+            self.full_decay.identical_particles = identical_particles
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -190,6 +229,28 @@ class DecayConfig(BaseConfig):
             ret[key_map.get(k, k)] = v
         return ret
 
+    def decay_chain_cut(self, decays):
+        ret = []
+        for i in decays:
+            flag = True
+            for name in self.cut_list:
+                f = DecayConfig.decay_chain_cut_list[name]
+                new_flag, msg = f(i)
+                flag = flag and new_flag
+                if not flag:
+                    print(
+                        "remove decay chain",
+                        i,
+                        "by",
+                        name,
+                        "\n\tbecause of",
+                        msg,
+                    )
+                    break
+            if flag:
+                ret.append(i)
+        return ret
+
     def get_decay_struct(
         self,
         decay,
@@ -198,6 +259,7 @@ class DecayConfig(BaseConfig):
         top=None,
         finals=None,
         chain_params={},
+        process_cut=True,
     ):
         """  get decay structure for decay dict"""
         particle_map = particle_map if particle_map is not None else {}
@@ -268,4 +330,12 @@ class DecayConfig(BaseConfig):
             if sorted(DecayChain(i).outs) == sorted(finals):
                 all_params = chain_params.get("$all", {})
                 ret.append(DecayChain(i, **all_params))
+        if process_cut:
+            return self.decay_chain_cut(ret)
         return ret
+
+    def disable_allow_cc(self, decay_group):
+        for decay_chain in decay_group:
+            for decay in decay_chain:
+                if hasattr(decay, "allow_cc"):
+                    decay.allow_cc = False

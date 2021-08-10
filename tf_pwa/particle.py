@@ -432,25 +432,37 @@ class Decay(BaseDecay):  # add useful methods to BaseDecay
         return ret
 
 
-def split_particle_type(decays):
+def split_particle_type_list(decays):
     """
     Separate initial particle, intermediate particles, final particles in a decay chain.
 
     :param decays: DecayChain
     :return: Set of initial Particle, set of intermediate Particle, set of final Particle
     """
-    core_particles = set()
-    out_particles = set()
+    core_particles = []
+    out_particles = []
 
     for i in decays:
-        core_particles.add(i.core)
+        core_particles.append(i.core)
         for j in i.outs:
-            out_particles.add(j)
+            out_particles.append(j)
 
-    inner = core_particles & out_particles
-    top = core_particles - inner
-    outs = out_particles - inner
+    inner = [
+        i for i in core_particles if i in out_particles
+    ]  # core_particles & out_particles
+    top = [
+        i for i in core_particles if i not in inner
+    ]  # core_particles - inner
+    outs = [
+        i for i in out_particles if i not in inner
+    ]  # out_particles - inner
+    # print(decays, inner, top, outs)
     return top, inner, outs
+
+
+def split_particle_type(decays):
+    top, inner, outs = split_particle_type_list(decays)
+    return set(top), set(inner), set(outs)
 
 
 def split_len(dicts):
@@ -485,7 +497,7 @@ class DecayChain(object):
 
     def __init__(self, chain):
         self.chain = chain
-        top, inner, outs = split_particle_type(chain)
+        top, inner, outs = split_particle_type_list(chain)
         assert len(top) == 1, "top particles must be only one particle"
         self.top = top.pop()
         self.inner = sorted(list(inner))
@@ -828,6 +840,7 @@ class DecayGroup(object):
                 if j not in resonances:
                     resonances.append(j)
         self.resonances = list(resonances)
+        self.identical_particles = []
 
     def __repr__(self):
         return "{}".format(self.chains)
