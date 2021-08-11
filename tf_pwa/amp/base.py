@@ -425,3 +425,50 @@ class HelicityDecayP(HelicityDecay):
                 axis=1,
             )
         return H
+
+
+@regist_decay("gls-cpv")
+class HelicityDecay(HelicityDecay):
+    def init_params(self):
+        self.d = 3.0
+        ls = self.get_ls_list()
+        self.g_ls = self.add_var(
+            "g_ls", is_complex=True, shape=(len(ls),), is_cp=True
+        )
+        try:
+            self.g_ls.set_fix_idx(fix_idx=0, fix_vals=(1.0, 0.0))
+        except Exception as e:
+            print(e, self, self.get_ls_list())
+
+    def get_g_ls(self, charge=1):
+        gls = self.g_ls(charge)
+        if self.ls_index is None:
+            return tf.stack(gls)
+        # print(self, gls, self.ls_index)
+        return tf.stack([gls[k] for k in self.ls_index])
+
+    def get_ls_amp(self, data, data_p, **kwargs):
+        charge = kwargs.get("all_data", {}).get("charge_conjugation", None)
+        g_ls_p = self.get_g_ls(1)
+        if charge is None:
+            g_ls = g_ls_p
+        else:
+            g_ls_m = self.get_g_ls(-1)
+            g_ls = tf.where((charge > 0)[:, None], g_ls_p, g_ls_m)
+        # print(g_ls)
+        q0 = self.get_relative_momentum2(data_p, False)
+        data["|q0|2"] = q0
+        if "|q|2" in data:
+            q = data["|q|2"]
+        else:
+            q = self.get_relative_momentum2(data_p, True)
+            data["|q|2"] = q
+        if self.has_barrier_factor:
+            bf = self.get_barrier_factor2(
+                data_p[self.core]["m"], q, q0, self.d
+            )
+            mag = g_ls
+            m_dep = mag * tf.cast(bf, mag.dtype)
+        else:
+            m_dep = g_ls
+        return m_dep

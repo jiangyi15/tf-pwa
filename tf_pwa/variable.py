@@ -1418,8 +1418,9 @@ class Variable(object):
                         # print("set_fix_idx set name+r ", name)
                         self.vm.set_fix(name + "r", value=fix_vals[0])
                         self.vm.set_fix(name + "i", value=fix_vals[1])
-                        self.vm.set_fix(name + "deltar", value=fix_vals[2])
-                        self.vm.set_fix(name + "deltai", value=fix_vals[3])
+                        if len(fix_vals) > 2:
+                            self.vm.set_fix(name + "deltar", value=fix_vals[2])
+                            self.vm.set_fix(name + "deltai", value=fix_vals[3])
                 for ss in free_idx_str:
                     if name.endswith(ss):
                         self.vm.set_fix(name + "r", unfix=True)

@@ -105,7 +105,9 @@ def generate_toy2(
             and len(all_data) > 0
         ):
             tmp = data_merge(*all_data)
-            rnd = tf.random.uniform((n_accept,), config.max_amplitude.dtype)
+            rnd = tf.random.uniform(
+                (n_accept,), dtype=config.max_amplitude.dtype
+            )
             cut = rnd * new_max_weight / config.max_amplitude < 1.0
             tmp = data_mask(tmp, cut)
             all_data = [tmp]
