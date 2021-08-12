@@ -502,8 +502,6 @@ class HelicityDecay(AmpDecay):
         self.ls_list = None
         if ls_list is not None:
             self.ls_list = tuple([tuple(i) for i in ls_list])
-        if params_polar is None:
-            params_polar = get_config("polar")
         self.params_polar = params_polar
 
     def check_valid_jp(self):
