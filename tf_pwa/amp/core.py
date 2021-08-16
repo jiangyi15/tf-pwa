@@ -485,6 +485,7 @@ class HelicityDecay(AmpDecay):
         allow_cc=True,
         ls_list=None,
         barrier_factor_norm=False,
+        params_polar=None,
         **kwargs
     ):
         super(HelicityDecay, self).__init__(*args, **kwargs)
@@ -501,6 +502,7 @@ class HelicityDecay(AmpDecay):
         self.ls_list = None
         if ls_list is not None:
             self.ls_list = tuple([tuple(i) for i in ls_list])
+        self.params_polar = params_polar
 
     def check_valid_jp(self):
         if len(self.get_ls_list()) == 0:
@@ -529,7 +531,9 @@ class HelicityDecay(AmpDecay):
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()
-        self.g_ls = self.add_var("g_ls", is_complex=True, shape=(len(ls),))
+        self.g_ls = self.add_var(
+            "g_ls", is_complex=True, polar=self.params_polar, shape=(len(ls),)
+        )
         try:
             self.g_ls.set_fix_idx(fix_idx=0, fix_vals=(1.0, 0.0))
         except Exception as e:

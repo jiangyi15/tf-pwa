@@ -2,6 +2,7 @@ import copy
 
 from tf_pwa.amp.core import get_particle_model_name
 from tf_pwa.cal_angle import cal_angle_from_momentum
+from tf_pwa.config import get_config
 from tf_pwa.data import data_mask, data_merge, data_shape
 from tf_pwa.particle import BaseParticle
 from tf_pwa.phasespace import generate_phsp as generate_phsp_o
@@ -52,7 +53,13 @@ def single_sampling(phsp, amp, N):
 
 @ConfigLoader.register_function()
 def generate_toy2(
-    config, N=1000, force=True, gen=None, gen_p=None, max_N=100000
+    config,
+    N=1000,
+    force=True,
+    gen=None,
+    gen_p=None,
+    max_N=100000,
+    include_charge=False,
 ):
     """
     A more accurate method for generating toy data.
@@ -95,7 +102,11 @@ def generate_toy2(
     while N > n_accept:
         test_N = abs(min(max_N, test_N))
         data, new_max_weight = single_sampling2(
-            gen, amp, test_N, config.max_amplitude
+            gen,
+            amp,
+            test_N,
+            config.max_amplitude,
+            include_charge=include_charge,
         )
         n_gen = data_shape(data)
         n_total += test_N
@@ -105,7 +116,9 @@ def generate_toy2(
             and len(all_data) > 0
         ):
             tmp = data_merge(*all_data)
-            rnd = tf.random.uniform((n_accept,), config.max_amplitude.dtype)
+            rnd = tf.random.uniform(
+                (n_accept,), dtype=config.max_amplitude.dtype
+            )
             cut = rnd * new_max_weight / config.max_amplitude < 1.0
             tmp = data_mask(tmp, cut)
             all_data = [tmp]
@@ -125,8 +138,23 @@ def generate_toy2(
     return ret
 
 
-def single_sampling2(phsp, amp, N, max_weight=None):
+def single_sampling2(phsp, amp, N, max_weight=None, include_charge=False):
     data = phsp(N)
+    if "charge_conjugation" not in data:
+        if include_charge:
+            charge = (
+                tf.cast(
+                    tf.random.uniform((data_shape(data),)) > 0.5,
+                    get_config("dtype"),
+                )
+                * 2
+                - 1
+            )
+            data["charge_conjugation"] = charge
+        else:
+            data["charge_conjugation"] = tf.ones(
+                (data_shape(data),), get_config("dtype")
+            )
     weight = amp(data)
     new_max_weight = tf.reduce_max(weight)
     if max_weight is None or max_weight < new_max_weight:

@@ -15,6 +15,16 @@ def test_generate_phsp(toy_config):
     assert data_shape(data) == 1000
     data = toy_config.generate_toy2(1000, gen=toy_config.generate_phsp)
     assert data_shape(data) == 1000
+    data = toy_config.generate_toy2(
+        1000, gen_p=toy_config.generate_phsp_p, include_charge=True
+    )
+    data.savetxt(
+        "toy_data/data_c.dat",
+        toy_config.get_dat_order(),
+        cp_trans=True,
+        save_charge=True,
+    )
+    assert data_shape(data) == 1000
     data = toy_config.generate_toy2(1000, gen_p=toy_config.generate_phsp_p)
     assert data_shape(data) == 1000
     gen_p2 = lambda N: {
