@@ -148,6 +148,18 @@ def test_fit(toy_config, fit_result):
     fit_frac, frac_err = toy_config.cal_fitfractions()
     tuple_table(fit_frac)
 
+    with toy_config.params_trans() as pt:
+        a = pt["A->R_BC.D_g_ls_1r"]
+        b = pt["A->R_BC.D_g_ls_1i"]
+        alpha = 2 * a / (1 + a * a + b + b)
+    alpha_err = pt.get_error(alpha)
+    with toy_config.params_trans() as pt:
+        a = pt["A->R_BC.D_g_ls_1r"]
+        b = pt["A->R_BC.D_g_ls_1i"]
+        x = a + b
+        y = a - b
+    xy_err = pt.get_error_matrix([x, y])
+
 
 def test_cal_chi2(toy_config, fit_result):
     toy_config.cal_chi2(bins=[[2, 2]] * 2, mass=["R_BD", "R_CD"])
