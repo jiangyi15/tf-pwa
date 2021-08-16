@@ -1,6 +1,7 @@
 """
 This module implements classes and methods to manage the variables in fitting.
 """
+import contextlib
 import warnings
 
 import numpy as np
@@ -72,6 +73,41 @@ def combineVM(vm1, vm2, name="", same_list=None):
 
 
 regist_config("polar", True)
+
+
+class ParamsTrans:
+    def __init__(self, vm, err_matrix):
+        self.vm = vm
+        self.err_matrix = err_matrix
+        self.tape = None
+
+    @contextlib.contextmanager
+    def trans(self):
+        with tf.GradientTape(persistent=True) as tape:
+            yield self
+        self.tape = tape
+
+    def get_error(self, var):
+        grad = self.tape.gradient(
+            var, self.vm.trainable_variables, unconnected_gradients="zero"
+        )
+        grad = np.stack(grad)
+        del self.tape
+        return np.sqrt(np.dot(np.dot(grad, self.err_matrix), grad.T))
+
+    def get_error_matrix(self, vals):
+        grad = [
+            self.tape.gradient(
+                i, self.vm.trainable_variables, unconnected_gradients="zero"
+            )
+            for i in vals
+        ]
+        del self.tape
+        grad = np.stack(grad).reshape((-1, len(self.vm.trainable_variables)))
+        return np.dot(np.dot(grad, self.err_matrix), grad.T)
+
+    def __getitem__(self, key):
+        return self.vm.variables[key]
 
 
 class VarsManager(object):
@@ -845,6 +881,11 @@ class VarsManager(object):
         dydx = np.array(dydxs)
         hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
         return hess_inv
+
+    @contextlib.contextmanager
+    def error_trans(self, err_matrix):
+        with ParamsTrans(self, err_matrix).trans() as f:
+            yield f
 
     def minimize(self, fcn, jac=True, method="BFGS", mini_kwargs={}):
         """

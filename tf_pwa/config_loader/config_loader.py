@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import functools
 import itertools
@@ -862,6 +863,11 @@ class ConfigLoader(BaseConfig):
         val = {k: float(v) for k, v in params.items()}
         with open(file_name, "w") as f:
             json.dump(val, f, indent=2)
+
+    @contextlib.contextmanager
+    def params_trans(self):
+        with self.vm.error_trans(self.inv_he) as f:
+            yield f
 
 
 def set_prefix_constrains(vm, base, params_dic, self):
