@@ -140,5 +140,5 @@ sphinx_gallery_conf = {
     "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
     "line_numbers": True,
     "run_stale_examples": True,
-    "filename_pattern": "/particle",
+    "filename_pattern": "ex",
 }

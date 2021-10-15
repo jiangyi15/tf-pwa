@@ -8,6 +8,7 @@ import numpy as np
 import sympy as sy
 
 from .config import get_config, regist_config
+from .params_trans import ParamsTrans
 from .tensorflow_wrapper import tf
 
 
@@ -73,41 +74,6 @@ def combineVM(vm1, vm2, name="", same_list=None):
 
 
 regist_config("polar", True)
-
-
-class ParamsTrans:
-    def __init__(self, vm, err_matrix):
-        self.vm = vm
-        self.err_matrix = err_matrix
-        self.tape = None
-
-    @contextlib.contextmanager
-    def trans(self):
-        with tf.GradientTape(persistent=True) as tape:
-            yield self
-        self.tape = tape
-
-    def get_error(self, var):
-        grad = self.tape.gradient(
-            var, self.vm.trainable_variables, unconnected_gradients="zero"
-        )
-        grad = np.stack(grad)
-        del self.tape
-        return np.sqrt(np.dot(np.dot(grad, self.err_matrix), grad.T))
-
-    def get_error_matrix(self, vals):
-        grad = [
-            self.tape.gradient(
-                i, self.vm.trainable_variables, unconnected_gradients="zero"
-            )
-            for i in vals
-        ]
-        del self.tape
-        grad = np.stack(grad).reshape((-1, len(self.vm.trainable_variables)))
-        return np.dot(np.dot(grad, self.err_matrix), grad.T)
-
-    def __getitem__(self, key):
-        return self.vm.variables[key]
 
 
 class VarsManager(object):

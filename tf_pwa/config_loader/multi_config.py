@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import functools
 import itertools
@@ -275,6 +276,11 @@ class MultiConfig(object):
                     del ret[v]
         self.vm.set_all(ret)
         return True
+
+    @contextlib.contextmanager
+    def params_trans(self):
+        with self.vm.error_trans(self.inv_he) as f:
+            yield f
 
     def save_params(self, file_name):
         params = self.get_params()
