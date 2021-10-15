@@ -52,7 +52,7 @@ class DecayConfig(BaseConfig):
     }
 
     def __init__(self, dic, share_dict={}):
-        self.config = dic
+        self.config = copy.deepcopy(dic)
         self.decay_chain_config = dic.get("decay_chain", {})
         self.share_dict = share_dict
         self.particle_key_map = {

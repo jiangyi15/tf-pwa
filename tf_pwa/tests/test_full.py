@@ -98,6 +98,12 @@ def fit_result(toy_config):
     return toy_config.fit()
 
 
+def test_save_model(toy_config):
+    config = ConfigLoader(f"{this_dir}/config_toy.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    config.save_tensorflow_model("toy_data/model")
+
+
 def test_cfit(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_cfit.yml")
     config.set_params(f"{this_dir}/gen_params.json")

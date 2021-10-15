@@ -50,6 +50,7 @@ from tf_pwa.model.cfit import Model_cfit, Model_cfit_cached
 from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
 from tf_pwa.particle import split_particle_type
 from tf_pwa.root_io import has_uproot, save_dict_to_root
+from tf_pwa.tensorflow_wrapper import tf
 from tf_pwa.utils import time_print
 from tf_pwa.variable import Variable, VarsManager
 
@@ -873,6 +874,27 @@ class ConfigLoader(BaseConfig):
     def params_trans(self):
         with self.vm.error_trans(self.inv_he) as f:
             yield f
+
+    def save_tensorflow_model(self, dir_name):
+        class CustomModule(tf.Module):
+            def __init__(self, config_name, share_dict, final_params):
+                self.config = ConfigLoader(config_name, share_dict=share_dict)
+                self.amp = self.config.get_amplitude()
+                self.config.set_params(final_params)
+                self.all_variables = self.amp.vm.variables
+
+            @tf.function()
+            def __call__(self, *p):
+                data = self.config.data.cal_angle(p)
+                return self.amp(data)
+
+        module = CustomModule(self.config, self.share_dict, self.get_params())
+        n_p = len(self.get_dat_order())
+        input_p = [tf.TensorSpec([None, 4], tf.float64) for i in range(n_p)]
+        call = module.__call__.get_concrete_function(*input_p)
+        tf.saved_model.save(
+            module, dir_name, signatures={"serving_default": call}
+        )
 
 
 def set_prefix_constrains(vm, base, params_dic, self):
