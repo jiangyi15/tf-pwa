@@ -60,7 +60,7 @@ class PhaseSpaceGenerator(object):
             return weight, pi
 
         mass_f = self.flatten_mass(mass)
-        n_gen += mass_f[0].shape[0]
+        n_gen += int(mass_f[0].shape[0])
 
         # loop until number of generated events above required
         while force and n_gen < n_iter:

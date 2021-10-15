@@ -70,9 +70,13 @@ def regist_function(name, var=None, base_mod=tensorflow_wrapper):
 def numpy_cross(a, b):
     a = tf.convert_to_tensor(a)
     b = tf.convert_to_tensor(b)
-    shape = tf.broadcast_dynamic_shape(a.shape, b.shape)
-    a = tf.broadcast_to(a, shape)
-    b = tf.broadcast_to(b, shape)
+    a_0 = tf.zeros_like(b)
+    b_0 = tf.zeros_like(a)
+    a = a + a_0
+    b = b + b_0
+    # shape = tf.broadcast_static_shape(a.shape, b.shape)
+    # a = tf.broadcast_to(a, shape)
+    # b = tf.broadcast_to(b, shape)
     ret = tf.linalg.cross(a, b)
     return ret
 

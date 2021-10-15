@@ -225,6 +225,11 @@ class ConfigLoader(BaseConfig):
         self.amps[vm] = amp
         return amp
 
+    def eval_amplitude(self, *p):
+        data = self.data.cal_angle(p)
+        amp = self.get_amplitude()
+        return amp(data)
+
     def check_valid_jp(self, decay_group):
         for decay_chain in decay_group:
             for dec in decay_chain:

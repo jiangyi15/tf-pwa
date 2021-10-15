@@ -75,8 +75,9 @@ class InterpolationParticle(Particle):
                 dtype=tf.dtypes.int64,
             )
         else:
-            dig = lambda x, y: tf.numpy_function(np.digitize, [x, y], tf.int64)
-            bin_idx = dig(m, self.points)
+            # dig = lambda x, y: tf.numpy_function(np.digitize, [x, y], tf.int64)
+            # bin_idx = dig(m, self.points)
+            bin_idx = tf.raw_ops.Bucketize(input=m, boundaries=self.points)
         bin_idx = bin_idx - 1
         # print(tf.reduce_max(bin_idx), tf.reduce_min(bin_idx))
         bin_idx = tf.stop_gradient(bin_idx)
