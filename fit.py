@@ -87,7 +87,7 @@ def fit(config, init_params="", method="BFGS", loop=1, maxiter=500):
     fit_result.save_as("final_params.json")
 
     # calculate parameters error
-    if maxiter is not 0:
+    if maxiter != 0:
         fit_error = config.get_params_error(fit_result, batch=13000)
         fit_result.set_error(fit_error)
         fit_result.save_as("final_params.json")

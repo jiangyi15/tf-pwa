@@ -354,11 +354,11 @@ def cal_angle_from_particle(
     # get base z axis
     p4 = data[decay_group.top]["p"]
     p3 = LorentzVector.vect(p4)
-    base_z = np.array([[0.0, 0.0, 1.0]]) + np.zeros_like(p3)
+    base_z = np.array([[0.0, 0.0, 1.0]]) + tf.zeros_like(p3)
     if random_z:
         p3_norm = Vector3.norm(p3)
-        mask = np.expand_dims(p3_norm < 1e-5, -1)
-        base_z = np.where(mask, base_z, p3)
+        mask = tf.expand_dims(p3_norm < 1e-5, -1)
+        base_z = tf.where(mask, base_z, p3)
     # calculate chain angle
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i, base_z=base_z)
@@ -576,6 +576,10 @@ def cal_angle_from_momentum_base(
     :param decs: DecayGroup
     :return: Dictionary of data
     """
+    if data_shape(p) is None:
+        return cal_angle_from_momentum_single(
+            p, decs, using_topology, center_mass, r_boost, random_z
+        )
     ret = []
     for i in split_generator(p, batch):
         ret.append(

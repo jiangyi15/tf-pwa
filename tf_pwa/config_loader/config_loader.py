@@ -50,6 +50,7 @@ from tf_pwa.model.cfit import Model_cfit, Model_cfit_cached
 from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
 from tf_pwa.particle import split_particle_type
 from tf_pwa.root_io import has_uproot, save_dict_to_root
+from tf_pwa.tensorflow_wrapper import tf
 from tf_pwa.utils import time_print
 from tf_pwa.variable import Variable, VarsManager
 
@@ -225,6 +226,11 @@ class ConfigLoader(BaseConfig):
         self.amps[vm] = amp
         return amp
 
+    def eval_amplitude(self, *p):
+        data = self.data.cal_angle(p)
+        amp = self.get_amplitude()
+        return amp(data)
+
     def check_valid_jp(self, decay_group):
         for decay_chain in decay_group:
             for dec in decay_chain:
@@ -311,9 +317,9 @@ class ConfigLoader(BaseConfig):
                     "m_": "mass_",
                     "g_": "width_",
                 }
-                particle_config = self.config["particle"][i].copy()
+                particle_config = self.decay_config.particle_property[i]
 
-                params_dic = self.config["particle"][i].get("params", None)
+                params_dic = particle_config.get("params", None)
                 if params_dic is None:
                     params_dic = {}
                 for name in list(particle_config):
@@ -353,20 +359,17 @@ class ConfigLoader(BaseConfig):
                 if isinstance(p_i.mass, Variable) or isinstance(
                     p_i.width, Variable
                 ):
-                    if (
-                        "float" in self.config["particle"][i]
-                        and self.config["particle"][i]["float"]
-                    ):
-                        if "m" in self.config["particle"][i]["float"]:
+                    if "float" in particle_config and particle_config["float"]:
+                        if "m" in particle_config["float"]:
                             p_i.mass.freed()  # set_fix(i+'_mass',unfix=True)
-                            if "m_max" in self.config["particle"][i]:
-                                upper = self.config["particle"][i]["m_max"]
+                            if "m_max" in particle_config:
+                                upper = particle_config["m_max"]
                             # elif m_sigma is not None:
                             #    upper = self.config["particle"][i]["m0"] + 10 * m_sigma
                             else:
                                 upper = None
-                            if "m_min" in self.config["particle"][i]:
-                                lower = self.config["particle"][i]["m_min"]
+                            if "m_min" in particle_config:
+                                lower = particle_config["m_min"]
                             # elif m_sigma is not None:
                             #    lower = self.config["particle"][i]["m0"] - 10 * m_sigma
                             else:
@@ -374,16 +377,16 @@ class ConfigLoader(BaseConfig):
                             self.bound_dic[str(p_i.mass)] = (lower, upper)
                         else:
                             self._neglect_when_set_params.append(str(p_i.mass))
-                        if "g" in self.config["particle"][i]["float"]:
+                        if "g" in particle_config["float"]:
                             p_i.width.freed()  # amp.vm.set_fix(i+'_width',unfix=True)
-                            if "g_max" in self.config["particle"][i]:
-                                upper = self.config["particle"][i]["g_max"]
+                            if "g_max" in particle_config:
+                                upper = particle_config["g_max"]
                             # elif g_sigma is not None:
                             #    upper = self.config["particle"][i]["g0"] + 10 * g_sigma
                             else:
                                 upper = None
-                            if "g_min" in self.config["particle"][i]:
-                                lower = self.config["particle"][i]["g_min"]
+                            if "g_min" in particle_config:
+                                lower = particle_config["g_min"]
                             # elif g_sigma is not None:
                             #    lower = self.config["particle"][i]["g0"] - 10 * g_sigma
                             else:
@@ -402,8 +405,8 @@ class ConfigLoader(BaseConfig):
                         )  # p_i.width.name
 
                 # share helicity variables
-                if "coef_head" in self.config["particle"][i]:
-                    coef_head = self.config["particle"][i]["coef_head"]
+                if "coef_head" in particle_config:
+                    coef_head = particle_config["coef_head"]
                     if coef_head in res_dec:
                         d_coef_head = res_dec[coef_head]
                         for j, h in zip(d, d_coef_head):
@@ -414,7 +417,7 @@ class ConfigLoader(BaseConfig):
                         # share total radium
                         d_coef_head.total.r_shareto(d.total)
                     else:
-                        self.config["particle"][coef_head]["coef_head"] = i
+                        particle_config["coef_head"] = i
 
         equal_params = dic.get("equal", {})
         for k, v in equal_params.items():
@@ -868,6 +871,27 @@ class ConfigLoader(BaseConfig):
     def params_trans(self):
         with self.vm.error_trans(self.inv_he) as f:
             yield f
+
+    def save_tensorflow_model(self, dir_name):
+        class CustomModule(tf.Module):
+            def __init__(self, config_name, share_dict, final_params):
+                self.config = ConfigLoader(config_name, share_dict=share_dict)
+                self.amp = self.config.get_amplitude()
+                self.config.set_params(final_params)
+                self.all_variables = self.amp.vm.variables
+
+            @tf.function()
+            def __call__(self, *p):
+                data = self.config.data.cal_angle(p)
+                return self.amp(data)
+
+        module = CustomModule(self.config, self.share_dict, self.get_params())
+        n_p = len(self.get_dat_order())
+        input_p = [tf.TensorSpec([None, 4], tf.float64) for i in range(n_p)]
+        call = module.__call__.get_concrete_function(*input_p)
+        tf.saved_model.save(
+            module, dir_name, signatures={"serving_default": call}
+        )
 
 
 def set_prefix_constrains(vm, base, params_dic, self):

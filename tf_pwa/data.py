@@ -57,7 +57,7 @@ from pprint import pprint
 import numpy as np
 
 from .config import get_config
-from .tensorflow_wrapper import tf
+from .tensorflow_wrapper import tf, tf_version
 
 # import tensorflow as tf
 # from pysnooper import  snoop
@@ -341,7 +341,10 @@ def data_shape(data, axis=0, all_list=False):
     shapes = flatten(data)
     if all_list:
         return shapes
-    return shapes[0][axis]
+    ret = shapes[0][axis]
+    if tf_version < 2:
+        return ret.value
+    return ret
 
 
 def data_to_numpy(dat):

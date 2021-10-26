@@ -392,6 +392,13 @@ def get_parity_term(j1, p1, j2, p2, j3, p3):
 
 @regist_decay("helicity_parity")
 class HelicityDecayP(HelicityDecay):
+    """
+
+    .. math::
+        H_{- m1, - m2} = P_0 P_1 P_2 (-1)^{J_1 + J_2 - J_0} H_{m1, m2}
+
+    """
+
     def init_params(self):
         a = self.core
         b = self.outs[0]
@@ -416,12 +423,18 @@ class HelicityDecayP(HelicityDecay):
         H_part = tf.stack(self.H())
         if self.part_H == 0:
             H = tf.concat(
-                [H_part, self.parity_term * H_part[(n_b - 2) // 2 :: -1]],
+                [
+                    H_part,
+                    self.parity_term * H_part[(n_b - 2) // 2 :: -1, ::-1],
+                ],
                 axis=0,
             )
         else:
             H = tf.concat(
-                [H_part, self.parity_term * H_part[:, (n_c - 2) // 2 :: -1]],
+                [
+                    H_part,
+                    self.parity_term * H_part[::-1, (n_c - 2) // 2 :: -1],
+                ],
                 axis=1,
             )
         return H
