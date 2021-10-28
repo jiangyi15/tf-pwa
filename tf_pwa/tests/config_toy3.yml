@@ -4,6 +4,8 @@ data:
   bg: [["toy_data/bg.dat"], ["toy_data/bg.dat"]]
   phsp: [["toy_data/PHSP.dat"], ["toy_data/PHSP.dat"]]
   bg_weight: [0.1, 0.1]
+  random_z: False
+  r_boost: False
   cached_amp: True
   use_mix_likelihood: True
 
