@@ -39,6 +39,8 @@ PARTICLE_MODEL = "particle_model"
 regist_config(PARTICLE_MODEL, {})
 DECAY_MODEL = "decay_model"
 regist_config(DECAY_MODEL, {})
+DECAY_CHAIN_MODEL = "decay_chain_model"
+regist_config(DECAY_CHAIN_MODEL, {})
 
 
 def register_particle(name=None, f=None):
@@ -79,6 +81,31 @@ def register_decay(name=None, num_outs=2, f=None):
             my_name = name
         config = get_config(DECAY_MODEL)
         id_ = (num_outs, my_name)
+        if id_ in config:
+            warnings.warn("Override deccay model {}".format(my_name))
+        config[id_] = g
+        g.model_name = my_name
+        return g
+
+    if f is None:
+        return regist
+    return regist(f)
+
+
+def register_decay_chain(name=None, f=None):
+    """register a decay model
+
+    :params name: model name used in configuration
+    :params f: Model class
+    """
+
+    def regist(g):
+        if name is None:
+            my_name = g.__name__
+        else:
+            my_name = name
+        config = get_config(DECAY_CHAIN_MODEL)
+        id_ = my_name
         if id_ in config:
             warnings.warn("Override deccay model {}".format(my_name))
         config[id_] = g
@@ -164,6 +191,19 @@ def get_decay(core, outs, **kwargs):
     id_ = (num_outs, model)
 
     return get_config(DECAY_MODEL)[id_](core, outs, **new_kwargs)
+
+
+def get_decay_chain(decays, **kwargs):
+    """method for getting decay of model"""
+    decay_params = {}
+    for i in decays:
+        decay_params.update(getattr(i, "decay_chain_params", {}))
+
+    new_kwargs = {**decay_params, **kwargs}
+
+    model = new_kwargs.pop("model", "default")
+
+    return get_config(DECAY_CHAIN_MODEL)[model](decays, **new_kwargs)
 
 
 def data_device(data):
@@ -863,14 +903,17 @@ class AngSam3Decay(AmpDecay, AmpBase):
         return ret
 
 
-class DecayChain(BaseDecayChain, AmpBase):
-    """A list of Decay as a chain decay"""
-
+class AmpDecayChain(BaseDecayChain, AmpBase):
     def __init__(self, *args, is_cp=False, **kwargs):
         self.is_cp = is_cp
-        super(DecayChain, self).__init__(*args, **kwargs)
+        super(AmpDecayChain, self).__init__(*args, **kwargs)
         self.aligned = True
         self.need_amp_particle = True
+
+
+@register_decay_chain("default")
+class DecayChain(AmpDecayChain):
+    """A list of Decay as a chain decay"""
 
     def init_params(self, name=""):
         self.total = self.add_var(

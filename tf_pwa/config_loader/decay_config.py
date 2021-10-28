@@ -9,6 +9,7 @@ from tf_pwa.amp import (
     DecayGroup,
     HelicityDecay,
     get_decay,
+    get_decay_chain,
     get_particle,
     split_particle_type,
 )
@@ -329,7 +330,8 @@ class DecayConfig(BaseConfig):
         for i in dec_chain:
             if sorted(DecayChain(i).outs) == sorted(finals):
                 all_params = chain_params.get("$all", {})
-                ret.append(DecayChain(i, **all_params))
+                dec_c = get_decay_chain(i, **all_params)
+                ret.append(dec_c)
         if process_cut:
             return self.decay_chain_cut(ret)
         return ret
