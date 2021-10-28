@@ -15,15 +15,16 @@
   [#53](https://github.com/jiangyi15/tf-pwa/pull/53)
 
 - Update default options: `center_mass: False`, `r_boost: True`,
-  `random_z: True`. [#59](https://github.com/jiangyi15/tf-pwa/pull/59)
+  `random_z: True`. [#60](https://github.com/jiangyi15/tf-pwa/pull/60)
 
 **Added**
 
-- Support Custom DecayChain. [#58](https://github.com/jiangyi15/tf-pwa/pull/58)
+- Support Custom DecayChain. [#59](https://github.com/jiangyi15/tf-pwa/pull/59)
 - Support to export `Saved Model` format of tensorflow.
-  [#57](https://github.com/jiangyi15/tf-pwa/pull/57)
+  [#58](https://github.com/jiangyi15/tf-pwa/pull/58)
 - Error propagation with automatic differentiation.
   [#56](https://github.com/jiangyi15/tf-pwa/pull/56)
+  [#57](https://github.com/jiangyi15/tf-pwa/pull/57)
 - New Decay model `gls-cpv` for CP violation.
   [#55](https://github.com/jiangyi15/tf-pwa/pull/55)
 - Support Identical particles.
