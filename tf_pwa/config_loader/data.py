@@ -143,9 +143,9 @@ class SimpleData:
     def cal_angle(self, p4):
         if isinstance(p4, (list, tuple)):
             p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
-        center_mass = self.dic.get("center_mass", True)
-        r_boost = self.dic.get("r_boost", False)
-        random_z = self.dic.get("random_z", False)
+        center_mass = self.dic.get("center_mass", False)
+        r_boost = self.dic.get("r_boost", True)
+        random_z = self.dic.get("random_z", True)
         data = cal_angle_from_momentum(
             p4,
             self.decay_struct,

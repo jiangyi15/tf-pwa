@@ -3,6 +3,8 @@ data:
   data: ["toy_data/data.dat"]
   bg: ["toy_data/bg.dat"]
   phsp: ["toy_data/PHSP.dat"]
+  random_z: False
+  r_boost: False
   bg_weight: 0.1
 
 decay:
