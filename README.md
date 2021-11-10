@@ -34,15 +34,14 @@ When using conda, you don't need to install CUDA for TensorFlow specially.
 1. Get miniconda for python3 from
    [miniconda3](https://docs.conda.io/en/latest/miniconda.html) and install it.
 
-2. Install requirements 
+2. Install requirements, use `tensorflow_2_6_requirements.txt` for a newer version of tensorflow which is recommended for Ampere cards (see `Latest tensorflow` below for technical FAQ).
  ```
  conda install --file requirements-min.txt
  ```
- or 
+ **or**
  ```
  conda install --file tensorflow_2_6_requirements.txt -c conda-forge
  ``` 
- for a newer version of tensorflow, recommended for Ampere cards (see `Latest tensorflow` below for technical FAQ).
 
 3. The following command can be used to set environment variables of Python.
    (Use `--no-deps` to make sure that no PyPI package will be installed. Using
