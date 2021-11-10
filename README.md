@@ -39,6 +39,12 @@ When using conda, you don't need to install CUDA for TensorFlow specially.
 ```
 conda install --file requirements-min.txt
 ```
+or
+```
+conda install --file tensorflow_2_6_requirements.txt
+```
+
+The latter is for those who wants to use the latest version of tensorflow, which is highly recommended for NVidia Ampere cards. A technical explantion can be found under the `Latest tensorflow` section below.
 
 3. The following command can be used to set environment variables of Python.
    (Use `--no-deps` to make sure that no PyPI package will be installed. Using
@@ -131,9 +137,21 @@ cd docs && make html
 
 Then, the documents can be found in docs/\_build/html.
 
+## Latest tensorflow
+Why a separate conda requirements file?
+: `requirements-min.txt` limits the tensorflow version up to `2.2`. Beyond this version, `conda` will install the wrong dependencies, in particular the `cudatoolkit` version. `tensorflow_2_6_requirements.txt` manually selects the correct `python` and `cudatoolkit` versions and build to match the `tensorflow-2.6.0` build on `conda`.
+
+Should I use the latest `tensorflow` version?
+: We recommend Ampere card users (RTX 30 series for example), to install their environments with `tensorflow_2_6_requirements.txt`. CUDA support for Ampere cards began with `cudatoolkit` version 11.0, so `cudatoolkit` v11.2 that is installed in `tensorflow_2_6_requirements.txt` fully supports this generation of cards. If you use an older `cudatoolkit` version, v10.1 that comes with `requirements-min.txt` for example, tensorflow has to JIT compile the GPU code everytime you run for backward-compatibility reasons, which adds a few minutes of overhead. This is because Ampere cards was not available when `cudatoolkit` version < 11.0 was released. This overhead is avoided when you use the correct `cudatoolkit` (the binaries are baked into either `tensorflow-gpu` or `cudatoolkit`).
+
+Will you update the `tensorflow_2_X_requirements.txt` file regularly to the latest available version on `conda`?
+: We will not make any guarantees. However, we will update this should particular build become unavailable on `conda` or new release of GPUs require a `tensorflow` and `cudatoolkit` update. Please notify us if this is the case.
+
 ## Dependencies
 
 tensorflow or tensorflow-gpu >= 2.0.0
+
+cudatoolkit : CUDA library for GPU acceleration
 
 sympy : symbolic expression
 
