@@ -69,6 +69,32 @@ jobs:
           export HDF5_DISABLE_VERSION_CHECK=2
           python -c "import tf_pwa"
 
+  conda_install_latest_tensorflow:
+    name: conda install latest tensorflow
+    if: github.event.pull_request.draft == false
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+    steps:
+      - uses: actions/checkout@master
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2.0.0
+      - name: Install dependencies
+        run: |
+          conda install --file tensorflow_2_6_requirements.txt -y
+          python -m pip install -e . --no-deps
+          conda install pre-commit -c conda-forge -y
+          pre-commit install
+          pre-commit run -a
+      - name: Test imports
+        run: |
+          export HDF5_DISABLE_VERSION_CHECK=2
+          python -c "import tf_pwa"
+
   pytest:
     name: Unit tests
     if: github.event.pull_request.draft == false
