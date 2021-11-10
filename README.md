@@ -62,7 +62,7 @@ conda install uproot -c conda-forge
 ```
 
 <details><summary>
-<h3 style="display: inline"> conda channel (experimental) </h3>
+<h3 style="display: inline-block;"> conda channel (experimental) </h3>
 </summary><p>
 
 A pre-built conda package (Linux only) is also provided, just run following
@@ -76,7 +76,7 @@ conda install tf-pwa
 </p></details>
 
 <details><summary>
-<h3 style="display: inline"> pip </h3>
+<h3 style="display: inline-block;"> pip </h3>
 </summary><p>
 When using `pip`, you will need to install CUDA to use GPU. Just run the
 following command :
