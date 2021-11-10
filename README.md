@@ -144,7 +144,13 @@ Then, the documents can be found in docs/\_build/html.
 
 **Q : Should I use the latest `tensorflow` version?**
 
-**A :** We recommend Ampere card users (RTX 30 series for example), to install their `conda` environments with `tensorflow_2_6_requirements.txt` which uses `cudatoolkit` version **11.2**. CUDA support for Ampere cards began from `cudatoolkit` version **11.0**, so older `cudatoolkit` versions will force `tensorflow` to JIT compile the CUDA code everytime you run any GPU code. This adds *a few minutes* of overhead. So Ampere cards which uses `cudatoolkit` version **10.1** that is installed by `requirements-min.txt` will take a few minutes to recompile the CUDA code everytime you run something. This JIT behaviour is for backwards compatibility reason. Newer (>**11.0**) `cudatoolkit` versions will have the Ampere CUDA binaries pre-compiled into `cudatoolkit`. Older `cudatoolkit` versions have to JIT compile the PTX code everytime because they don't have the relevant binaries for Ampere architecture (see this [explanation](https://developer.nvidia.com/blog/cuda-pro-tip-understand-fat-binaries-jit-caching/)).
+**A :** We recommend Ampere card users (RTX 30 series for example), to install their `conda` environments with `tensorflow_2_6_requirements.txt` which uses `cudatoolkit` version **11.2**. 
+
+
+**Q : Why should Ampere use `cudatoolkit` version > 11.0**?
+
+**A :** To avoid *a few minutes* of overhead due to JIT compilation. `cudatoolkit` version < **11.0** does not have pre-compiled CUDA binaries for Ampere architecture. So older `cudatoolkit` versions have to JIT compile the PTX code everytime `tensorflow` uses the GPU hence the overhead. See this [explanation](https://developer.nvidia.com/blog/cuda-pro-tip-understand-fat-binaries-jit-caching/) about old CUDA versions and JIT compile.
+
 
 **Q : Will you update the `tensorflow_2_X_requirements.txt` file regularly to the latest available version on `conda`?**
 
