@@ -1,0 +1,8 @@
+tensorflow-gpu=2.6.0=cuda112py39h0bbbad9_2
+python=3.9.7=hb7a2778_3_cpython
+cudatoolkit=11.2.2=he111cf0_9
+matplotlib
+pyyaml
+scipy
+setuptools_scm
+sympy
