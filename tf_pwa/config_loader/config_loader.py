@@ -440,6 +440,7 @@ class ConfigLoader(BaseConfig):
         w_bkg, w_inmc = self._get_bg_weight()
         model = []
         if model_name == "cfit":
+            print("using cfit")
             bg_function = self.config["data"].get("bg_function", None)
             eff_function = self.config["data"].get("eff_function", None)
             w_bkg = self.config["data"]["bg_frac"]
