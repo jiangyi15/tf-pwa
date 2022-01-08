@@ -36,7 +36,7 @@ class ParticleFunction:
         return tf.abs(self(m)) ** 2
 
     def density(self, m):
-        return self.amp2s(m) * self.phsp_fractor(m)
+        return tf.reduce_sum(self.amp2s(m), axis=-1) * self.phsp_fractor(m)
 
 
 @ConfigLoader.register_function()
