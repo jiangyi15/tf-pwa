@@ -154,7 +154,7 @@ def small_d_matrix(theta, j):
     """
     a = tf.reshape(tf.range(0, j + 1, 1), (1, -1))
 
-    half_theta = 0.5 * theta
+    half_theta = np.array(0.5) * theta
 
     sintheta = tf.reshape(tf.sin(half_theta), (-1, 1))
     costheta = tf.reshape(tf.cos(half_theta), (-1, 1))

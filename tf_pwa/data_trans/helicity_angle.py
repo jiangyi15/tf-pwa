@@ -98,10 +98,12 @@ class HelicityAngle:
         return ret  # dict(zip(self.par, ret))
 
     def get_phsp_factor(self, name, m):
+        m = tf.convert_to_tensor(m, tf.float64)
         ms = self.get_all_mass({name: m})
         ps = []
         for i in self.decay_chain:
             ps.append(get_relative_p(ms[i.core], ms[i.outs[0]], ms[i.outs[1]]))
+        ret = tf.ones_like(m)
         for i in ps:
             ret = ret * tf.cast(i, ret.dtype)
         return ret
