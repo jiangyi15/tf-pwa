@@ -75,7 +75,7 @@ flatten_np_data = lambda data: flatten_dict_data(
 )
 
 
-def error_print(x, err=None):
+def error_print(x, err=None, dig=None):
     """
     It returns a format string "value +/- error". The precision is modified according to ``err``
 
@@ -91,12 +91,13 @@ def error_print(x, err=None):
     b = 10 ** d
     b_err = err / b
     b_val = x / b
-    if b_err < 0.355:  # 0.100 ~ 0.354
-        dig = 2
-    elif b_err < 0.950:  # 0.355 ~ 0.949
-        dig = 1
-    else:  # 0.950 ~ 0.999
-        dig = 0
+    if dig is None:
+        if b_err < 0.355:  # 0.100 ~ 0.354
+            dig = 2
+        elif b_err < 0.950:  # 0.355 ~ 0.949
+            dig = 1
+        else:  # 0.950 ~ 0.999
+            dig = 0
     err = round(b_err, dig) * b
     x = round(b_val, dig) * b
     d_p = dig - d

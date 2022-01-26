@@ -27,6 +27,7 @@ class InterpolationParticle(Particle):
             (self.points[i], self.points[i + 1])
             for i in range(0, self.interp_N - 1)
         ]
+        self.n_bins = len(self.bound)
         if self.fix_idx is not None and self.fix_idx < 0:
             self.fix_idx = self.interp_N // 2 - 1
 
@@ -400,6 +401,7 @@ class InterpHistIdx(HistParticle):
     def interp(self, m):
         _, p_r, p_i = self.get_point_values()
         bin_idx = self.get_bin_index(m)
+        bin_idx = (bin_idx + len(self.bound)) % len(self.bound)
         ret_r = tf.gather(p_r[1:], bin_idx)
         ret_i = tf.gather(p_i[1:], bin_idx)
         return tf.complex(ret_r, ret_i)
