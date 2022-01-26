@@ -20,7 +20,7 @@ class AdaptiveBound(object):
     def __init__(self, base_data, bins):
         if isinstance(bins, int):
             self._base_data = np.array([base_data])
-            self.bins = [bins]
+            self.bins = [[bins]]
         elif isinstance(bins, list):
             self._base_data = np.array(base_data)
             self.bins = bins

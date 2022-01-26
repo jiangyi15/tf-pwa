@@ -46,7 +46,7 @@ from tf_pwa.data import (
 from tf_pwa.fit import FitResult
 from tf_pwa.fit_improve import minimize as my_minimize
 from tf_pwa.model import FCN, CombineFCN, MixLogLikehoodFCN, Model, Model_new
-from tf_pwa.model.cfit import Model_cfit, Model_cfit_cached
+from tf_pwa.model.cfit import Model_cfit, Model_cfit_cached, ModelCfitExtended
 from tf_pwa.model.opt_int import ModelCachedAmp, ModelCachedInt
 from tf_pwa.particle import split_particle_type
 from tf_pwa.root_io import has_uproot, save_dict_to_root
@@ -302,6 +302,18 @@ class ConfigLoader(BaseConfig):
         # fix which total factor
         fix_decay.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val, 0.0))
 
+    def free_for_extended(self, amp):
+        constrains = self.config.get("constrains", {})
+        if constrains is None:
+            constrains = {}
+        dic = constrains.get("decay", {})
+        if dic is None:
+            dic = {}
+        fix_total_idx = dic.get("fix_chain_idx", 0)
+        fix_decay = amp.decay_group.get_decay_chain(fix_total_idx)
+        var = fix_decay.total
+        var.vm.set_fix(var.name + "_0r", unfix=True)
+
     def add_particle_constraints(self, amp, dic=None):
         if dic is None:
             dic = {}
@@ -446,8 +458,14 @@ class ConfigLoader(BaseConfig):
             w_bkg = self.config["data"]["bg_frac"]
             if not isinstance(w_bkg, list):
                 w_bkg = [w_bkg]
+            if self.config["data"].get("extended", False):
+                self.free_for_extended(amp)
             for wb in w_bkg:
-                if self.config["data"].get("cached_amp", False):
+                if self.config["data"].get("extended", False):
+                    model.append(
+                        ModelCfitExtended(amp, wb, bg_function, eff_function)
+                    )
+                elif self.config["data"].get("cached_amp", False):
                     model.append(
                         Model_cfit_cached(amp, wb, bg_function, eff_function)
                     )
