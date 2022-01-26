@@ -127,6 +127,7 @@ def test_cfit_extended(gen_toy):
     fcn = config.get_fcn()
     fcn({})
     fcn.nll_grad({})
+    fcn.nll_grad_hessian({})
 
 
 def test_constrains(gen_toy):
