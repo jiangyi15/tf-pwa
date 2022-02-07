@@ -186,11 +186,37 @@ def simple_run(name):
     )
 
 
+def simple_run2(name, **kwargs):
+    a = get_particle("a", J=0, P=-1, mass=8.85381274)
+    r = get_particle(
+        name, J=1, P=-1, model=name, mass=6.889, width=0.01, **kwargs
+    )
+    b, c, d = [
+        get_particle(i, J=0, P=-1, mass=j)
+        for i, j in zip("bcd", [1.96468827, 2.95127091, 3.93700394])
+    ]
+    dec = get_decay(a, [r, b])
+    dec2 = get_decay(r, [c, d])
+    decs = DecayChain([dec, dec2])
+    dg = DecayGroup([decs])
+    amp = AmplitudeModel(dg)
+    for p_data in test_data:
+        p = dict(zip([b, c, d], p_data))
+        data = cal_angle_from_momentum(p, dg)
+        amp(data)
+
+
 def test_one():
     simple_run("one")
     simple_run("exp")
     simple_run("exp_com")
     simple_run("BWR_normal")
+
+
+def test_model2():
+    simple_run2(
+        "KMatrixSplitLS", mass_list=[6.889, 6.8885], width_list=[0.01, 0.02]
+    )
 
 
 def test_model_new():

@@ -111,7 +111,13 @@ class CalAngleData(dict):
             order = self.get_decay().outs
         pi = [data_to_numpy(self.get_momentum(i)) for i in order]
         if cp_trans:
-            pi = [[i[0], -i[1], -i[2], -i[3]] for i in pi]
+            c = tf.cast(self["charge_conjugation"] > 0, tf.float64) * 2 - 1
+            pi = [
+                np.stack(
+                    [i[:, 0], c * i[:, 1], c * i[:, 2], c * i[:, 3]], axis=-1
+                )
+                for i in pi
+            ]
         pi = np.stack(pi).transpose((1, 0, 2)).reshape((-1, 4))
         np.savetxt(file_name, pi)
         if save_charge:
