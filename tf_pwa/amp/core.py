@@ -328,7 +328,7 @@ def _ad_hoc(m0, m_max, m_min):
 
     """
     k = (m_max - m_min) / 2
-    m_eff = k * (1 + tf.tanh((2 * m0 - (m_max + m_min)) / k))
+    m_eff = k * (1 + tf.tanh((2 * m0 - (m_max + m_min)) / k / 4))
     return m_eff + m_min
 
 
@@ -528,6 +528,7 @@ class HelicityDecay(AmpDecay):
         ls_list=None,
         barrier_factor_norm=False,
         params_polar=None,
+        below_threshold=False,
         **kwargs
     ):
         super(HelicityDecay, self).__init__(*args, **kwargs)
@@ -541,6 +542,7 @@ class HelicityDecay(AmpDecay):
         self.ls_index = None
         self.total_ls = None
         self.barrier_factor_norm = barrier_factor_norm
+        self.below_threshold = below_threshold
         self.ls_list = None
         if ls_list is not None:
             self.ls_list = tuple([tuple(i) for i in ls_list])
@@ -599,6 +601,14 @@ class HelicityDecay(AmpDecay):
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
         m2 = _get_mass(self.outs[1])
+        if self.below_threshold:
+            m3 = _get_mass(
+                [i for i in self.core.creators[0].outs if i != self.core][0]
+            )
+            m_eff = _ad_hoc(
+                m0, _get_mass(self.core.creators[0].core) - m3, m1 + m2
+            )
+            m0 = tf.where(m0 < m1 + m2, m_eff, m0)
         return get_relative_p(m0, m1, m2)
 
     def get_relative_momentum2(self, data, from_data=False):
@@ -609,7 +619,16 @@ class HelicityDecay(AmpDecay):
         m0 = _get_mass(self.core)
         m1 = _get_mass(self.outs[0])
         m2 = _get_mass(self.outs[1])
-        return get_relative_p2(m0, m1, m2)
+        if self.below_threshold:
+            m3 = _get_mass(
+                [i for i in self.core.creators[0].outs if i != self.core][0]
+            )
+            m_eff = _ad_hoc(
+                m0, _get_mass(self.core.creators[0].core) - m3, m1 + m2
+            )
+            m0 = tf.where(m0 < m1 + m2, m_eff, m0)
+        ret = get_relative_p2(m0, m1, m2)
+        return ret
 
     def get_cg_matrix(self):
         ls = self.get_ls_list()

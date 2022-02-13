@@ -17,7 +17,9 @@ from .core import (
     AmpDecay,
     HelicityDecay,
     Particle,
+    _ad_hoc,
     get_relative_p,
+    get_relative_p2,
     regist_decay,
     regist_particle,
 )
@@ -45,6 +47,35 @@ class ParticleBWR2(Particle):
                 decay = self.decay[0]
                 self.bw_l = min(decay.get_l_list())
             ret = BWR2(data["m"], mass, width, q2, q02, self.bw_l, self.d)
+        return ret
+
+
+@regist_particle("BWR_below")
+class ParticleBWRBelowThreshold(Particle):
+    """
+    .. math::
+        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+
+    """
+
+    def get_amp(self, data, data_c, **kwargs):
+        mass = self.get_mass()
+        width = self.get_width()
+        q2 = data_c["|q|2"]
+        decay = self.decay[0]
+        _get_mass = lambda p: decay._get_particle_mass(p, data, False)
+
+        m0 = mass
+        m1 = _get_mass(decay.outs[0])
+        m2 = _get_mass(decay.outs[1])
+        m3 = _get_mass([i for i in self.creators[0].outs if i != self][0])
+        m_eff = _ad_hoc(m0, _get_mass(self.creators[0].core) - m3, m1 + m2)
+        m0 = tf.where(m0 < m1 + m2, m_eff, m0)
+        q02 = get_relative_p2(m0, m1, m2)
+        if self.bw_l is None:
+            decay = self.decay[0]
+            self.bw_l = min(decay.get_l_list())
+        ret = BWR2(data["m"], mass, width, q2, q02, self.bw_l, self.d)
         return ret
 
 
