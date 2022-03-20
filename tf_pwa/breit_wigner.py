@@ -108,7 +108,7 @@ def hFun(s, daug2Mass, daug3Mass):
 
     sm = daug2Mass + daug3Mass
     sqrt_s = tf.sqrt(s)
-    k_s = twoBodyCMmom(s, daug2Mass, daug3Mass)
+    k_s = twoBodyCMmom(tf.sqrt(s), daug2Mass, daug3Mass)
 
     ret = (
         (2.0 / _pi)
@@ -122,7 +122,7 @@ def hFun(s, daug2Mass, daug3Mass):
 def dh_dsFun(s, daug2Mass, daug3Mass):
     _pi = 3.14159265359
     _pi = tf.cast(_pi, s.dtype)
-    k_s = twoBodyCMmom(s, daug2Mass, daug3Mass)
+    k_s = twoBodyCMmom(tf.sqrt(s), daug2Mass, daug3Mass)
 
     ret = hFun(s, daug2Mass, daug3Mass) * (
         1.0 / (8.0 * tf.pow(k_s, 2)) - 1.0 / (2.0 * s)
@@ -137,7 +137,7 @@ def dFun(s, daug2Mass, daug3Mass):
     sm = daug2Mass + daug3Mass
     sm24 = sm * sm / 4.0
     m = tf.sqrt(s)
-    k_m2 = twoBodyCMmom(s, daug2Mass, daug3Mass)
+    k_m2 = twoBodyCMmom(tf.sqrt(s), daug2Mass, daug3Mass)
 
     ret = (
         3.0
@@ -153,8 +153,8 @@ def dFun(s, daug2Mass, daug3Mass):
 
 
 def fsFun(s, m2, gam, daug2Mass, daug3Mass):
-    k_s = twoBodyCMmom(s, daug2Mass, daug3Mass)
-    k_Am2 = twoBodyCMmom(m2, daug2Mass, daug3Mass)
+    k_s = twoBodyCMmom(tf.sqrt(s), daug2Mass, daug3Mass)
+    k_Am2 = twoBodyCMmom(tf.sqrt(m2), daug2Mass, daug3Mass)
 
     f = gam * m2 / tf.pow(k_Am2, 3)
     f *= tf.pow(k_s, 2) * (

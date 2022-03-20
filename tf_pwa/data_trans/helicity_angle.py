@@ -108,6 +108,25 @@ class HelicityAngle:
             ret = ret * tf.cast(i, ret.dtype)
         return ret
 
+    def get_mass_range(self, name):
+        name = str(name)
+        low_bound = None
+        high_bound = None
+        for i in self.decay_chain:
+            if str(i.core) == name:
+                low_bound = sum([j.get_mass() for j in i.outs])
+            if name in [str(j) for j in i.outs]:
+                sum_mass = 0.0
+                for j in i.outs:
+                    if str(j) != name:
+                        sum_mass = sum_mass + j.get_mass()
+                high_bound = i.core.get_mass() - sum_mass
+        return (low_bound, high_bound)
+
+    def mass_linspace(self, name, N):
+        x_min, x_max = self.get_mass_range(name)
+        return np.linspace(x_min + 1e-10, x_max - 1e-10, N)
+
 
 def normal(p):
     return p / tf.expand_dims(tf.sqrt(tf.reduce_sum(p ** 2, axis=-1)), axis=-1)

@@ -620,6 +620,7 @@ class ConfigLoader(BaseConfig):
         improve=False,
         reweight=False,
         maxiter=None,
+        jac=True,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
@@ -649,6 +650,7 @@ class ConfigLoader(BaseConfig):
             check_grad=check_grad,
             improve=False,
             maxiter=maxiter,
+            jac=jac,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
