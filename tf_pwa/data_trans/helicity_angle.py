@@ -124,7 +124,7 @@ class HelicityAngle:
         return (low_bound, high_bound)
 
     def mass_linspace(self, name, N):
-        x_min, x_max = self.mass_range(name)
+        x_min, x_max = self.get_mass_range(name)
         return np.linspace(x_min + 1e-10, x_max - 1e-10, N)
 
 
