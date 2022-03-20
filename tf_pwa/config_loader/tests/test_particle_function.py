@@ -13,3 +13,6 @@ def test_particle(toy_config):
     g.phsp_fractor(m)
     g.density(m)
     assert g(m).shape == (5, 6)
+    m_min, m_max = g.mass_range()
+    m = g.mass_linspace(1000)
+    g.density(m)

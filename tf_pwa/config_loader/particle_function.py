@@ -28,15 +28,25 @@ class ParticleFunction:
         ret = a[self.idx]
         return self.norm_factor * ret
 
-    def phsp_fractor(self, m):
+    def mass_range(self):
+        return self.ha.get_mass_range(self.name)
+
+    def mass_linspace(self, N):
+        return self.ha.mass_linspace(self.name, N)
+
+    def phsp_factor(self, m):
         pf = self.ha.get_phsp_factor(self.name, m)
         return pf
+
+    def phsp_fractor(self, m):
+        print("phsp_fractor is wrong word, using phsp_factor instead!")
+        return self.phsp_factor(m)
 
     def amp2s(self, m):
         return tf.abs(self(m)) ** 2
 
     def density(self, m):
-        return tf.reduce_sum(self.amp2s(m), axis=-1) * self.phsp_fractor(m)
+        return tf.reduce_sum(self.amp2s(m), axis=-1) * self.phsp_factor(m)
 
 
 @ConfigLoader.register_function()

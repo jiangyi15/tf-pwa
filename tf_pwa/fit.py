@@ -193,6 +193,7 @@ def fit_scipy(
     check_grad=False,
     improve=False,
     maxiter=None,
+    jac=True,
 ):
     """
 
@@ -270,6 +271,18 @@ def fit_scipy(
                     x0,
                     method=method,
                     jac=True,
+                    callback=callback,
+                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                )
+            except LargeNumberError:
+                return except_result(fcn, x0.shape[0])
+        elif jac is not True:
+            try:
+                s = minimize(
+                    lambda x: float(fcn(x)),
+                    x0,
+                    method=method,
+                    jac=jac,
                     callback=callback,
                     options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
                 )
