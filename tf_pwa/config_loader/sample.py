@@ -256,6 +256,7 @@ def build_phsp_chain_sorted(st, final_mi, nodes):
         for k, v in final_idx.items():
             if k not in sub_node:
                 new_idx[k] = (*final_idx[decay_map[k]], *final_idx[k])
+                decay_map[k] = pi  # decay_map[decay_map[k]]
         final_idx.update(new_idx)
 
         for k, v in st.items():
