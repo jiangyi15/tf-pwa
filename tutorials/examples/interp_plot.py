@@ -93,7 +93,7 @@ def load_params(
 
 
 def trans_r2xy(r, phi, r_e, phi_e):
-    """r,phi -> x,y """
+    """r,phi -> x,y"""
     x = np.array(r) * np.cos(phi)
     y = np.array(r) * np.sin(phi)
     err = np.array(
@@ -114,7 +114,7 @@ def plot_x_y(name, x, y, x_i, y_i, xlabel, ylabel, ylim=(None, None)):
 
 
 def plot_phi(name, m, phi, m_i, phi_i):
-    """ plot phi and gradient of phi"""
+    """plot phi and gradient of phi"""
     grad = phi[2:] - phi[:-2]
     mask = (phi < 3) & (phi > -3)
     grad_max = np.mean(np.abs(grad))

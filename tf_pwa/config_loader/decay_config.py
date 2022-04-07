@@ -262,7 +262,7 @@ class DecayConfig(BaseConfig):
         chain_params={},
         process_cut=True,
     ):
-        """  get decay structure for decay dict"""
+        """get decay structure for decay dict"""
         particle_map = particle_map if particle_map is not None else {}
         particle_params = (
             particle_params if particle_params is not None else {}

@@ -121,7 +121,7 @@ def get_projection(f_theta, var):
 
 
 def plot_theta(f_name, f_theta, var):
-    """ plot phi and cos theta """
+    """plot phi and cos theta"""
     f_theta1 = get_projection(f_theta, var)
     var = Symbol(var, real=True)
 

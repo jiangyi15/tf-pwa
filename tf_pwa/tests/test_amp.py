@@ -109,8 +109,8 @@ def test_get_relative_momentum():
     p3 = d.get_relative_momentum2(data)
     p4 = d.get_relative_momentum2(data, False)
 
-    assert p1 ** 2 == p3
-    assert p2 ** 2 == p4
+    assert p1**2 == p3
+    assert p2**2 == p4
 
 
 def test_simple_resonances():

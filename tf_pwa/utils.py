@@ -88,7 +88,7 @@ def error_print(x, err=None, dig=None):
     if err <= 0 or math.isnan(err):
         return ("{} ? {}").format(x, err)
     d = math.ceil(math.log10(err))
-    b = 10 ** d
+    b = 10**d
     b_err = err / b
     b_val = x / b
     if dig is None:
@@ -306,7 +306,7 @@ def fit_normal(data, weights=None):
     if weights is None:
         weights = np.ones_like(data)
     else:
-        weights = np.sum(weights) / np.sum(weights ** 2) * weights
+        weights = np.sum(weights) / np.sum(weights**2) * weights
     N = np.sum(weights)
     mu = np.sum(weights * data) / N
     sigma = np.sqrt(np.sum(weights * (data - mu) ** 2) / N)

@@ -217,7 +217,7 @@ class ParticleKmatrix(Particle):
         Klist = []
         for mi, wi, qi in zip(mlist, wlist, qlist):
             rw = Gamma(m, wi, q, qi, self.bw_l, mi, self.d)
-            Klist.append(mi * rw / (mi ** 2 - m ** 2))
+            Klist.append(mi * rw / (mi**2 - m**2))
         KK = tf.reduce_sum(Klist, axis=0)
         KK += self.alpha()
         beta_term = self.get_beta(

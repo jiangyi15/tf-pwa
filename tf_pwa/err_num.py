@@ -4,7 +4,7 @@ from .utils import error_print
 
 
 class NumberError(object):
-    """ basic class for propagation of error"""
+    """basic class for propagation of error"""
 
     def __init__(self, value, error=1.0):
         self._value = value
@@ -24,7 +24,7 @@ class NumberError(object):
     def __add__(self, other):
         if isinstance(other, NumberError):
             val = self._value + other._value
-            err = np.sqrt(self._error ** 2 + other._error ** 2)
+            err = np.sqrt(self._error**2 + other._error**2)
         else:
             val = self._value + other
             err = self._error
@@ -33,7 +33,7 @@ class NumberError(object):
     def __sub__(self, other):
         if isinstance(other, NumberError):
             val = self._value - other._value
-            err = np.sqrt(self._error ** 2 + other._error ** 2)
+            err = np.sqrt(self._error**2 + other._error**2)
         else:
             val = self._value - other
             err = self._error
@@ -73,19 +73,19 @@ class NumberError(object):
 
     def __pow__(self, other):
         if isinstance(other, NumberError):
-            val = self._value ** other._value
+            val = self._value**other._value
             err1 = (
                 other._value * self._value ** (other._value - 1) * self._error
             )
             err2 = np.log(other._value) * val * other._error
-            err = np.sqrt(err1 ** 2 + err2 ** 2)
+            err = np.sqrt(err1**2 + err2**2)
         else:
-            val = self._value ** other
+            val = self._value**other
             err = np.abs(other * self._value ** (other - 1)) * self._error
         return NumberError(val, err)
 
     def __rpow__(self, other):
-        val = other ** self._value
+        val = other**self._value
         err = np.log(self._value) * val * self._error
         return NumberError(val, err)
 

@@ -14,16 +14,16 @@ class Dalitz:
 
 
 def _generate_fun0(m12, m23, m0, m1, m2, m3):
-    """ solved by sympy """
-    x0 = m0 ** 2
-    x1 = m1 ** 2
+    """solved by sympy"""
+    x0 = m0**2
+    x1 = m1**2
     x2 = -m23 + x0 + x1
     x3 = 1 / m0
     x4 = x3 / 2
-    x5 = m3 ** 2
-    x6 = m0 ** 4
-    x7 = m1 ** 4
-    x8 = m23 ** 2
+    x5 = m3**2
+    x6 = m0**4
+    x7 = m1**4
+    x8 = m23**2
     x9 = m23 * x0
     x10 = m23 * x1
     x11 = x0 * x1
@@ -36,7 +36,7 @@ def _generate_fun0(m12, m23, m0, m1, m2, m3):
     x18 = x1 * x5
     x19 = m12 * x1
     x20 = m23 * x5
-    x21 = m2 ** 2
+    x21 = m2**2
     return [
         x2 * x4,
         x4 * (m12 + m23 - x1 - x5),
@@ -50,13 +50,13 @@ def _generate_fun0(m12, m23, m0, m1, m2, m3):
         -sqrt(
             x14
             * (
-                -(m12 ** 2) * m23
+                -(m12**2) * m23
                 + m12 * x10
                 + m12 * x18
                 - m12 * x8
                 + m12 * x9
-                - m2 ** 4 * x0
-                - m3 ** 4 * x1
+                - m2**4 * x0
+                - m3**4 * x1
                 - x1 * x9
                 + x10 * x5
                 + x11 * x21

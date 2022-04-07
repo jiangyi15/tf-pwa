@@ -35,7 +35,7 @@ except OSError:
 
 
 def show(filepath):
-    """ open the output (pdf) file for the user """
+    """open the output (pdf) file for the user"""
     if os.name == "mac" or platform == "darwin":
         subprocess.call(("open", filepath))
     elif os.name == "nt" or platform == "win32":

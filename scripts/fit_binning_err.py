@@ -26,7 +26,7 @@ def binning_gradient(binning, amp, phsp, m_phsp, var):
             amp_i = amp(phsp_i)
             int_mc = tf.reduce_sum(weight_i * amp_i)
         grad = tape.gradient(int_mc, var, unconnected_gradients="zero")
-        w_error2 = tf.reduce_sum(weight_i ** 2 * amp_i ** 2)
+        w_error2 = tf.reduce_sum(weight_i**2 * amp_i**2)
         grad = np.array([j.numpy() for j in grad])
         nfit.append((int_mc.numpy(), grad, w_error2.numpy()))
     count_i = np.array([i[0] for i in nfit])

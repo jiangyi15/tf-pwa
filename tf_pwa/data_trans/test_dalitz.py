@@ -10,7 +10,7 @@ def test_mass():
     def mass2(p):
         """mass2"""
         p0, p1, p2, p3 = tf.unstack(p, axis=-1)
-        return p0 ** 2 - p1 ** 2 - p2 ** 2 - p3 ** 2
+        return p0**2 - p1**2 - p2**2 - p3**2
 
     def mass(p):
         """mass"""

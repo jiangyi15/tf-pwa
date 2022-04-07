@@ -28,7 +28,7 @@ def prob(chi_2, ndf):
 
 
 def erfc_inverse(x):
-    """ erfc-1(x) = - 1/sqrt(2) * normal_quantile( 0.5 * x)"""
+    """erfc-1(x) = - 1/sqrt(2) * normal_quantile( 0.5 * x)"""
     return -0.70710678118654752440 * normal_quantile(0.5 * x)
 
 

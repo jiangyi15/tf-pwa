@@ -309,7 +309,7 @@ class BaseModel(object):
         int_mc = tf.reduce_sum(
             mc_weight * self.signal(mcdata)
         ) / tf.reduce_sum(mc_weight)
-        alpha = sw / tf.reduce_sum(weight ** 2)
+        alpha = sw / tf.reduce_sum(weight**2)
         return -alpha * (
             tf.reduce_sum(weight * ln_data) - sw * tf.math.log(int_mc)
         )
@@ -343,7 +343,7 @@ class BaseModel(object):
         weight_rw = tf.reduce_sum(
             tf.reshape(weight, (-1, self.resolution_size)), axis=-1
         )
-        alpha = tf.reduce_sum(weight_rw) / tf.reduce_sum(weight_rw ** 2)
+        alpha = tf.reduce_sum(weight_rw) / tf.reduce_sum(weight_rw**2)
         weight = alpha * weight
         assert (
             batch % self.resolution_size == 0
@@ -471,7 +471,7 @@ class BaseModel(object):
         g_int_mc = np.array(g_int_mc)
         hessp2 = sw * (
             hessp_int_mc / int_mc
-            - g_int_mc * np.dot(p, g_int_mc) / int_mc ** 2
+            - g_int_mc * np.dot(p, g_int_mc) / int_mc**2
         )
         # print("hessp2", hessp2)
         # print("ret", g, hessp2 - hessp_ln_data)
@@ -494,7 +494,7 @@ class BaseModel(object):
         weight_rw = tf.reduce_sum(
             tf.reshape(weight, (-1, self.resolution_size)), axis=-1
         )
-        alpha = tf.reduce_sum(weight_rw) / tf.reduce_sum(weight_rw ** 2)
+        alpha = tf.reduce_sum(weight_rw) / tf.reduce_sum(weight_rw**2)
         weight = alpha * weight
         sw = tf.reduce_sum(weight)
         ln_data, g_ln_data, h_ln_data = sum_hessian(
@@ -889,7 +889,7 @@ class GaussianConstr(object):
             assert len(pi) == 2
             mean, sigma = pi
             var = self.vm.variables[i]
-            term += (var - mean) ** 2 / (sigma ** 2) / 2
+            term += (var - mean) ** 2 / (sigma**2) / 2
         return term
 
     def get_constrain_grad(self):
@@ -906,7 +906,7 @@ class GaussianConstr(object):
             assert len(pi) == 2
             mean, sigma = pi
             var = self.vm.variables[i]
-            g_dict[i] = (var - mean) / (sigma ** 2)  # 1st differentiation
+            g_dict[i] = (var - mean) / (sigma**2)  # 1st differentiation
         grad = []
         for i in self.vm.trainable_vars:
             if i in g_dict:
@@ -926,7 +926,7 @@ class GaussianConstr(object):
             assert len(pi) == 2
             mean, sigma = pi
             var = self.vm.variables[i]
-            h_dict[i] = 1 / (sigma ** 2)  # 2nd differentiation
+            h_dict[i] = 1 / (sigma**2)  # 2nd differentiation
         nv = len(self.vm.trainable_vars)
         hessian = np.zeros([nv, nv])
         for v, i in zip(self.vm.trainable_vars, range(nv)):
@@ -964,7 +964,7 @@ class ConstrainModel(Model):
             if isinstance(pi, tuple) and len(pi) == 2:
                 mean, sigma = pi
                 var = var_dict[i]
-                nll += (var - mean) ** 2 / (sigma ** 2) / 2
+                nll += (var - mean) ** 2 / (sigma**2) / 2
         return nll
 
     def get_constrain_grad(
@@ -986,7 +986,7 @@ class ConstrainModel(Model):
             if isinstance(pi, tuple) and len(pi) == 2:
                 mean, sigma = pi
                 var = var_dict[i]
-                g_dict[i] = (var - mean) / (sigma ** 2)  # 1st differentiation
+                g_dict[i] = (var - mean) / (sigma**2)  # 1st differentiation
         nll_g = []
         for i in t_var_name:
             if i in g_dict:
@@ -1008,7 +1008,7 @@ class ConstrainModel(Model):
             if isinstance(pi, tuple) and len(pi) == 2:
                 mean, sigma = pi
                 var = var_dict[i]
-                g_dict[i] = 1 / (sigma ** 2)  # 2nd differentiation
+                g_dict[i] = 1 / (sigma**2)  # 2nd differentiation
         nll_g = []
         for i in t_var_name:
             if i in g_dict:

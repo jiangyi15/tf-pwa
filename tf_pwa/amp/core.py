@@ -237,7 +237,7 @@ def _add_var(self, names, is_complex=False, shape=(), **kwargs):
 
 
 class AmpBase(object):
-    """Base class for amplitude """
+    """Base class for amplitude"""
 
     def add_var(self, names, is_complex=False, shape=(), **kwargs):
         """
@@ -774,9 +774,9 @@ class HelicityDecay(AmpDecay):
         ret = []
         for l in ls:
             if self.has_bprime:
-                tmp = q ** l * tf.cast(Bprime(l, q, q0, d), dtype=q.dtype)
+                tmp = q**l * tf.cast(Bprime(l, q, q0, d), dtype=q.dtype)
             else:
-                tmp = q ** l
+                tmp = q**l
             # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
             ret.append(tf.reshape(tmp, (-1, 1)))
         ret = tf.concat(ret, axis=-1)
@@ -1165,7 +1165,7 @@ class DecayChain(AmpDecayChain):
 
 
 class DecayGroup(BaseDecayGroup, AmpBase):
-    """ A Group of Decay Chains with the same final particles."""
+    """A Group of Decay Chains with the same final particles."""
 
     def __init__(self, chains):
         self.chains_idx = list(range(len(chains)))

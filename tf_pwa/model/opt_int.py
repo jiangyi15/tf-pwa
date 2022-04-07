@@ -548,7 +548,7 @@ class ModelCachedAmp(Model):
         g_int_mc = np.array(g_int_mc)
         hessp2 = sw * (
             hessp_int_mc / int_mc
-            - g_int_mc * np.dot(p, g_int_mc) / int_mc ** 2
+            - g_int_mc * np.dot(p, g_int_mc) / int_mc**2
         )
         # print("hessp2", hessp2)
         # print("ret", g, hessp2 - hessp_ln_data)

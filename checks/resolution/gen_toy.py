@@ -9,7 +9,7 @@ from tf_pwa.phasespace import PhaseSpaceGenerator
 
 
 def gauss(x, sigma):
-    a = tf.exp(-(x ** 2) / (2 * sigma ** 2))
+    a = tf.exp(-(x**2) / (2 * sigma**2))
     return a
 
 

@@ -19,7 +19,7 @@ def gauss_sample(data, decay_chain, r_name, sigma, sample_N, dat_order):
     sigma_delta = 5
 
     def gauss(delta_x):
-        return tf.exp(-(delta_x ** 2) / (2 * sigma ** 2))
+        return tf.exp(-(delta_x**2) / (2 * sigma**2))
 
     angle = cal_helicity_angle(
         data["particle"], decay_chain.standard_topology()

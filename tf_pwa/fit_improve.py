@@ -604,10 +604,10 @@ def _cubicmin(a, fa, fpa, b, fb, c, fc):
             dc = c - a
             denom = (db * dc) ** 2 * (db - dc)
             d1 = np.empty((2, 2))
-            d1[0, 0] = dc ** 2
-            d1[0, 1] = -(db ** 2)
-            d1[1, 0] = -(dc ** 3)
-            d1[1, 1] = db ** 3
+            d1[0, 0] = dc**2
+            d1[0, 1] = -(db**2)
+            d1[1, 0] = -(dc**3)
+            d1[1, 1] = db**3
             [A, B] = np.dot(
                 d1, np.asarray([fb - fa - C * db, fc - fa - C * dc]).flatten()
             )
