@@ -235,36 +235,35 @@ def build_phsp_chain_sorted(st, final_mi, nodes):
     mass_table = final_mi.copy()
     final_idx = {}
     index_root_map = {}
-    # print(st)
-    max_iter = 10
-    while nodes and max_iter > 0:
-        pi, mi = nodes.pop(0)
+
+    nodes = sorted(nodes, key=lambda x: x[1])  # lower mass
+    nodes.append(("top", 1 + sum([i[1] for i in nodes])))
+    st["top"] = [i for i in final_mi]
+
+    decay_map = {}
+
+    for pi, mi in nodes:
         sub_node = st[pi]
-        max_iter -= 1
-        if all(i in mass_table for i in sub_node):
-            index_root_map[pi] = sub_node
-            # the order make the following loop work
-            mass_table[pi] = (mi, [mass_table[i] for i in sub_node])
-            for k, i in enumerate(sub_node):
-                final_idx[i] = (k,)
-                del mass_table[i]
-            for k, v in st.items():
-                if k == pi:
-                    continue
-                if all(i in v for i in sub_node):
-                    for n in sub_node:
-                        st[k].remove(n)
-                    st[k].append(pi)
-        else:
-            nodes.append((pi, mi))
-    # print(mass_table)
-    ret = []
-    for k, i in enumerate(mass_table):
-        if i in final_mi:
+        assert all(
+            i in mass_table for i in sub_node
+        ), "unexcepted node {}".format(sub_node)
+        mass_table[pi] = (mi, [mass_table[i] for i in sub_node])
+        for k, i in enumerate(sub_node):
             final_idx[i] = (k,)
-        else:
-            for j in index_root_map[i]:
-                final_idx[j] = (k, *final_idx[j])
-        ret.append(mass_table[i])
-    # assert False
-    return ret, final_idx
+            decay_map[i] = pi
+            del mass_table[i]
+        new_idx = {}
+        for k, v in final_idx.items():
+            if k not in sub_node:
+                new_idx[k] = (*final_idx[decay_map[k]], *final_idx[k])
+        final_idx.update(new_idx)
+
+        for k, v in st.items():
+            if k == pi:
+                continue
+            if all(i in v for i in sub_node):
+                for n in sub_node:
+                    st[k].remove(n)
+                st[k].append(pi)
+
+    return mass_table["top"][1], final_idx
