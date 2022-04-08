@@ -375,7 +375,7 @@ class AlignmentAngle(EulerAngle):
 
 
 def kine_min_max(s12, m0, m1, m2, m3):
-    """ min max s23 for s12 in p0 -> p1 p2 p3"""
+    """min max s23 for s12 in p0 -> p1 p2 p3"""
     m12 = tf.sqrt(s12)
     m12 = tf.where(m12 > (m1 + m2), m12, m1 + m2)
     m12 = tf.where(m12 < (m0 - m3), m12, m0 - m3)
@@ -391,12 +391,12 @@ def kine_min_max(s12, m0, m1, m2, m3):
 
 
 def kine_min(s12, m0, m1, m2, m3):
-    """ min s23 for s12 in p0 -> p1 p2 p3"""
+    """min s23 for s12 in p0 -> p1 p2 p3"""
     s_min, s_max = kine_min_max(s12, m0, m1, m2, m3)
     return s_min
 
 
 def kine_max(s12, m0, m1, m2, m3):
-    """ max s23 for s12 in p0 -> p1 p2 p3"""
+    """max s23 for s12 in p0 -> p1 p2 p3"""
     s_min, s_max = kine_min_max(s12, m0, m1, m2, m3)
     return s_max

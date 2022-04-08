@@ -181,7 +181,7 @@ def cal_chi2(numbers, n_fp):
     # chi21 = []
     for ndata, nmc in numbers:
         weight = (ndata - nmc) / np.sqrt(np.abs(ndata))
-        weights.append(weight ** 2)
+        weights.append(weight**2)
         # chi21.append(ndata * np.log(nmc))
     max_weight = np.max(weights)
     chi2 = np.sum(weights)

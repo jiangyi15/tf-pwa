@@ -6,7 +6,7 @@ from tf_pwa.angle import LorentzVector as lv
 
 
 class HelicityAngle1:
-    """ simple implement for angle to monmentum trasform"""
+    """simple implement for angle to monmentum trasform"""
 
     def __init__(self, decay_chain):
         self.decay_chain = decay_chain
@@ -55,7 +55,7 @@ class HelicityAngle1:
 
 
 class HelicityAngle:
-    """ general implement for angle to monmentum trasform"""
+    """general implement for angle to monmentum trasform"""
 
     def __init__(self, decay_chain):
         self.decay_chain = decay_chain
@@ -129,7 +129,7 @@ class HelicityAngle:
 
 
 def normal(p):
-    return p / tf.expand_dims(tf.sqrt(tf.reduce_sum(p ** 2, axis=-1)), axis=-1)
+    return p / tf.expand_dims(tf.sqrt(tf.reduce_sum(p**2, axis=-1)), axis=-1)
 
 
 def create_rotate_p(ps, ms, costheta, phi):
@@ -140,7 +140,7 @@ def create_rotate_p(ps, ms, costheta, phi):
     for p, m, c, i in zip(ps, ms, costheta, phi):
         px_o, py_o, pz_o = px, py, pz
         E = tf.sqrt(m * m + p * p)
-        s = tf.sqrt(1 - c ** 2)
+        s = tf.sqrt(1 - c**2)
         vx = p * s * tf.cos(i)
         vy = p * s * tf.sin(i)
         vz = p * c
@@ -178,7 +178,7 @@ def create_rotate_p_decay(decay_chain, mass, data):
         E1 = tf.sqrt(m1 * m1 + p * p)
         m2 = mass[dec.outs[1]]
         E2 = tf.sqrt(m2 * m2 + p * p)
-        s = tf.sqrt(1 - c ** 2)
+        s = tf.sqrt(1 - c**2)
         vx = p * s * tf.cos(i)
         vy = p * s * tf.sin(i)
         vz = p * c
@@ -245,7 +245,7 @@ def generate_p(ms, msp, costheta, phi):
     p_gen2 = []
     for i in range(n_decay):
         pa = ps[n_decay - i - 1]
-        Ea2 = tf.sqrt(msp[n_decay - i - 1] ** 2 + pa ** 2) + tf.zeros_like(
+        Ea2 = tf.sqrt(msp[n_decay - i - 1] ** 2 + pa**2) + tf.zeros_like(
             p_gen[n_decay - i - 1][..., 0]
         )
         pa2 = tf.concat(

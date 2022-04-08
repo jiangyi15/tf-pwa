@@ -170,7 +170,7 @@ def save_frac_csv(file_name, fit_frac):
 
 
 def write_run_point():
-    """ write time as a point of fit start"""
+    """write time as a point of fit start"""
     with open(".run_start", "w") as f:
         localtime = time.strftime(
             "%Y-%m-%d %H:%M:%S", time.localtime(time.time())

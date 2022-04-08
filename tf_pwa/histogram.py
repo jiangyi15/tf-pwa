@@ -28,15 +28,15 @@ def interp_hist(binning, y, num=1000, kind="UnivariateSpline"):
 
 
 def gauss(x):
-    return np.exp(-(x ** 2) / 2) / np.sqrt(2 * np.pi)
+    return np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
 
 
 def cauchy(x):
-    return 1 / (x ** 2 + 1) / np.pi
+    return 1 / (x**2 + 1) / np.pi
 
 
 def epanechnikov(x):
-    return np.where((x < 1) & (x > -1), (1 - x ** 2) / 4 * 3, 0)
+    return np.where((x < 1) & (x > -1), (1 - x**2) / 4 * 3, 0)
 
 
 def uniform(x):
@@ -157,7 +157,7 @@ class Hist1D:
         return Hist1D(
             self.binning,
             self.count + other.count,
-            np.sqrt(self.error ** 2 + other.error ** 2),
+            np.sqrt(self.error**2 + other.error**2),
         )
 
     def __sub__(self, other):
@@ -167,7 +167,7 @@ class Hist1D:
         return Hist1D(
             self.binning,
             self.count - other.count,
-            np.sqrt(self.error ** 2 + other.error ** 2),
+            np.sqrt(self.error**2 + other.error**2),
         )
 
     @staticmethod
@@ -178,7 +178,7 @@ class Hist1D:
         else:
             weights = np.asarray(weights)
             count, binning = np.histogram(m, *args, weights=weights, **kwargs)
-            count2, _ = np.histogram(m, *args, weights=weights ** 2, **kwargs)
+            count2, _ = np.histogram(m, *args, weights=weights**2, **kwargs)
         return Hist1D(binning, count, np.sqrt(count2))
 
     def scale_to(self, other):
@@ -198,7 +198,7 @@ class WeightedData(Hist1D):
         if weights is None:
             weights = np.ones_like(m)
         count, binning = np.histogram(m, *args, weights=weights, **kwargs)
-        count2, _ = np.histogram(m, *args, weights=weights ** 2, **kwargs)
+        count2, _ = np.histogram(m, *args, weights=weights**2, **kwargs)
         self.value = m
         self.weights = weights
         super().__init__(binning, count, np.sqrt(count2))
@@ -222,7 +222,7 @@ class WeightedData(Hist1D):
         )
         ret.binning = self.binning
         ret.count = self.count + other.count
-        ret.error = np.sqrt(self.error ** 2 + other.error ** 2)
+        ret.error = np.sqrt(self.error**2 + other.error**2)
         return ret
 
     def __mul__(self, other):

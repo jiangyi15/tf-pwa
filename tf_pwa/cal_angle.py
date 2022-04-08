@@ -86,7 +86,7 @@ class CalAngleData(dict):
         return tf.ones(data_shape(self), dtype=get_config("dtype"))
 
     def get_angle(self, decay, p):
-        """ get hilicity angle of decay which product particle p"""
+        """get hilicity angle of decay which product particle p"""
         if isinstance(decay, str):
             decay = self.get_decay().get_decay_chain(decay)
         dec = decay.standard_topology()

@@ -28,11 +28,11 @@ def test_mul():
     d = a / b
     assert d.value == 1.5
     assert d.error == math.sqrt(0.1125)
-    e = b ** 3
+    e = b**3
     assert e.value == 8.0
     assert abs(e.error - math.sqrt(23.04)) < 1e-7
-    f = b ** a
-    g = 3.0 ** a
+    f = b**a
+    g = 3.0**a
 
 
 def test_exp():
@@ -48,7 +48,7 @@ def test_exp():
 def test_cal_err():
     a = NumberError(3.0, 0.3)
     b = NumberError(2.0, 0.3)
-    f = lambda x: x * 3.0 + x ** 2 * 2.0 + 1.0
+    f = lambda x: x * 3.0 + x**2 * 2.0 + 1.0
     c = cal_err(f, a)
     g = lambda x, y: x + y + (x - y) * (x + y)
     d = cal_err(g, a, b)

@@ -8,8 +8,8 @@ from tf_pwa.breit_wigner import Bprime_q2, get_bprime_coeff
 
 
 def get_relative_p(m0, m1, m2):
-    a = m0 ** 2 - (m1 + m2) ** 2
-    b = m0 ** 2 - (m1 - m2) ** 2
+    a = m0**2 - (m1 + m2) ** 2
+    b = m0**2 - (m1 - m2) ** 2
     return sym.sqrt(a * b) / m0 / sym.S(2)
 
 
@@ -22,7 +22,7 @@ def Fb(l, q, d=3):
     d = 0
     for i, k in enumerate(coef):
         d = d + k * z ** (l - i)
-    return sym.sqrt(frac * z ** l / d)
+    return sym.sqrt(frac * z**l / d)
 
 
 def Bl(l, q, q0, d=3):
@@ -52,7 +52,7 @@ def KMatrix_single(n_pole, m1, m2, l, d=3, bkg=0, Kb=0):
             * (p / p0[i])
             * Bl(l, p, p0[i], d) ** 2
         )
-        denominator = mi[i] ** 2 - m ** 2
+        denominator = mi[i] ** 2 - m**2
         tmp = tmp / denominator
         K = tmp + K
     k = K + Kb
@@ -293,7 +293,7 @@ class KmatrixSplitLSParticle(Particle):
 
         den_prod = tf.complex(ones, zeros)
         for k in range(self.n_pole):
-            tmp = tf.complex(mi[k] ** 2 - m ** 2, -_epsilon * ones)
+            tmp = tf.complex(mi[k] ** 2 - m**2, -_epsilon * ones)
             dm.append(tmp)
             den_prod = den_prod * dm[k]
 

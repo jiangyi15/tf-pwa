@@ -24,15 +24,15 @@ def cal_chi2_config(
     amp_weight = config.get_amplitude()(phsp).numpy()
     phsp_cut = np.array([data_index(phsp, idx) for idx in data_idx])
     phsp_slice = np.concatenate(
-        [np.array(phsp_cut ** 2), [amp_weight]], axis=0
+        [np.array(phsp_cut**2), [amp_weight]], axis=0
     )
     phsps = adapter.split_data(phsp_slice)
-    datas = adapter.split_data(data_cut ** 2)
+    datas = adapter.split_data(data_cut**2)
     bound = adapter.get_bounds()
     if bg is not None:
         bg_weight = config._get_bg_weight(display=False)[0][0]
         bg_cut = np.array([data_index(bg, idx) for idx in data_idx])
-        bgs = adapter.split_data(bg_cut ** 2)
+        bgs = adapter.split_data(bg_cut**2)
         int_norm = (
             data_cut.shape[-1] - bg_cut.shape[-1] * bg_weight
         ) / np.sum(amp_weight)
@@ -106,7 +106,7 @@ def main():
     data_idx = [mbc_idx, mbd_idx]
 
     data_cut = np.array([data_index(data, idx) for idx in data_idx])
-    adapter = AdaptiveBound(data_cut ** 2, [[2, 2], [3, 3], [2, 2]])
+    adapter = AdaptiveBound(data_cut**2, [[2, 2], [3, 3], [2, 2]])
     bound = adapter.get_bounds()
 
     cal_chi2_config(

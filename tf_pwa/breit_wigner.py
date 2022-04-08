@@ -250,12 +250,12 @@ def Gamma2(m, gamma0, q2, q02, L, m0, d):
     q02 = tf.cast(q02, q2.dtype)
     _epsilon = 1e-15
     qq0 = q2 / q02
-    qq0 = tf.cast(qq0 ** L, tf.complex128) * tf.sqrt(
+    qq0 = tf.cast(qq0**L, tf.complex128) * tf.sqrt(
         tf.cast(qq0, tf.complex128)
     )
     mm0 = tf.cast(m0, m.dtype) / m
-    z0 = q02 * d ** 2
-    z = q2 * d ** 2
+    z0 = q02 * d**2
+    z = q2 * d**2
     bp = Bprime_polynomial(L, z0) / Bprime_polynomial(L, z)
     gammaM = qq0 * tf.cast(gamma0 * bp * mm0, qq0.dtype)
     return gammaM
@@ -267,8 +267,8 @@ def Bprime_q2(L, q2, q02, d):
     """
     q02 = tf.cast(q02, q2.dtype)
     _epsilon = 1e-15
-    z0 = q02 * d ** 2
-    z = q2 * d ** 2
+    z0 = q02 * d**2
+    z = q2 * d**2
     bp = Bprime_polynomial(L, z0) / Bprime_polynomial(L, z)
     return tf.sqrt(tf.where(bp > 0, bp, 1.0))
 
@@ -309,7 +309,7 @@ def barrier_factor(l, q, q0, d=3.0, axis=0):  # cache q^l * B_l 只用于H里
     """
     ret = []
     for i in l:
-        tmp = q ** i * tf.cast(Bprime(i, q, q0, d), q.dtype)
+        tmp = q**i * tf.cast(Bprime(i, q, q0, d), q.dtype)
         ret.append(tmp)
     return tf.stack(ret)
 
@@ -320,7 +320,7 @@ def barrier_factor2(l, q, q0, d=3.0, axis=-1):  # cache q^l * B_l 只用于H里
     """
     ret = []
     for i in l:
-        tmp = q ** i * tf.cast(Bprime(i, q, q0, d), q.dtype)
+        tmp = q**i * tf.cast(Bprime(i, q, q0, d), q.dtype)
         ret.append(tf.reshape(tmp, (-1, 1)))
     return tf.concat(ret, axis=axis)
 
@@ -362,7 +362,7 @@ def reverse_bessel_polynomials(n, x):
     for k in range(n + 1):
         c = fractions.Fraction(
             math.factorial(n + k),
-            math.factorial(n - k) * math.factorial(k) * 2 ** k,
+            math.factorial(n - k) * math.factorial(k) * 2**k,
         )
         ret += c * x ** (n - k)
     return ret
