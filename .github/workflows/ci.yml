@@ -35,12 +35,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[test]
       - name: Test with pytest-cov
-        run: pytest --cov=tf_pwa tf_pwa --benchmark-disable --doctest-modules
+        run: |
+          pytest --cov=tf_pwa tf_pwa --benchmark-disable --doctest-modules
+          mv .coverage fulltest.coverage
       - name: Upload pytest test results
         uses: actions/upload-artifact@v3
         with:
           name: pytest-results-fulltest
-          path: .coverage
+          path: fulltest.coverage
 
   codecov:
     name: Coverage
