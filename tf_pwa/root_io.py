@@ -45,11 +45,12 @@ def load_Ttree(tree):
     """load TTree as dict"""
     ret = {}
     for i in tree.keys():
-        arr = tree.get(i).array()
+        if uproot_version >= 4:
+            arr = tree.get(i).array(library="np")
+        else:
+            arr = tree.get(i).array()
         if isinstance(i, bytes):
             i = i.decode()
-        if hasattr(arr, "to_numpy"):
-            arr = arr.to_numpy()
         if isinstance(arr, np.ndarray):
             ret[i] = arr
     return ret
