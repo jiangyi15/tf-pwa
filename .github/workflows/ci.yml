@@ -46,7 +46,7 @@ jobs:
     name: Coverage
     if: github.event.pull_request.draft == false
     runs-on: ${{ matrix.os }}
-    needs: [fulltest, pytest, uproot3]
+    needs: [fulltest, pytest, pytest_uproot3]
     strategy:
       matrix:
         os: [ubuntu-18.04]
