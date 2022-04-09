@@ -16,8 +16,8 @@ on:
       - ready_for_review
 
 jobs:
-  codecov:
-    name: Unit tests + coverage
+  fulltest:
+    name: Unit tests
     if: github.event.pull_request.draft == false
     runs-on: ${{ matrix.os }}
     strategy:
@@ -35,9 +35,37 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[test]
       - name: Test with pytest-cov
-        run:
-          pytest --cov=tf_pwa --cov-report=xml tf_pwa --benchmark-disable
-          --doctest-modules
+        run: pytest --cov=tf_pwa tf_pwa --benchmark-disable --doctest-modules
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-results-fulltest
+          path: .coverage
+
+  codecov:
+    name: Coverage
+    if: github.event.pull_request.draft == false
+    runs-on: ${{ matrix.os }}
+    needs: [fulltest, pytest, uproot3]
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+        python-version: [3.7]
+    steps:
+      - uses: actions/checkout@master
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@master
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - uses: Combine coverage
+        run: |
+          python -m pip install coverage
+          python -m coverage combine .coverage *.coverage
+          python -m coverage xml
+
       - uses: codecov/codecov-action@v1
         with:
           file: ./coverage.xml
@@ -123,7 +151,43 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[test]
       - name: Test with pytest
-        run: pytest --benchmark-disable
+        run: |
+          pytest --benchmark-disable --cov=tf_pwa
+          mv .coverage ${{ matrix.os }}-${{ matrix.python-version }}.coverage
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-results-${{ matrix.os }}-${{ matrix.python-version }}
+          path: ${{ matrix.os }}-${{ matrix.python-version }}.coverage
+
+  pytest_uproot3:
+    name: Test uproot3
+    if: github.event.pull_request.draft == false
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+        python-version: [3.7]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[test]
+          python -m pip install uproot3
+      - name: Test with pytest
+        run: |
+          pytest --benchmark-disable --cov=tf_pwa
+          mv .coverage uproot3.coverage
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-results-uproot3
+          path: uproot3.coverage
 
   documentation:
     name: Build documentation
