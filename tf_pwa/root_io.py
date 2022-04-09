@@ -12,6 +12,8 @@ except ImportError as e:
         has_uproot = False
         print(e, "you should install `uproot` correctly for using this module")
 
+uproot_version = int(uproot.__version__.split(".")[0])
+
 
 def load_root_data(fnames):
     """load root file as dict"""
@@ -19,11 +21,13 @@ def load_root_data(fnames):
         fnames = [fnames]
     ret = {}
     root_file = [uproot.open(i) for i in fnames]
-    keys = [i.allkeys() for i in root_file]
+    keys = [i.keys() for i in root_file]
     common_keys = set()
     for i in keys:
         for j in i:
-            pj = j.decode().split(";")[0]
+            if isinstance(j, bytes):
+                j = j.decode()
+            pj = j.split(";")[0]
             common_keys.add(pj)
     ret = {}
     for i in common_keys:
@@ -32,6 +36,8 @@ def load_root_data(fnames):
             data_i = load_Ttree(j.get(i))
             data.append(data_i)
         ret[i] = data_merge(*data)
+    for i in root_file:
+        i.close()
     return ret
 
 
@@ -39,9 +45,14 @@ def load_Ttree(tree):
     """load TTree as dict"""
     ret = {}
     for i in tree.keys():
-        arr = tree.get(i).array()
+        if uproot_version >= 4:
+            arr = tree.get(i).array(library="np")
+        else:
+            arr = tree.get(i).array()
+        if isinstance(i, bytes):
+            i = i.decode()
         if isinstance(arr, np.ndarray):
-            ret[i.decode()] = arr
+            ret[i] = arr
     return ret
 
 
@@ -84,5 +95,8 @@ def save_dict_to_root(dic, file_name, tree_name=None):
                 )
                 branch_data[j] = np.array(d[i])
                 branch_type[j] = branch_data[j].dtype.name
-            f[t] = uproot.newtree(branch_type)
-            f[t].extend(branch_data)
+            if uproot_version >= 4:
+                f[t] = branch_data
+            else:
+                f[t] = uproot.newtree(branch_type)
+                f[t].extend(branch_data)
