@@ -648,12 +648,18 @@ class HelicityDecay(AmpDecay):
         ja = self.core.J
         jb = self.outs[0].J
         jc = self.outs[1].J
-        n = _spin_int(2 * jb + 1), _spin_int(2 * jc + 1)
+        n = len(self.outs[0].spins), len(
+            self.outs[1].spins
+        )  # _spin_int(2 * jb + 1), _spin_int(2 * jc + 1)
         ret = np.zeros(shape=(m, *n))
         for i, ls_i in enumerate(ls):
             l, s = ls_i
-            for i1, lambda_b in enumerate(_spin_range(-jb, jb)):
-                for i2, lambda_c in enumerate(_spin_range(-jc, jc)):
+            for i1, lambda_b in enumerate(
+                self.outs[0].spins
+            ):  # _spin_range(-jb, jb)):
+                for i2, lambda_c in enumerate(
+                    self.outs[1].spins
+                ):  # _spin_range(-jc, jc)):
                     ret[i][i1][i2] = (
                         np.sqrt((2 * l + 1) / (2 * ja + 1))
                         * cg_coef(
