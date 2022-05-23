@@ -192,3 +192,9 @@ def test_fit_combine(toy_config2):
 
 def test_mix_likelihood(toy_config3):
     toy_config3.fit(maxiter=1)
+
+
+def test_cp_particles():
+    config = ConfigLoader(f"{this_dir}/config_self_cp.yml")
+    phsp = config.generate_phsp(100)
+    config.get_amplitude()(phsp)

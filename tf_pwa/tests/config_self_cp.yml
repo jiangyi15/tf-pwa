@@ -1,0 +1,59 @@
+data:
+  dat_order: [pip, pim, jpsi]
+  cp_particles: [[pip, pim]]
+  random_z: False
+
+decay:
+  epem:
+    - [pipjpsi, pim]
+    - [pimjpsi, pip]
+    - [jpsi, pippim]
+  pipjpsi: [pip, jpsi]
+  pimjpsi: [pim, jpsi]
+  pippim: [pip, pim, c_break: False]
+
+particle:
+  $top:
+    epem:
+      J: 1
+      P: -1
+      C: -1
+      mass: 4.6
+      spine: [-1, 1]
+  $finals:
+    pip:
+      J: 0
+      P: -1
+      mass: 0.139
+    pim:
+      J: 0
+      P: -1
+      mass: 0.139
+    jpsi:
+      J: 1
+      P: -1
+      C: -1
+      mass: 3.0
+  pipjpsi: [Zc(3900)]
+  pimjpsi: []
+  pippim: [rho]
+  Zc(3900):
+    J: 1
+    P: +1
+    mass: 3.9
+    width: 0.02
+  rho:
+    J: 1
+    P: -1
+    C: -1
+    mass: 0.9
+    width: 0.05
+
+plot:
+  mass:
+    pipjpsi:
+      display: "M(pi+Jpsi)"
+    pimjpsi:
+      display: "M(pi-Jpsi)"
+    pippim:
+      display: "M(pi+,pi-)"

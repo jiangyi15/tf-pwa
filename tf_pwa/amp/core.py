@@ -28,7 +28,12 @@ from tf_pwa.einsum import einsum
 from tf_pwa.particle import DEFAULT_DECAY, BaseParticle, Decay
 from tf_pwa.particle import DecayChain as BaseDecayChain
 from tf_pwa.particle import DecayGroup as BaseDecayGroup
-from tf_pwa.particle import _spin_int, _spin_range, split_particle_type
+from tf_pwa.particle import (
+    _spin_int,
+    _spin_range,
+    cp_charge_group,
+    split_particle_type,
+)
 from tf_pwa.tensorflow_wrapper import tf
 from tf_pwa.variable import Variable, VarsManager
 
@@ -1330,6 +1335,29 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             amp = amp + amp_swap
         return amp
 
+    def get_amp3(self, data):
+        amp = self.get_amp2(data)
+        if "cp_swap" in data:
+            amp_swap = self.get_amp2(data["cp_swap"])
+            cg = cp_charge_group(
+                [str(i) for i in self.outs],
+                self.identical_particles,
+                self.cp_particles,
+            )
+            name_map = {str(i): i for i in self.outs}
+            frac = 1.0
+            same_particle = []
+            for a, b in cg:
+                for i, j in zip(a, b):
+                    if i == j:
+                        same_particle.append(i)
+                        frac = frac * getattr(name_map[i], "C", -1)
+            p_reverse = [Ellipsis] + [
+                slice(None, None, -1) for i in range(len(amp_swap.shape) - 1)
+            ]
+            amp = amp + amp_swap.__getitem__(p_reverse) * frac
+        return amp
+
     def sum_amp(self, data, cached=True):
         """
         calculat the amplitude modular square
@@ -1338,7 +1366,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             data = simple_deepcopy(data)
         if self.polarization != "none":
             return self.sum_amp_polarization(data)
-        amp = self.get_amp2(data)
+        amp = self.get_amp3(data)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         idx = list(range(1, len(amp2s.shape)))
         sum_A = tf.reduce_sum(amp2s, idx)
