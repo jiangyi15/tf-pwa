@@ -95,9 +95,13 @@ class DecayConfig(BaseConfig):
         identical_particles = self.config["data"].get(
             "identical_particles", None
         )
+        cp_particles = self.config["data"].get("cp_particles", None)
         if identical_particles is not None:
             self.decay_struct.identical_particles = identical_particles
             self.full_decay.identical_particles = identical_particles
+        if cp_particles is not None:
+            self.decay_struct.cp_particles = cp_particles
+            self.full_decay.cp_particles = cp_particles
 
     @staticmethod
     def load_config(file_name, share_dict={}):

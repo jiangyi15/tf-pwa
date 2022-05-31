@@ -66,7 +66,13 @@ from .data import (
     split_generator,
 )
 from .histogram import Hist1D
-from .particle import BaseDecay, BaseParticle, DecayChain, DecayGroup
+from .particle import (
+    BaseDecay,
+    BaseParticle,
+    DecayChain,
+    DecayGroup,
+    cp_charge_group,
+)
 from .tensorflow_wrapper import tf
 
 
@@ -618,6 +624,43 @@ def identical_particles_swap_p(p4, id_particles):
         yield (new_order, comb), dict(zip(new_order, p4.values()))
 
 
+def cp_swap_p(p4, finals, id_particles, cp_particles):
+    cg = cp_charge_group([str(i) for i in finals], id_particles, cp_particles)
+    ret = {}
+    name_map = {str(i): i for i in p4.keys()}
+    for a, b in cg:
+        for i, j in zip(a, b):
+            ret[name_map[j]] = LorentzVector.neg(p4[name_map[i]])
+            if i != j:
+                ret[name_map[i]] = LorentzVector.neg(p4[name_map[j]])
+    return ret
+
+
+def cal_angle_from_momentum_id_swap(
+    p,
+    decs: DecayGroup,
+    using_topology=True,
+    center_mass=False,
+    r_boost=True,
+    random_z=False,
+    batch=65000,
+) -> CalAngleData:
+    ret = []
+    id_particles = decs.identical_particles
+    data = cal_angle_from_momentum_base(
+        p, decs, using_topology, center_mass, r_boost, random_z, batch
+    )
+    if id_particles is None or len(id_particles) == 0:
+        return data
+    else:
+        data["id_swap"] = {}
+        for i, pi in identical_particles_swap_p(p, id_particles):
+            data["id_swap"][i] = cal_angle_from_momentum_base(
+                pi, decs, using_topology, center_mass, r_boost, random_z, batch
+            )
+        return data
+
+
 def cal_angle_from_momentum(
     p,
     decs: DecayGroup,
@@ -636,17 +679,17 @@ def cal_angle_from_momentum(
     """
     ret = []
     id_particles = decs.identical_particles
-    data = cal_angle_from_momentum_base(
+    cp_particles = decs.cp_particles
+    data = cal_angle_from_momentum_id_swap(
         p, decs, using_topology, center_mass, r_boost, random_z, batch
     )
-    if id_particles is None or len(id_particles) == 0:
+    if cp_particles is None or len(cp_particles) == 0:
         return data
     else:
-        data["id_swap"] = {}
-        for i, pi in identical_particles_swap_p(p, id_particles):
-            data["id_swap"][i] = cal_angle_from_momentum_base(
-                pi, decs, using_topology, center_mass, r_boost, random_z, batch
-            )
+        p2 = cp_swap_p(p, decs.outs, id_particles, cp_particles)
+        data["cp_swap"] = cal_angle_from_momentum_id_swap(
+            p2, decs, using_topology, center_mass, r_boost, random_z, batch
+        )
         return data
 
 

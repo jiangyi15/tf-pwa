@@ -363,12 +363,12 @@ class VarsManager(object):
                         shape=[], mean=mu, stddev=sigma, dtype=self.dtype
                     )
                 else:
-                    range_ = bound_dic[name]
+                    range_lower, range_upper = bound_dic[name]
                     while True:
                         val = tf.random.normal(
                             shape=[], mean=mu, stddev=sigma, dtype=self.dtype
                         )
-                        if val < range_[1] and val > range_[0]:
+                        if val < range_upper and val > range_lower:
                             break
                 self.variables[name].assign(val)
             else:
@@ -894,8 +894,47 @@ class VarsManager(object):
             ret = method(f2, np.array(x0), **mini_kwargs)
         self.set_all(ret.x, val_in_fit=True)
         ret.x = np.array(self.get_all_val())
-        ret.hess_inv = self.trans_error_matrix(ret.hess_inv, ret.x)
+        if isinstance(ret.hess_inv, np.ndarray):
+            ret.hess_inv = self.trans_error_matrix(ret.hess_inv, ret.x)
+        else:
+            ret.hess_inv = None
         return ret
+
+    def minimize_error(self, fcn, fit_result):
+        if hasattr(fit_result, "hess_inv") and isinstance(
+            fit_result.hess_inv, np.ndarray
+        ):
+            hess_inv = fit_result.hess_inv
+        else:
+
+            def f(x):
+                self.set_all(x)
+                with tf.GradientTape(persistent=True) as tape0:
+                    with tf.GradientTape() as tape:
+                        y = fcn()
+                    g = tape.gradient(
+                        y,
+                        self.trainable_variables,
+                        unconnected_gradients="zero",
+                    )
+                hs = []
+                for gi in g:
+                    gi_grad = tape0.gradient(
+                        gi,
+                        self.trainable_variables,
+                        unconnected_gradients="zero",
+                    )
+                    hs.append([float(i) for i in gi_grad])
+                del tape0
+                return float(y), np.array([float(i) for i in g]), np.array(hs)
+
+            _, _, hess = f(fit_result.x)
+            hess_inv = np.linalg.inv(hess)
+            fit_result.hess_inv = self.trans_error_matrix(
+                hess_inv, fit_result.x
+            )
+        x_error = np.sqrt(np.diag(fit_result.hess_inv))
+        return x_error
 
 
 class Bound(object):
@@ -934,6 +973,9 @@ class Bound(object):
 
     def __repr__(self):
         return "[" + str(self.lower) + ", " + str(self.upper) + "]"
+
+    def __iter__(self):
+        return iter((self.lower, self.upper))
 
     def get_func(self):  # init func string into sympy f(x) or f(y)
         """

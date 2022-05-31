@@ -841,6 +841,7 @@ class DecayGroup(object):
                     resonances.append(j)
         self.resonances = list(resonances)
         self.identical_particles = []
+        self.cp_particles = None
 
     def __repr__(self):
         return "{}".format(self.chains)
@@ -931,3 +932,36 @@ class DecayGroup(object):
                 if str(i) == str(name):
                     return i
         raise ValueError("Not found such decay chain: {}".format(name))
+
+
+def cp_charge_group(finals, id_p, cp):
+    used_c = set()
+    ret = []
+    for a, b in cp:
+        has_id_a = None
+        has_id_b = None
+        for i in id_p:
+            if a in i:
+                has_id_a = i
+            if b in i:
+                has_id_b = i
+        if has_id_a is None and has_id_b is None:
+            used_c.add(a)
+            used_c.add(b)
+            ret.append([[a], [b]])
+        elif (
+            has_id_a is None
+            or has_id_b is None
+            or len(has_id_a) != len(has_id_b)
+        ):
+            raise ValueError("not the same id ")
+        else:
+            for i in has_id_a:
+                used_c.add(i)
+            for i in has_id_b:
+                used_c.add(i)
+            ret.append([has_id_a, has_id_b])
+    self_c = [i for i in finals if i not in used_c]
+    for i in self_c:
+        ret.append([[i], [i]])
+    return ret

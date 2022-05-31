@@ -1,6 +1,7 @@
-tensorflow-gpu>=2.0,<=2.2
+tensorflow
 matplotlib
 pyyaml
 scipy
 setuptools_scm
 sympy
+cudatoolkit
