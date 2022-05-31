@@ -4,3 +4,4 @@ pyyaml
 scipy
 setuptools_scm
 sympy
+cudatoolkit
