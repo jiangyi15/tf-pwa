@@ -4,7 +4,7 @@ import tensorflow as tf
 from tf_pwa.amp import variable_scope
 from tf_pwa.config import set_config
 from tf_pwa.function import nll_funciton
-from tf_pwa.variable import Variable, VarsManager, combineVM
+from tf_pwa.variable import Bound, Variable, VarsManager, combineVM
 
 
 def test_variable():
@@ -75,9 +75,11 @@ def test_minimize2():
             fx = tf.cos(x) + tf.abs(a())
             return fx
 
-        ret = vm.minimize(nll_funciton(f, data, phsp))
+        fcn = nll_funciton(f, data, phsp)
+        ret = vm.minimize(fcn)
         print(ret)
         assert abs(float(np.abs(a())) - 1.0) < 0.2
+        ret_error = vm.minimize_error(fcn, ret)
 
 
 def test_minimize():
@@ -95,6 +97,7 @@ def test_minimize():
         )
         print(ret)
         assert abs(m().numpy()) < 1e-6
+        ret_error = vm.minimize_error(f, ret)
 
 
 def test_polar():
@@ -124,6 +127,8 @@ def test_refresh_vars():
         Variable("b", value=1.0)
         Variable("d", value=1.0, fix=True)
         vm.refresh_vars()
+        vm.refresh_vars(bound_dic={"b": (2, 3)})
+        vm.refresh_vars(bound_dic={"b": Bound(2, 3)}, init_val={"b": 1.0})
 
 
 def test_rename():
