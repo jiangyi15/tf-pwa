@@ -3,6 +3,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 
 from tf_pwa.adaptive_bins import AdaptiveBound
 from tf_pwa.adaptive_bins import cal_chi2 as cal_chi2_o
@@ -19,6 +20,78 @@ from tf_pwa.histogram import Hist1D, interp_hist
 from tf_pwa.root_io import has_uproot, save_dict_to_root
 
 from .config_loader import ConfigLoader
+
+
+def _reverse(gen, idx):
+    for i in gen:
+        yield [i[j] for j in idx]
+
+
+def default_color_generator(color_first):
+    colors = [
+        "red",
+        "orange",
+        "purple",
+        "springgreen",
+        "y",
+        "green",
+        "blue",
+        "c",
+    ]
+    linestyles = ["-", "--", "-.", ":"]
+    marker = [",", ".", "^"]
+    if color_first:
+        style = itertools.product(marker, linestyles, colors)
+    else:
+        style = _reverse(
+            itertools.product(marker, colors, linestyles), (0, 2, 1)
+        )
+    return style
+
+
+class LineStyleSet:
+    def __init__(self, file_name, color_first=True):
+        self.file_name = file_name
+        self.linestyle_table = None
+        if file_name is not None and os.path.exists(file_name):
+            with open(file_name) as f:
+                self.linestyle_table = yaml.full_load(f)
+        if self.linestyle_table is None:
+            self.linestyle_table = []
+        self.linestyle_generator = default_color_generator(color_first)
+        self.style_key = ["label", "linestyle", "marker", "color"]
+
+    def get(self, id_):
+        id_ = str(id_)
+        used_linestyle = []
+        for i in self.linestyle_table:
+            if i["id"] == id_:
+                return i
+            used_linestyle.append((i["marker"], i["linestyle"], i["color"]))
+        for i in self.linestyle_generator:
+            if i in used_linestyle:
+                continue
+            marker, line, color = i
+            item = {
+                "id": id_,
+                "color": color,
+                "linestyle": line,
+                "marker": marker,
+            }
+            self.linestyle_table.append(item)
+            return item
+        return None
+
+    def get_style(self, id_):
+        style = self.get(id_)
+        style_key = self.style_key
+        return {k: v for k, v in style.items() if k in style_key}
+
+    def save(self):
+        if self.file_name is None:
+            return
+        with open(self.file_name, "w") as f:
+            yaml.dump(self.linestyle_table, f)
 
 
 def _get_cfit_bg(self, data, phsp):
@@ -386,6 +459,7 @@ def _plot_partial_wave(
     format="png",
     nll=None,
     smooth=True,
+    linestyle_file=None,
     color_first=True,
     **kwargs
 ):
@@ -393,17 +467,8 @@ def _plot_partial_wave(
     # cmap = plt.get_cmap("jet")
     # N = 10
     # colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
-    colors = [
-        "red",
-        "orange",
-        "purple",
-        "springgreen",
-        "y",
-        "green",
-        "blue",
-        "c",
-    ]
-    linestyles = ["-", "--", "-.", ":"]
+
+    style = LineStyleSet(linestyle_file, color_first=color_first)
 
     data_weights = data_dict["data_weights"]
     if bg_dict:
@@ -464,10 +529,7 @@ def _plot_partial_wave(
         le2 = fitted_hist.draw(ax, label="total fit", color="black")
         legends.append(le2[0])
         legends_label.append("total fit")
-        if color_first:
-            style = itertools.product(linestyles, colors)
-        else:
-            style = itertools.product(colors, linestyles)
+
         for i, name_i, label, curve_style in chain_property:
             weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name_i)]
             hist_i = Hist1D.histogram(
@@ -478,34 +540,22 @@ def _plot_partial_wave(
             )
             if smooth:
                 if curve_style is None:
-                    if color_first:
-                        ls, color = next(style)
-                    else:
-                        color, ls = next(style)
-                    le3 = hist_i.draw_kde(
-                        ax,
-                        label=label,
-                        color=color,
-                        linestyle=ls,
-                        linewidth=1,
-                    )
+                    line = style.get_style(name_i)
+                    label = line.get("label", label)
+                    kwargs = {"linewidth": 1, **line}
+                    # marker, ls, color = line["marker"], line["linestyle"], line["color"]
+                    le3 = hist_i.draw_kde(ax, **kwargs)
                 else:
                     le3 = hist_i.draw_kde(
                         ax, fmt=curve_style, label=label, linewidth=1
                     )
             else:
                 if curve_style is None:
-                    if color_first:
-                        ls, color = next(style)
-                    else:
-                        color, ls = next(style)
-                    le3 = hist_i.draw(
-                        ax,
-                        label=label,
-                        color=color,
-                        linestyle=ls,
-                        linewidth=1,
-                    )
+                    line = style.get_style(name_i)
+                    label = line.get("label", label)
+                    kwargs = {"linewidth": 1, **line}
+                    # marker, ls, color = line["marker"], line["linestyle"], line["color"]
+                    le3 = hist_i.draw(ax, **kwargs)
                 else:
                     le3 = hist_i.draw(
                         ax,
@@ -590,6 +640,8 @@ def _plot_partial_wave(
                 export_legend(ax, prefix + "legend.pdf")
         print("Finish plotting " + prefix + name)
         plt.close(fig)
+
+    style.save()
 
     self._2d_plot(
         data_dict,

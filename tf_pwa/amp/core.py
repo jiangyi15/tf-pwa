@@ -1439,11 +1439,14 @@ class DecayGroup(BaseDecayGroup, AmpBase):
 
     def set_used_res(self, res, only=False):
         res_set = set()
+        idx_chains = []
         for i in res:
             if isinstance(i, str):
                 res_set.add(BaseParticle(i))
             elif isinstance(i, BaseParticle):
                 res_set.add(i)
+            elif isinstance(i, int):
+                idx_chains.append(i)
             else:
                 raise TypeError(
                     "type({}) = {} not a Particle".format(i, type(i))
@@ -1467,6 +1470,15 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                 if i not in unused_decay:
                     used_decay.append(i)
             self.set_used_chains(used_decay)
+        self.add_used_chains(idx_chains)
+
+    def add_used_chains(self, used_chains):
+        for i in used_chains:
+            assert isinstance(i, int), "not index of chains"
+            if i in self.chains_idx:
+                continue
+            else:
+                self.chains_idx.append(i)
 
     def set_used_chains(self, used_chains):
         self.chains_idx = list(used_chains)

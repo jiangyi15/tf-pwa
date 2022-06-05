@@ -111,6 +111,12 @@ def test_cfit(gen_toy):
     fcn({})
     fcn.nll_grad({})
     config.plot_partial_wave()
+    config.plot_partial_wave(
+        prefix="toy_data/figure/s", linestyle_file="toy_data/a.yml"
+    )
+    config.plot_partial_wave(
+        prefix="toy_data/figure/ss", linestyle_file="toy_data/a.yml"
+    )
 
 
 def test_cfit_cached(gen_toy):
