@@ -802,7 +802,7 @@ class HelicityDecay(AmpDecay):
                 bp = Bprime_q2(l, q2, q02, d)
                 tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
                 if self.barrier_factor_norm:
-                    tmp = tmp / q02 ** (l / 2)
+                    tmp = tmp / tf.cast(tf.abs(q02), tmp.dtype) ** (l / 2)
             else:
                 tmp = q2 ** (l / 2)
             # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))

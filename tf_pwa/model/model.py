@@ -37,6 +37,7 @@ def _batch_sum(f, data_i, weight_i, trans, resolution_size, args, kwargs):
     part_y = tf.reshape(part_y, (-1, resolution_size))
     part_y = tf.reduce_sum(part_y, axis=-1)
     event_w = tf.reduce_sum(rw, axis=-1)
+    event_w = tf.where(event_w == 0, tf.ones_like(event_w), event_w)
     part_y = part_y / event_w
     part_y = trans(part_y)
     y_i = tf.reduce_sum(event_w * part_y)

@@ -3,6 +3,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import sympy as sym
 import yaml
 
 from tf_pwa.adaptive_bins import AdaptiveBound
@@ -19,7 +20,7 @@ from tf_pwa.data import (
 from tf_pwa.histogram import Hist1D, interp_hist
 from tf_pwa.root_io import has_uproot, save_dict_to_root
 
-from .config_loader import ConfigLoader
+from .config_loader import ConfigLoader, validate_file_name
 
 
 def _reverse(gen, idx):
@@ -213,9 +214,33 @@ def plot_partial_wave(
     prefix="figure/",
     res=None,
     save_root=False,
-    chains_id_method="auto",
+    chains_id_method=None,
     **kwargs
 ):
+    """
+    plot partial wave plots
+
+    :param self: ConfigLoader object
+    :param params: params, dict or FitResutls
+    :param data: data sample, a list of CalAngleData
+    :param phsp: phase space sample, a list of CalAngleData (the same size as data)
+    :param bg: background sample, a list of CalAngleData (the same size as data)
+    :param prefix: figure saving folder and nameing prefix
+    :param res: combination of resonaces in partial wave, list of (list of (string for resoances name or int for decay chain index))
+    :param save_root: if save weights in a root file, bool
+    :param chains_id_method: method of how legend label display, string
+
+    :param bin_scale: more binning in partial waves for a smooth histogram. int
+    :param batch: batching in calculating weights, int
+
+    :param smooth: if plot smooth binned kde shape or histogram, bool
+    :param single_legend: if save all legend in a file "legend.pdf", bool
+    :param plot_pull: if plot the pull distribution, bool
+    :param format: save figure with image format, string (such as ".png", ".jpeg")
+    :param linestyle_file: legend linestyle configuration file name (YAML format), string (such as "legend.yml")
+
+    """
+
     if params is None:
         params = {}
     nll = None
@@ -244,7 +269,8 @@ def plot_partial_wave(
         None if bg_i is None else bg_i.get("weight", None) for bg_i in bg
     ]
     # ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
-    self.chains_id_method = chains_id_method
+    if chains_id_method is not None:
+        self.chains_id_method = chains_id_method
     chain_property = create_chain_property(self, res)
     plot_var_dic = {}
     for conf in self.plot_params.get_params():
@@ -728,6 +754,24 @@ def _plot_partial_wave(
         color_first=color_first,
         **kwargs,
     )
+    self._2d_plot_v2(
+        data_dict,
+        phsp_dict,
+        bg_dict,
+        prefix,
+        plot_var_dic,
+        chain_property,
+        plot_delta=plot_delta,
+        plot_pull=plot_pull,
+        save_pdf=save_pdf,
+        bin_scale=bin_scale,
+        single_legend=single_legend,
+        format=format,
+        nll=nll,
+        smooth=smooth,
+        color_first=color_first,
+        **kwargs,
+    )
 
 
 @ConfigLoader.register_function()
@@ -753,6 +797,8 @@ def _2d_plot(
 
     twodplot = self.config["plot"].get("2Dplot", {})
     for k, i in twodplot.items():
+        if "&" not in k:
+            continue
         var1, var2 = k.split("&")
         var1 = var1.rstrip()
         var2 = var2.lstrip()
@@ -817,6 +863,160 @@ def _2d_plot(
             print("Finish plotting 2D fitted " + prefix + k)
 
 
+def _plot_var_name(name):
+    if isinstance(name, (list, tuple)):
+        sub = name[0]
+        if sub == "mass":
+            assert len(name) == 2, str(name)
+            return "m_" + name[1]
+        if sub == "angle":
+            assert len(name) == 3
+            return validate_file_name(name[1] + "_" + name[2])
+        if sub == "aligned_angle":
+            assert len(name) == 3
+            return "aligned_" + validate_file_name(name[1] + "_" + name[2])
+    if isinstance(name, str):
+        return name
+    raise TypeError("not string or list")
+
+
+@ConfigLoader.register_function()
+def _2d_plot_v2(
+    self,
+    data_dict,
+    phsp_dict,
+    bg_dict,
+    prefix,
+    plot_var_dic,
+    chain_property,
+    plot_delta=False,
+    plot_pull=False,
+    save_pdf=False,
+    bin_scale=3,
+    single_legend=False,
+    format="png",
+    nll=None,
+    smooth=True,
+    color_first=True,
+    **kwargs
+):
+
+    twodplot = self.config["plot"].get("2Dplot", {})
+    for k, v in twodplot.items():
+        if "&" in k:
+            continue
+        assert ("x" in v) and ("y" in v)
+        var_x = sym.simplify(v["x"])
+        var_y = sym.simplify(v["y"])
+        where = v.get("where", {})
+        used_var = []
+        var_index = []
+        for i in var_x.free_symbols | var_y.free_symbols:
+            var_index.append(str(i))
+            used_var.append(where.get(str(i), str(i)))
+
+        used_var = [_plot_var_name(i) for i in used_var]
+
+        def get_var(dic, tail):
+            ret = []
+            for i in used_var:
+                ret.append(dic[i + tail])
+            return dict(zip(var_index, ret))
+
+        var_x_f = sym.lambdify(
+            var_x.free_symbols | var_y.free_symbols, var_x, modules="numpy"
+        )
+        var_y_f = sym.lambdify(
+            var_x.free_symbols | var_y.free_symbols, var_y, modules="numpy"
+        )
+
+        data_1 = var_x_f(**get_var(data_dict, ""))
+        data_2 = var_y_f(**get_var(data_dict, ""))
+        phsp_1 = var_x_f(**get_var(phsp_dict, "_MC"))
+        phsp_2 = var_y_f(**get_var(phsp_dict, "_MC"))
+
+        x_range = v.get("xrange", None)
+        if x_range is None:
+            x_range = [np.min(phsp_1) - 0.1, np.max(phsp_1) + 0.1]
+        y_range = v.get("yrange", None)
+        if y_range is None:
+            y_range = [np.min(phsp_2) - 0.1, np.max(phsp_2) + 0.1]
+
+        x_bins = v.get("xbins", 100)
+        y_bins = v.get("ybins", 100)
+
+        display = v.get("display", k)
+
+        plot_figs = v.get("plot_figs", ["data", "sidbanand", "fitted"])
+        name1 = v.get("xlabel", str(var_x))
+        name2 = v.get("ylabel", str(var_y))
+
+        def plot_axis():
+            plt.xlabel(name1)
+            plt.ylabel(name2)
+            plt.title(display, fontsize="xx-large")
+            plt.xlim(x_range)
+            plt.ylim(y_range)
+
+        # data
+        if "data" in plot_figs:
+            plt.scatter(data_1, data_2, s=1, alpha=0.8, label="data")
+            plot_axis()
+            plt.savefig(prefix + k + "_data")
+            plt.clf()
+            print("Finish plotting 2D data " + prefix + k)
+        # sideband
+        if "sideband" in plot_figs:
+            if bg_dict:
+                bg_1 = var_x_f(**get_var(bg_dict, "_sideband"))
+                bg_2 = var_y_f(**get_var(bg_dict, "_sideband"))
+                plt.scatter(
+                    bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband"
+                )
+                plot_axis()
+                plt.savefig(prefix + k + "_bkg")
+                plt.clf()
+                print("Finish plotting 2D sideband " + prefix + k)
+            else:
+                print("There's no bkg input")
+        if "sideband_hist" in plot_figs:
+            if bg_dict:
+                bg_1 = var_x_f(**get_var(bg_dict, "_sideband"))
+                bg_2 = var_y_f(**get_var(bg_dict, "_sideband"))
+                bg_weights = bg_dict["sideband_weights"]
+                plt.hist2d(
+                    bg_1,
+                    bg_2,
+                    bins=[x_bins, y_bins],
+                    weights=bg_weights,
+                    range=[x_range, y_range],
+                    cmin=1e-12,
+                )
+                plot_axis()
+                plt.colorbar()
+                plt.savefig(prefix + k + "_bkg_hist")
+                plt.clf()
+                print("Finish plotting 2D sideband histogram " + prefix + k)
+            else:
+                print("There's no bkg input")
+        ## fit pdf
+        if "fitted" in plot_figs:
+            phsp_weights = phsp_dict["MC_total_fit"]
+            plt.hist2d(
+                phsp_1,
+                phsp_2,
+                bins=[x_bins, y_bins],
+                weights=phsp_weights,
+                range=[x_range, y_range],
+                cmin=1e-12,
+            )
+            plot_axis()
+            plt.colorbar()
+            plt.savefig(prefix + k + "_fitted")
+            plt.clf()
+            print("Finish plotting 2D fitted " + prefix + k)
+
+
 def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
     if not hasattr(weights, "__len__"):
         weights = [weights] * data.__len__()
@@ -858,6 +1058,9 @@ def hist_line_step(
 
 
 def export_legend(ax, filename="legend.pdf", ncol=1):
+    """
+    export legend in Axis `ax` to file `filename`
+    """
     fig2 = plt.figure()
     ax2 = fig2.add_subplot()
     ax2.axis("off")

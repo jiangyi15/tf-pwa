@@ -97,7 +97,7 @@ class ConfigLoader(BaseConfig):
         self.resolution_size = self.config.get("data", {}).get(
             "resolution_size", 1
         )
-        self.chains_id_method = "first_decay"
+        self.chains_id_method = "auto"
         self.chains_id_method_table = {}
 
     @staticmethod
@@ -994,6 +994,8 @@ class PlotParams(dict):
             self.params.append(i)
         for i in self.get_angle_vars():
             self.params.append(i)
+        for i in self.get_angle_vars(True):
+            self.params.append(i)
 
     def get_data_index(self, sub, name):
         dec = self.decay_struct.topology_structure()
@@ -1043,6 +1045,7 @@ class PlotParams(dict):
         mass = self.config.get("mass", {})
         x = sy.symbols("x")
         for k, v in mass.items():
+            id_ = v.get("id", k)
             display = v.get("display", "M({})".format(k))
             upper_ylim = v.get("upper_ylim", None)
             xrange = v.get("range", None)
@@ -1064,7 +1067,7 @@ class PlotParams(dict):
                 "upper_ylim": upper_ylim,
                 "idx": (
                     "particle",
-                    self.re_map.get(get_particle(k), get_particle(k)),
+                    self.re_map.get(get_particle(id_), get_particle(id_)),
                     "m",
                 ),
                 "legend": legend,
@@ -1075,10 +1078,14 @@ class PlotParams(dict):
                 "yscale": yscale,
             }
 
-    def get_angle_vars(self):
-        ang = self.config.get("angle", {})
+    def get_angle_vars(self, is_align=False):
+        if not is_align:
+            ang = self.config.get("angle", {})
+        else:
+            ang = self.config.get("aligned_angle", {})
         for k, i in ang.items():
-            names = k.split("/")
+            id_ = i.get("id", k)
+            names = id_.split("/")
             name = names[0]
             number_decay = True
             if len(names) > 1:
@@ -1102,7 +1109,7 @@ class PlotParams(dict):
                 part = decay.outs[0]
             else:
                 _, decay_chain, decay, part, _ = self.get_data_index(
-                    "angle", k
+                    "angle", id_
                 )
             for j, v in i.items():
                 display = v.get("display", j)
@@ -1120,11 +1127,25 @@ class PlotParams(dict):
                 yscale = v.get(
                     "yscale", self.defaults_config.get("yscale", "linear")
                 )
+                if is_align:
+                    ang_type = "aligned_angle"
+                else:
+                    ang_type = "ang"
+                name_id = validate_file_name(k + "_" + j)
+                if is_align:
+                    name_id = "aligned_" + name_id
                 yield {
-                    "name": validate_file_name(k + "_" + j),
+                    "name": name_id,
                     "display": display,
                     "upper_ylim": upper_ylim,
-                    "idx": ("decay", decay_chain, decay, part, "ang", theta),
+                    "idx": (
+                        "decay",
+                        decay_chain,
+                        decay,
+                        part,
+                        ang_type,
+                        theta,
+                    ),
                     "trans": trans,
                     "bins": bins,
                     "range": xrange,
