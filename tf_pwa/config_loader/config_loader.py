@@ -97,6 +97,8 @@ class ConfigLoader(BaseConfig):
         self.resolution_size = self.config.get("data", {}).get(
             "resolution_size", 1
         )
+        self.chains_id_method = "first_decay"
+        self.chains_id_method_table = {}
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -744,26 +746,6 @@ class ConfigLoader(BaseConfig):
     def get_chain(self, idx):
         decay_group = self.full_decay
         return decay_group.get_decay_chain(idx)
-
-    def get_chain_property(self, idx, display=True):
-        """Get chain name and curve style in plot"""
-        chain = self.get_chain(idx)
-        for i in chain:
-            curve_style = i.curve_style
-            break
-        combine = []
-        for i in chain:
-            if i.core == chain.top:
-                combine = list(i.outs)
-        names = []
-        displays = []
-        for i in combine:
-            pro = self.particle_property[str(i)]
-            names.append(str(i))
-            displays.append(pro.get("display", str(i)))
-        if display:
-            return " ".join(displays), curve_style
-        return "_".join(names), curve_style
 
     def cal_fitfractions(
         self, params={}, mcdata=None, res=None, exclude_res=[], batch=25000

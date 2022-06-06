@@ -124,6 +124,86 @@ def _get_cfit_eff_phsp(self, phsp):
 
 
 @ConfigLoader.register_function()
+def get_chain_property(self, idx, display=True):
+    """Get chain name and curve style in plot"""
+    chain = self.get_chain(idx)
+    chains_id_method = self.chains_id_method
+    if chains_id_method == "auto":
+        if len(list(chain)) <= 3:
+            chains_id_method = "first_decay"
+        else:
+            chains_id_method = "res"
+    if "res" not in self.chains_id_method_table:
+        self.chains_id_method_table["res"] = get_chain_property_v2
+    if "first_decay" not in self.chains_id_method_table:
+        self.chains_id_method_table["first_decay"] = get_chain_property_v1
+    f = self.chains_id_method_table[chains_id_method]
+    return f(self, idx, display)
+
+
+def get_chain_property_v1(self, idx, display):
+    chain = self.get_chain(idx)
+    for i in chain:
+        curve_style = i.curve_style
+        break
+    combine = []
+    for i in chain:
+        if i.core == chain.top:
+            combine = list(i.outs)
+    names = []
+    displays = []
+    for i in combine:
+        pro = self.particle_property[str(i)]
+        names.append(str(i))
+        displays.append(pro.get("display", str(i)))
+    if display:
+        return " ".join(displays), curve_style
+    return "_".join(names), curve_style
+
+
+def get_chain_property_v2(self, idx, display):
+    chain = self.get_chain(idx)
+    for i in chain:
+        curve_style = i.curve_style
+        break
+    all_res = chain.inner
+    combine = []
+    # sorted with the decay order
+    for i in chain:
+        if i.core in all_res:
+            combine.append(i.core)
+    names = []
+    displays = []
+    for i in combine:
+        pro = self.particle_property[str(i)]
+        names.append(str(i))
+        displays.append(pro.get("display", str(i)))
+    if display:
+        return "/".join(displays), curve_style
+    return "_".join(names), curve_style
+
+
+def create_chain_property(self, res):
+    chain_property = []
+    if res is None:
+        for i in range(len(self.full_decay.chains)):
+            name_i, curve_style = self.get_chain_property(i, False)
+            label, curve_style = self.get_chain_property(i, True)
+            chain_property.append([i, name_i, label, curve_style])
+    else:
+        for i, name in enumerate(res):
+            if not isinstance(name, list):
+                name = [name]
+            if len(name) == 1:
+                display = str(name[0])
+            else:
+                display = "{ " + ",\n  ".join([str(i) for i in name]) + " }"
+            name_i = "_".join([str(i) for i in name])
+            chain_property.append([i, name_i, display, None])
+    return chain_property
+
+
+@ConfigLoader.register_function()
 def plot_partial_wave(
     self,
     params=None,
@@ -133,6 +213,7 @@ def plot_partial_wave(
     prefix="figure/",
     res=None,
     save_root=False,
+    chains_id_method="auto",
     **kwargs
 ):
     if params is None:
@@ -163,22 +244,8 @@ def plot_partial_wave(
         None if bg_i is None else bg_i.get("weight", None) for bg_i in bg
     ]
     # ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
-    chain_property = []
-    if res is None:
-        for i in range(len(self.full_decay.chains)):
-            name_i, curve_style = self.get_chain_property(i, False)
-            label, curve_style = self.get_chain_property(i, True)
-            chain_property.append([i, name_i, label, curve_style])
-    else:
-        for i, name in enumerate(res):
-            if not isinstance(name, list):
-                name = [name]
-            if len(name) == 1:
-                display = str(name[0])
-            else:
-                display = "{ " + ",\n  ".join([str(i) for i in name]) + " }"
-            name_i = "_".join([str(i) for i in name])
-            chain_property.append([i, name_i, display, None])
+    self.chains_id_method = chains_id_method
+    chain_property = create_chain_property(self, res)
     plot_var_dic = {}
     for conf in self.plot_params.get_params():
         name = conf.get("name")

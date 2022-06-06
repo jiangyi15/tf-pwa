@@ -117,6 +117,11 @@ def test_cfit(gen_toy):
     config.plot_partial_wave(
         prefix="toy_data/figure/ss", linestyle_file="toy_data/a.yml"
     )
+    config.plot_partial_wave(
+        prefix="toy_data/figure/s2",
+        linestyle_file="toy_data/a.yml",
+        chains_id_method="res",
+    )
 
 
 def test_cfit_cached(gen_toy):
