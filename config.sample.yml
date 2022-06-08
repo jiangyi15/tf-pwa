@@ -179,3 +179,8 @@ plot:
     m_R_CD & m_R_BC:
       display: "$M_{CD}$ vs $M_{BC}$"
       plot_figs: ["data", "sideband", "fitted"]
+    dalitz_12:
+      x: m_R_CD**2
+      y: m_R_BC**2
+      display: "$M_{CD}^2$ vs $M_{BC}^2$"
+      plot_figs: ["data", "sideband", "fitted"]

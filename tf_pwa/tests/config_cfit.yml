@@ -45,3 +45,31 @@ plot:
     R_BC: { display: "$M_{BC}$" }
     R_BD: { display: "$M_{BD}$" }
     R_CD: { display: "$M_{CD}$" }
+  angle:
+    R_BC:
+      cos(beta): { display: "$cos(\\theta)$" }
+  aligned_angle:
+    R_BC/B:
+      cos(beta): { display: "$cos(\\beta)$" }
+  2Dplot:
+    dalitz_12:
+      x: m_R_BC**2
+      y: m_R_BD**2
+    mass_angle:
+      x: m1
+      y: costheta
+      where:
+        m1: [mass, R_BC]
+        costheta: [angle, R_BC, cos(beta)]
+      xbins: 50
+      ybins: 50
+      plot_figs: ["data", "sideband_hist", "fitted"]
+    angle2:
+      x: a
+      y: costheta
+      where:
+        a: [aligned_angle, R_BC/B, cos(beta)]
+        costheta: [angle, R_BC, cos(beta)]
+      xbins: 50
+      ybins: 50
+      plot_figs: ["data", "sideband_hist", "fitted"]
