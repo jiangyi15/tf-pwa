@@ -9,7 +9,13 @@ from itertools import repeat as _loop_generator
 import numpy as np
 
 from ..config import get_config
-from ..data import data_merge, data_shape, data_split, split_generator
+from ..data import (
+    EvalLazy,
+    data_merge,
+    data_shape,
+    data_split,
+    split_generator,
+)
 from ..tensorflow_wrapper import tf
 from ..utils import time_print
 from ..variable import Variable
@@ -291,7 +297,7 @@ class BaseModel(object):
     """
 
     def __init__(self, signal, resolution_size=1):
-        self.signal = signal
+        self.signal = EvalLazy(signal)
         self.Amp = signal
         self.vm = signal.vm
         self.resolution_size = resolution_size
@@ -705,8 +711,10 @@ class Model(object):
         :param mc_weight:
         :return:
         """
-        data_i = ({**i, "weight": j} for i, j in zip(data, weight))
-        mcdata_i = ({**i, "weight": j} for i, j in zip(mcdata, mc_weight))
+        data_i = data  # ({**i, "weight": j} for i, j in zip(data, weight))
+        mcdata_i = (
+            mcdata  # ({**i, "weight": j} for i, j in zip(mcdata, mc_weight))
+        )
         return self.model.nll_grad_batch(data_i, mcdata_i, weight, mc_weight)
 
     def nll_grad_hessian(
@@ -1091,7 +1099,7 @@ class FCN(object):
         self.mcdata = mcdata
         self.batch_mcdata = list(split_generator(mcdata, batch))
         self.batch = batch
-        if "weight" in mcdata:
+        if mcdata.get("weight", None) is not None:
             mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
             self.mc_weight = mc_weight / tf.reduce_sum(mc_weight)
         else:

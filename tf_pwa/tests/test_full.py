@@ -5,6 +5,7 @@ import matplotlib
 import numpy as np
 import pytest
 import tensorflow as tf
+import yaml
 
 from tf_pwa import set_random_seed
 from tf_pwa.applications import gen_data, gen_mc
@@ -139,6 +140,28 @@ def test_cfit_extended(gen_toy):
     fcn({})
     fcn.nll_grad({})
     fcn.nll_grad_hessian({})
+
+
+def test_cfit_lazy_call(gen_toy):
+    with open(f"{this_dir}/config_cfit.yml") as f:
+        config_dic = yaml.full_load(f)
+    config_dic["data"]["lazy_call"] = True
+    config = ConfigLoader(config_dic)
+    config.set_params(f"{this_dir}/exp_params.json")
+    fcn = config.get_fcn()
+    fcn.nll_grad()
+
+
+def test_fit_lazy_call(gen_toy):
+    with open(f"{this_dir}/config_toy.yml") as f:
+        config_dic = yaml.full_load(f)
+    config_dic["data"]["lazy_call"] = True
+    config = ConfigLoader(config_dic)
+    config.set_params(f"{this_dir}/exp_params.json")
+    config.fit(print_init_nll=False)
+    fcn = config.get_fcn()
+    fcn.nll_grad()
+    config.plot_partial_wave(prefix="toy_data/figure/s2")
 
 
 def test_constrains(gen_toy):

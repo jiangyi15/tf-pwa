@@ -623,6 +623,7 @@ class ConfigLoader(BaseConfig):
         reweight=False,
         maxiter=None,
         jac=True,
+        print_init_nll=True,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
@@ -642,7 +643,8 @@ class ConfigLoader(BaseConfig):
 
         print("\n########### initial parameters")
         print(json.dumps(amp.get_params(), indent=2), flush=True)
-        print("initial NLL: ", fcn({}))  # amp.get_params()))
+        if print_init_nll:
+            print("initial NLL: ", fcn({}))  # amp.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
         self.fit_params = fit(

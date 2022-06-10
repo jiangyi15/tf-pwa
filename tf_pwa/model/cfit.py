@@ -1,7 +1,7 @@
 import numpy as np
 
 from ..config import create_config
-from ..data import data_shape, split_generator
+from ..data import EvalLazy, data_shape, split_generator
 from ..tensorflow_wrapper import tf
 from .model import Model, clip_log, sum_gradient, sum_hessian
 from .opt_int import build_amp, sum_gradient_data2
@@ -30,11 +30,11 @@ class Model_cfit(Model):
             eff_f = get_function("default_eff")
         elif isinstance(eff_f, str):
             eff_f = get_function(eff_f)
-        self.bg = bg_f
+        self.bg = EvalLazy(bg_f)
         self.vm = amp.vm
         self.w_bkg = w_bkg
         self.eff = eff_f
-        self.sig = lambda x: self.eff(x) * self.Amp(x)
+        self.sig = EvalLazy(lambda x: self.eff(x) * self.Amp(x))
 
     def nll(
         self,
