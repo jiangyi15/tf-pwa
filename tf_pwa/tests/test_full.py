@@ -150,6 +150,7 @@ def test_cfit_lazy_call(gen_toy):
     config.set_params(f"{this_dir}/exp_params.json")
     fcn = config.get_fcn()
     fcn.nll_grad()
+    config.plot_partial_wave(prefix="toy_data/figure/c2")
 
 
 def test_fit_lazy_call(gen_toy):
@@ -162,6 +163,7 @@ def test_fit_lazy_call(gen_toy):
     fcn = config.get_fcn()
     fcn.nll_grad()
     config.plot_partial_wave(prefix="toy_data/figure/s2")
+    config.cal_fitfractions()
 
 
 def test_constrains(gen_toy):

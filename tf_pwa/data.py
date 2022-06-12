@@ -113,6 +113,16 @@ class LazyCall:
             return self.extra[index]
         return value
 
+    def get_weight(self):
+        if self.get("weight", None) is not None:
+            return self.get("weight")
+        return tf.ones(data_shape(self), dtype=get_config("dtype"))
+
+    def copy(self):
+        ret = LazyCall(lambda x: x, self)
+        ret.extra = self.extra.copy()
+        return ret
+
     def eval(self):
         x = self.x
         if isinstance(self.x, LazyCall):
@@ -493,6 +503,14 @@ def data_index(data, key):
             return data_index(idx(data, keys[0]), keys[1:])
         return idx(data, keys[0])
     return idx(data, key)
+
+
+def data_replace(data, key, value):
+    if isinstance(data, LazyCall):
+        ret = data.copy()
+        ret["key"] = value
+        return ret
+    return type(data)({**data, key: value})
 
 
 def data_strip(data, keys):

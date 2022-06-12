@@ -11,6 +11,7 @@ from tf_pwa.adaptive_bins import cal_chi2 as cal_chi2_o
 from tf_pwa.data import (
     data_index,
     data_merge,
+    data_replace,
     data_shape,
     data_split,
     data_to_numpy,
@@ -105,10 +106,15 @@ def _get_cfit_bg(self, data, phsp):
         nbg = ndata * w
         w_bg = bg_f(phsp_i) * phsp_i.get_weight()
         phsp_weight.append(-w_bg / np.sum(w_bg) * nbg)
-    return [
-        type(phsp_i)({**phsp_i, "weight": w})
+    ret = [
+        data_replace(phsp_i, "weight", w)
         for phsp_i, w in zip(phsp, phsp_weight)
     ]
+    return ret
+    # return [
+    # type(phsp_i)({**phsp_i, "weight": w})
+    # for phsp_i, w in zip(phsp, phsp_weight)
+    # ]
 
 
 def _get_cfit_eff_phsp(self, phsp):
@@ -118,10 +124,12 @@ def _get_cfit_eff_phsp(self, phsp):
     for phsp_i, eff_f in zip(phsp, eff_function):
         w_eff = eff_f(phsp_i) * phsp_i.get_weight()
         phsp_weight.append(w_eff)
-    return [
-        type(phsp_i)({**phsp_i, "weight": w})
+
+    ret = [
+        data_replace(phsp_i, "weight", w)
         for phsp_i, w in zip(phsp, phsp_weight)
     ]
+    return ret
 
 
 @ConfigLoader.register_function()
