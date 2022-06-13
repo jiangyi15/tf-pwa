@@ -385,6 +385,16 @@ class ParticleDecay(HelicityDecay):
 
 @regist_decay("helicity_full")
 class HelicityDecayNP(HelicityDecay):
+    """
+    Full helicity amplitude
+
+    .. math::
+        A = H_{m_1, m_2} D_{m_0, m_1-m_2}^{J_0 *}(\\varphi, \\theta,0)
+
+    fit parameters is :math:`H_{m_1, m_2}`.
+
+    """
+
     def init_params(self):
         a = self.outs[0].spins
         b = self.outs[1].spins
@@ -472,7 +482,11 @@ class HelicityDecayP(HelicityDecay):
 
 
 @regist_decay("gls-cpv")
-class HelicityDecay(HelicityDecay):
+class HelicityDecayCPV(HelicityDecay):
+    """
+    decay model for CPV
+    """
+
     def init_params(self):
         self.d = 3.0
         ls = self.get_ls_list()

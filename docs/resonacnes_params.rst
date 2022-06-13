@@ -10,33 +10,33 @@ From `Resonacces.yml` to the real model, there will be following steps.
 
 1. loaded by config.yml, it is will be combined the defination in `config.yml` particle parts.
 
-For examples, `config.yml` have
+   For examples, `config.yml` have
 
-.. code::
+   .. code::
 
-   particle:
-      $include: Resonances.yml
+      particle:
+         $include: Resonances.yml
+         Psi4040:
+            float: mg
+
+   then `Resonances.yml` item
+
+   .. code::
+
       Psi4040:
-         float: mg
+         J: 1
+         float: m
 
-then `Resonances.yml` item
-
-.. code::
-
-   Psi4040:
-      J: 1
-      float: m
-
-will become `{"Psi4040": {"J": 1, "float": "mg"}}`
+   will become `{"Psi4040": {"J": 1, "float": "mg"}}`
 
 2. replace some alias, (`m0 -> mass`, `g0 -> width`, ...)
 
 3. If it is used in decay chain, then create `Particle` object.
 
-The particle class is `cls = get_particle_model(item["model"])`,
-and the object is  `cls(**item)`.
+   The particle class is `cls = get_particle_model(item["model"])`,
+   and the object is  `cls(**item)`.
 
-All parameters wull be stored in `config..particle_property[name]`.
+   All parameters wull be stored in `config.particle_property[name]`.
 
 
 
@@ -68,7 +68,7 @@ Parameters defined in `~tf_pwa.particle.BaseParticle` are common parameters incl
 Model Parameters
 ----------------
 
-Parameters defined in the real model. :ref:`particle_model`
+Parameters defined in the real model. :doc:`particle_model`
 
 
 There are many parameters defined by the user, the those parameters will be pass to model class,
