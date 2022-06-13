@@ -56,6 +56,7 @@ import numpy as np
 from .angle import SU2M, EulerAngle, LorentzVector, Vector3, _epsilon
 from .config import get_config
 from .data import (
+    LazyCall,
     data_index,
     data_merge,
     data_shape,
@@ -677,6 +678,17 @@ def cal_angle_from_momentum(
     :param decs: DecayGroup
     :return: Dictionary of data
     """
+    if isinstance(p, LazyCall):
+        return LazyCall(
+            cal_angle_from_momentum,
+            p,
+            decs=decs,
+            using_topology=using_topology,
+            center_mass=center_mass,
+            r_boost=r_boost,
+            random_z=random_z,
+            batch=batch,
+        )
     ret = []
     id_particles = decs.identical_particles
     cp_particles = decs.cp_particles

@@ -69,6 +69,87 @@ except ImportError:  # python version < 3.7
     from collections import Iterable
 
 
+class LazyCall:
+    def __init__(self, f, x, *args, **kwargs):
+        self.f = f
+        self.x = x
+        self.args = args
+        self.kwargs = kwargs
+        self.extra = {}
+
+    def batch(self, batch, axis):
+        for i, j in zip(
+            data_split(self.x, batch, axis=axis),
+            data_split(self.extra, batch, axis=axis),
+        ):
+            ret = LazyCall(self.f, i, *self.args, **self.kwargs)
+            for k, v in j.items():
+                ret[k] = v
+            yield ret
+
+    def merge(self, *other, axis=0):
+        all_x = [self.x]
+        all_extra = [self.extra]
+        for i in other:
+            all_x.append(i.x)
+            all_extra = [i.extra]
+        new_extra = data_merge(*all_extra, axis=axis)
+        ret = LazyCall(
+            self.f, data_merge(*all_x, axis=axis), *self.args, **self.kwargs
+        )
+        ret.extra = new_extra
+        return ret
+
+    def __setitem__(self, index, value):
+        self.extra[index] = value
+
+    def __getitem__(self, index, value=None):
+        if index in self.extra:
+            return self.extra[index]
+        return value
+
+    def get(self, index, value=None):
+        if index in self.extra:
+            return self.extra[index]
+        return value
+
+    def get_weight(self):
+        if self.get("weight", None) is not None:
+            return self.get("weight")
+        return tf.ones(data_shape(self), dtype=get_config("dtype"))
+
+    def copy(self):
+        ret = LazyCall(lambda x: x, self)
+        ret.extra = self.extra.copy()
+        return ret
+
+    def eval(self):
+        x = self.x
+        if isinstance(self.x, LazyCall):
+            x = x.eval()
+        ret = self.f(x, *self.args, **self.kwargs)
+        for k, v in self.extra.items():
+            if isinstance(v, LazyCall):
+                v = v.eval()
+            ret[k] = v
+        return ret
+
+
+class EvalLazy:
+    def __init__(self, f):
+        self.f = f
+
+    def __getattr__(self, name, value=None):
+        if hasattr(self.f, name):
+            return getattr(self.f, name)
+        return value
+
+    def __call__(self, x, *args, **kwargs):
+        if isinstance(x, LazyCall):
+            x = x.eval()
+        return self.f(x, *args, **kwargs)
+
+
 def set_random_seed(seed):
     """
     set random seed for random, numpy and tensorflow
@@ -229,6 +310,8 @@ def data_split(data, batch_size, axis=0):
     1 {'a': [array([2.]), array([4.])], 'b': {'c': array([6.])}, 'd': [], 'e': {}}
 
     """
+    if isinstance(data, LazyCall):
+        return data.batch(batch_size, axis)
     return data_generator(
         data, fun=_data_split, args=(batch_size,), kwargs={"axis": axis}
     )
@@ -299,6 +382,8 @@ def data_cut(data, expr, var_map=None):
 def data_merge(*data, axis=0):
     """This function merges data with the same structure."""
     assert len(data) > 0
+    if isinstance(data[0], LazyCall):
+        return LazyCall.merge(*data, axis=axis)
     if isinstance(data[0], dict):
         assert all([isinstance(i, dict) for i in data]), "not all type same"
         all_idx = [set(list(i)) for i in data]
@@ -325,6 +410,9 @@ def data_shape(data, axis=0, all_list=False):
     :param all_list: Boolean. ???
     :return:
     """
+
+    if isinstance(data, LazyCall):
+        return data_shape(data.x, axis=axis)
 
     def flatten(dat):
         ret = []
@@ -395,6 +483,8 @@ def flatten_dict_data(data, fun="{}/{}".format):
 
 def data_index(data, key):
     """Indexing data for key or a list of keys."""
+    if isinstance(data, LazyCall):
+        data = data.eval()
 
     def idx(data, i):
         if isinstance(i, int):
@@ -413,6 +503,14 @@ def data_index(data, key):
             return data_index(idx(data, keys[0]), keys[1:])
         return idx(data, keys[0])
     return idx(data, key)
+
+
+def data_replace(data, key, value):
+    if isinstance(data, LazyCall):
+        ret = data.copy()
+        ret[key] = value
+        return ret
+    return type(data)({**data, key: value})
 
 
 def data_strip(data, keys):

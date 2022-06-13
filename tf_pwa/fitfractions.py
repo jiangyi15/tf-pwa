@@ -3,7 +3,156 @@ import functools
 import numpy as np
 import tensorflow as tf
 
-from tf_pwa.data import data_split
+from tf_pwa.data import LazyCall, data_split
+
+
+def eval_integral(
+    f, data, var, weight=None, args=(), no_grad=False, kwargs=None
+):
+    kwargs = {} if kwargs is None else kwargs
+    weight = 1.0 if weight is None else weight
+    if no_grad:
+        ret = tf.reduce_sum(f(data, *args, **kwargs) * weight)
+        ret_grad = np.zeros((len(var),))
+    else:
+        with tf.GradientTape() as tape:
+            ret = tf.reduce_sum(f(data, *args, **kwargs) * weight)
+        ret_grad = tape.gradient(ret, var, unconnected_gradients="zero")
+        ret_grad = np.stack([i.numpy() for i in ret_grad])
+    return ret.numpy(), ret_grad
+
+
+class FitFractions:
+    def __init__(self, amp, res):
+        self.amp = amp
+        self.var = amp.trainable_variables
+        self.n_var = len(amp.trainable_variables)
+        self.res = res
+        self.cached_int = {}
+        self.cached_grad = {}
+        self.cached_int_total = 0.0
+        self.cached_grad_total = np.zeros((self.n_var,))
+        self.error_matrix = np.diag(np.zeros((self.n_var,)))
+        self.init_res_table()
+
+    def init_res_table(self):
+        n = len(self.res)
+        self.cached_int_total = 0.0
+        self.cached_grad_total = np.zeros((self.n_var,))
+        for i in range(n):
+            for j in range(i, -1, -1):
+                if i == j:
+                    name = str(self.res[i])
+                else:
+                    name = (str(self.res[i]), str(self.res[j]))
+                self.cached_int[name] = 0.0
+                self.cached_grad[name] = np.zeros_like((self.n_var,))
+
+    def integral(self, mcdata, *args, batch=None, no_grad=False, **kwargs):
+        self.init_res_table()
+        if batch is None:
+            self.append_int(mcdata, *args, no_grad=no_grad, **kwargs)
+        else:
+            for data_i in data_split(mcdata, batch):
+                self.append_int(data_i, *args, no_grad=no_grad, **kwargs)
+
+    def append_int(self, mcdata, *args, weight=None, no_grad=False, **kwargs):
+        # print(data, data_shape(data))
+        if isinstance(mcdata, LazyCall):
+            mcdata = mcdata.eval()
+        if weight is None:
+            weight = mcdata.get("weight", 1.0)
+        int_mc, g_int_mc = eval_integral(
+            self.amp,
+            mcdata,
+            var=self.var,
+            weight=weight,
+            args=args,
+            kwargs=kwargs,
+        )
+        self.cached_int_total += int_mc
+        self.cached_grad_total += g_int_mc
+        cahced_res = self.amp.used_res
+        amp_tmp = self.amp
+        for i in range(len(self.res)):
+            for j in range(i, -1, -1):
+                if i == j:
+                    name = str(self.res[i])
+                    amp_tmp.set_used_res([self.res[i]])
+                else:
+                    name = (str(self.res[i]), str(self.res[j]))
+                    amp_tmp.set_used_res([self.res[i], self.res[j]])
+                int_tmp, g_int_tmp = eval_integral(
+                    amp_tmp,
+                    mcdata,
+                    var=self.var,
+                    weight=weight,
+                    args=args,
+                    kwargs=kwargs,
+                )
+                self.cached_int[name] = self.cached_int[name] + int_tmp
+                self.cached_grad[name] = self.cached_grad[name] + g_int_tmp
+
+        self.amp.set_used_res(cahced_res)
+
+    def get_frac_grad(self):
+        n = len(self.res)
+        int_mc = self.cached_int_total
+        g_int_mc = self.cached_grad_total
+        fit_frac = {}
+        g_fit_frac = {}
+        for i in range(n):
+            name = str(self.res[i])
+            int_tmp = self.cached_int[name]
+            g_int_tmp = self.cached_grad[name]
+            fit_frac[name] = int_tmp / int_mc
+            gij = g_int_tmp / int_mc - (int_tmp / int_mc) * g_int_mc / int_mc
+            g_fit_frac[name] = gij
+            for j in range(i - 1, -1, -1):
+                name = (str(self.res[i]), str(self.res[j]))
+                int_tmp = self.cached_int[name]
+                g_int_tmp = self.cached_grad[name]
+                fit_frac[name] = (
+                    (int_tmp / int_mc)
+                    - fit_frac[str(self.res[i])]
+                    - fit_frac[str(self.res[j])]
+                )
+                gij = (
+                    g_int_tmp / int_mc
+                    - (int_tmp / int_mc) * g_int_mc / int_mc
+                    - g_fit_frac[str(self.res[i])]
+                    - g_fit_frac[str(self.res[j])]
+                )
+                # print(name,gij.tolist())
+                g_fit_frac[name] = gij
+        return fit_frac, g_fit_frac
+
+    def get_frac(self, error_matrix=None):
+        if error_matrix is None:
+            error_matrix = self.error_matrix
+        fit_frac, g_fit_frac = self.get_frac_grad()
+        if error_matrix is None:
+            return fit_frac, {}
+        fit_frac_err = {}
+        for k, v in g_fit_frac.items():
+            e = np.sqrt(np.dot(np.dot(error_matrix, v), v))
+            fit_frac_err[k] = e
+        return fit_frac, fit_frac_err
+
+    def __iter__(self):
+        return iter(self.get_frac())
+
+    def get_frac_diag_sum(self, error_matrix=None):
+        if error_matrix is None:
+            error_matrix = self.error_matrix
+        sd = 0.0
+        sd_g = np.zeros((self.n_var,))
+        for i in self.cached_int:
+            if isinstance(i, str):
+                sd = sd + self.cached_int[i]
+                sd_g += self.cached_grad[i]
+        sd_e = np.sqrt(np.dot(np.dot(error_matrix, sd_g), sd_g))
+        return sd, sd_e
 
 
 def nll_grad(f, var, args=(), kwargs=None, options=None):

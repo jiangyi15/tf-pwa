@@ -16,14 +16,18 @@ from scipy.stats import norm as Norm
 from .cal_angle import cal_angle_from_momentum, prepare_data_from_decay
 from .data import data_to_tensor, load_dat_file, split_generator
 from .fit import fit_minuit, fit_multinest, fit_scipy
-from .fitfractions import cal_fitfractions, cal_fitfractions_no_grad
+from .fitfractions import (
+    FitFractions,
+    cal_fitfractions,
+    cal_fitfractions_no_grad,
+)
 from .phasespace import PhaseSpaceGenerator
 from .significance import significance
 from .utils import check_positive_definite, error_print, std_periodic_var
 
 
 def fit_fractions(
-    amp, mcdata, inv_he=None, params=None, batch=25000, res=None
+    amp, mcdata, inv_he=None, params=None, batch=25000, res=None, method="old"
 ):
     """
     This function calculate fit fractions of the resonances as well as their coherent pairs. It imports
@@ -48,12 +52,19 @@ def fit_fractions(
     if params is None:
         params = {}
     err_frac = {}
-    with amp.temp_params(params):
-        frac, grad = cal_fitfractions(amp, mcdata, res=res, batch=batch)
-    if inv_he is not None:
-        for i in frac:
-            err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
-    return frac, err_frac
+    if method == "old":
+        with amp.temp_params(params):
+            frac, grad = cal_fitfractions(amp, mcdata, res=res, batch=batch)
+        if inv_he is not None:
+            for i in frac:
+                err_frac[i] = np.sqrt(np.dot(np.dot(inv_he, grad[i]), grad[i]))
+        return frac, err_frac
+    else:
+        ret = FitFractions(amp, res)
+        with amp.temp_params(params):
+            ret.integral(mcdata, batch=batch)
+        ret.error_matrix = inv_he
+        return ret
 
 
 def corr_coef_matrix(err_mtx):

@@ -12,6 +12,7 @@ from tf_pwa.cal_angle import (
 )
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import (
+    LazyCall,
     data_index,
     data_shape,
     data_split,
@@ -67,6 +68,7 @@ class SimpleData:
                 for k, v in j.items():
                     self.re_map[v] = k
         self.scale_list = self.dic.get("scale_list", ["bg"])
+        self.lazy_call = self.dic.get("lazy_call", False)
 
     def get_data_file(self, idx):
         if idx in self.dic:
@@ -167,6 +169,8 @@ class SimpleData:
         cp_trans = self.dic.get("cp_trans", True)
         if cp_trans and charges is not None:
             p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
+        if self.lazy_call:
+            p4 = LazyCall(lambda x: x, p4)
         data = self.cal_angle(p4)
         if weights is not None:
             if isinstance(weights, float):

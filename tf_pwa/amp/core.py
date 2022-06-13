@@ -21,7 +21,7 @@ import sympy as sym
 from tf_pwa.breit_wigner import BW, BWR, Bprime, Bprime_q2
 from tf_pwa.cg import cg_coef
 from tf_pwa.config import get_config, regist_config, temp_config
-from tf_pwa.data import data_map, data_shape, split_generator
+from tf_pwa.data import LazyCall, data_map, data_shape, split_generator
 from tf_pwa.dec_parser import load_dec_file
 from tf_pwa.dfun import get_D_matrix_lambda
 from tf_pwa.einsum import einsum
@@ -1608,6 +1608,8 @@ class AmplitudeModel(object):
         self.decay_group.set_used_chains(used_chains)
 
     def partial_weight(self, data, combine=None):
+        if isinstance(data, LazyCall):
+            data = data.eval()
         return self.decay_group.partial_weight(data, combine)
 
     def partial_weight_interference(self, data):
@@ -1638,6 +1640,8 @@ class AmplitudeModel(object):
         return self.vm.trainable_variables
 
     def __call__(self, data, cached=False):
+        if isinstance(data, LazyCall):
+            data = data.eval()
         if id(data) in self.f_data:
             if not self.decay_group.not_full:
                 return self.cached_fun(data)

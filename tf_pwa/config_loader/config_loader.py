@@ -623,12 +623,15 @@ class ConfigLoader(BaseConfig):
         reweight=False,
         maxiter=None,
         jac=True,
+        print_init_nll=True,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
             fcn = self.get_fcn(batch=batch)
         else:
             fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
+        if self.config["data"].get("lazy_call", False):
+            print_init_nll = False
         # print("sss")
         amp = self.get_amplitude()
         print("decay chains included: ")
@@ -642,7 +645,8 @@ class ConfigLoader(BaseConfig):
 
         print("\n########### initial parameters")
         print(json.dumps(amp.get_params(), indent=2), flush=True)
-        print("initial NLL: ", fcn({}))  # amp.get_params()))
+        if print_init_nll:
+            print("initial NLL: ", fcn({}))  # amp.get_params()))
         # fit configure
         # self.bound_dic[""] = (,)
         self.fit_params = fit(
@@ -748,19 +752,27 @@ class ConfigLoader(BaseConfig):
         return decay_group.get_decay_chain(idx)
 
     def cal_fitfractions(
-        self, params={}, mcdata=None, res=None, exclude_res=[], batch=25000
+        self,
+        params={},
+        mcdata=None,
+        res=None,
+        exclude_res=[],
+        batch=25000,
+        method="old",
     ):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         if mcdata is None:
             mcdata = self.get_phsp_noeff()
+        if self.config["data"].get("lazy_call", False):
+            method = "new"
         amp = self.get_amplitude()
         if res is None:
             res = sorted(
                 list(set([str(i) for i in amp.res]) - set(exclude_res))
             )
         frac, err_frac = fit_fractions(
-            amp, mcdata, self.inv_he, params, batch, res
+            amp, mcdata, self.inv_he, params, batch, res, method=method
         )
         return frac, err_frac
 
