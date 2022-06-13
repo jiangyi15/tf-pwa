@@ -33,6 +33,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx_gallery.gen_gallery",
+    "matplotlib.sphinxext.plot_directive",
 ]
 exclude_patterns = [
     ".DS_Store",
