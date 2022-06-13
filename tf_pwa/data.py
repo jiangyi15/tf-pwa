@@ -508,7 +508,7 @@ def data_index(data, key):
 def data_replace(data, key, value):
     if isinstance(data, LazyCall):
         ret = data.copy()
-        ret["key"] = value
+        ret[key] = value
         return ret
     return type(data)({**data, key: value})
 
