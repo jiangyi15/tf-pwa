@@ -337,7 +337,9 @@ class DecayConfig(BaseConfig):
                 dec_c = get_decay_chain(i, **all_params)
                 ret.append(dec_c)
         if process_cut:
-            return self.decay_chain_cut(ret)
+            ret = self.decay_chain_cut(ret)
+        if len(ret) == 0:
+            raise RuntimeError("not decay chain aviable, check you config.yml")
         return ret
 
     def disable_allow_cc(self, decay_group):
