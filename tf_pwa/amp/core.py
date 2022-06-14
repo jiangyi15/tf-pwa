@@ -341,8 +341,13 @@ def _ad_hoc(m0, m_max, m_min):
 @regist_particle("default")
 class Particle(BaseParticle, AmpBase):
     """
-    .. math::
-        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+        .. math::
+            R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+
+    .. plot::
+
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> plot_particle_model("BWR")
 
     """
 
@@ -400,11 +405,16 @@ class Particle(BaseParticle, AmpBase):
 
 
 @regist_particle("x")
-class ParticleX(BaseParticle, AmpBase):
+class ParticleX(Particle):
     """simple particle model for mass, (used in expr)
 
-    .. math::
-        R(m) = m
+        .. math::
+            R(m) = m
+
+    .. plot::
+
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> plot_particle_model("x")
 
     """
 

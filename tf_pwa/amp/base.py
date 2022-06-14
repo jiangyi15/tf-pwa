@@ -28,8 +28,18 @@ from .core import (
 @regist_particle("BWR2")
 class ParticleBWR2(Particle):
     """
-    .. math::
-        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+        .. math::
+            R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+
+        The difference of `BWR`, `BWR2` is the behavior when mass is below the threshold ( :math:`m_0 = 0.1 < 0.1 + 0.1 = m_1 + m_2`).
+
+    .. plot::
+
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("BWR", {"mass": 0.1})
+        >>> plot_particle_model("BWR2", {"mass": 0.1}, axis=axis)
+        >>> plot_particle_model("BWR_below", {"mass": 0.1}, axis=axis)
+        >>> axis[2].legend()
 
     """
 
@@ -131,6 +141,8 @@ class ParticleGS(Particle):
     .. math::
       D = \frac{f(0)}{\Gamma_0 m_0} = \frac{3}{\pi}\frac{m_\pi^2}{q_0^2} \ln \left(\frac{m_0 + 2q_0}{2 m_\pi }\right)
         + \frac{m_0}{2\pi q_0} - \frac{m_\pi^2 m_0}{\pi q_0^3}
+
+
     """
 
     def __init__(self, *args, **kwargs):
@@ -171,8 +183,13 @@ class ParticleGS(Particle):
 @regist_particle("BW")
 class ParticleBW(Particle):
     """
-    .. math::
-        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma_0}
+        .. math::
+            R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma_0}
+
+    .. plot::
+
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("BW")
 
     """
 
@@ -279,6 +296,7 @@ class ParticleLass(Particle):
           e^{2i\delta_B} = \cos 2 \delta_B + i \sin 2\delta_B
                          = \frac{cot^2\delta_B -1 }{cot^2 \delta_B +1} + i \frac{2 cot \delta_B }{cot^2 \delta_B +1 }
 
+
         """
         m = data["m"]
         q = data_c["|q|"]
@@ -303,8 +321,14 @@ class ParticleLass(Particle):
 @regist_particle("one")
 class ParticleOne(Particle):
     """
-    .. math::
-        R(m) = 1
+        .. math::
+            R(m) = 1
+
+    .. plot::
+
+        >>> import  matplotlib.pyplot as plt
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> plot_particle_model("one")
 
     """
 
