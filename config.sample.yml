@@ -152,9 +152,11 @@ plot:
     A/R_CD:
       ## include "alpha, cos(beta), gamma", # add `cos` for cos(beta)
       alpha:
-        display: "$\\phi_{1}$" # the default is "A/0:$\alpha$"
+        display: "$\\phi_{1}$"
       cos(beta):
-        display: "$\\cos(\\theta_1)$" # the default is "A/0:$\beta$"
+        display: "$\\cos(\\theta_1)$"
+        bins: 50 # number of bins is 50
+        legend: False # do not plot the legend
         range: [-1, 1] # range for plot
     A/R_BD:
       alpha:
