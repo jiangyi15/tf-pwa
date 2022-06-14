@@ -37,8 +37,8 @@ class ParticleBWR2(Particle):
 
         >>> from tf_pwa.utils import plot_particle_model
         >>> axis = plot_particle_model("BWR", {"mass": 0.1})
-        >>> plot_particle_model("BWR2", {"mass": 0.1}, axis=axis)
-        >>> plot_particle_model("BWR_below", {"mass": 0.1}, axis=axis)
+        >>> axis = plot_particle_model("BWR2", {"mass": 0.1}, axis=axis)
+        >>> axis = plot_particle_model("BWR_below", {"mass": 0.1}, axis=axis)
         >>> axis[2].legend()
 
     """
@@ -328,7 +328,7 @@ class ParticleOne(Particle):
 
         >>> import  matplotlib.pyplot as plt
         >>> from tf_pwa.utils import plot_particle_model
-        >>> plot_particle_model("one")
+        >>> axis = plot_particle_model("one")
 
     """
 
