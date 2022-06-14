@@ -336,9 +336,6 @@ class ModelCfitExtended(Model):
            \frac{\partial I_{sig} }{\partial \theta}
            +\frac{\partial nll}{\partial I_{bg}}\frac{\partial I_{sig}}{\partial \theta}
 
-        .. math::
-            \frac{\partial \ln \lambda}{\partial \theta} = \frac{1}{\lambda}\frac{\partial \lambda}{\frac
-
         """
         var = self.vm.trainable_variables
         sw = tf.reduce_sum(weight)
@@ -395,9 +392,6 @@ class ModelCfitExtended(Model):
 
         .. math::
             \frac{\partial y_k }{\partial x_i} = (\delta_{ik};\frac{\partial I_{sig}}{\partial x_i}, \frac{\partial I_{bg}}{\partial x_i})
-
-        .. math::
-            \frac{\partial
 
         :return NLL: Real number. The value of NLL.
         :return gradients: List of real numbers. The gradients for each variable.
