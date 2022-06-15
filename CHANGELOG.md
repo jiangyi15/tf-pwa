@@ -2,7 +2,32 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.5...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.6...HEAD)
+
+**<font color=red>Numeric</font>**
+
+- Fiexd `GS_rho` model bug. [#67](https://github.com/jiangyi15/tf-pwa/pull/67)
+- Fixed a small bug in L=4 blatt weisskoft coefficient.
+  [#61](https://github.com/jiangyi15/tf-pwa/pull/61)
+
+**Added**
+
+- `lazy_call: True` option. [#74](https://github.com/jiangyi15/tf-pwa/pull/74)
+- `cp_particles` option for self CP symmetry decay such as
+  `psi -> pi+ pi- gamma`. [#72](https://github.com/jiangyi15/tf-pwa/pull/72)
+- Support `spins` in final states.
+  [#71](https://github.com/jiangyi15/tf-pwa/pull/71)
+- New model and new options for decay.
+  [#66](https://github.com/jiangyi15/tf-pwa/pull/66)
+- `config.get_particle_function` method for function of mass dependent only
+  parts in amplitude. [#64](https://github.com/jiangyi15/tf-pwa/pull/64)
+
+**Changed**
+
+- More options in `config.plot_partial_wave`.
+  [#73](https://github.com/jiangyi15/tf-pwa/pull/73)
+- New algorithm to build decay chain in generating phsp.
+  [#68](https://github.com/jiangyi15/tf-pwa/pull/68)
 
 ## [v0.1.6](https://github.com/jiangyi15/tf-pwa/tree/v0.1.6) (2021-10-28)
 

@@ -341,8 +341,15 @@ def _ad_hoc(m0, m_max, m_min):
 @regist_particle("default")
 class Particle(BaseParticle, AmpBase):
     """
-    .. math::
-        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+        .. math::
+            R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma(m)}
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("BWR")
 
     """
 
@@ -400,11 +407,18 @@ class Particle(BaseParticle, AmpBase):
 
 
 @regist_particle("x")
-class ParticleX(BaseParticle, AmpBase):
+class ParticleX(Particle):
     """simple particle model for mass, (used in expr)
 
-    .. math::
-        R(m) = m
+        .. math::
+            R(m) = m
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("x")
 
     """
 
@@ -519,7 +533,38 @@ class AmpDecay(Decay, AmpBase):
 @regist_decay("default")
 @regist_decay("gls-bf")
 class HelicityDecay(AmpDecay):
-    """default decay model"""
+    r"""default decay model
+
+
+    The total amplitude is
+
+    .. math::
+        A = H_{\lambda_{B},\lambda_{C}}^{A \rightarrow B+C} D^{J_A*}_{\lambda_{A}, \lambda_{B}-\lambda_{C}} (\varphi,\theta,0)
+
+    The helicity coupling is
+
+    .. math::
+        H_{\lambda_{B},\lambda_{C}}^{A \rightarrow B+C} =
+        \sum_{ls} g_{ls} \sqrt{\frac{2l+1}{2 J_{A}+1}} \langle l 0; s \delta|J_{A} \delta\rangle \langle J_{B} \lambda_{B} ;J_{C} -\lambda_{C} | s \delta \rangle q^{l} B_{l}'(q, q_0, d)
+
+    The fit parameters is :math:`g_{ls}`
+
+    There are some options
+
+    (1). `has_bprime=False` will remove the :math:`B_{l}'(q, q_0, d)` part.
+
+    (2). `has_barrier_factor=False` will remove the :math:`q^{l} B_{l}'(q, q_0, d)` part.
+
+    (3). `barrier_factor_norm=True` will replace :math:`q^l` with :math:`(q/q_{0})^l`
+
+    (4). `below_threshold=True` will replace the mass used to calculate :math:`q_0` with
+
+        .. math::
+            m_0^{eff} = m^{min} + \frac{m^{max} - m^{min}}{2}(1+tanh \frac{m_0 - \frac{m^{max} + m^{min}}{2}}{m^{max} - m^{min}})
+
+    (5). `l_list=[l1, l2]` and `ls_list=[[l1, s1], [l2, s2]]` options give the list of all possible LS used in the decay.
+
+    """
 
     def __init__(
         self,

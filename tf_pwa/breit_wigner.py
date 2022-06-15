@@ -288,7 +288,7 @@ def Bprime(L, q, q0, d):
     Blatt-Weisskopf barrier factors. E.g. the first three orders
 
     ===========  ===================================================
-     :math:`L`                :math:`B_L(q,q_0,d)`
+     :math:`L`                :math:`B_L'(q,q_0,d)`
     ===========  ===================================================
      0                                 1
      1                 :math:`\\sqrt{\\frac{(q_0d)^2+1}{(qd)^2+1}}`

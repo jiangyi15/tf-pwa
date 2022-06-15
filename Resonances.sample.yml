@@ -1,32 +1,35 @@
-# Resonance configure list
-# yaml format version , see more: https://yaml.org/
-# required pyyaml module
+## Resonance configure list
+## yaml format version , see more: https://yaml.org/
+## required pyyaml module
 
-# head resonance
-# resonance name as id
-# quotation marks are option
-# head resonance will has head fixed to 1.0
+## head resonance
+## resonance name as id
+## quotation marks are option
+## head resonance will has head fixed to 1.0
 
 D2_2460:
-  # spin [required]
+  ## spin [required]
   J: 2
-  # parity (alias `Par`) [required]
+  ## parity (alias `Par`) [required]
   P: 1
-  # resonance mass (alias `mass`)  : m_0 [required]
-  m0: 2.4607 # m_sigma: 0.1,
+  ## resonance mass (alias `mass`)  : m_0 [required]
+  m0: 2.4607
   m_max: 2.4611
-  m_min: 2.4603 # if max or min is not given, it will be +- 10*sigma
-  # resonance width (alias `mass`): \Gamma_0 [required]
-  g0: 0.0475 # m_sigma: 0.01,
+  m_min: 2.4603
+  ## resonance width (alias `width`): \Gamma_0 [required]
+  g0: 0.0475
   g_max: 0.0486
-  g_min: 0.0464 # if max or min is not given, it will be +- 10*sigma
-  # set mass and gamma as variables
-  #float: mg,
-  # add gaussian constraint term (e.g. mean = m0, sigma = m_sigma)
-  #gauss_constr: mg,
-  # Breit Wigner formula [option]
-  bw: default
-  # whether used in decay
+  g_min: 0.0464
+  ## set mass and width (gamma0) as variables, and float in fit
+  # float: mg
+  ##  add gaussian constraint term (e.g. -ln L -> -lm [L * Gauss(m0; mean, sigma)]
+  # gauss_constr:
+  ##    the sigma of mass, mean is m0
+  #     mass: 0.001
+  #     width: 0.002
+  ## Breit Wigner formula [option]
+  model: default
+  ## whether used in decay
   disable: False
 
 Ds1_2700_2860:
@@ -42,14 +45,14 @@ Ds1_2700_2860:
     mass1_free: True
     mass1_constr: False
   m0: 2.83
-  bw: Kmatrix
+  model: Kmatrix
 
-#other resonance
+## other resonances
 D2_2460p:
   J: 2
   P: 1
-  # coef_head make D2_2460p to use the params of D2_2460 by the same name
-  # only the total phase angle different
+  ## coef_head make D2_2460p to use the params of D2_2460 by the same name, (only works in simple cases)
+  ## only the total phase angle different
   coef_head: "D2_2460"
   g0: 0.0467
   g_max: 0.0479
@@ -58,7 +61,7 @@ D2_2460p:
   m_max: 2.4667
   m_min: 2.4644
 
-# or you can used `{}` to avoid indent
+## or you can used `{}` to avoid indent, use `,` to distinguish items.
 D1_2420:
   {
     J: 1,
@@ -109,46 +112,42 @@ D1_2430p:
     m_min: 2.387,
   }
 
-#D0_2550: {
-#  J: 0, Par: -1,
-#  m0: 2.518,
-#  g0: 0.199,
-#}
+# D0_2550: {
+#   J: 0, Par: -1,
+#   m0: 2.518,
+#   g0: 0.199,
+# }
 
-#D0_2550p: {
-#  J: 0, Par: -1,
-#  coef_head: "D0_2550",
-#  m0: 2.518,
-#  g0: 0.199,
-#}
+# D0_2550p: {
+#   J: 0, Par: -1,
+#   coef_head: "D0_2550",
+#   m0: 2.518,
+#   g0: 0.199,
+# }
 
-#D1_2600: {
+# D1_2600: {
 #  J: 1, Par: -1,
 #  m0: 2.6419,
 #  g0: 0.149,
-#}
+# }
 
-#D1_2600p: {
+# D1_2600p: {
 #  J: 1, Par: -1,
 #  coef_head: "D1_2600",
 #  m0: 2.6419,
 #  g0: 0.149,
-#}
+# }
 
-Zc_4025:
-  { J: 1, Par: 1, g0: 0.0248, m0: 4.0263 }
-  #total: 1.0,
+Zc_4025: { J: 1, Par: 1, g0: 0.0248, m0: 4.0263 }
 
-Zc_4160:
-  { J: 1, Par: 1, g0: 0.0921485, m0: 4.17329 }
-  #float: mg,
+Zc_4160: { J: 1, Par: 1, g0: 0.0921485, m0: 4.17329 }
 
 Zc_4210:
   J: 1
   P: 1
   m0: 4.21
   g0: 0.11
-  # trans model examples
+  ## trans model examples
   model:
     expr: a * BWR
     where:
@@ -157,8 +156,9 @@ Zc_4210:
 Kmatrix_S:
   J: 1
   P: 1
+  ## most model use m0 to calulate `q0` in barrier factor,
   m0: 4.21
-  # trans model examples
+  ## KmatrixSingleChannel paramters
   model: KMatrixSingleChannel
   mass_list: [4.21, 4.31]
   width_list: [0.03, 0.06]

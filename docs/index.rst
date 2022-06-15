@@ -19,12 +19,14 @@ A detailed configuration file sample (with all usable parameters) can be found *
    amplitude
    custom_model
    decay_topology
+   resonacnes_params
    phasespace
    resolution
    auto_examples/index
    developer
    api
    particle_model
+   decay_model
    tensorflow_version
    FAQ
 

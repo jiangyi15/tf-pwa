@@ -13,7 +13,7 @@ import sys
 this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
 
-from tf_pwa.amp import PARTICLE_MODEL, get_config
+from tf_pwa.amp import DECAY_MODEL, PARTICLE_MODEL, base, get_config
 from tf_pwa.experimental import (  # type: ignore  # pylint: disable=unused-import
     extra_amp,
 )
@@ -33,6 +33,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx_gallery.gen_gallery",
+    "matplotlib.sphinxext.plot_directive",
 ]
 exclude_patterns = [
     ".DS_Store",
@@ -132,7 +133,57 @@ Available Resonances Model
         f.write(particle_model_doc)
 
 
+def gen_decay_model():
+    decay_model_doc = """
+--------------------------
+Available Decay Model
+--------------------------
+
+"""
+    all_models = {}
+    model_params = {}
+    for idx, ((n, k), v) in enumerate(get_config(DECAY_MODEL).items(), 1):
+        doc_i = v.__doc__
+        if v.__doc__ is None and v.get_amp.__doc__ is None:
+            continue
+        if v.__doc__ is None:
+            doc_i = v.get_amp.__doc__
+
+        if n not in all_models:
+            all_models[n] = []
+        if v not in all_models[n]:
+            all_models[n].append(v)
+        if v in model_params:
+            model_params[v]["name"].append(f'"{k}"')
+        else:
+            model_params[v] = {"name": [f'"{k}"'], "doc": doc_i}
+
+    for n, models in all_models.items():
+        decay_model_doc += """
+{}-body decays
+----------------
+""".format(
+            n
+        )
+        for idx, v in enumerate(models):
+            name_list = model_params[v]["name"]
+            name = ", ".join(name_list)
+            doc_i = model_params[v]["doc"]
+            decay_model_doc += (
+                f"\n{idx+1}. :code:`{name}`"
+                f" (`~{v.__module__}.{v.__qualname__}`)\n\n"
+            )
+            idx += 1
+            decay_model_doc += add_indent(doc_i) + "\n\n"
+
+    with open(
+        os.path.dirname(os.path.abspath(__file__)) + "/decay_model.rst", "w"
+    ) as f:
+        f.write(decay_model_doc)
+
+
 gen_particle_model()
+gen_decay_model()
 
 
 sphinx_gallery_conf = {

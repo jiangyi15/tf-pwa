@@ -313,3 +313,59 @@ def fit_normal(data, weights=None):
     mu_error = sigma / np.sqrt(N)
     sigma_error = mu_error / np.sqrt(2)
     return np.array([mu, sigma]), np.array([mu_error, sigma_error])
+
+
+def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from tf_pwa.config_loader import ConfigLoader
+
+    config_dic = {
+        "data": {"dat_order": ["B", "C", "D"]},
+        "decay": {"A": [["R_BC", "D"]], "R_BC": ["B", "C"]},
+        "particle": {
+            "$top": {"A": {"J": 0, "P": -1, "mass": 1.0}},
+            "$finals": {
+                "B": {"J": 0, "P": -1, "mass": 0.1},
+                "C": {"J": 0, "P": -1, "mass": 0.1},
+                "D": {"J": 0, "P": -1, "mass": 0.1},
+            },
+            "R_BC": {
+                "J": 0,
+                "P": +1,
+                "mass": 0.5,
+                "width": 0.05,
+                "model": model_name,
+            },
+        },
+    }
+    config_dic["particle"]["R_BC"].update(params)
+    config = ConfigLoader(config_dic)
+    config.set_params({"A->R_BC.DR_BC->B.C_total_0r": 1.0})
+    config.set_params({"A->R_BC.DR_BC->B.C_total_0i": 0.0})
+    config.set_params(plot_params)
+    f = config.get_particle_function("R_BC")
+    m = np.linspace(0.2, 0.9, 2000)
+    a = f(m).numpy()
+    if axis is None:
+        ax3 = plt.subplot(2, 2, 3, label="argon")
+        ax2 = plt.subplot(2, 2, 2, label="prob")
+        ax1 = plt.subplot(2, 2, 1, sharex=ax3, label="real")
+        ax0 = plt.subplot(2, 2, 4, sharex=ax2, sharey=ax3, label="imag")
+    else:
+        ax0, ax1, ax2, ax3 = axis
+    ax3.plot(np.real(a), np.imag(a))
+    ax3.set_xlabel("Re$A$")
+    ax3.set_ylabel("Im$A$")
+    ax2.plot(m, np.abs(a) ** 2, label=model_name)
+    ax2.set_ylabel("$|A|^2$")
+    ax2.set_ylim((0, None))
+    ax2.axvline(x=0.2, linestyle="--")
+    ax2.yaxis.set_label_position("right")
+    ax2.yaxis.tick_right()
+    ax1.plot(np.real(a), m)
+    ax1.set_ylabel("mass")
+    ax0.plot(m, np.imag(a))
+    ax0.set_xlabel("mass")
+    return [ax0, ax1, ax2, ax3]
