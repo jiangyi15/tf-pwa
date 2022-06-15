@@ -346,6 +346,8 @@ class Particle(BaseParticle, AmpBase):
 
     .. plot::
 
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
         >>> axis = plot_particle_model("BWR")
 
@@ -413,6 +415,8 @@ class ParticleX(Particle):
 
     .. plot::
 
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
         >>> axis = plot_particle_model("x")
 

@@ -315,7 +315,7 @@ def fit_normal(data, weights=None):
     return np.array([mu, sigma]), np.array([mu_error, sigma_error])
 
 
-def plot_particle_model(model_name, params={}, axis=None):
+def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -344,6 +344,7 @@ def plot_particle_model(model_name, params={}, axis=None):
     config = ConfigLoader(config_dic)
     config.set_params({"A->R_BC.DR_BC->B.C_total_0r": 1.0})
     config.set_params({"A->R_BC.DR_BC->B.C_total_0i": 0.0})
+    config.set_params(plot_params)
     f = config.get_particle_function("R_BC")
     m = np.linspace(0.2, 0.9, 2000)
     a = f(m).numpy()

@@ -5,7 +5,16 @@ Basic amplitude model
 
 import numpy as np
 
-from tf_pwa.breit_wigner import BW, BWR, BWR2, GS, Bprime, BWR_normal, Gamma
+from tf_pwa.breit_wigner import (
+    BW,
+    BWR,
+    BWR2,
+    GS,
+    Bprime,
+    Bprime_polynomial,
+    BWR_normal,
+    Gamma,
+)
 from tf_pwa.breit_wigner import barrier_factor2 as barrier_factor
 from tf_pwa.dec_parser import load_dec_file
 from tf_pwa.dfun import get_D_matrix_lambda
@@ -33,13 +42,17 @@ class ParticleBWR2(Particle):
 
         The difference of `BWR`, `BWR2` is the behavior when mass is below the threshold ( :math:`m_0 = 0.1 < 0.1 + 0.1 = m_1 + m_2`).
 
+
     .. plot::
 
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
         >>> axis = plot_particle_model("BWR", {"mass": 0.1})
         >>> axis = plot_particle_model("BWR2", {"mass": 0.1}, axis=axis)
         >>> axis = plot_particle_model("BWR_below", {"mass": 0.1}, axis=axis)
-        >>> axis[2].legend()
+        >>> axis = plot_particle_model("BWR_coupling", {"mass": 0.1}, axis=axis)
+        >>> leg = axis[2].legend()
 
     """
 
@@ -86,6 +99,47 @@ class ParticleBWRBelowThreshold(Particle):
             decay = self.decay[0]
             self.bw_l = min(decay.get_l_list())
         ret = BWR2(data["m"], mass, width, q2, q02, self.bw_l, self.d)
+        return ret
+
+
+@regist_particle("BWR_coupling")
+class ParticleBWRCoupling(Particle):
+    """
+
+    Force :math:`q_0=1/d` to avoid below theshold condition for `BWR` model, and remove other constant parts, then the :math:`\\Gamma_0` is coupling parameters.
+
+    .. math::
+        R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 \\Gamma_0 \\frac{q}{m} q^{2l} B_L'^2(q, 1/d, d)}
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("BWR_coupling")
+
+    """
+
+    def get_amp(self, data, data_c, **kwargs):
+        mass = self.get_mass()
+        width = self.get_width()
+        q2 = data_c["|q|2"]
+        decay = self.decay[0]
+        q02 = 1.0  # get_relative_p2(m0, m1, m2)
+        if self.bw_l is None:
+            decay = self.decay[0]
+            self.bw_l = min(decay.get_l_list())
+        normal = Bprime_polynomial(self.bw_l, 1.0)
+        gamma = (
+            tf.sqrt(q2)
+            / data["m"]
+            * q2**self.bw_l
+            / Bprime_polynomial(self.bw_l, q2 * self.d**2)
+        )
+        a_r = mass**2 - data["m"] ** 2
+        a_i = mass * width * gamma * tf.cast(normal, gamma.dtype)
+        a_d = a_r * a_r + a_i * a_i
+        ret = tf.complex(a_r / a_d, a_i / a_d)
         return ret
 
 
@@ -188,6 +242,8 @@ class ParticleBW(Particle):
 
     .. plot::
 
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
         >>> axis = plot_particle_model("BW")
 
@@ -327,8 +383,10 @@ class ParticleOne(Particle):
     .. plot::
 
         >>> import  matplotlib.pyplot as plt
+        >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
         >>> axis = plot_particle_model("one")
+        >>> _ = axis[3].scatter([1.0],[0.0])
 
     """
 
@@ -364,7 +422,16 @@ class ParticleExp(Particle):
 class ParticleExp(Particle):
     """
     .. math::
-        R(m) = e^{-|a+ib| m^2}
+        R(m) = e^{-(a+ib) m^2}
+
+    lineshape when :math:`a=1.0, b=10.`
+
+    .. plot::
+
+        >>> import  matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("exp_com", plot_params={"R_BC_a": 1., "R_BC_b": 10.0})
 
     """
 
@@ -375,7 +442,7 @@ class ParticleExp(Particle):
     def get_amp(self, data, _data_c=None, **kwargs):
         mass = data["m"]
         zeros = tf.zeros_like(mass)
-        a = tf.abs(self.a())
+        a = self.a()
         b = self.b()
         r = -tf.complex(a, b) * tf.complex(mass * mass, zeros)
         return tf.exp(r)
