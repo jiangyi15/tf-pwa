@@ -51,6 +51,21 @@ def single_sampling(phsp, amp, N):
     return data
 
 
+def gen_random_charge(N, random=True):
+    if random:
+        charge = (
+            tf.cast(
+                tf.random.uniform((N,)) > 0.5,
+                get_config("dtype"),
+            )
+            * 2
+            - 1
+        )
+    else:
+        charge = tf.ones((N,), get_config("dtype"))
+    return charge
+
+
 @ConfigLoader.register_function()
 def generate_toy2(
     config,
@@ -84,12 +99,15 @@ def generate_toy2(
                     BaseParticle(k) if isinstance(k, str) else k: v
                     for k, v in p.items()
                 }
-                return cal_angle_from_momentum(p, config.get_decay(False))
+                charge = gen_random_charge(N, include_charge)
+                ret = config.data.cal_angle(p, charge=charge)
+                ret["charge_conjugation"] = charge
+                return ret  # # cal_angle_from_momentum(p, config.get_decay(False))
 
         else:
 
             def gen(M):
-                return generate_phsp(config, M)
+                return generate_phsp(config, M, include_charge=include_charge)
 
     all_data = []
     n_gen = 0
@@ -141,20 +159,9 @@ def generate_toy2(
 def single_sampling2(phsp, amp, N, max_weight=None, include_charge=False):
     data = phsp(N)
     if "charge_conjugation" not in data:
-        if include_charge:
-            charge = (
-                tf.cast(
-                    tf.random.uniform((data_shape(data),)) > 0.5,
-                    get_config("dtype"),
-                )
-                * 2
-                - 1
-            )
-            data["charge_conjugation"] = charge
-        else:
-            data["charge_conjugation"] = tf.ones(
-                (data_shape(data),), get_config("dtype")
-            )
+        data["charge_conjugation"] = gen_random_charge(
+            data_shape(data), not include_charge
+        )
     weight = amp(data)
     new_max_weight = tf.reduce_max(weight)
     if max_weight is None or max_weight < new_max_weight:
@@ -182,9 +189,13 @@ def generate_phsp_p(config, N=1000):
 
 
 @ConfigLoader.register_function()
-def generate_phsp(config, N=1000):
+def generate_phsp(config, N=1000, include_charge=False):
     p = generate_phsp_p(config, N)
-    return cal_angle_from_momentum(p, config.get_decay(False))
+    charge = gen_random_charge(N, include_charge)
+    ret = config.data.cal_angle(p, charge=charge)
+    if include_charge:
+        ret["charge_conjugation"] = charge
+    return ret
 
 
 def build_phsp_chain(decay_group):
