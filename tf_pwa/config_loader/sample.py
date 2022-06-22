@@ -67,12 +67,27 @@ def gen_random_charge(N, random=True):
 
 
 @ConfigLoader.register_function()
+def generate_toy_p(config, N=1000, **kwargs):
+    """
+    generate toy data momentum.
+
+    """
+    data = generate_toy2(config, N, **kwargs)
+    dat_order = config.get_dat_order()
+    ret = []
+    for i in dat_order:
+        ret.append(data.get_momentum(i))
+    return ret
+
+
+@ConfigLoader.register_function()
 def generate_toy2(
     config,
     N=1000,
     force=True,
     gen=None,
     gen_p=None,
+    importance_f=None,
     max_N=100000,
     include_charge=False,
 ):
@@ -125,6 +140,7 @@ def generate_toy2(
             test_N,
             config.max_amplitude,
             include_charge=include_charge,
+            importance_f=importance_f,
         )
         n_gen = data_shape(data)
         n_total += test_N
@@ -142,7 +158,8 @@ def generate_toy2(
             all_data = [tmp]
             n_accept = data_shape(tmp)
         else:
-            config.max_amplitude = new_max_weight
+            if importance_f is None:
+                config.max_amplitude = new_max_weight
         n_accept += n_gen
         test_N = int(1.01 * n_total / (n_accept + 1) * (N - n_accept))
         all_data.append(data)
@@ -156,13 +173,17 @@ def generate_toy2(
     return ret
 
 
-def single_sampling2(phsp, amp, N, max_weight=None, include_charge=False):
+def single_sampling2(
+    phsp, amp, N, max_weight=None, importance_f=None, include_charge=False
+):
     data = phsp(N)
     if "charge_conjugation" not in data:
         data["charge_conjugation"] = gen_random_charge(
             data_shape(data), not include_charge
         )
     weight = amp(data)
+    if importance_f is not None:
+        weight = weight / importance_f(data)
     new_max_weight = tf.reduce_max(weight)
     if max_weight is None or max_weight < new_max_weight:
         max_weight = new_max_weight * 1.01

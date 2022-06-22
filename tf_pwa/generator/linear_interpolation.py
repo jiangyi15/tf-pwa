@@ -70,12 +70,7 @@ class GenTest:
         self.N_gen = n_gen
 
 
-def interp_sample(f, xmin, xmax, interp_N, N):
-    a = np.linspace(
-        xmin, xmax, interp_N
-    )  # np.array([1.0, 1.1, 1.2, 1.3, 1.4, 1.45, 1.47,1.5, 1.53, 1.55, 1.6, 1.7, 1.8, 1.9, 2.0])
-    b = f(a)
-    f_interp = LinearInterp(a, b)
+def interp_sample_f(f, f_interp, N):
     all_x = np.array([])
     max_rnd = None
     a = GenTest(100000000)
@@ -96,6 +91,13 @@ def interp_sample(f, xmin, xmax, interp_N, N):
     return all_x[:N], f_interp, max_rnd
 
 
+def interp_sample(f, xmin, xmax, interp_N, N):
+    a = np.linspace(xmin, xmax, interp_N)
+    b = f(a)
+    f_interp = LinearInterp(a, b)
+    return interp_sample_f(f, f_interp, N)
+
+
 def interp_sample_once(f, f_interp, N, max_rnd):
     x = f_interp.generate(N)
     w = f(x) / f_interp(x)
@@ -108,32 +110,19 @@ def interp_sample_once(f, f_interp, N, max_rnd):
     return x[cut], max_rnd
 
 
+class LinearInterpImportance:
+    def __init__(self, f, x):
+        self.f = f
+        self.x = x
+        self.y = f(x)
+        self.interp = LinearInterp(x, self.y)
+
+    def __call__(self, x):
+        return self.f(x)
+
+    def generate(self, N):
+        return interp_sample_f(self.f, self.interp, N)[0]
+
+
 def sample_test_function(x):
     return np.abs(1 / (0.005 + (x - 1.5) ** 2)) + 200 * (x - 1.5) ** 2
-
-
-if __name__ == "__main__":
-
-    import matplotlib.pyplot as plt
-
-    fa = sample_test_function
-    y, f, scale = interp_sample(fa, 1.0, 3.0, 21, 50000000)
-    d = np.linspace(1.0, 3.0, 10000)
-    y, x, _ = plt.hist(
-        y,
-        bins=10000,
-        weights=np.ones(y.shape[0])
-        * np.sum(fa(d))
-        / y.shape[0]
-        / d.shape[0]
-        * 10000,
-        label="toy",
-    )
-    x2 = (x[1:] + x[:-1]) / 2
-    # plt.clf()
-    # plt.plot(x2, (fa(x2) - y)/np.sqrt(fa(x2)))
-    plt.plot(d, f(d) * scale, label="scale intepolation")
-    plt.plot(d, f(d), label="intepolation")
-    plt.plot(d, fa(d), label="function")
-    plt.legend()
-    plt.savefig("a.pdf")
