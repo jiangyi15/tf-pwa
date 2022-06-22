@@ -16,6 +16,17 @@ def get_p(M, ma, mb):
     return tf.cast(ret, "float64")
 
 
+class UniformGenerator:
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
+
+    def generate(self, N):
+        random = tf.random.uniform([N], dtype="float64")
+        ms = (self.b - self.a) * random + self.a
+        return ms
+
+
 class PhaseSpaceGenerator(object):
     """Phase Space Generator for n-body decay"""
 
@@ -23,19 +34,31 @@ class PhaseSpaceGenerator(object):
         self.m_mass = []
         self.set_decay(m0, mass)
         self.sum_mass = sum(self.m_mass)
+        self.mass_range = self.get_mass_range()
+        self.mass_generator = [
+            UniformGenerator(a, b) for a, b in self.mass_range
+        ]
 
-    def generate_mass(self, n_iter):
-        """generate possible inner mass."""
+    def get_mass_range(self):
         sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
         m_n = self.m_mass[-1]
         ret = []
         for i in range(self.m_nt - 2):
             b = self.m0 - sm
             a = m_n + self.m_mass[-i - 2]
-            random = tf.random.uniform([n_iter], dtype="float64")
-            ms = (b - a) * random + a
-            m_n = ms
+            ret.append((a, b))
+            # random = tf.random.uniform([n_iter], dtype="float64")
+            # ms = (b - a) * random + a
+            # m_n = ms
             sm = sm - self.m_mass[-i - 3]
+            # ret.append(ms)
+        return ret
+
+    def generate_mass(self, n_iter):
+        """generate possible inner mass."""
+        ret = []
+        for i in self.mass_generator:
+            ms = i.generate(n_iter)
             ret.append(ms)
         return ret
 
