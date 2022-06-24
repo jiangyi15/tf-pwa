@@ -14,6 +14,7 @@ class LinearInterp:
         self.b = np.zeros((self.N - 1,))
         self.int_step = np.zeros((self.N - 1,))
         self.epsilon = epsilon
+        self.int_all = 1.0
         self.cal_coeffs()
 
     def cal_coeffs(self):
@@ -26,10 +27,23 @@ class LinearInterp:
             self.x[1:] ** 2 - self.x[:-1] ** 2
         ) + self.b * (self.x[1:] - self.x[:-1])
         self.int_step = np.cumsum(int_x)
+        self.int_all = self.int_step[-1]
+
+    def integral(self, x):
+        bin_index = np.digitize(x, self.x[1:-1])
+        k = self.k[bin_index]
+        b = self.b[bin_index]
+        x1 = self.x[1:][bin_index]
+        d = self.int_step[bin_index]
+        return 0.5 * k * (x * x - x1 * x1) + b * (x - x1) + d
 
     def generate(self, N):
-        x = np.random.random(N) * np.max(self.int_step)
-        bin_index = np.digitize(x, self.int_step)
+        x = np.random.random(N)
+        return self.solve(x)
+
+    def solve(self, x):
+        x = x * self.int_all
+        bin_index = np.digitize(x, self.int_step[:-1])
         k = self.k[bin_index]
         b = self.b[bin_index]
         x1 = self.x[1:][bin_index]

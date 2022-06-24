@@ -228,8 +228,16 @@ class ConfigLoader(BaseConfig):
         self.amps[vm] = amp
         return amp
 
-    def eval_amplitude(self, *p):
-        data = self.data.cal_angle(p)
+    def eval_amplitude(self, *p, extra=None):
+        extra = {} if extra is None else extra
+        if len(p) == len(self.decay_struct.outs):
+            data = self.data.cal_angle(p, **extra)
+        elif len(p) == 1:
+            data = self.data.cal_angle(p[0], **extra)
+        elif len(p) == 0:
+            data = self.data.cal_angle(**extra)
+        else:
+            raise "Not all data"
         amp = self.get_amplitude()
         return amp(data)
 

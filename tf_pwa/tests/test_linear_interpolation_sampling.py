@@ -2,6 +2,7 @@ import numpy as np
 
 from tf_pwa.generator.breit_wigner import BWGenerator
 from tf_pwa.generator.linear_interpolation import (
+    LinearInterp,
     LinearInterpImportance,
     interp_sample,
     sample_test_function,
@@ -44,3 +45,12 @@ def test_importance():
 
     a, b = ks_2samp(y, y2)
     assert b > a
+
+
+def test_integral():
+    x = np.linspace(1.0, 2.0, 21)
+    f = BWGenerator(1.5, 0.05, 1.0, 2.0)
+    g = LinearInterp(x, f(x))
+    y = g.integral(x)
+    assert 0 == y[0]
+    assert np.allclose(y[1:], g.int_step)

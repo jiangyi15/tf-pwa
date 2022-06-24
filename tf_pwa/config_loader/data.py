@@ -144,11 +144,11 @@ class SimpleData:
         return p
 
     def cal_angle(self, p4, charge=None):
+        if isinstance(p4, (list, tuple)):
+            p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
         p4 = self.process_cp_trans(p4, charge)
         if self.lazy_call:
             p4 = LazyCall(lambda x: x, p4)
-        if isinstance(p4, (list, tuple)):
-            p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
         center_mass = self.dic.get("center_mass", False)
         r_boost = self.dic.get("r_boost", True)
         random_z = self.dic.get("random_z", True)

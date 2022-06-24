@@ -4,5 +4,5 @@ cudatoolkit=11.2.2=he111cf0_9
 matplotlib
 pyyaml
 scipy
-setuptools_scm
+setuptools_scm<7.0
 sympy

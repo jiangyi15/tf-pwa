@@ -4,6 +4,7 @@ from tf_pwa.amp.core import get_particle_model_name
 from tf_pwa.cal_angle import cal_angle_from_momentum
 from tf_pwa.config import get_config
 from tf_pwa.data import data_mask, data_merge, data_shape
+from tf_pwa.generator import GenTest
 from tf_pwa.particle import BaseParticle
 from tf_pwa.phasespace import generate_phsp as generate_phsp_o
 from tf_pwa.tensorflow_wrapper import tf
@@ -67,20 +68,6 @@ def gen_random_charge(N, random=True):
 
 
 @ConfigLoader.register_function()
-def generate_toy_p(config, N=1000, **kwargs):
-    """
-    generate toy data momentum.
-
-    """
-    data = generate_toy2(config, N, **kwargs)
-    dat_order = config.get_dat_order()
-    ret = []
-    for i in dat_order:
-        ret.append(data.get_momentum(i))
-    return ret
-
-
-@ConfigLoader.register_function()
 def generate_toy2(
     config,
     N=1000,
@@ -124,44 +111,93 @@ def generate_toy2(
             def gen(M):
                 return generate_phsp(config, M, include_charge=include_charge)
 
-    all_data = []
-    n_gen = 0
-    n_accept = 0
-    n_total = 0
-    test_N = 10 * N
     if not hasattr(config, "max_amplitude"):
         config.max_amplitude = None
+    max_weight = None
+    if importance_f is None:
+        max_weight = config.max_amplitude
 
-    while N > n_accept:
-        test_N = abs(min(max_N, test_N))
+    ret, status = multi_sampling(
+        gen,
+        amp,
+        N,
+        force=force,
+        max_N=max_N,
+        max_weight=max_weight,
+        importance_f=importance_f,
+    )
+
+    if importance_f is None:
+        config.max_amplitude = max_weight
+
+    return ret
+
+
+@ConfigLoader.register_function()
+def generate_toy_p(
+    config,
+    N=1000,
+    force=True,
+    gen_p=None,
+    importance_f=None,
+    max_N=100000,
+    include_charge=False,
+):
+    """
+    generate toy data momentum.
+    """
+    if gen_p is None:
+        gen_p = config.generate_phsp_p
+
+    new_gen = gen_p
+    fun = config.eval_amplitude
+    if include_charge:
+        new_gen = lambda N: {"p4": gen_p(N), "charge": gen_random_charge(N)}
+        fun = lambda x: config.eval_amplitude(extra=x)
+
+    if not hasattr(config, "max_amplitude"):
+        config.max_amplitude = None
+    max_weight = None
+    if importance_f is None:
+        max_weight = config.max_amplitude
+
+    ret, status = multi_sampling(
+        new_gen,
+        fun,
+        N,
+        force=force,
+        max_N=max_N,
+        max_weight=max_weight,
+        importance_f=importance_f,
+    )
+
+    if importance_f is None:
+        config.max_amplitude = max_weight
+
+    return ret
+
+
+def multi_sampling(
+    phsp, amp, N, max_N=100000, force=True, max_weight=None, importance_f=None
+):
+    a = GenTest(max_N)
+    all_data = []
+    for i in a.generate(N):
         data, new_max_weight = single_sampling2(
-            gen,
-            amp,
-            test_N,
-            config.max_amplitude,
-            include_charge=include_charge,
-            importance_f=importance_f,
+            phsp, amp, i, max_weight, importance_f
         )
-        n_gen = data_shape(data)
-        n_total += test_N
-        if (
-            config.max_amplitude is not None
-            and new_max_weight > config.max_amplitude
-            and len(all_data) > 0
-        ):
+        if max_weight is None:
+            max_weight = new_max_weight
+        if new_max_weight > max_weight and len(all_data) > 0:
             tmp = data_merge(*all_data)
-            rnd = tf.random.uniform(
-                (n_accept,), dtype=config.max_amplitude.dtype
-            )
-            cut = rnd * new_max_weight / config.max_amplitude < 1.0
+            rnd = tf.random.uniform((data_shape(tmp),), dtype=max_weight.dtype)
+            cut = (
+                rnd * new_max_weight / max_weight < 1.0
+            )  # .max_amplitude < 1.0
             tmp = data_mask(tmp, cut)
             all_data = [tmp]
-            n_accept = data_shape(tmp)
-        else:
-            if importance_f is None:
-                config.max_amplitude = new_max_weight
-        n_accept += n_gen
-        test_N = int(1.01 * n_total / (n_accept + 1) * (N - n_accept))
+            a.set_gen(data_shape(tmp))
+        a.add_gen(data_shape(data))
         all_data.append(data)
 
     ret = data_merge(*all_data)
@@ -170,17 +206,13 @@ def generate_toy2(
         cut = tf.range(data_shape(ret)) < N
         ret = data_mask(ret, cut)
 
-    return ret
+    status = (a, max_weight)
+
+    return ret, status
 
 
-def single_sampling2(
-    phsp, amp, N, max_weight=None, importance_f=None, include_charge=False
-):
+def single_sampling2(phsp, amp, N, max_weight=None, importance_f=None):
     data = phsp(N)
-    if "charge_conjugation" not in data:
-        data["charge_conjugation"] = gen_random_charge(
-            data_shape(data), not include_charge
-        )
     weight = amp(data)
     if importance_f is not None:
         weight = weight / importance_f(data)

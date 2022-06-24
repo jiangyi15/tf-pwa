@@ -18,7 +18,11 @@ class BWGenerator:
         k = 1 / self.k
         return k * np.arctan(k * (x - self.m0))
 
-    def generate(self, N):
-        x = np.random.random(N) * self.int_all
+    def solve(self, x):
+        x = x * self.int_all
         y = self.k * np.tan(self.k * x + self.kxmin) + self.m0
         return y
+
+    def generate(self, N):
+        x = np.random.random(N)
+        return self.solve(x)
