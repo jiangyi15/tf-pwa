@@ -17,6 +17,7 @@ from tf_pwa.data import (
     data_index,
     data_shape,
     data_split,
+    data_to_numpy,
     data_to_tensor,
     load_data,
     save_data,
@@ -297,6 +298,23 @@ class SimpleData:
         if "phsp_plot" in self.dic:
             return self.get_data("phsp_plot")
         return self.get_data("phsp")
+
+    def savetxt(self, file_name, data):
+        if isinstance(data, dict):
+            dat_order = self.get_dat_order()
+            if "particle" in data:
+                p4 = [
+                    data_index(data, ("particle", i, "p")) for i in dat_order
+                ]
+            else:
+                p4 = [data_index(data, i) for i in dat_order]
+        elif isinstance(data, (tuple, list)):
+            p4 = data
+        else:
+            raise ValueError("not support data")
+        p4 = data_to_numpy(p4)
+        p4 = np.stack(p4).transpose((1, 0, 2)).reshape((-1, 4))
+        np.savetxt(file_name, p4)
 
 
 @register_data_mode("multi")

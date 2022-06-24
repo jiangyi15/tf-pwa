@@ -3,12 +3,12 @@ import sys
 
 import numpy as np
 
-# import tf_pwa
-from tf_pwa.applications import gen_data, gen_mc
-from tf_pwa.config_loader import ConfigLoader
-
 this_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, this_dir + "/..")
+
+# import tf_pwa
+from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.phasespace import PhaseSpaceGenerator
 
 
 def main():
@@ -24,10 +24,9 @@ def main():
 
     if not os.path.exists("data"):
         os.mkdir("data")
+
     generate_phspMC(Nmc=results.Nmc, mc_file="data/PHSP.dat")
-    generate_toy_from_phspMC(
-        Ndata=results.Ndata, mc_file="data/PHSP.dat", data_file="data/data.dat"
-    )
+    generate_toy_from_phspMC(Ndata=results.Ndata, data_file="data/data.dat")
 
 
 def generate_phspMC(Nmc, mc_file):
@@ -37,27 +36,26 @@ def generate_phspMC(Nmc, mc_file):
     mB = 2.00698
     mC = 2.01028
     mD = 0.13957
+
+    phsp_gen = PhaseSpaceGenerator(mA, [mB, mC, mD])
+    pa, pb, pc = phsp_gen.generate(Nmc)
+
     # a2bcd is a [3*Nmc, 4] array, which are the momenta of BCD in the rest frame of A
-    a2bcd = gen_mc(mA, [mB, mC, mD], Nmc)
-    np.savetxt(mc_file, a2bcd)
+    a2bcd = np.concatenate([pa, pb, pc], axis=-1)
+
+    np.savetxt(mc_file, a2bcd.reshape((-1, 4)))
 
 
-def generate_toy_from_phspMC(Ndata, mc_file, data_file):
+def generate_toy_from_phspMC(Ndata, data_file):
     """Generate toy using PhaseSpace MC from mc_file"""
     # We use ConfigLoader to read the information in the configuration file
     config = ConfigLoader("config.yml")
     # Set the parameters in the amplitude model
     config.set_params("gen_params.json")
-    amp = config.get_amplitude()
-    # data is saved in data_file
-    data = gen_data(
-        amp,
-        Ndata=Ndata,
-        mcfile=mc_file,  # input phsase space file
-        genfile=data_file,  # saved toy data file
-        # use the order in config, the default is ascii order.
-        particles=config.get_dat_order(),
-    )
+
+    data = config.generate_toy_p(Ndata)
+
+    config.data.savetxt(data_file, data)
     return data
 
 
