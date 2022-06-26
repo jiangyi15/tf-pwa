@@ -160,6 +160,8 @@ class SimpleData:
             r_boost=r_boost,
             random_z=random_z,
         )
+        if charge is not None:
+            data["charge_conjugation"] = charge
         return data
 
     def process_cp_trans(self, p4, charges):
@@ -177,6 +179,7 @@ class SimpleData:
         order = self.get_dat_order()
         charges = None if charge is None else self.load_weight_file(charge)
         p4 = self.load_p4(files)
+        charges = None if charges is None else charges[: data_shape(p4)]
         data = self.cal_angle(p4, charges)
         if weights is not None:
             if isinstance(weights, float):
@@ -191,11 +194,7 @@ class SimpleData:
                     "weight format error: {}".format(type(weights))
                 )
 
-        if charge is not None:
-            data["charge_conjugation"] = tf.convert_to_tensor(
-                charges[: data_shape(data)]
-            )
-        else:
+        if charge is None:
             data["charge_conjugation"] = tf.ones((data_shape(data),))
         return data
 

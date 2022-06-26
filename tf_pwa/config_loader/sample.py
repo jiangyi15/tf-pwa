@@ -6,7 +6,7 @@ from tf_pwa.config import get_config
 from tf_pwa.data import data_mask, data_merge, data_shape
 from tf_pwa.generator import GenTest
 from tf_pwa.particle import BaseParticle
-from tf_pwa.phasespace import generate_phsp as generate_phsp_o
+from tf_pwa.phasespace import ChainGenerator  # as generate_phsp_o
 from tf_pwa.tensorflow_wrapper import tf
 
 from .config_loader import ConfigLoader
@@ -178,7 +178,7 @@ def generate_toy_p(
 
 
 def multi_sampling(
-    phsp, amp, N, max_N=100000, force=True, max_weight=None, importance_f=None
+    phsp, amp, N, max_N=200000, force=True, max_weight=None, importance_f=None
 ):
     a = GenTest(max_N)
     all_data = []
@@ -187,17 +187,19 @@ def multi_sampling(
             phsp, amp, i, max_weight, importance_f
         )
         if max_weight is None:
-            max_weight = new_max_weight
+            max_weight = new_max_weight * 1.1
         if new_max_weight > max_weight and len(all_data) > 0:
             tmp = data_merge(*all_data)
             rnd = tf.random.uniform((data_shape(tmp),), dtype=max_weight.dtype)
             cut = (
                 rnd * new_max_weight / max_weight < 1.0
             )  # .max_amplitude < 1.0
+            max_weight = new_max_weight * 1.05
             tmp = data_mask(tmp, cut)
             all_data = [tmp]
             a.set_gen(data_shape(tmp))
         a.add_gen(data_shape(data))
+        # print(a.eff, max_weight)
         all_data.append(data)
 
     ret = data_merge(*all_data)
@@ -231,7 +233,9 @@ def generate_phsp_p(config, N=1000):
 
     m0, mi, idx = build_phsp_chain(decay_group)
 
-    pi = generate_phsp_o(m0, mi, N=N)
+    chain_gen = ChainGenerator(m0, mi)
+
+    pi = chain_gen.generate(N)
 
     def loop_index(tree, idx):
         for i in idx:

@@ -201,6 +201,30 @@ class PhaseSpaceGenerator(object):
         self.m_wtMax = tf.convert_to_tensor(wtmax, dtype="float64")
 
 
+class ChainGenerator:
+    """
+
+    struct = m0 -> [m1, m2, m3]  # (m0, [m1, m2, m3])
+    m0 -> float
+    mi -> float | struct
+
+    """
+
+    def __init__(self, m0, mi):
+        struct = (m0, mi)
+        self.struct = struct
+        self.idxs, self.gen = _get_generator(struct)
+
+    def generate(self, N):
+        pi = [i.generate(N) for i in self.gen]
+        return _restruct_pi(self.struct, self.idxs, pi)
+
+    def get_gen(self, idx_gen):
+        for i, d in enumerate(self.idxs):
+            if d == idx_gen:
+                return self.gen[i]
+
+
 def _get_generator(struct):
     ret = []
     idxs = []
@@ -284,7 +308,4 @@ def generate_phsp(m0, mi, N=1000):
     >>> assert np.allclose(LorentzVector.M(a+b+c), 1.0)
 
     """
-    struct = (m0, mi)
-    idxs, gen = _get_generator(struct)
-    pi = [i.generate(N) for i in gen]
-    return _restruct_pi(struct, idxs, pi)
+    return ChainGenerator(m0, mi).generate(N)
