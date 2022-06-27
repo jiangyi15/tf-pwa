@@ -28,3 +28,10 @@ def test_generate_phsp():
 def test_error():
     with pytest.raises(ValueError):
         PhaseSpaceGenerator(1, [0.3, 0.4, 0.5]).generate(10)
+
+
+def test_uniform():
+    a = UniformGenerator(1.0, 2.0)
+    b = a.generate(10).numpy()
+    assert np.all(b < 2.0)
+    assert np.all(b >= 1.0)

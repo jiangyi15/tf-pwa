@@ -35,9 +35,7 @@ class PhaseSpaceGenerator(object):
         self.set_decay(m0, mass)
         self.sum_mass = sum(self.m_mass)
         self.mass_range = self.get_mass_range()
-        self.mass_generator = [
-            UniformGenerator(a, b) for a, b in self.mass_range
-        ]
+        self.mass_generator = [None for i in self.mass_range]
 
     def get_mass_range(self):
         sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
@@ -49,16 +47,26 @@ class PhaseSpaceGenerator(object):
             ret.append((a, b))
             # random = tf.random.uniform([n_iter], dtype="float64")
             # ms = (b - a) * random + a
-            # m_n = ms
+            m_n = a  # ms
             sm = sm - self.m_mass[-i - 3]
             # ret.append(ms)
         return ret
 
     def generate_mass(self, n_iter):
         """generate possible inner mass."""
+        sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
+        m_n = self.m_mass[-1]
         ret = []
-        for i in self.mass_generator:
-            ms = i.generate(n_iter)
+        for i in range(self.m_nt - 2):
+            b = self.m0 - sm
+            a = m_n + self.m_mass[-i - 2]
+            if self.mass_generator[i] is None:
+                random = tf.random.uniform([n_iter], dtype="float64")
+                ms = (b - a) * random + a
+            else:
+                ms = self.mass_generator[i].generate(n_iter)
+            m_n = ms
+            sm = sm - self.m_mass[-i - 3]
             ret.append(ms)
         return ret
 
