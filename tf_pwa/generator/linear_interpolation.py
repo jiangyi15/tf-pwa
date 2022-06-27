@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 
@@ -69,11 +71,30 @@ class GenTest:
     def generate(self, N):
         self.N_gen = 0
         self.N_total = 0
+
+        N_progress = 50
+        start_time = time.perf_counter()
         while self.N_gen < N:
             test_N = min(int((N - self.N_gen) / self.eff * 1.1), self.N_max)
             self.N_total += test_N
             yield test_N
+            progress = self.N_gen / N
+            finsh = "▓" * int(progress * N_progress)
+            need_do = "-" * (N_progress - int(progress * N_progress))
+            now = time.perf_counter() - start_time
+            print(
+                "\r{:^3.1f}%[{}>{}] {:.2f}/{:.2f}s".format(
+                    progress * 100, finsh, need_do, now, now / progress
+                ),
+                end="",
+            )
             self.eff = (self.N_gen + 1) / (self.N_total + 1)  # avoid zero
+        end_time = time.perf_counter() - start_time
+        print(
+            "\r{:^3.1f}%[{}]   {:.2f}/{:.2f}s".format(
+                100, "▓" * N_progress, end_time, end_time
+            )
+        )
 
     def add_gen(self, n_gen):
         # print("add gen")

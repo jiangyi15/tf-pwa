@@ -142,12 +142,15 @@ def generate_toy_p(
     importance_f=None,
     max_N=100000,
     include_charge=False,
+    cal_phsp_max=False,
 ):
     """
     generate toy data momentum.
     """
     if gen_p is None:
-        gen_p = config.generate_phsp_p
+        gen_p = config.get_phsp_p_generator()
+        if cal_phsp_max:
+            gen_p.cal_max_weight()
 
     new_gen = gen_p
     fun = config.eval_amplitude
@@ -182,6 +185,7 @@ def multi_sampling(
 ):
     a = GenTest(max_N)
     all_data = []
+
     for i in a.generate(N):
         data, new_max_weight = single_sampling2(
             phsp, amp, i, max_weight, importance_f
@@ -199,7 +203,7 @@ def multi_sampling(
             all_data = [tmp]
             a.set_gen(data_shape(tmp))
         a.add_gen(data_shape(data))
-        # print(a.eff, max_weight)
+        # print(a.eff, a.N_gen, max_weight)
         all_data.append(data)
 
     ret = data_merge(*all_data)
@@ -227,22 +231,46 @@ def single_sampling2(phsp, amp, N, max_weight=None, importance_f=None):
     return data, max_weight
 
 
+class AfterGenerator:
+    def __init__(self, gen, f_after=lambda x: x):
+        self.gen = gen
+        self.f_after = f_after
+
+    def generate(self, N):
+        ret = self.gen.generate(N)
+        return self.f_after(ret)
+
+    def cal_max_weight(self):
+        self.gen.cal_max_weight()
+
+
 @ConfigLoader.register_function()
-def generate_phsp_p(config, N=1000):
+def get_phsp_p_generator(config):
     decay_group = config.get_decay()
 
     m0, mi, idx = build_phsp_chain(decay_group)
 
     chain_gen = ChainGenerator(m0, mi)
 
-    pi = chain_gen.generate(N)
+    # pi = chain_gen.generate(N)
 
     def loop_index(tree, idx):
         for i in idx:
             tree = tree[i]
         return tree
 
-    return {k: loop_index(pi, idx[k]) for k in decay_group.outs}
+    def f_after(pi):
+        return {k: loop_index(pi, idx[k]) for k in decay_group.outs}
+
+    return AfterGenerator(chain_gen, f_after)
+
+
+@ConfigLoader.register_function()
+def generate_phsp_p(config, N=1000, cal_max=False):
+    gen = get_phsp_p_generator(config)
+    if cal_max:
+        gen.cal_max_weight()
+    gen.generate(N)
 
 
 @ConfigLoader.register_function()

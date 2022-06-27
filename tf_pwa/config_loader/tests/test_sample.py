@@ -36,6 +36,10 @@ def test_generate_phsp(toy_config):
     assert data_shape(data) == 1000
     data = toy_config.generate_toy_p(1000, include_charge=True)
     assert data_shape(data) == 1000
+    gen_p3 = toy_config.get_phsp_p_generator()
+    gen_p3.cal_max_weight()
+    data = toy_config.generate_toy_p(1000, gen_p=gen_p3)
+    assert data_shape(data) == 1000
 
 
 config_text = """

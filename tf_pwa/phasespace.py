@@ -176,6 +176,23 @@ class PhaseSpaceGenerator(object):
         wt = tf.math.reduce_prod(tf.stack(R), 0)
         return wt / self.m_wtMax
 
+    def cal_max_weight(self):
+        if len(self.mass_range) == 0:
+            pass
+
+        def f(x):
+            return float(-self.get_weight(x))
+
+        old_gen = self.mass_generator
+        self.mass_generator = [None for i in old_gen]
+        x0 = self.generate_mass(1)
+        self.mass_generator = old_gen
+        from scipy.optimize import minimize
+
+        ret = minimize(f, np.array(x0), bounds=self.mass_range)
+        self.m_wtMax *= (-ret.fun) * 1.001
+        return self.m_wtMax
+
     def set_decay(self, m0, mass):
         r"""set decay mass, calculate max weight
 
@@ -231,6 +248,10 @@ class ChainGenerator:
         for i, d in enumerate(self.idxs):
             if d == idx_gen:
                 return self.gen[i]
+
+    def cal_max_weight(self):
+        for i in self.gen:
+            i.cal_max_weight()
 
 
 def _get_generator(struct):
