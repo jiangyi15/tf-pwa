@@ -12,6 +12,7 @@ def test_generate_phsp(toy_config):
     data = toy_config.generate_toy(1000)
     assert data_shape(data) == 1000
     data = toy_config.generate_toy2(1000)
+    data = toy_config.generate_toy2(1000, cal_phsp_max=True)
     assert data_shape(data) == 1000
     data = toy_config.generate_toy2(1000, gen=toy_config.generate_phsp)
     assert data_shape(data) == 1000
@@ -36,9 +37,15 @@ def test_generate_phsp(toy_config):
     assert data_shape(data) == 1000
     data = toy_config.generate_toy_p(1000, include_charge=True)
     assert data_shape(data) == 1000
+    data = toy_config.generate_toy_p(
+        1000, include_charge=True, cal_phsp_max=True
+    )
+    assert data_shape(data) == 1000
     gen_p3 = toy_config.get_phsp_p_generator()
     gen_p3.cal_max_weight()
-    data = toy_config.generate_toy_p(1000, gen_p=gen_p3)
+    data = toy_config.generate_toy_p(1000, gen_p=gen_p3.generate)
+    assert data_shape(data) == 1000
+    data = toy_config.generate_phsp(1000, cal_max=True)
     assert data_shape(data) == 1000
 
 
@@ -124,3 +131,9 @@ def test_importance_f():
     plt.clf()
     data.mass_hist("(E, F)").draw()
     plt.savefig("importance_f.png")
+
+
+def test_phsp_generator(toy_config):
+    a = toy_config.get_phsp_p_generator(nodes=[["C", "D"]])
+    b = toy_config.get_phsp_p_generator(nodes=[["C", "B"]])
+    assert a.gen.gen[0].m_mass != b.gen.gen[0].m_mass

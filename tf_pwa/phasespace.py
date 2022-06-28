@@ -239,6 +239,7 @@ class ChainGenerator:
         struct = (m0, mi)
         self.struct = struct
         self.idxs, self.gen = _get_generator(struct)
+        self.unpack_map = {}
 
     def generate(self, N):
         pi = [i.generate(N) for i in self.gen]

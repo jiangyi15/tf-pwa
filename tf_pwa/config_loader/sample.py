@@ -77,6 +77,7 @@ def generate_toy2(
     importance_f=None,
     max_N=100000,
     include_charge=False,
+    cal_phsp_max=False,
 ):
     """
     A more accurate method for generating toy data.
@@ -108,8 +109,10 @@ def generate_toy2(
 
         else:
 
-            def gen(M):
-                return generate_phsp(config, M, include_charge=include_charge)
+            p_gen = get_phsp_generator(config, include_charge=include_charge)
+            if cal_phsp_max:
+                p_gen.cal_max_weight()
+            gen = p_gen.generate
 
     if not hasattr(config, "max_amplitude"):
         config.max_amplitude = None
@@ -148,9 +151,10 @@ def generate_toy_p(
     generate toy data momentum.
     """
     if gen_p is None:
-        gen_p = config.get_phsp_p_generator()
+        p_gen = config.get_phsp_p_generator()
         if cal_phsp_max:
-            gen_p.cal_max_weight()
+            p_gen.cal_max_weight()
+        gen_p = p_gen.generate
 
     new_gen = gen_p
     fun = config.eval_amplitude
@@ -236,9 +240,6 @@ class AfterGenerator:
         self.gen = gen
         self.f_after = f_after
 
-    def __call__(self, N):
-        return self.generate(N)
-
     def generate(self, N):
         ret = self.gen.generate(N)
         return self.f_after(ret)
@@ -248,12 +249,15 @@ class AfterGenerator:
 
 
 @ConfigLoader.register_function()
-def get_phsp_p_generator(config):
+def get_phsp_p_generator(config, nodes=[]):
     decay_group = config.get_decay()
 
     m0, mi, idx = build_phsp_chain(decay_group)
+    for node in nodes:
+        (m0, mi), idx = perfer_node((m0, mi), idx, node)
 
     chain_gen = ChainGenerator(m0, mi)
+    chain_gen.unpack_map = idx
 
     # pi = chain_gen.generate(N)
 
@@ -277,16 +281,33 @@ def generate_phsp_p(config, N=1000, cal_max=False):
 
 
 @ConfigLoader.register_function()
-def generate_phsp(config, N=1000, include_charge=False):
-    p = generate_phsp_p(config, N)
-    charge = gen_random_charge(N, include_charge)
-    ret = config.data.cal_angle(p, charge=charge)
-    if include_charge:
-        ret["charge_conjugation"] = charge
-    return ret
+def get_phsp_generator(config, include_charge=False):
+    gen_p = get_phsp_p_generator(config)
+
+    def f_after(p):
+        N = data_shape(p)
+        charge = gen_random_charge(N, include_charge)
+        ret = config.data.cal_angle(p, charge=charge)
+        if include_charge:
+            ret["charge_conjugation"] = charge
+        return ret
+
+    return AfterGenerator(gen_p, f_after)
+
+
+@ConfigLoader.register_function()
+def generate_phsp(config, N=1000, include_charge=False, cal_max=False):
+    gen = get_phsp_generator(config, include_charge=include_charge)
+    if cal_max:
+        gen.cal_max_weight()
+    return gen.generate(N)
 
 
 def build_phsp_chain(decay_group):
+    """
+    find common decay those mother particle mass is fixed
+
+    """
     struct = decay_group.topology_structure()
     inner_node = [set(i.inner) for i in struct]
     a = inner_node[0]
@@ -320,6 +341,7 @@ def build_phsp_chain(decay_group):
     mi = dict(zip(decay_group.outs, mi))
 
     st = struct[0].sorted_table()
+    print(st, nodes)
     mi, final_idx = build_phsp_chain_sorted(st, mi, nodes)
     return m0, mi, final_idx
 
@@ -367,3 +389,55 @@ def build_phsp_chain_sorted(st, final_mi, nodes):
                 st[k].append(pi)
 
     return mass_table["top"][1], final_idx
+
+
+def perfer_node(struct, index, nodes):
+    """
+    reorder struct to make node exisits in PhaseGenerator
+    """
+    index2 = {str(k): v for k, v in index.items()}
+    used_index = {}
+    for i in nodes:
+        used_index[str(i)] = index2[str(i)]
+    min_index = 0
+    for i in used_index.values():
+        min_index = min(len(i), min_index)
+    node_a = list(used_index.values())[0][: min_index - 1]
+    assert all(i[: min_index - 1] == node_a for i in used_index.values())
+    node_same_level = []
+    for k, v in index2.items():
+        if v[: min_index - 1] == node_a:
+            node_same_level.append(k)
+    node_head = [i for i in node_same_level if i not in used_index]
+    node_tail = [i for i in node_same_level if i in used_index]
+    all_node = node_head + node_tail
+    new_order = dict(zip(all_node, range(len(all_node))))
+    order_trans = {}
+    for i in node_same_level:
+        order_trans[index2[i][min_index]] = new_order[i]
+    return trans_node_order(struct, index, order_trans, min_index)
+
+
+def trans_node_order(struct, index, order_trans, level):
+    ret_index = {}
+    for k, v in index.items():
+        if len(v) >= level:
+            a = list(v)
+            a[level] = order_trans[a[level]]
+            ret_index[k] = tuple(a)
+        else:
+            ret_index[k] = v
+
+    def create_new_struct(struct, index):
+        if isinstance(struct, (list, tuple)):
+            m0, mi = struct
+            if index == 0:
+                new_mi = [None] * len(mi)
+                for i, v in enumerate(mi):
+                    new_mi[order_trans[i]] = v
+                return m0, new_mi
+            return m0, [create_new_struct(i, index - 1) for i in mi]
+        return struct
+
+    ret_struct = create_new_struct(struct, level)
+    return ret_struct, ret_index

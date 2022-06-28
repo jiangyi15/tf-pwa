@@ -80,7 +80,7 @@ class GenTest:
             yield test_N
             progress = self.N_gen / N
             finsh = "▓" * int(progress * N_progress)
-            need_do = "-" * (N_progress - int(progress * N_progress))
+            need_do = "-" * (N_progress - int(progress * N_progress) - 1)
             now = time.perf_counter() - start_time
             print(
                 "\r{:^3.1f}%[{}>{}] {:.2f}/{:.2f}s".format(
@@ -91,7 +91,7 @@ class GenTest:
             self.eff = (self.N_gen + 1) / (self.N_total + 1)  # avoid zero
         end_time = time.perf_counter() - start_time
         print(
-            "\r{:^3.1f}%[{}]   {:.2f}/{:.2f}s".format(
+            "\r{:^3.1f}%[{}] {:.2f}/{:.2f}s      ".format(
                 100, "▓" * N_progress, end_time, end_time
             )
         )
