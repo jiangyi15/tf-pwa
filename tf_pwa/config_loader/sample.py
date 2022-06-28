@@ -236,6 +236,9 @@ class AfterGenerator:
         self.gen = gen
         self.f_after = f_after
 
+    def __call__(self, N):
+        return self.generate(N)
+
     def generate(self, N):
         ret = self.gen.generate(N)
         return self.f_after(ret)
@@ -270,7 +273,7 @@ def generate_phsp_p(config, N=1000, cal_max=False):
     gen = get_phsp_p_generator(config)
     if cal_max:
         gen.cal_max_weight()
-    gen.generate(N)
+    return gen.generate(N)
 
 
 @ConfigLoader.register_function()
