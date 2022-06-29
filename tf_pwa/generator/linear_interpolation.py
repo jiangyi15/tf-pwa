@@ -78,21 +78,26 @@ class GenTest:
             test_N = min(int((N - self.N_gen) / self.eff * 1.1), self.N_max)
             self.N_total += test_N
             yield test_N
-            progress = self.N_gen / N
+            progress = self.N_gen / N + 1e-5
             finsh = "▓" * int(progress * N_progress)
             need_do = "-" * (N_progress - int(progress * N_progress) - 1)
             now = time.perf_counter() - start_time
             print(
-                "\r{:^3.1f}%[{}>{}] {:.2f}/{:.2f}s".format(
-                    progress * 100, finsh, need_do, now, now / progress
+                "\r{:^3.1f}%[{}>{}] {:.2f}/{:.2f}s eff: {:.6f}%  ".format(
+                    progress * 100,
+                    finsh,
+                    need_do,
+                    now,
+                    now / progress,
+                    self.eff * 100,
                 ),
                 end="",
             )
             self.eff = (self.N_gen + 1) / (self.N_total + 1)  # avoid zero
         end_time = time.perf_counter() - start_time
         print(
-            "\r{:^3.1f}%[{}] {:.2f}/{:.2f}s      ".format(
-                100, "▓" * N_progress, end_time, end_time
+            "\r{:^3.1f}%[{}] {:.2f}/{:.2f}s  eff: {:.6f}%   ".format(
+                100, "▓" * N_progress, end_time, end_time, self.eff * 100
             )
         )
 

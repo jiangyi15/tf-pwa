@@ -341,7 +341,7 @@ def build_phsp_chain(decay_group):
     mi = dict(zip(decay_group.outs, mi))
 
     st = struct[0].sorted_table()
-    print(st, nodes)
+    # print(st, nodes)
     mi, final_idx = build_phsp_chain_sorted(st, mi, nodes)
     return m0, mi, final_idx
 
