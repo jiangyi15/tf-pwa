@@ -7,7 +7,7 @@ class BaseGenerator(metaclass=abc.ABCMeta):
     DataType = Any
 
     @abc.abstractmethod
-    def generate(self, N: int) -> BaseGenerator.DataType:
+    def generate(self, N: int) -> Any:
         raise NotImplementedError("generate")
 
 
