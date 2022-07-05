@@ -11,7 +11,7 @@ def get_p(M, ma, mb):
     m_p = (ma + mb) ** 2
     m_m = (ma - mb) ** 2
     p2 = (m2 - m_p) * (m2 - m_m)
-    p = (p2 + tf.abs(p2)) / 2
+    p = tf.where(p2 <= 0, tf.zeros_like(p2), p2)
     ret = tf.sqrt(p) / (2.0 * M)
     return tf.cast(ret, "float64")
 
@@ -62,6 +62,7 @@ class PhaseSpaceGenerator(object):
             a = m_n + self.m_mass[-i - 2]
             if self.mass_generator[i] is None:
                 random = tf.random.uniform([n_iter], dtype="float64")
+                (a, b) = self.mass_range[i]
                 ms = (b - a) * random + a
             else:
                 ms = self.mass_generator[i].generate(n_iter)
