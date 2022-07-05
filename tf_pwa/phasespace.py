@@ -12,8 +12,9 @@ def get_p(M, ma, mb):
     m_m = (ma - mb) ** 2
     p2 = (m2 - m_p) * (m2 - m_m)
     p = tf.where(p2 <= 0, tf.zeros_like(p2), p2)
-    ret = tf.sqrt(p) / (2.0 * M)
-    return tf.cast(ret, "float64")
+    p = tf.cast(p, tf.float64)
+    ret = tf.sqrt(p) / (2.0 * tf.cast(M, p.dtype))
+    return ret
 
 
 class UniformGenerator:
@@ -52,21 +53,6 @@ class PhaseSpaceGenerator(object):
             # ret.append(ms)
         return ret
 
-    def generate_mass_one(self):
-        """generate one mass for solving max weight"""
-        sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
-        m_n = self.m_mass[-1]
-        ret = []
-        for i in range(self.m_nt - 2):
-            b = self.m0 - sm
-            a = m_n + self.m_mass[-i - 2]
-            random = tf.random.uniform([1], dtype="float64")
-            ms = (b - a) * random + a
-            m_n = ms
-            sm = sm - self.m_mass[-i - 3]
-            ret.append(ms)
-        return ret
-
     def generate_mass(self, n_iter):
         """generate possible inner mass."""
         sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
@@ -77,7 +63,6 @@ class PhaseSpaceGenerator(object):
             a = m_n + self.m_mass[-i - 2]
             if self.mass_generator[i] is None:
                 random = tf.random.uniform([n_iter], dtype="float64")
-                (a, b) = self.mass_range[i]
                 ms = (b - a) * random + a
             else:
                 ms = self.mass_generator[i].generate(n_iter)
@@ -87,7 +72,27 @@ class PhaseSpaceGenerator(object):
             ret.append(ms)
         return ret
 
-    def generate(self, n_iter: int, force=True, flatten=True) -> list:
+    def mass_importances(self, mass):
+        """generate possible inner mass."""
+        sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
+        m_n = self.m_mass[-1]
+        w = 1.0
+        for i in range(self.m_nt - 2):
+            b = self.m0 - sm
+            a = m_n + self.m_mass[-i - 2]
+            ms = mass[i]
+            if i >= 1 and self.mass_generator[i] is None:
+                w = w * (b - a) / (b - self.mass_range[i][0])
+            else:
+                pass  # ms = self.mass_generator[i].generate(n_iter)
+            # print("a", n_iter, a, b, tf.reduce_min(ms),tf.reduce_max(ms))
+            m_n = ms
+            sm = sm - self.m_mass[-i - 3]
+        return w
+
+    def generate(
+        self, n_iter: int, force=True, flatten=True, importances=True
+    ) -> list:
         """generate `n_iter` events
 
         :param n_iter: number of events
@@ -104,10 +109,10 @@ class PhaseSpaceGenerator(object):
             pi = self.generate_momentum(mass, n_iter)
             if flatten:
                 return pi
-            weight = self.get_weight(mass)
+            weight = self.get_weight(mass, importances=importances)
             return weight, pi
 
-        mass_f = self.flatten_mass(mass)
+        mass_f = self.flatten_mass(mass, importances=importances)
         n_gen += int(mass_f[0].shape[0])
 
         # loop until number of generated events above required
@@ -168,14 +173,14 @@ class PhaseSpaceGenerator(object):
             ret.append(LorentzVector.rest_vector(p_boost, i))
         return ret
 
-    def flatten_mass(self, ms):
+    def flatten_mass(self, ms, importances=True):
         """sampling from mass with weight"""
-        weight = self.get_weight(ms)
+        weight = self.get_weight(ms, importances=importances)
         rnd = tf.random.uniform(weight.shape, dtype="float64")
         select = weight > rnd
         return [tf.boolean_mask(i, select) for i in ms]
 
-    def get_weight(self, ms):
+    def get_weight(self, ms, importances=True):
         r"""calculate weight of mass
 
         .. math::
@@ -191,7 +196,10 @@ class PhaseSpaceGenerator(object):
             p = get_p(mass_t[i + 1], mass_t[i], self.m_mass[-i - 2])
             R.append(p)
         wt = tf.math.reduce_prod(tf.stack(R), 0)
-        return wt / self.m_wtMax
+        ret = wt / self.m_wtMax
+        if importances:
+            return self.mass_importances(ms) * ret
+        return ret
 
     def cal_max_weight(self):
         if len(self.mass_range) == 0:
@@ -202,7 +210,7 @@ class PhaseSpaceGenerator(object):
 
         old_gen = self.mass_generator
         self.mass_generator = [None for i in old_gen]
-        x0 = self.generate_mass_one()
+        x0 = self.generate_mass(1)
         self.mass_generator = old_gen
         from scipy.optimize import minimize
 
