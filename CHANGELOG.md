@@ -2,16 +2,24 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.7...HEAD)
+
+## [v0.1.7](https://github.com/jiangyi15/tf-pwa/tree/v0.1.7) (2022-07-06)
+
 [Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.6...HEAD)
 
 **<font color=red>Numeric</font>**
 
+- Fixed wrong phase space shape when N >= 4.
+  [#76](https://github.com/jiangyi15/tf-pwa/pull/76)
 - Fiexd `GS_rho` model bug. [#67](https://github.com/jiangyi15/tf-pwa/pull/67)
 - Fixed a small bug in L=4 blatt weisskoft coefficient.
   [#61](https://github.com/jiangyi15/tf-pwa/pull/61)
 
 **Added**
 
+- Some importance sampling method.
+  [#76](https://github.com/jiangyi15/tf-pwa/pull/76)
 - `lazy_call: True` option. [#74](https://github.com/jiangyi15/tf-pwa/pull/74)
 - `cp_particles` option for self CP symmetry decay such as
   `psi -> pi+ pi- gamma`. [#72](https://github.com/jiangyi15/tf-pwa/pull/72)
