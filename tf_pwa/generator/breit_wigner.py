@@ -1,7 +1,11 @@
 import numpy as np
 
+from tf_pwa.generator import BaseGenerator
 
-class BWGenerator:
+
+class BWGenerator(BaseGenerator):
+    DataType = np.ndarray
+
     def __init__(self, m0, gamma0, m_min, m_max):
         self.m0 = m0
         self.gamma0 = gamma0

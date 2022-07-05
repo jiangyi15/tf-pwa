@@ -2,11 +2,15 @@ import time
 
 import numpy as np
 
+from tf_pwa.generator import BaseGenerator, GenTest
 
-class LinearInterp:
+
+class LinearInterp(BaseGenerator):
     """
     linear intepolation function for sampling
     """
+
+    DataType = np.ndarray
 
     def __init__(self, x, y, epsilon=1e-10):
         self.x = x
@@ -61,55 +65,6 @@ class LinearInterp:
         return k * x + b
 
 
-class GenTest:
-    def __init__(self, N_max):
-        self.N_max = N_max
-        self.N_gen = 0
-        self.N_total = 0
-        self.eff = 0.9
-
-    def generate(self, N):
-        self.N_gen = 0
-        self.N_total = 0
-
-        N_progress = 50
-        start_time = time.perf_counter()
-        while self.N_gen < N:
-            test_N = min(int((N - self.N_gen) / self.eff * 1.1), self.N_max)
-            self.N_total += test_N
-            yield test_N
-            progress = self.N_gen / N + 1e-5
-            finsh = "▓" * int(progress * N_progress)
-            need_do = "-" * (N_progress - int(progress * N_progress) - 1)
-            now = time.perf_counter() - start_time
-            print(
-                "\r{:^3.1f}%[{}>{}] {:.2f}/{:.2f}s eff: {:.6f}%  ".format(
-                    progress * 100,
-                    finsh,
-                    need_do,
-                    now,
-                    now / progress,
-                    self.eff * 100,
-                ),
-                end="",
-            )
-            self.eff = (self.N_gen + 1) / (self.N_total + 1)  # avoid zero
-        end_time = time.perf_counter() - start_time
-        print(
-            "\r{:^3.1f}%[{}] {:.2f}/{:.2f}s  eff: {:.6f}%   ".format(
-                100, "▓" * N_progress, end_time, end_time, self.eff * 100
-            )
-        )
-
-    def add_gen(self, n_gen):
-        # print("add gen")
-        self.N_gen = self.N_gen + n_gen
-
-    def set_gen(self, n_gen):
-        # print("set gen")
-        self.N_gen = n_gen
-
-
 def interp_sample_f(f, f_interp, N):
     all_x = np.array([])
     max_rnd = None
@@ -150,7 +105,9 @@ def interp_sample_once(f, f_interp, N, max_rnd):
     return x[cut], max_rnd
 
 
-class LinearInterpImportance:
+class LinearInterpImportance(BaseGenerator):
+    DataType = np.ndarray
+
     def __init__(self, f, x):
         self.f = f
         self.x = x

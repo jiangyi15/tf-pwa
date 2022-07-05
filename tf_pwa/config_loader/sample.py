@@ -4,7 +4,7 @@ from tf_pwa.amp.core import get_particle_model_name
 from tf_pwa.cal_angle import cal_angle_from_momentum
 from tf_pwa.config import get_config
 from tf_pwa.data import data_mask, data_merge, data_shape
-from tf_pwa.generator import GenTest
+from tf_pwa.generator.generator import BaseGenerator, GenTest
 from tf_pwa.particle import BaseParticle
 from tf_pwa.phasespace import ChainGenerator  # as generate_phsp_o
 from tf_pwa.tensorflow_wrapper import tf
@@ -13,7 +13,7 @@ from .config_loader import ConfigLoader
 
 
 @ConfigLoader.register_function()
-def generate_toy(config, N=1000, force=True, max_N=100000):
+def generate_toy_o(config, N=1000, force=True, max_N=100000):
     decay_group = config.get_decay()
     amp = config.get_amplitude()
 
@@ -68,7 +68,12 @@ def gen_random_charge(N, random=True):
 
 
 @ConfigLoader.register_function()
-def generate_toy2(
+def generate_toy2(config, *args, **kwargs):
+    return generate_toy(config, *args, **kwargs)
+
+
+@ConfigLoader.register_function()
+def generate_toy(
     config,
     N=1000,
     force=True,
@@ -235,7 +240,7 @@ def single_sampling2(phsp, amp, N, max_weight=None, importance_f=None):
     return data, max_weight
 
 
-class AfterGenerator:
+class AfterGenerator(BaseGenerator):
     def __init__(self, gen, f_after=lambda x: x):
         self.gen = gen
         self.f_after = f_after

@@ -1,1 +1,1 @@
-from .linear_interpolation import GenTest
+from .generator import BaseGenerator, GenTest
