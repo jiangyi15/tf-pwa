@@ -52,6 +52,21 @@ class PhaseSpaceGenerator(object):
             # ret.append(ms)
         return ret
 
+    def generate_mass_one(self):
+        """generate one mass for solving max weight"""
+        sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
+        m_n = self.m_mass[-1]
+        ret = []
+        for i in range(self.m_nt - 2):
+            b = self.m0 - sm
+            a = m_n + self.m_mass[-i - 2]
+            random = tf.random.uniform([1], dtype="float64")
+            ms = (b - a) * random + a
+            m_n = ms
+            sm = sm - self.m_mass[-i - 3]
+            ret.append(ms)
+        return ret
+
     def generate_mass(self, n_iter):
         """generate possible inner mass."""
         sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
@@ -66,6 +81,7 @@ class PhaseSpaceGenerator(object):
                 ms = (b - a) * random + a
             else:
                 ms = self.mass_generator[i].generate(n_iter)
+            # print("a", n_iter, a, b, tf.reduce_min(ms),tf.reduce_max(ms))
             m_n = ms
             sm = sm - self.m_mass[-i - 3]
             ret.append(ms)
@@ -186,7 +202,7 @@ class PhaseSpaceGenerator(object):
 
         old_gen = self.mass_generator
         self.mass_generator = [None for i in old_gen]
-        x0 = self.generate_mass(1)
+        x0 = self.generate_mass_one()
         self.mass_generator = old_gen
         from scipy.optimize import minimize
 
