@@ -7,6 +7,7 @@ from tf_pwa.generator.linear_interpolation import (
     interp_sample,
     sample_test_function,
 )
+from tf_pwa.generator.plane_2d import Interp2D
 
 
 def test_sampling():
@@ -54,3 +55,13 @@ def test_integral():
     y = g.integral(x)
     assert 0 == y[0]
     assert np.allclose(y[1:], g.int_step)
+
+
+def test_plane_2d():
+    x = np.linspace(0, 1, 101)
+    y = np.linspace(0, 6, 101)
+    z = x[:, None] * np.sin(y) + 1
+    a = Interp2D(x, y, z)
+    data = a.generate(20)
+    x, y = data[:, 0], data[:, 1]
+    a(x, y)
