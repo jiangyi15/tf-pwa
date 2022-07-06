@@ -3,6 +3,7 @@ import os
 import warnings
 
 import numpy as np
+import tensorflow as tf
 
 from tf_pwa.amp import get_particle
 from tf_pwa.cal_angle import (
@@ -16,6 +17,7 @@ from tf_pwa.data import (
     data_index,
     data_shape,
     data_split,
+    data_to_numpy,
     data_to_tensor,
     load_data,
     save_data,
@@ -142,9 +144,12 @@ class SimpleData:
         p = load_dat_file(fnames, particles)
         return p
 
-    def cal_angle(self, p4):
+    def cal_angle(self, p4, charge=None):
         if isinstance(p4, (list, tuple)):
             p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
+        p4 = self.process_cp_trans(p4, charge)
+        if self.lazy_call:
+            p4 = LazyCall(lambda x: x, p4)
         center_mass = self.dic.get("center_mass", False)
         r_boost = self.dic.get("r_boost", True)
         random_z = self.dic.get("random_z", True)
@@ -155,7 +160,15 @@ class SimpleData:
             r_boost=r_boost,
             random_z=random_z,
         )
+        if charge is not None:
+            data["charge_conjugation"] = charge
         return data
+
+    def process_cp_trans(self, p4, charges):
+        cp_trans = self.dic.get("cp_trans", True)
+        if cp_trans and charges is not None:
+            p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
+        return p4
 
     def load_data(
         self, files, weights=None, weights_sign=1, charge=None
@@ -166,12 +179,8 @@ class SimpleData:
         order = self.get_dat_order()
         charges = None if charge is None else self.load_weight_file(charge)
         p4 = self.load_p4(files)
-        cp_trans = self.dic.get("cp_trans", True)
-        if cp_trans and charges is not None:
-            p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
-        if self.lazy_call:
-            p4 = LazyCall(lambda x: x, p4)
-        data = self.cal_angle(p4)
+        charges = None if charges is None else charges[: data_shape(p4)]
+        data = self.cal_angle(p4, charges)
         if weights is not None:
             if isinstance(weights, float):
                 data["weight"] = np.array(
@@ -184,10 +193,9 @@ class SimpleData:
                 raise TypeError(
                     "weight format error: {}".format(type(weights))
                 )
-        if charge is not None:
-            data["charge_conjugation"] = charges[: data_shape(data)]
-        else:
-            data["charge_conjugation"] = np.ones((data_shape(data),))
+
+        if charge is None:
+            data["charge_conjugation"] = tf.ones((data_shape(data),))
         return data
 
     def load_weight_file(self, weight_files):
@@ -289,6 +297,23 @@ class SimpleData:
         if "phsp_plot" in self.dic:
             return self.get_data("phsp_plot")
         return self.get_data("phsp")
+
+    def savetxt(self, file_name, data):
+        if isinstance(data, dict):
+            dat_order = self.get_dat_order()
+            if "particle" in data:
+                p4 = [
+                    data_index(data, ("particle", i, "p")) for i in dat_order
+                ]
+            else:
+                p4 = [data_index(data, i) for i in dat_order]
+        elif isinstance(data, (tuple, list)):
+            p4 = data
+        else:
+            raise ValueError("not support data")
+        p4 = data_to_numpy(p4)
+        p4 = np.stack(p4).transpose((1, 0, 2)).reshape((-1, 4))
+        np.savetxt(file_name, p4)
 
 
 @register_data_mode("multi")

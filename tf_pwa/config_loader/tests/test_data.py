@@ -37,3 +37,5 @@ def test_load_data(gen_toy):
     np.savetxt("toy_data/test_charge.dat", charge)
     p1 = data.load_data("toy_data/bg.dat", charge="toy_data/test_charge.dat")
     assert np.sum(p1["charge_conjugation"] - charge) == 0
+
+    data.savetxt("toy_data/test_save.dat", p1)

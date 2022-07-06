@@ -175,6 +175,31 @@ class AdaptiveBound(object):
             ax.add_patch(i)
 
 
+def binning_shape_function(m, bins):
+    adp = AdaptiveBound(m, bins)
+    bnds, n = adp.get_bounds_data()
+    x1 = [i[0][0] for i in bnds]
+    x = np.array(x1 + [bnds[-1][1][0]])
+    y1 = [ni.shape[0] / (x[i + 1] - x[i]) for i, ni in enumerate(n)]
+    y2 = [(y1[i] + y1[i + 1]) / 2 for i in range(len(y1) - 1)]
+    y = np.array([y1[0]] + y2 + [y1[-1]])
+    return x, y
+
+
+def adaptive_shape(m, bins, xmin, xmax):
+    x, y = binning_shape_function(m, bins)
+    cut = (x < xmax) & (x >= xmin)
+    x = x[cut]
+    y = y[cut]
+    y[0] = y[0] * (x[1] - xmin) / (x[1] - x[0])
+    y[-1] = y[-1] * (x[-2] - xmax) / (x[-2] - x[-1])
+    x[0] = xmin
+    x[-1] = xmax
+    from tf_pwa.generator.linear_interpolation import LinearInterp
+
+    return LinearInterp(x, y)
+
+
 def cal_chi2(numbers, n_fp):
     weights = []
     # print(numbers)

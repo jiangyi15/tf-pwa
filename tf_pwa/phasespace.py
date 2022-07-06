@@ -11,9 +11,21 @@ def get_p(M, ma, mb):
     m_p = (ma + mb) ** 2
     m_m = (ma - mb) ** 2
     p2 = (m2 - m_p) * (m2 - m_m)
-    p = (p2 + tf.abs(p2)) / 2
-    ret = tf.sqrt(p) / (2.0 * M)
-    return tf.cast(ret, "float64")
+    p = tf.where(p2 <= 0, tf.zeros_like(p2), p2)
+    p = tf.cast(p, tf.float64)
+    ret = tf.sqrt(p) / (2.0 * tf.cast(M, p.dtype))
+    return ret
+
+
+class UniformGenerator:
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
+
+    def generate(self, N):
+        random = tf.random.uniform([N], dtype="float64")
+        ms = (self.b - self.a) * random + self.a
+        return ms
 
 
 class PhaseSpaceGenerator(object):
@@ -23,6 +35,23 @@ class PhaseSpaceGenerator(object):
         self.m_mass = []
         self.set_decay(m0, mass)
         self.sum_mass = sum(self.m_mass)
+        self.mass_range = self.get_mass_range()
+        self.mass_generator = [None for i in self.mass_range]
+
+    def get_mass_range(self):
+        sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
+        m_n = self.m_mass[-1]
+        ret = []
+        for i in range(self.m_nt - 2):
+            b = self.m0 - sm
+            a = m_n + self.m_mass[-i - 2]
+            ret.append((a, b))
+            # random = tf.random.uniform([n_iter], dtype="float64")
+            # ms = (b - a) * random + a
+            m_n = a  # ms
+            sm = sm - self.m_mass[-i - 3]
+            # ret.append(ms)
+        return ret
 
     def generate_mass(self, n_iter):
         """generate possible inner mass."""
@@ -32,14 +61,38 @@ class PhaseSpaceGenerator(object):
         for i in range(self.m_nt - 2):
             b = self.m0 - sm
             a = m_n + self.m_mass[-i - 2]
-            random = tf.random.uniform([n_iter], dtype="float64")
-            ms = (b - a) * random + a
+            if self.mass_generator[i] is None:
+                random = tf.random.uniform([n_iter], dtype="float64")
+                ms = (b - a) * random + a
+            else:
+                ms = self.mass_generator[i].generate(n_iter)
+            # print("a", n_iter, a, b, tf.reduce_min(ms),tf.reduce_max(ms))
             m_n = ms
             sm = sm - self.m_mass[-i - 3]
             ret.append(ms)
         return ret
 
-    def generate(self, n_iter: int, force=True, flatten=True) -> list:
+    def mass_importances(self, mass):
+        """generate possible inner mass."""
+        sm = self.sum_mass - self.m_mass[-1] - self.m_mass[-2]
+        m_n = self.m_mass[-1]
+        w = 1.0
+        for i in range(self.m_nt - 2):
+            b = self.m0 - sm
+            a = m_n + self.m_mass[-i - 2]
+            ms = mass[i]
+            if i >= 1 and self.mass_generator[i] is None:
+                w = w * (b - a) / (b - self.mass_range[i][0])
+            else:
+                pass  # ms = self.mass_generator[i].generate(n_iter)
+            # print("a", n_iter, a, b, tf.reduce_min(ms),tf.reduce_max(ms))
+            m_n = ms
+            sm = sm - self.m_mass[-i - 3]
+        return w
+
+    def generate(
+        self, n_iter: int, force=True, flatten=True, importances=True
+    ) -> list:
         """generate `n_iter` events
 
         :param n_iter: number of events
@@ -56,10 +109,10 @@ class PhaseSpaceGenerator(object):
             pi = self.generate_momentum(mass, n_iter)
             if flatten:
                 return pi
-            weight = self.get_weight(mass)
+            weight = self.get_weight(mass, importances=importances)
             return weight, pi
 
-        mass_f = self.flatten_mass(mass)
+        mass_f = self.flatten_mass(mass, importances=importances)
         n_gen += int(mass_f[0].shape[0])
 
         # loop until number of generated events above required
@@ -120,14 +173,14 @@ class PhaseSpaceGenerator(object):
             ret.append(LorentzVector.rest_vector(p_boost, i))
         return ret
 
-    def flatten_mass(self, ms):
+    def flatten_mass(self, ms, importances=True):
         """sampling from mass with weight"""
-        weight = self.get_weight(ms)
+        weight = self.get_weight(ms, importances=importances)
         rnd = tf.random.uniform(weight.shape, dtype="float64")
         select = weight > rnd
         return [tf.boolean_mask(i, select) for i in ms]
 
-    def get_weight(self, ms):
+    def get_weight(self, ms, importances=True):
         r"""calculate weight of mass
 
         .. math::
@@ -143,7 +196,27 @@ class PhaseSpaceGenerator(object):
             p = get_p(mass_t[i + 1], mass_t[i], self.m_mass[-i - 2])
             R.append(p)
         wt = tf.math.reduce_prod(tf.stack(R), 0)
-        return wt / self.m_wtMax
+        ret = wt / self.m_wtMax
+        if importances:
+            return self.mass_importances(ms) * ret
+        return ret
+
+    def cal_max_weight(self):
+        if len(self.mass_range) == 0:
+            pass
+
+        def f(x):
+            return float(-self.get_weight(x))
+
+        old_gen = self.mass_generator
+        self.mass_generator = [None for i in old_gen]
+        x0 = self.generate_mass(1)
+        self.mass_generator = old_gen
+        from scipy.optimize import minimize
+
+        ret = minimize(f, np.array(x0), bounds=self.mass_range)
+        self.m_wtMax *= (-ret.fun) * 1.001
+        return self.m_wtMax
 
     def set_decay(self, m0, mass):
         r"""set decay mass, calculate max weight
@@ -176,6 +249,35 @@ class PhaseSpaceGenerator(object):
             p = get_p(emmax, emmin, self.m_mass[-n - 1])
             wtmax *= p
         self.m_wtMax = tf.convert_to_tensor(wtmax, dtype="float64")
+
+
+class ChainGenerator:
+    """
+
+    struct = m0 -> [m1, m2, m3]  # (m0, [m1, m2, m3])
+    m0 -> float
+    mi -> float | struct
+
+    """
+
+    def __init__(self, m0, mi):
+        struct = (m0, mi)
+        self.struct = struct
+        self.idxs, self.gen = _get_generator(struct)
+        self.unpack_map = {}
+
+    def generate(self, N):
+        pi = [i.generate(N) for i in self.gen]
+        return _restruct_pi(self.struct, self.idxs, pi)
+
+    def get_gen(self, idx_gen):
+        for i, d in enumerate(self.idxs):
+            if d == idx_gen:
+                return self.gen[i]
+
+    def cal_max_weight(self):
+        for i in self.gen:
+            i.cal_max_weight()
 
 
 def _get_generator(struct):
@@ -261,7 +363,4 @@ def generate_phsp(m0, mi, N=1000):
     >>> assert np.allclose(LorentzVector.M(a+b+c), 1.0)
 
     """
-    struct = (m0, mi)
-    idxs, gen = _get_generator(struct)
-    pi = [i.generate(N) for i in gen]
-    return _restruct_pi(struct, idxs, pi)
+    return ChainGenerator(m0, mi).generate(N)

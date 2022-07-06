@@ -96,7 +96,8 @@ def toy_config3(gen_toy):
 
 @pytest.fixture
 def fit_result(toy_config):
-    return toy_config.fit()
+    ret = toy_config.fit()
+    return ret
 
 
 def test_save_model(toy_config):
