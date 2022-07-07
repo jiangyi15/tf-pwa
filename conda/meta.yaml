@@ -36,11 +36,12 @@ build:
 
 requirements:
   build:
-    - python
-    - setuptools
+    - python=3.8.3
+    - setuptools=46.4.0
+    - setuptools-scm=4.1.2
 
   run:
-    - python
+    - python=3.8
     - tensorflow-gpu>=2.0.0
     - matplotlib
     - scipy
