@@ -40,7 +40,77 @@ def load_config(config_file="config.yml", total_same=False):
     return MultiConfig(config_files, total_same=total_same)
 
 
-def fit(config, init_params="", method="BFGS", loop=1, maxiter=500):
+def print_fit_result(config, fit_result):
+    print("\n########## fit results:")
+    print("Fit status: ", fit_result.success)
+    print("Minimal -lnL = ", fit_result.min_nll)
+    for k, v in fit_result.params.items():
+        print(k, error_print(v, fit_result.error.get(k, None)))
+
+
+def print_fit_result_roofit(config, fit_result):
+    import numpy as np
+
+    value = fit_result.params
+    params_name = config.vm.trainable_vars
+    n_par = len(params_name)
+    name_size = max(len(i) for i in params_name)
+    # fcn = config.get_fcn()
+    # _, grad = fcn.nll_grad(fit_result.params)
+    # edm = np.dot(np.dot(config.inv_he, grad), grad)
+    print(
+        "FCN={:.1f} FROM HESSE \t STATUS={}".format(
+            fit_result.min_nll, "OK" if fit_result.success else "FAILED"
+        )
+    )
+    # print("    \t EDM={:.6e}".format(edm))
+    print(
+        " NO. \t{:<n_size} \t VALUE  \t ERROR".replace(
+            "n_size", str(name_size)
+        ).format("NAME")
+    )
+    for i, name in enumerate(params_name):
+        s = " {:>3} \t{:<n_size} \t{: .6e} \t{: .6e}".replace(
+            "n_size", str(name_size)
+        ).format(
+            i, name, fit_result.params[name], fit_result.error.get(name, 0.0)
+        )
+        print(s)
+    print("\nERROR MATRIX.   NPAR={}".format(n_par))
+    for i in range(n_par):
+        for j in range(n_par):
+            print("{: .3e} ".format(config.inv_he[i, j]), end="")
+        print("")
+    print("\nPARAMETER CORRELATION COEFFICIENTS")
+    print(
+        " NO.  \tGLOBAL   "
+        + " ".join(["{:<10}".format(i) for i in range(n_par)])
+    )
+    err = np.sqrt(np.diag(config.inv_he))
+    correlation = config.inv_he / err[None, :] / err[:, None]
+    inv_correlation = np.linalg.inv(correlation)
+    for i in range(n_par):
+        print(" {:>3}  \t".format(i), end="")
+        dom = inv_correlation[i, i] * correlation[i, i]
+        print(
+            "{:.4f} ".format(
+                np.where((dom < 0.0) | (dom > 1.0), 0.0, np.sqrt(1 - 1 / dom))
+            ),
+            end="",
+        )
+        for j in range(n_par):
+            print("{: .3e} ".format(correlation[i, j]), end="")
+        print("")
+
+
+def fit(
+    config,
+    init_params="",
+    method="BFGS",
+    loop=1,
+    maxiter=500,
+    printer="roofit",
+):
     """
     simple fit script
     """
@@ -92,12 +162,11 @@ def fit(config, init_params="", method="BFGS", loop=1, maxiter=500):
         fit_result.set_error(fit_error)
         fit_result.save_as("final_params.json")
         pprint(fit_error)
-
         print("\n########## fit results:")
-        print("Fit status: ", fit_result.success)
-        print("Minimal -lnL = ", fit_result.min_nll)
-        for k, v in config.get_params().items():
-            print(k, error_print(v, fit_error.get(k, None)))
+        if printer == "roofit":
+            print_fit_result_roofit(config, fit_result)
+        else:
+            print_fit_result(config, fit_result)
 
     return fit_result
 
@@ -199,6 +268,7 @@ def main():
     parser.add_argument(
         "--total-same", action="store_true", default=False, dest="total_same"
     )
+    parser.add_argument("--printer", default="roofit", dest="printer")
     results = parser.parse_args()
     if results.has_gpu:
         devices = "/device:GPU:0"
@@ -207,7 +277,12 @@ def main():
     with tf.device(devices):
         config = load_config(results.config, results.total_same)
         fit_result = fit(
-            config, results.init, results.method, results.loop, results.maxiter
+            config,
+            results.init,
+            results.method,
+            results.loop,
+            results.maxiter,
+            results.printer,
         )
         if isinstance(config, ConfigLoader):
             write_some_results(config, fit_result, save_root=results.save_root)
