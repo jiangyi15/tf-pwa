@@ -261,6 +261,8 @@ def fit_scipy(
         fcn.vm.set_bound(bounds_dict)
 
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+        f_g = Cached_FG(f_g)
+        # print(f_g)
         x0 = np.array(fcn.vm.get_all_val(True))
         # print(x0, fcn.vm.get_all_dic())
         # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})

@@ -16,6 +16,7 @@ A detailed configuration file sample (with all usable parameters) can be found *
    :maxdepth: 2
    :caption: Contents:
 
+   install
    amplitude
    custom_model
    decay_topology
