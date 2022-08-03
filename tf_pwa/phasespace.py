@@ -211,10 +211,13 @@ class PhaseSpaceGenerator(object):
         old_gen = self.mass_generator
         self.mass_generator = [None for i in old_gen]
         x0 = self.generate_mass(1)
+        x0 = np.stack([i.numpy()[0] for i in x0])
+
         self.mass_generator = old_gen
         from scipy.optimize import minimize
 
         ret = minimize(f, np.array(x0), bounds=self.mass_range)
+        assert False
         self.m_wtMax *= (-ret.fun) * 1.001
         return self.m_wtMax
 
