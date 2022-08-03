@@ -217,7 +217,6 @@ class PhaseSpaceGenerator(object):
         from scipy.optimize import minimize
 
         ret = minimize(f, np.array(x0), bounds=self.mass_range)
-        assert False
         self.m_wtMax *= (-ret.fun) * 1.001
         return self.m_wtMax
 
