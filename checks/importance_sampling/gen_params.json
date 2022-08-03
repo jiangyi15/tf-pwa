@@ -1,0 +1,18 @@
+{
+  "BC_mass": 1.0,
+  "BC_width": 0.01,
+  "CD_mass": 1.0,
+  "CD_width": 0.01,
+  "A->BC.DBC->B.C_total_0r": 1.0,
+  "A->BC.DBC->B.C_total_0i": 0.0,
+  "A->BC.D_g_ls_0r": 1.0,
+  "A->BC.D_g_ls_0i": 0.0,
+  "BC->B.C_g_ls_0r": 1.0,
+  "BC->B.C_g_ls_0i": 0.0,
+  "A->CD.BCD->C.D_total_0r": 1.0,
+  "A->CD.BCD->C.D_total_0i": -1.7,
+  "A->CD.B_g_ls_0r": 1.0,
+  "A->CD.B_g_ls_0i": 0.0,
+  "CD->C.D_g_ls_0r": 1.0,
+  "CD->C.D_g_ls_0i": 0.0
+}
