@@ -1,6 +1,6 @@
 import time
 
-import matplolib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 
 from tf_pwa.generator.interp_nd import InterpND
