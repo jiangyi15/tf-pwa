@@ -19,7 +19,9 @@ done fast and automatically.
 
 ## Install
 
-Get the packages using
+You can go to
+[http://tf-pwa.readthedocs.io/install](http://tf-pwa.readthedocs.io/en/latest/install.html)
+for more informations. Get the packages using
 
 ```
 git clone https://github.com/jiangyi15/tf-pwa
@@ -38,11 +40,21 @@ When using conda, you don't need to install CUDA for TensorFlow specially.
    `tensorflow_2_6_requirements.txt` (see this
    [technical FAQ](https://tf-pwa.readthedocs.io/en/latest/tensorflow_version.html)).
 
+You can install a tensorflow gpu version in anaconda as
+
+```
+conda install tensorflow-gpu=2.2
+```
+
+and then install the rest dependences
+
 ```
 conda install --file requirements-min.txt
 ```
 
-**or**
+**Or**
+
+You can install a newer version in conda-forge as
 
 ```
 conda install --file tensorflow_2_6_requirements.txt -c conda-forge

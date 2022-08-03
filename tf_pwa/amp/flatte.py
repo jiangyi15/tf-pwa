@@ -16,6 +16,25 @@ def cal_monentum(m, ma, mb):
 
 @register_particle("Flatte")
 class ParticleFlatte(Particle):
+    """
+
+    Flatte like formula
+
+.. math::
+
+    R(m) = \\frac{1}{m_0^2 - m^2 + m_0 (\\sum_{i}  g_i \\frac{q_i}{m})}
+
+.. math::
+
+    q_i = \\begin{cases}
+    \\frac{\\sqrt{(m^2-(m_{i,1}+m_{i,2})^2)(m^2-(m_{i,1}-m_{i,2})^2)}}{2m} & (m^2-(m_{i,1}+m_{i,2})^2)(m^2-(m_{i,1}-m_{i,2})^2) >= 0 \\\\
+    \\frac{i\\sqrt{|(m^2-(m_{i,1}+m_{i,2})^2)(m^2-(m_{i,1}-m_{i,2})^2)|}}{2m} & (m^2-(m_{i,1}+m_{i,2})^2)(m^2-(m_{i,1}-m_{i,2})^2) < 0 \\\\
+    \\end{cases}
+
+Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1}, m_{i,2}`.
+
+    """
+
     def __init__(self, *args, mass_list=None, **kwargs):
         super().__init__(*args, **kwargs)
         if mass_list is None:

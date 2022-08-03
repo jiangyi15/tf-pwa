@@ -29,6 +29,15 @@ class Cached_FG:
 
     def __call__(self, x):
         f = self.fun(x)
+        if any(np.isnan(self.cached_grad)):
+            for i, g in enumerate(self.cached_grad):
+                if np.isnan(g):
+                    new_x = np.array(x)
+                    new_x[i] += 1e-6
+                    f1, _ = self.f_g(new_x)
+                    new_x[i] -= 1e-6
+                    f2, _ = self.f_g(new_x)
+                    self.cached_grad[i] = (f1 - f2) / 2e-6
         return f, self.cached_grad
 
     def fun(self, x):
@@ -42,6 +51,17 @@ class Cached_FG:
     def grad(self, x):
         if not np.all(x == self.cached_x):
             self.fun(x)
+        # print(self.cached_grad)
+        if any(np.isnan(self.cached_grad)):
+            for i, g in enumerate(self.cached_grad):
+                if np.isnan(g):
+                    new_x = np.array(x)
+                    new_x[i] += 1e-6
+                    f1 = self.f_g(new_x)
+                    new_x[i] -= 1e-6
+                    f2 = self.f_g(new_x)
+                    self.cached_grad[i] = (f1 - f2) / 2e-6
+        # print(self.cached_grad)
         return self.cached_grad
 
 
