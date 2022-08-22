@@ -79,6 +79,7 @@ subprocess.call(
             # exclude patterns
             "../tf_pwa/tests",
             "../tf_pwa/config_loader/tests/*",
+            "../tf_pwa/*/test_*",
         ]
     ),
     shell=True,
