@@ -286,8 +286,8 @@ def generate_phsp_p(config, N=1000, cal_max=False):
 
 
 @ConfigLoader.register_function()
-def get_phsp_generator(config, include_charge=False):
-    gen_p = get_phsp_p_generator(config)
+def get_phsp_generator(config, include_charge=False, nodes=[]):
+    gen_p = get_phsp_p_generator(config, nodes=nodes)
 
     def f_after(p):
         N = data_shape(p)
@@ -346,7 +346,6 @@ def build_phsp_chain(decay_group):
     mi = dict(zip(decay_group.outs, mi))
 
     st = struct[0].sorted_table()
-    # print(st, nodes)
     mi, final_idx = build_phsp_chain_sorted(st, mi, nodes)
     return m0, mi, final_idx
 
@@ -380,7 +379,7 @@ def build_phsp_chain_sorted(st, final_mi, nodes):
             del mass_table[i]
         new_idx = {}
         for k, v in final_idx.items():
-            if k not in sub_node:
+            if k not in sub_node and decay_map[k] in final_idx:
                 new_idx[k] = (*final_idx[decay_map[k]], *final_idx[k])
                 decay_map[k] = pi  # decay_map[decay_map[k]]
         final_idx.update(new_idx)

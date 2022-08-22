@@ -17,6 +17,14 @@ class HelicityAngle1:
         msp = [i.get_mass() for i in self.par[:-1]]
         return generate_p(ms, msp, costheta, phi)
 
+    def generate_p2(self, ms, costheta, phi):
+        all_ms = (
+            [self.decay_chain[0].core.get_mass()]
+            + ms
+            + [self.decay_chain[-1].outs[0].get_mass()]
+        )
+        return self.generate_p(all_ms, costheta, phi)
+
     def generate_p_mass(self, name, m, random=False):
         """generate monmentum with M_name = m"""
         m = tf.convert_to_tensor(m, tf.float64)
@@ -97,6 +105,23 @@ class HelicityAngle:
         # ret = self.generate_p(ms, costheta, phi)
         return ret  # dict(zip(self.par, ret))
 
+    def build_data(self, ms, costheta, phi):
+        """generate monmentum with M_name = m"""
+        data = {}
+        for j, i in enumerate(self.decay_chain):
+            data[i] = {}
+            data[i]["|p|"] = get_relative_p(
+                ms[i.core], ms[i.outs[0]], ms[i.outs[1]]
+            )
+            costheta_i = costheta[j]
+            phi_i = phi[j]
+            data[i][i.outs[0]] = {
+                "angle": {"alpha": phi_i, "beta": tf.acos(costheta_i)}
+            }
+        ret = create_rotate_p_decay(self.decay_chain, ms, data)
+        # ret = self.generate_p(ms, costheta, phi)
+        return ret  # dict(zip(self.par, ret))
+
     def get_phsp_factor(self, name, m):
         m = tf.convert_to_tensor(m, tf.float64)
         ms = self.get_all_mass({name: m})
@@ -122,6 +147,22 @@ class HelicityAngle:
                         sum_mass = sum_mass + j.get_mass()
                 high_bound = i.core.get_mass() - sum_mass
         return (low_bound, high_bound)
+
+    def find_variable(self, dat):
+        decay_chain = self.decay_chain.standard_topology()
+        topo_map = decay_chain.topology_map(self.decay_chain)
+
+        mi = {decay_chain.top: dat["particle"][decay_chain.top]["m"]}
+        m2 = {i.outs[1]: dat["particle"][i.outs[1]]["m"] for i in decay_chain}
+        m1 = {i.outs[0]: dat["particle"][i.outs[0]]["m"] for i in decay_chain}
+        ang = [
+            dat["decay"][decay_chain][i][i.outs[0]]["ang"] for i in decay_chain
+        ]
+        costheta = [tf.cos(i["beta"]) for i in ang]
+        phi = [i["alpha"] for i in ang]
+        ms = {**mi, **m1, **m2}
+        ms = {topo_map[k]: v for k, v in ms.items()}
+        return ms, costheta, phi
 
     def mass_linspace(self, name, N):
         x_min, x_max = self.get_mass_range(name)
