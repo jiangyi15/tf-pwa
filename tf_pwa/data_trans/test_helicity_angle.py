@@ -1,4 +1,5 @@
 from tf_pwa.data_trans.helicity_angle import *
+from tf_pwa.tests.test_full import gen_toy, toy_config
 
 
 def test_gen_p():
@@ -98,6 +99,27 @@ def test_gen_p_mass():
 
     check_b(b)
     check_b(b2)
+
+
+def test_helicity_var(toy_config):
+    decay_chain = toy_config.get_decay().get_decay_chain("R_BC")
+    ha = HelicityAngle(decay_chain)
+    toy = toy_config.generate_toy(100)
+
+    var = ha.find_variable(toy)
+    p_new = ha.build_data(*var)
+
+    toy_new = toy_config.data.cal_angle(p_new)
+
+    assert np.allclose(toy.get_mass("(B, C)"), toy_new.get_mass("(B, C)"))
+    assert np.allclose(
+        toy.get_angle("(B, C)", "B")["beta"],
+        toy_new.get_angle("(B, C)", "B")["beta"],
+    )
+    assert np.allclose(
+        toy.get_angle("(C, D)", "C")["alpha"],
+        toy_new.get_angle("(C, D)", "C")["alpha"],
+    )
 
 
 if __name__ == "__main__":

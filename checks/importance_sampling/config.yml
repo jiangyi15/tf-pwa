@@ -1,0 +1,51 @@
+data:
+  dat_order: ["B", "C", "D"]
+
+decay:
+  A:
+    - [BC, D]
+    - [BD, C]
+    - [CD, B]
+  BC: [B, C]
+  BD: [B, D]
+  CD: [C, D]
+
+particle:
+  $top:
+    A:
+      J: 0
+      P: -1
+      mass: 5.2
+  $finals:
+    B:
+      J: 0
+      P: -1
+      mass: 0.14
+    C:
+      J: 0
+      P: -1
+      mass: 0.14
+    D:
+      J: 0
+      P: -1
+      mass: 0.14
+  BC:
+    J: 1
+    P: -1
+    mass: 1.0
+    width: 0.01
+  CD:
+    J: 0
+    P: +1
+    mass: 1.0
+    width: 0.01
+  BD: []
+
+plot:
+  mass:
+    BC:
+      display: "M(BC)"
+    CD:
+      display: "M(CD)"
+    BD:
+      display: "M(BD)"
