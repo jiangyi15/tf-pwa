@@ -1426,7 +1426,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
 
         """
 
-        amp = self.get_amp(data)
+        amp = self.get_amp3(data)
         amp = tf.reshape(
             amp, (amp.shape[0], amp.shape[1], -1)
         )  # (i, la, lb lc ld ...)

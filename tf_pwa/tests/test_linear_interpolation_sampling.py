@@ -34,6 +34,7 @@ def test_sampling():
     plt.plot(d, fa(d), label="function")
     plt.legend()
     plt.savefig("linear_interpolation_sampling.pdf")
+    plt.clf()
 
 
 def test_importance():

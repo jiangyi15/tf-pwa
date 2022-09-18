@@ -13,6 +13,7 @@ def test_partial_amp(toy_config):
     tw = amp(phsp)
     id_, pw = fs.get_all_partial_amp(amp, phsp, ["g_ls"])
     mas = phsp.get_mass("(B, C)").numpy()
+    plt.clf()
     plt.hist(mas, 100, weights=tw.numpy(), histtype="step")
     for name, i in zip(id_, pw):
         plt.hist(mas, 100, weights=i.numpy(), histtype="step", label=str(name))

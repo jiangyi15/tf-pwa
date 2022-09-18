@@ -389,6 +389,8 @@ class VarsManager(object):
             else:
                 if _max is not None:
                     val = _max - np.random.chisquare(df=1)
+                else:
+                    break
             self.variables[name].assign(val)
 
     def set_fix(self, name, value=None, unfix=False):

@@ -30,6 +30,7 @@ def test_gen_2d():
     z2 = interp_hist([X.flatten(), Y.flatten()])
     plt.imshow(z.reshape(101, 101), origin="lower")
     plt.savefig("interp_nd_b2.png")
+    plt.clf()
 
 
 def test_gen_1d():
@@ -44,6 +45,7 @@ def test_gen_1d():
     z = interp([y]) * 20000 / 1000  #  /( 2*np.pi )
     plt.plot(y, z)
     plt.savefig("interp_nd_b3.png")
+    plt.clf()
 
 
 def test_gen_1d_hist():
@@ -58,3 +60,4 @@ def test_gen_1d_hist():
     z = interp([y]) * 20000 / 1000  #  /( 2*np.pi )
     plt.plot(y, z)
     plt.savefig("interp_nd_b3.png")
+    plt.clf()
