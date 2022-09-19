@@ -35,8 +35,10 @@ Example of a full amplitude fit with resolution
 
     $$ R(m \rightarrow m') = \frac{T(m, m')}{\int T(m,m') d m} $$
 
-    For each reconstructed value $m'$, we choose some $m_i$ and calculate the weight with $w_i=T(m_i, m')$,
+    For each reconstructed value $m'$, we generate some $m_i$ and calculate the weight with $w_i=T(m_i, m')$.
     Then we can get the normalised weights $w_i' = \frac{w_i}{\sum w_j}$.
+
+    This sample is used in fit and plot fit reuslts.
 
 # 5. ../../fit.py
 

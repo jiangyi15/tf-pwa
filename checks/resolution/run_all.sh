@@ -1,13 +1,7 @@
-#!/usr/bin/bash
-
-if [[ ! -e data ]];
-then
-    mkdir data
-fi
-
-
 python gen_toy.py
-python gauss_sample.py
-
-python ../../fit.py
+python detector.py
+python plot_function.py
+python sample.py
+python plot_resolution.py toy_params
+python ../../fit.py -i toy_params.json
 python plot_resolution.py
