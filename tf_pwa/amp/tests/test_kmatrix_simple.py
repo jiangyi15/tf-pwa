@@ -22,3 +22,4 @@ def test_KmatixSimple():
     plt.plot(m, np.abs(amp[:, 0]) ** 2)
     plt.plot(m, np.abs(amp[:, 1]) ** 2)
     plt.savefig("kmatrix_1pp2.png")
+    plt.clf()

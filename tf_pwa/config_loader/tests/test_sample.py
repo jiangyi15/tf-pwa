@@ -112,10 +112,13 @@ def test_chain_phsp():
     dic = yaml.full_load(config_text)
     config = ConfigLoader(dic)
     data = config.generate_toy(10)
-    data.mass_hist("(C, F, G, H)").draw()
     import matplotlib.pyplot as plt
 
+    plt.clf()
+    data.mass_hist("(C, F, G, H)").draw()
+
     plt.savefig("chain_phsp.png")
+    plt.clf()
 
 
 config_text2 = """
@@ -165,6 +168,7 @@ def test_importance_f():
     plt.clf()
     data.mass_hist("(E, F)").draw()
     plt.savefig("importance_f.png")
+    plt.clf()
 
 
 def test_phsp_generator(toy_config):

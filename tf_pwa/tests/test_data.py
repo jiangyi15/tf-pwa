@@ -83,3 +83,14 @@ def test_set_seed():
     set_random_seed(100)
     b = np.random.random((10,))
     assert np.allclose(a, b)
+
+
+def test_batch_call():
+    data = {"a": np.array([1.0, 2.0]), "b": []}
+
+    def f(x):
+        c = x["b"]
+        return x["a"] + 2, c
+
+    ret, _ = batch_call(f, data, batch=1)
+    assert np.allclose(ret, np.array([3.0, 4.0]))

@@ -1,0 +1,8 @@
+{
+  "R_BC_mass": 1.8,
+  "R_BC_width": 0.1,
+  "A->R_BC.DR_BC->B.C_total_0r": 1.0,
+  "A->R_BC.DR_BC->B.C_total_0i": 0.0,
+  "A->NR.DNR->B.C_total_0r": 1.0,
+  "A->NR.DNR->B.C_total_0i": -1.0
+}
