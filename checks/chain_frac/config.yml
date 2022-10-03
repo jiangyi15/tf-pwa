@@ -1,0 +1,81 @@
+data:
+  dat_order: [pip, pim, mup, mum]
+  data: ["toy.dat"]
+  phsp: ["phsp.dat"]
+  random_z: False
+
+decay:
+  ee:
+    - [jpsi, pipi]
+    - [jpsipip, pim]
+    - [jpsipim, pip]
+  pipi: [pip, pim]
+  jpsi: [mup, mum]
+  jpsipip: [jpsi, pip]
+  jpsipim: [jpsi, pim]
+
+particle:
+  $top:
+    ee:
+      J: 1
+      P: -1
+      mass: 4.6
+      spins: [1, -1]
+  $finals:
+    mup:
+      J: 1/2
+      P: +1
+      mass: 0.1
+    mum:
+      J: 1/2
+      P: +1
+      mass: 0.1
+    pip:
+      J: 0
+      P: -1
+      mass: 0.1
+    pim:
+      J: 0
+      P: -1
+      mass: 0.1
+  jpsi:
+    J: 1
+    P: -1
+    mass: 3.0
+    model: one
+  pipi:
+    - rho
+    - f2
+  jpsipim:
+    - Zc1
+  jpsipip:
+    - Zc2
+  rho:
+    J: 1
+    P: -1
+    mass: 1.0
+    width: 0.05
+  f2:
+    J: 2
+    P: +1
+    mass: 1.5
+    width: 0.1
+  Zc1:
+    J: 1
+    P: -1
+    mass: 3.9
+    width: 0.05
+  Zc2:
+    J: 1
+    P: -1
+    mass: 3.9
+    width: 0.05
+
+plot:
+  mass:
+    jpsipip:
+      display: "psipip"
+    jpsipim:
+      display: "psipim"
+    pipi:
+      display: "pi+pi-"
