@@ -31,6 +31,8 @@ repos:
     hooks:
       - id: doc8
         args: ["--ignore=D001", "-q"]
+        additional_dependencies:
+          - importlib_metadata<5.0.0
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.3.8
