@@ -343,6 +343,54 @@ def cal_helicity_angle(
     return ret
 
 
+def aligned_angle_ref_rule1(decay_group, decay_chain_struct, decay_data):
+    # calculate aligned angle of final particles in each decay chain
+    set_x = {}  # reference particles
+    ref_matrix = {}
+
+
+    # for particle from a the top rest frame
+    for idx, decay_chain in enumerate(decay_chain_struct):
+        for decay in decay_chain:
+            if decay.core == decay_group.top:
+                for i in decay.outs:
+                    if (i not in set_x) and (i in decay_group.outs):
+                        part_data2 = decay_data[decay_chain][decay]
+                        set_x[i] = (decay_chain, part_data2[i])
+                        ref_matrix[i] = decay_chain
+    # or in the first chain
+    for i in decay_group.outs:
+        if i not in set_x:
+            decay_chain = next(iter(decay_chain_struct))
+            for decay in decay_chain:
+                for j in decay.outs:
+                    if i == j:
+                        part_data2 = decay_data[decay_chain][decay]
+                        set_x[i] = (decay_chain, part_data2[i])
+                        ref_matrix[i] = decay_chain
+
+    ref_matrix_final = {}
+    for i in decay_group.outs:
+        ref_matrix_final[i] = {"b_matrix": decay_data[ref_matrix[i]]["b_matrix"][i],
+                               "r_matrix": decay_data[ref_matrix[i]]["r_matrix"][i]}
+
+    return set_x, ref_matrix_final
+
+def aligned_angle_ref_rule2(decay_group, decay_chain_struct, decay_data):
+    # calculate aligned angle of final particles in each decay chain
+    set_x = {}  # reference particles
+    ref_matrix = {}
+
+    ref_matrix_final = {}
+    for i in decay_group.outs:
+        set_x[i] = (None, {"x": np.array([[1.,0,0]]), "z": np.array([[0.,0,1]])})
+        ref_matrix_final[i] = {"b_matrix": SU2M([[1, 0], [0, 1]]),
+                               "r_matrix": SU2M([[1, 0], [0, 1]])}
+
+    return set_x, ref_matrix_final
+
+
+
 def cal_angle_from_particle(
     data,
     decay_group: DecayGroup,
@@ -350,6 +398,7 @@ def cal_angle_from_particle(
     random_z=True,
     r_boost=True,
     final_rest=True,
+    align_ref=None, # "center_mass",
 ):
     """
     Calculate helicity angle for particle momentum, add aligned angle.
@@ -376,39 +425,21 @@ def cal_angle_from_particle(
     for i in decay_chain_struct:
         data_i = cal_helicity_angle(data, i, base_z=base_z)
         decay_data[i] = data_i
+    if align_ref == "center_mass":
+        set_x, ref_matrix_final = aligned_angle_ref_rule2(decay_group, decay_chain_struct, decay_data)
+    else:
+        set_x, ref_matrix_final = aligned_angle_ref_rule1(decay_group, decay_chain_struct, decay_data)
 
-    # calculate aligned angle of final particles in each decay chain
-    set_x = {}  # reference particles
-    ref_matrix = {}
-    # for particle from a the top rest frame
-    for idx, decay_chain in enumerate(decay_chain_struct):
-        for decay in decay_chain:
-            if decay.core == decay_group.top:
-                for i in decay.outs:
-                    if (i not in set_x) and (i in decay_group.outs):
-                        set_x[i] = (decay_chain, decay)
-                        ref_matrix[i] = decay_chain
-    # or in the first chain
-    for i in decay_group.outs:
-        if i not in set_x:
-            decay_chain = next(iter(decay_chain_struct))
-            for decay in decay_chain:
-                for j in decay.outs:
-                    if i == j:
-                        set_x[i] = (decay_chain, decay)
-                        ref_matrix[i] = decay_chain
     for idx, decay_chain in enumerate(decay_chain_struct):
         for decay in decay_chain:
             part_data = decay_data[decay_chain][decay]
             for i in decay.outs:
                 if i in decay_group.outs and decay_chain != set_x[i][0]:
-                    idx2, decay2 = set_x[i]
-                    part_data2 = decay_data[idx2][decay2]
                     if r_boost:
                         r_matrix = decay_data[decay_chain]["r_matrix"][i]
                         b_matrix = decay_data[decay_chain]["b_matrix"][i]
-                        r_matrix_ref = decay_data[ref_matrix[i]]["r_matrix"][i]
-                        b_matrix_ref = decay_data[ref_matrix[i]]["b_matrix"][i]
+                        r_matrix_ref = ref_matrix_final[i]["r_matrix"] # decay_data[ref_matrix[i]]["r_matrix"][i]
+                        b_matrix_ref = ref_matrix_final[i]["b_matrix"]  # decay_data[ref_matrix[i]]["b_matrix"][i]
                         R = SU2M(r_matrix_ref["x"]) * SU2M.inv(r_matrix)
                         # print(R)
                         if final_rest:
@@ -419,10 +450,12 @@ def cal_angle_from_particle(
                             )
                         ang = R.get_euler_angle()
                     else:
+                        idx2, part_data2 = set_x[i]
+                        # part_data2 = decay_data[idx2][decay2]
                         x1 = part_data[i]["x"]
-                        x2 = part_data2[i]["x"]
+                        x2 = part_data2["x"]
                         z1 = part_data[i]["z"]
-                        z2 = part_data2[i]["z"]
+                        z2 = part_data2["z"]
                         ang = EulerAngle.angle_zx_zx(z1, x1, z2, x2)
                     # ang = AlignmentAngle.angle_px_px(z1, x1, z2, x2)
                     part_data[i]["aligned_angle"] = ang
@@ -581,6 +614,7 @@ def cal_angle_from_momentum_base(
     r_boost=True,
     random_z=False,
     batch=65000,
+    align_ref=None,
 ) -> CalAngleData:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
@@ -591,13 +625,13 @@ def cal_angle_from_momentum_base(
     """
     if data_shape(p) is None:
         return cal_angle_from_momentum_single(
-            p, decs, using_topology, center_mass, r_boost, random_z
+            p, decs, using_topology, center_mass, r_boost, random_z,align_ref=align_ref
         )
     ret = []
     for i in split_generator(p, batch):
         ret.append(
             cal_angle_from_momentum_single(
-                i, decs, using_topology, center_mass, r_boost, random_z
+                i, decs, using_topology, center_mass, r_boost, random_z,align_ref=align_ref
             )
         )
     return data_merge(*ret)
@@ -645,6 +679,7 @@ def cal_angle_from_momentum_id_swap(
     r_boost=True,
     random_z=False,
     batch=65000,
+    align_ref=None,
 ) -> CalAngleData:
     ret = []
     id_particles = decs.identical_particles
@@ -657,7 +692,7 @@ def cal_angle_from_momentum_id_swap(
         data["id_swap"] = {}
         for i, pi in identical_particles_swap_p(p, id_particles):
             data["id_swap"][i] = cal_angle_from_momentum_base(
-                pi, decs, using_topology, center_mass, r_boost, random_z, batch
+                pi, decs, using_topology, center_mass, r_boost, random_z, batch,align_ref=align_ref
             )
         return data
 
@@ -670,6 +705,7 @@ def cal_angle_from_momentum(
     r_boost=True,
     random_z=False,
     batch=65000,
+    align_ref=None,
 ) -> CalAngleData:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
@@ -693,14 +729,14 @@ def cal_angle_from_momentum(
     id_particles = decs.identical_particles
     cp_particles = decs.cp_particles
     data = cal_angle_from_momentum_id_swap(
-        p, decs, using_topology, center_mass, r_boost, random_z, batch
+        p, decs, using_topology, center_mass, r_boost, random_z, batch,align_ref=align_ref
     )
     if cp_particles is None or len(cp_particles) == 0:
         return data
     else:
         p2 = cp_swap_p(p, decs.outs, id_particles, cp_particles)
         data["cp_swap"] = cal_angle_from_momentum_id_swap(
-            p2, decs, using_topology, center_mass, r_boost, random_z, batch
+            p2, decs, using_topology, center_mass, r_boost, random_z, batch,align_ref=align_ref
         )
         return data
 
@@ -712,6 +748,7 @@ def cal_angle_from_momentum_single(
     center_mass=False,
     r_boost=True,
     random_z=True,
+    align_ref=None,
 ) -> CalAngleData:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
@@ -733,7 +770,7 @@ def cal_angle_from_momentum_single(
         # exit()
         data_p = add_mass(data_p, dec)
     data_d = cal_angle_from_particle(
-        data_p, decs, using_topology, r_boost=r_boost, random_z=random_z
+        data_p, decs, using_topology, r_boost=r_boost, random_z=random_z, align_ref=align_ref
     )
     data = {"particle": data_p, "decay": data_d}
     add_relative_momentum(data)
