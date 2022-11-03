@@ -160,7 +160,7 @@ class SimpleData:
             center_mass=center_mass,
             r_boost=r_boost,
             random_z=random_z,
-            align_ref=align_ref
+            align_ref=align_ref,
         )
         if charge is not None:
             data["charge_conjugation"] = charge
