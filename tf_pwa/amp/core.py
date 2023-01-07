@@ -388,6 +388,14 @@ class Particle(BaseParticle, AmpBase):
             # ret = tf.where(q > 0, ret, tf.zeros_like(ret))
         return ret
 
+    def __call__(self, m):
+        mass = self.get_mass()
+        m1 = self.decay[0].outs[0].get_mass()
+        m2 = self.decay[0].outs[1].get_mass()
+        q = get_relative_p(m, m1, m2)
+        q0 = get_relative_p(mass, m1, m2)
+        return self.get_amp({"m": m}, {"|q|": q, "|q0|": q0})
+
     def amp_shape(self):
         return ()
 
