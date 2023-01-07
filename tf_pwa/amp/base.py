@@ -255,6 +255,23 @@ class ParticleBW(Particle):
         ret = BW(data["m"], mass, width)
         return ret
 
+    def solve_pole(self):
+        mass = self.get_mass()
+        width = self.get_width()
+        if width is None:
+            raise NotImplemented
+        from sympy import I, var
+
+        from tf_pwa.formula import create_complex_root_sympy_tfop
+
+        m, m0, g0 = var("m m0 g0")
+        self.running_width = False
+        f = self.get_sympy_dom(m, m0, g0)
+        g = create_complex_root_sympy_tfop(
+            f, [m0, g0], m, float(mass) - I * float(width) / 2
+        )
+        return g(mass, width)
+
 
 @regist_particle("Kmatrix")
 class ParticleKmatrix(Particle):

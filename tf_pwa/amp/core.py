@@ -405,6 +405,39 @@ class Particle(BaseParticle, AmpBase):
             return self.width()
         return self.width
 
+    def solve_pole(self):
+        mass = self.get_mass()
+        width = self.get_width()
+        if width is None:
+            raise NotImplemented
+        from sympy import I, var
+
+        from tf_pwa.formula import create_complex_root_sympy_tfop
+
+        m, m0, g0, m1, m2 = var("m m0 g0 m1 m2")
+        f = self.get_sympy_dom(m, m0, g0, m1, m2)
+        g = create_complex_root_sympy_tfop(
+            f, [m0, g0, m1, m2], m, float(mass) - I * float(width) / 2
+        )
+
+        assert len(self.decay[0].outs) == 2, "only 2 body decay supported"
+        m1 = self.decay[0].outs[0].get_mass()
+        m2 = self.decay[0].outs[1].get_mass()
+        return g(mass, width, m1, m2)
+
+    def get_sympy_dom(self, m, m0, g0, m1=None, m2=None):
+        if self.get_width() is None:
+            raise NotImplemented
+        from tf_pwa.formula import BW_dom, BWR_dom
+
+        if not self.running_width:
+            return BW_dom(m, m0, g0)
+        else:
+            if self.bw_l is None:
+                decay = self.decay[0]
+                self.bw_l = min(decay.get_l_list())
+            return BWR_dom(m, m0, g0, self.bw_l, m1, m2)
+
 
 @regist_particle("x")
 class ParticleX(Particle):

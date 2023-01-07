@@ -130,6 +130,34 @@ class ParticleBWRLS(ParticleLS):
     def get_barrier_factor(self, ls, q2, q02, d):
         return [tf.sqrt(q2 / q02) ** i * Bprime_q2(i, q2, q02, d) for i in ls]
 
+    def solve_pole(self):
+        mass = self.get_mass()
+        width = self.get_width()
+        from sympy import I, var
+
+        from tf_pwa.formula import create_complex_root_sympy_tfop
+
+        m, m0, g0, m1, m2 = var("m m0 g0 m1 m2")
+        thetas = list(var("theta0:{}".format(len(self.theta))))
+        f = self.get_sympy_dom(m, m0, g0, thetas, m1, m2)
+        g = create_complex_root_sympy_tfop(
+            f, [m0, g0, m1, m2] + thetas, m, float(mass) - I * float(width) / 2
+        )
+
+        assert len(self.decay[0].outs) == 2, "only 2 body decay supported"
+        m1 = self.decay[0].outs[0].get_mass()
+        m2 = self.decay[0].outs[1].get_mass()
+        return g(mass, width, m1, m2, *[i() for i in self.theta])
+
+    def get_sympy_dom(self, m, m0, g0, thetas, m1=None, m2=None):
+        if self.get_width() is None:
+            raise NotImplemented
+        from tf_pwa.formula import BWR_LS_dom
+
+        return BWR_LS_dom(
+            m, m0, g0, thetas, self.decay[0].get_l_list(), m1, m2
+        )
+
     def __call__(self, m):
         m0 = self.get_mass()
         m1 = self.decay[0].outs[0].get_mass()
