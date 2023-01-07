@@ -99,6 +99,7 @@ class ParticleBWRLS(ParticleLS):
         super().__init__(*args, **kwargs)
         self.same_ratio = kwargs.get("same_ratio", True)
         self.same_phase = kwargs.get("same_phase", False)
+        self.fix_bug1 = kwargs.get("fix_bug1", False)
         self.decay_params = {
             "same_ratio": self.same_ratio,
             "same_phase": self.same_phase,
@@ -154,8 +155,18 @@ class ParticleBWRLS(ParticleLS):
             raise NotImplemented
         from tf_pwa.formula import BWR_LS_dom
 
+        d = self.decay[0].d if self.decay else 3.0
+
         return BWR_LS_dom(
-            m, m0, g0, thetas, self.decay[0].get_l_list(), m1, m2
+            m,
+            m0,
+            g0,
+            thetas,
+            self.decay[0].get_l_list(),
+            m1,
+            m2,
+            d=d,
+            fix_bug1=self.fix_bug1,
         )
 
     def __call__(self, m):
@@ -177,14 +188,11 @@ class ParticleBWRLS(ParticleLS):
         g0 = self.get_width()
 
         a = m0 * m0 - m * m
-        b = (
-            m0
-            * g0
-            * tf.sqrt(q2 / q02)
-            * m
-            / m0
-            * sum([i * i for i in total_gamma])
-        )
+        b = m0 * g0 * tf.sqrt(q2 / q02) * sum([i * i for i in total_gamma])
+        if self.fix_bug1:
+            b = b * m0 / m
+        else:
+            b = b * m / m0
         dom = tf.complex(a, -b)
 
         ret = []

@@ -15,9 +15,8 @@ def Bprime_polynomial(l, z):
     l = int(l + 0.01)
     if l not in coeff:
         coeff[l] = [int(i) for i in get_bprime_coeff(l)]
-    return sympy.polys.Poly.from_dict(
-        {(k,): coeff[l][k] for k in range(l + 1)}, sympy.S(z)
-    )
+    ret = sum([coeff[l][::-1][i] * z**i for i in range(l + 1)])
+    return ret
 
 
 def get_relative_p(ma, mb, mc):
@@ -49,24 +48,22 @@ def BWR_dom(m, m0, g0, l, m1, m2, d=3.0):
     return delta - sympy.I * gamma
 
 
-def BWR_LS_dom(m, m0, g0, thetas, ls, m1, m2, d=3.0):
+def BWR_LS_dom(m, m0, g0, thetas, ls, m1, m2, d=3.0, fix_bug1=False):
     delta = m0 * m0 - m * m
     p = get_relative_p2(m, m1, m2)
     p0 = get_relative_p2(m0, m1, m2)
 
     def bf_f(l):
-        bf = Bprime_polynomial(l, (p0 * d) ** 2) / Bprime_polynomial(
-            l, (p * d) ** 2
+        bf = Bprime_polynomial(l, p0 * d**2) / Bprime_polynomial(
+            l, p * d**2
         )
         return (p / p0) ** l * bf
 
-    bf_f = lambda l: Bprime_polynomial(l, (p0 * d) ** 2) / Bprime_polynomial(
-        l, (p * d) ** 2
-    )
+    g_head = sympy.I * m0 * g0 * sympy.sqrt(m / m0 * p / p0)
+    if fix_bug1:
+        g_head = sympy.I * m0 * g0 * sympy.sqrt(m0 / m * p / p0)
     if len(thetas) == 0:
-        return delta - sympy.I * m0 * g0 * sympy.sqrt(m0 / m * p / p0) * bf_f(
-            ls[0]
-        )
+        return delta - g_head * bf_f(ls[0])
     else:
         g1 = sympy.cos(thetas[0])
         gs = [g1]
@@ -79,7 +76,7 @@ def BWR_LS_dom(m, m0, g0, thetas, ls, m1, m2, d=3.0):
                 gs.append(a * sympy.cos(thetas[i + 1]))
                 tmp = tmp * sympy.sin(thetas[i])
         gamma = sum([j * j * bf_f(ls[i]) for i, j in enumerate(gs)])
-        return delta - sympy.I * m0 * g0 * sympy.sqrt(m0 / m * p / p0) * gamma
+        return delta - g_head * gamma
 
 
 def create_complex_root_sympy_tfop(f, var, x, x0, epsilon=1e-12, prec=50):
