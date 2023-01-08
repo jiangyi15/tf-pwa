@@ -16,6 +16,18 @@ class ParamsTrans:
             yield self
         self.tape = tape
 
+    def get_grad(self, val, keep=False):
+        grad = self.tape.gradient(
+            val,
+            self.vm.trainable_variables,
+            unconnected_gradients="zero",
+        )
+        print(grad)
+        grad = tf.stack(grad, axis=-1)
+        if not keep:
+            del self.tape
+        return grad
+
     def get_error(self, vals, keep=False):
         if isinstance(vals, (list, tuple)):
             ret = type(vals)([self.get_error(v, keep=True) for v in vals])

@@ -131,24 +131,19 @@ class ParticleBWRLS(ParticleLS):
     def get_barrier_factor(self, ls, q2, q02, d):
         return [tf.sqrt(q2 / q02) ** i * Bprime_q2(i, q2, q02, d) for i in ls]
 
-    def solve_pole(self):
+    def get_sympy_var(self):
+        import sympy
+
+        m, m0, g0, m1, m2 = sympy.var("m m0 g0 m1 m2")
+        theta = sympy.var("theta0:{}".format(len(self.theta)))
+        return m, m0, g0, theta, m1, m2
+
+    def get_num_var(self):
         mass = self.get_mass()
         width = self.get_width()
-        from sympy import I, var
-
-        from tf_pwa.formula import create_complex_root_sympy_tfop
-
-        m, m0, g0, m1, m2 = var("m m0 g0 m1 m2")
-        thetas = list(var("theta0:{}".format(len(self.theta))))
-        f = self.get_sympy_dom(m, m0, g0, thetas, m1, m2)
-        g = create_complex_root_sympy_tfop(
-            f, [m0, g0, m1, m2] + thetas, m, float(mass) - I * float(width) / 2
-        )
-
-        assert len(self.decay[0].outs) == 2, "only 2 body decay supported"
-        m1 = self.decay[0].outs[0].get_mass()
-        m2 = self.decay[0].outs[1].get_mass()
-        return g(mass, width, m1, m2, *[i() for i in self.theta])
+        m1, m2 = self.get_subdecay_mass()
+        thetas = [i() for i in self.theta]
+        return mass, width, thetas, m1, m2
 
     def get_sympy_dom(self, m, m0, g0, thetas, m1=None, m2=None):
         if self.get_width() is None:
@@ -179,6 +174,15 @@ class ParticleBWRLS(ParticleLS):
         return self.get_ls_amp(m, ls, q2, q02)
 
     def get_ls_amp(self, m, ls, q2, q02, d=3.0):
+        dom, total_gamma = self.get_ls_amp_frac(m, ls, q2, q02, d)
+
+        ret = []
+        for i in total_gamma:
+            ret.append(tf.cast(i, dom.dtype) / dom)
+
+        return ret
+
+    def get_ls_amp_frac(self, m, ls, q2, q02, d=3.0):
         assert all(i in self.ls_list for i in ls)
         ls = [i for i, j in self.ls_list]
         gammai = self.factor_gamma(ls)
@@ -194,9 +198,4 @@ class ParticleBWRLS(ParticleLS):
         else:
             b = b * m / m0
         dom = tf.complex(a, -b)
-
-        ret = []
-        for i in total_gamma:
-            ret.append(tf.cast(i, dom.dtype) / dom)
-
-        return ret
+        return dom, total_gamma

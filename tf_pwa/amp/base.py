@@ -142,6 +142,14 @@ class ParticleBWRCoupling(Particle):
         ret = tf.complex(a_r / a_d, a_i / a_d)
         return ret
 
+    def get_sympy_dom(self, m, m0, g0, m1=None, m2=None):
+        from tf_pwa.formula import BWR_coupling_dom
+
+        if self.bw_l is None:
+            decay = self.decay[0]
+            self.bw_l = min(decay.get_l_list())
+        return BWR_coupling_dom(m, m0, g0, self.bw_l, m1, m2)
+
 
 @regist_particle("BWR_normal")
 class ParticleBWR_normal(Particle):
@@ -255,22 +263,15 @@ class ParticleBW(Particle):
         ret = BW(data["m"], mass, width)
         return ret
 
-    def solve_pole(self):
+    def get_sympy_var(self):
+        import sympy
+
+        return sympy.var("m m0 g0")
+
+    def get_num_var(self):
         mass = self.get_mass()
         width = self.get_width()
-        if width is None:
-            raise NotImplemented
-        from sympy import I, var
-
-        from tf_pwa.formula import create_complex_root_sympy_tfop
-
-        m, m0, g0 = var("m m0 g0")
-        self.running_width = False
-        f = self.get_sympy_dom(m, m0, g0)
-        g = create_complex_root_sympy_tfop(
-            f, [m0, g0], m, float(mass) - I * float(width) / 2
-        )
-        return g(mass, width)
+        return mass, width
 
 
 @regist_particle("Kmatrix")

@@ -48,6 +48,14 @@ def BWR_dom(m, m0, g0, l, m1, m2, d=3.0):
     return delta - sympy.I * gamma
 
 
+def BWR_coupling_dom(m, m0, g0, l, m1, m2, d=3.0):
+    delta = m0 * m0 - m * m
+    p = get_relative_p(m, m1, m2)
+    bf = Bprime_polynomial(l, 1) / Bprime_polynomial(l, (p * d) ** 2)
+    gamma = m0 * g0 * (p) ** (2 * l + 1) / m * bf
+    return delta - sympy.I * gamma
+
+
 def BWR_LS_dom(m, m0, g0, thetas, ls, m1, m2, d=3.0, fix_bug1=False):
     delta = m0 * m0 - m * m
     p = get_relative_p2(m, m1, m2)
@@ -59,9 +67,9 @@ def BWR_LS_dom(m, m0, g0, thetas, ls, m1, m2, d=3.0, fix_bug1=False):
         )
         return (p / p0) ** l * bf
 
-    g_head = sympy.I * m0 * g0 * sympy.sqrt(m / m0 * p / p0)
+    g_head = sympy.I * m0 * g0 * m / m0 * sympy.sqrt(p / p0)
     if fix_bug1:
-        g_head = sympy.I * m0 * g0 * sympy.sqrt(m0 / m * p / p0)
+        g_head = sympy.I * m0 * g0 * m0 / m * sympy.sqrt(p / p0)
     if len(thetas) == 0:
         return delta - g_head * bf_f(ls[0])
     else:
@@ -79,11 +87,23 @@ def BWR_LS_dom(m, m0, g0, thetas, ls, m1, m2, d=3.0, fix_bug1=False):
         return delta - g_head * gamma
 
 
+def _flatten(x):
+    ret = []
+    for i in x:
+        if isinstance(i, (list, tuple)):
+            ret += _flatten(i)
+        else:
+            ret.append(i)
+    return ret
+
+
 def create_complex_root_sympy_tfop(f, var, x, x0, epsilon=1e-12, prec=50):
     import tensorflow as tf
 
+    f_var = _flatten(var)
+
     def solve_f(y):
-        return sympy.nsolve(f.subs(dict(zip(var, y))), x, x0)
+        return sympy.nsolve(f.subs(dict(zip(f_var, y))), x, x0)
 
     @tf.custom_gradient
     def real_f(y):
@@ -93,7 +113,7 @@ def create_complex_root_sympy_tfop(f, var, x, x0, epsilon=1e-12, prec=50):
 
         def _grad(dg):
             g = []
-            for i in range(len(var)):
+            for i in range(len(f_var)):
                 y0[i] += epsilon
                 fu = solve_f(y0)
                 y0[i] -= 2 * epsilon
@@ -109,6 +129,7 @@ def create_complex_root_sympy_tfop(f, var, x, x0, epsilon=1e-12, prec=50):
         return tf.cast(tf.stack([float(a), float(b)]), y.dtype), _grad
 
     def _f(*y):
+        y = _flatten(y)
         z = real_f(tf.stack(y))
         return tf.complex(z[0], z[1])
 

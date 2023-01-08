@@ -394,7 +394,9 @@ class Particle(BaseParticle, AmpBase):
         m2 = self.decay[0].outs[1].get_mass()
         q = get_relative_p(m, m1, m2)
         q0 = get_relative_p(mass, m1, m2)
-        return self.get_amp({"m": m}, {"|q|": q, "|q0|": q0})
+        return self.get_amp(
+            {"m": m}, {"|q|": q, "|q|2": q**2, "|q0|": q0, "|q0|2": q0**2}
+        )
 
     def amp_shape(self):
         return ()
@@ -413,32 +415,38 @@ class Particle(BaseParticle, AmpBase):
             return self.width()
         return self.width
 
+    def get_sympy_var(self):
+        return sym.var("m m0 g0 m1 m2")
+
+    def get_subdecay_mass(self, idx=0):
+        return [i.get_mass() for i in self.decay[idx].outs]
+
+    def get_num_var(self):
+        mass = self.get_mass()
+        width = self.get_width()
+        m1, m2 = self.get_subdecay_mass()
+        return mass, width, m1, m2
+
     def solve_pole(self):
         mass = self.get_mass()
         width = self.get_width()
         if width is None:
             raise NotImplemented
-        from sympy import I, var
-
         from tf_pwa.formula import create_complex_root_sympy_tfop
 
-        m, m0, g0, m1, m2 = var("m m0 g0 m1 m2")
-        f = self.get_sympy_dom(m, m0, g0, m1, m2)
+        var = self.get_sympy_var()
+        f = self.get_sympy_dom(*var)
         g = create_complex_root_sympy_tfop(
-            f, [m0, g0, m1, m2], m, float(mass) - I * float(width) / 2
+            f, var[1:], var[0], float(mass) - sym.I * float(width) / 2
         )
-
-        assert len(self.decay[0].outs) == 2, "only 2 body decay supported"
-        m1 = self.decay[0].outs[0].get_mass()
-        m2 = self.decay[0].outs[1].get_mass()
-        return g(mass, width, m1, m2)
+        return g(*self.get_num_var())
 
     def get_sympy_dom(self, m, m0, g0, m1=None, m2=None):
         if self.get_width() is None:
             raise NotImplemented
         from tf_pwa.formula import BW_dom, BWR_dom
 
-        if not self.running_width:
+        if not self.running_width or m1 is None or m2 is None:
             return BW_dom(m, m0, g0)
         else:
             if self.bw_l is None:
