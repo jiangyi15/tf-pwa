@@ -99,6 +99,7 @@ class ParticleBWRLS(ParticleLS):
         super().__init__(*args, **kwargs)
         self.same_ratio = kwargs.get("same_ratio", True)
         self.same_phase = kwargs.get("same_phase", False)
+        self.fix_bug1 = kwargs.get("fix_bug1", False)
         self.decay_params = {
             "same_ratio": self.same_ratio,
             "same_phase": self.same_phase,
@@ -130,6 +131,39 @@ class ParticleBWRLS(ParticleLS):
     def get_barrier_factor(self, ls, q2, q02, d):
         return [tf.sqrt(q2 / q02) ** i * Bprime_q2(i, q2, q02, d) for i in ls]
 
+    def get_sympy_var(self):
+        import sympy
+
+        m, m0, g0, m1, m2 = sympy.var("m m0 g0 m1 m2")
+        theta = sympy.var("theta0:{}".format(len(self.theta)))
+        return m, m0, g0, theta, m1, m2
+
+    def get_num_var(self):
+        mass = self.get_mass()
+        width = self.get_width()
+        m1, m2 = self.get_subdecay_mass()
+        thetas = [i() for i in self.theta]
+        return mass, width, thetas, m1, m2
+
+    def get_sympy_dom(self, m, m0, g0, thetas, m1=None, m2=None):
+        if self.get_width() is None:
+            raise NotImplemented
+        from tf_pwa.formula import BWR_LS_dom
+
+        d = self.decay[0].d if self.decay else 3.0
+
+        return BWR_LS_dom(
+            m,
+            m0,
+            g0,
+            thetas,
+            self.decay[0].get_l_list(),
+            m1,
+            m2,
+            d=d,
+            fix_bug1=self.fix_bug1,
+        )
+
     def __call__(self, m):
         m0 = self.get_mass()
         m1 = self.decay[0].outs[0].get_mass()
@@ -140,6 +174,15 @@ class ParticleBWRLS(ParticleLS):
         return self.get_ls_amp(m, ls, q2, q02)
 
     def get_ls_amp(self, m, ls, q2, q02, d=3.0):
+        dom, total_gamma = self.get_ls_amp_frac(m, ls, q2, q02, d)
+
+        ret = []
+        for i in total_gamma:
+            ret.append(tf.cast(i, dom.dtype) / dom)
+
+        return ret
+
+    def get_ls_amp_frac(self, m, ls, q2, q02, d=3.0):
         assert all(i in self.ls_list for i in ls)
         ls = [i for i, j in self.ls_list]
         gammai = self.factor_gamma(ls)
@@ -149,18 +192,10 @@ class ParticleBWRLS(ParticleLS):
         g0 = self.get_width()
 
         a = m0 * m0 - m * m
-        b = (
-            m0
-            * g0
-            * tf.sqrt(q2 / q02)
-            * m
-            / m0
-            * sum([i * i for i in total_gamma])
-        )
+        b = m0 * g0 * tf.sqrt(q2 / q02) * sum([i * i for i in total_gamma])
+        if self.fix_bug1:
+            b = b * m0 / m
+        else:
+            b = b * m / m0
         dom = tf.complex(a, -b)
-
-        ret = []
-        for i in total_gamma:
-            ret.append(tf.cast(i, dom.dtype) / dom)
-
-        return ret
+        return dom, total_gamma

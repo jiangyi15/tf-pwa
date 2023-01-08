@@ -150,6 +150,39 @@ class LorentzVector(tf.Tensor):
         ret = tf.concat([T_r, p_r], -1)
         return ret
 
+    def boost_matrix(self):
+        pb = LorentzVector.boost_vector(self)
+        beta2 = Vector3.norm2(pb)
+        gamma = 1.0 / tf.sqrt(1 - beta2)
+        gamma2 = tf.where(beta2 > _epsilon, (gamma - 1.0) / beta2, 0.0)
+
+        # bp = pb_i v_i
+        # p_r_i = v_i
+        # p_r_i += gamma2 * bp * pb_i
+        # p_r_i += gamma * E * pb_i
+        # T_r = gamma * (E + bp)
+
+        # T_r = gamma * (E + pb_i vi)
+        # p_r_i = v_i + gamma2 pb_j v_j pb_i + gamma E pb_i
+        # [ T ] = [ gamma       |      gamma pb_x        |    gamma pb_y         |    gamma pb_z       ]
+        # [ x ] = [ gamma pb_x  |  1 + gamma2 pb_x pb_x  |    gamma2 pb_x pb_y   |    gamma2 pb_x pb_z ]
+        # [ y ] = [ gamma pb_y  |      gamma2 pb_y pb_x  |  1+gamma2 pb_y pb_y   |    gamma2 pb_y pb_z ]
+        # [ z ] = [ gamma pb_z  |      gamma2 pb_z pb_x  |    gamma2 pb_z pb_y   |  1+gamma2 pb_z pb_z ]
+        ret00 = gamma
+        ret0x = tf.expand_dims(gamma, axis=-1) * pb
+        retx0 = tf.expand_dims(gamma, axis=-1) * pb
+        retxx = tf.eye(3, dtype=pb.dtype) + tf.expand_dims(
+            tf.expand_dims(gamma2, axis=-1) * pb, axis=-1
+        ) * tf.expand_dims(pb, axis=-2)
+
+        ret0 = tf.concat([tf.expand_dims(gamma, axis=-1), ret0x], axis=-1)
+        # print(ret0)
+        retx = tf.concat([tf.expand_dims(retx0, axis=-2), retxx], axis=-2)
+        # print(retx)
+        ret = tf.concat([tf.expand_dims(ret0, axis=-1), retx], axis=-1)
+        # print(ret)
+        return ret
+
     def gamma(self):
         pb = LorentzVector.boost_vector(self)
         beta2 = Vector3.norm2(pb)

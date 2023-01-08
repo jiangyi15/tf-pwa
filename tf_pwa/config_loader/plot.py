@@ -643,6 +643,7 @@ def _plot_partial_wave(
                 if curve_style is None:
                     line = style.get_style(name_i)
                     label = line.get("label", label)
+                    line["label"] = label
                     kwargs = {"linewidth": 1, **line}
                     # marker, ls, color = line["marker"], line["linestyle"], line["color"]
                     le3 = hist_i.draw_kde(ax, **kwargs)
