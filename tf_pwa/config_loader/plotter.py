@@ -554,7 +554,12 @@ class Plotter:
         return ax, ax2
 
     def save_all_frame(
-        self, prefix="figure/", format="png", plot_pull=False, pull_config=None
+        self,
+        prefix="figure/",
+        format="png",
+        idx=None,
+        plot_pull=False,
+        pull_config=None,
     ):
         path = os.path.dirname(prefix)
         os.makedirs(path, exist_ok=True)
@@ -562,7 +567,7 @@ class Plotter:
             plt.clf()
             if plot_pull:
                 ax, _ = self.plot_frame_with_pull(
-                    name, pull_config=pull_config
+                    name, idx=idx, pull_config=pull_config
                 )
             else:
                 ax = self.plot_frame(name)

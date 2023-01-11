@@ -12,6 +12,7 @@ def test_hist1d():
     hist.draw(ax)
     hist.draw_line()
     hist.draw_line(kind="quadratic")
+    hist.draw(type="line+bar")
     hist.draw_kde(ax, kind="gauss", color="blue")
     hist.draw_kde(ax, kind="cauchy", color="red")
     (0.1 * hist + hist * 0.1).draw_bar(ax)

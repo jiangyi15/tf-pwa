@@ -1078,7 +1078,15 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
 def hist_line(
     data, weights, bins, xrange=None, inter=1, kind="UnivariateSpline"
 ):
-    """interpolate data from hostgram into a line"""
+    """interpolate data from hostgram into a line
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot
+    >>> z = np.random.normal(size=1000)
+    >>> x, y = hist_line(z, None, 50)
+    >>> a = plt.plot(x, y)
+
+    """
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     num = data.shape[0] * inter
     return interp_hist(x, y, num=num, kind=kind)
@@ -1087,6 +1095,15 @@ def hist_line(
 def hist_line_step(
     data, weights, bins, xrange=None, inter=1, kind="quadratic"
 ):
+    """
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot
+    >>> z = np.random.normal(size=1000)
+    >>> x, y = hist_line_step(z, None, 50)
+    >>> a = plt.step(x, y)
+
+    """
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     dx = x[1] - x[0]
     x = (x[:-1] + x[1:]) / 2

@@ -86,9 +86,10 @@ class Hist1D:
     def draw(self, ax=plt, **kwargs):
         draw_type = kwargs.pop("type", "hist")
         if "+" in draw_type:
+            ret = []
             for i in draw_type.split("+"):
-                self.draw(ax=ax, type=i, **kwargs)
-        if draw_type == "hist":
+                ret.append(self.draw(ax=ax, type=i, **kwargs))
+        elif draw_type == "hist":
             ret = self.draw_hist(ax=ax, **kwargs)
         elif draw_type == "bar":
             ret = self.draw_bar(ax=ax, **kwargs)

@@ -113,23 +113,28 @@ def test_cfit(gen_toy):
     fcn({})
     fcn.nll_grad({})
     config.plot_partial_wave()
+    amp = config.get_amplitude()
     config.plot_partial_wave(
         prefix="toy_data/figure/s", linestyle_file="toy_data/a.yml"
     )
     config.plot_partial_wave(
-        prefix="toy_data/figure/ss", linestyle_file="toy_data/a.yml"
+        prefix="toy_data/figure/ss",
+        linestyle_file="toy_data/a.yml",
+        ref_amp=amp,
     )
     config.plot_partial_wave(
         prefix="toy_data/figure/s2",
         linestyle_file="toy_data/a.yml",
         chains_id_method="res",
     )
-    config.get_plotter().save_all_frame(prefix="toy_data/figure/s3")
-    plotter = config.get_plotter()
+    config.get_plotter().save_all_frame(prefix="toy_data/figure/s3", idx=0)
+    plotter = config.get_plotter("toy_data/a.yml", use_weighted=True)
     plotter.smooth = True
     plotter.add_ref_amp(config.get_amplitude())
     with plotter.old_style():
         plotter.save_all_frame(prefix="toy_data/figure/s4", plot_pull=True)
+    plotter.forzen_style()
+    plotter.style.save()
 
 
 def test_cfit_cached(gen_toy):
