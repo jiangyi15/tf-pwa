@@ -481,7 +481,7 @@ def flatten_dict_data(data, fun="{}/{}".format):
     return data
 
 
-def batch_call(function, data, batch):
+def batch_call(function, data, batch=10000):
     ret = []
     for i in data_split(data, batch):
         ret.append(function(i))

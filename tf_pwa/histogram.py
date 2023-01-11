@@ -58,12 +58,18 @@ def weighted_kde(m, w, bw, kind="gauss"):
         kernel = kind
 
     def f(x):
-        ret = np.zeros_like(x)
-        for i in range(n):
-            y = (x - m[i]) / bw[i]
-            tmp = w[i] * kernel(y)
-            ret += tmp
-        return ret
+        ret = []
+        for i in x:
+            y = (i - m) / bw
+            tmp = w * kernel(y)
+            ret.append(np.sum(tmp))
+        return np.array(ret)
+        # ret = np.zeros_like(x)
+        # for i in range(n):
+        #    y = (x - m[i]) / bw[i]
+        #    tmp = w[i] * kernel(y)
+        #    ret += tmp
+        # return ret
 
     return f
 
@@ -78,6 +84,25 @@ class Hist1D:
         self._cached_color = None
 
     def draw(self, ax=plt, **kwargs):
+        draw_type = kwargs.pop("type", "hist")
+        if "+" in draw_type:
+            for i in draw_type.split("+"):
+                self.draw(ax=ax, type=i, **kwargs)
+        if draw_type == "hist":
+            ret = self.draw_hist(ax=ax, **kwargs)
+        elif draw_type == "bar":
+            ret = self.draw_bar(ax=ax, **kwargs)
+        elif draw_type == "kde":
+            ret = self.draw_kde(ax=ax, **kwargs)
+        elif draw_type == "error":
+            ret = self.draw_error(ax=ax, **kwargs)
+        elif draw_type == "line":
+            ret = self.draw_line(ax=ax, **kwargs)
+        else:
+            raise NotImplementedError()
+        return ret
+
+    def draw_hist(self, ax=plt, **kwargs):
         a = plot_hist(self.binning, self.count, ax=ax, **kwargs)
         self._cached_color = a[0].get_color()
         return a
