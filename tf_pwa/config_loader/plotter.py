@@ -102,7 +102,10 @@ class Frame:
         self.x_range = x_range
         self.nbins = nbins
         self.trans = trans
-        self.var_trans = ReadData(var, trans)
+        if callable(var):
+            self.var_trans = var
+        else:
+            self.var_trans = ReadData(var, trans)
         self.name = str(var) if name is None else name
         self.display = self.name if display is None else display
         self.extra = extra
@@ -298,10 +301,18 @@ class StyleSet:
 
 
 class Plotter:
-    def __init__(self, config, legend_file=None, res=None, use_weighted=False):
+    def __init__(
+        self,
+        config,
+        legend_file=None,
+        res=None,
+        datasets=None,
+        use_weighted=False,
+    ):
         self.config = config
-        self.componets = config.get_all_components(
-            res=res, use_weighted=use_weighted
+        datasets = {} if datasets is None else datasets
+        self.alldatas = config.get_all_plotdatas(
+            res=res, use_weighted=use_weighted, **datasets
         )
         self.res = res
         self.chain_property = create_chain_property(config, res=res)
@@ -408,24 +419,61 @@ class Plotter:
                 self.plot_item.remove((("fitted",),))
 
     def plot_frame(self, name, idx=None, ax=plt, bin_scale=3):
+        """plot frame for all partial wave
+
+        :param name: data variable frame name
+        :type name: str
+        :param idx: data index, None for all data, defaults to None
+        :type idx: int, optional
+        :param bin_scale: smooth bin scale, defaults to 3
+        :type bin_scale: float, optional
+        :param ax: plot on axis ax
+        :type ax: matplotlib.Axes, optional
+        :return: matplotlib.Axes
+        """
         frame = self.all_frame.get(name, None)
         if frame is None:
             raise IndexError("no such frame")
         return self.plot_var(frame, idx, ax=ax, bin_scale=bin_scale)
 
     def get_all_hist(self, frame, idx=None, bin_scale=3):
+        """create all partial wave histogram for observation frame.
+
+        :param name: Function for get observation in datasets
+        :type name: Frame,  or callable
+        :param idx: data index, None for all data, defaults to None
+        :type idx: int, optional
+        :param bin_scale: smooth bin scale, defaults to 3
+        :type bin_scale: float, optional
+        :return: collection of histogram
+        :rtype: dict
+        """
         if idx is None:
             hists = merge_hist(
                 i.get_all_histogram(frame, bin_scale=bin_scale)
-                for i in self.componets
+                for i in self.alldatas
             )
         else:
-            hists = self.componets[idx].get_all_histogram(
+            hists = self.alldatas[idx].get_all_histogram(
                 frame, bin_scale=bin_scale
             )
         return hists
 
     def plot_var(self, frame, idx=None, ax=plt, bin_scale=3):
+        """plot data observation for all partial wave
+
+        :param name: Function for get observation in datasets
+        :type name: Frame,  or callable
+        :param idx: data index, None for all data, defaults to None
+        :type idx: int, optional
+        :param bin_scale: smooth bin scale, defaults to 3
+        :type bin_scale: float, optional
+        :param ax: plot axis
+        :type ax: matplotlib.Axes, optional
+        :return:
+        """
+        if not isinstance(frame, Frame):
+            frame = Frame(frame)
         hists = self.get_all_hist(frame, idx=idx, bin_scale=bin_scale)
         plot_style = self.get_plot_style(hists)
         if self.plot_item is None:
@@ -440,11 +488,10 @@ class Plotter:
             style = self.style.get(i)
             style = {k: v for k, v in style.items() if k not in ["name", "id"]}
             a = hist.draw(ax, **style)
-            no_below = no_below and np.all(hist.count > 0)
+            no_below = no_below and np.all(hist.count >= 0)
             self.draw_item[i] = a
-        if isinstance(frame, Frame):
-            frame.no_below = no_below
-            frame.set_axis(ax)
+        frame.no_below = no_below
+        frame.set_axis(ax)
         return ax
 
     def forzen_style(self):
@@ -471,6 +518,13 @@ class Plotter:
 
     @contextlib.contextmanager
     def old_style(self, extra_config=None, color_first=True):
+        """context for base style, see matplotlib.rcParams for more configuration
+
+        :param extra_config: new configs, defaults to None
+        :type extra_config: ditc, optional
+        :param color_first: order of color and linestyle, defaults to True
+        :type color_first: bool, optional
+        """
         import matplotlib as mpl
         from cycler import cycler
 
@@ -512,6 +566,18 @@ class Plotter:
     def plot_frame_with_pull(
         self, name, idx=None, bin_scale=3, pull_config=None
     ):
+        """plot frame with pull for all partial wave
+
+        :param name: data variable frame name
+        :type name: str
+        :param idx: data index, None for all data, defaults to None
+        :type idx: int, optional
+        :param bin_scale: smooth bin scale, defaults to 3
+        :type bin_scale: float, optional
+        :param pull_config: pull plot style, defaults to None
+        :type pull_config: dict, optional
+        :return: matplotlib.Axes for plot and pull
+        """
         frame = self.all_frame.get(name, None)
         if frame is None:
             raise IndexError("no such frame")
@@ -561,6 +627,19 @@ class Plotter:
         plot_pull=False,
         pull_config=None,
     ):
+        """Save all frame in with prefix. like ConfigLoader.plot_partial_waves
+
+        :param prefix: prefix for file name, defaults to "figure/"
+        :type prefix: str, optional
+        :param format: figure format, defaults to "png"
+        :type format: str, optional
+        :param idx: dataset index, defaults to None
+        :type idx: int, optional
+        :param plot_pull: if plot pulls, defaults to False
+        :type plot_pull: bool, optional
+        :param pull_config: configuration for plot pulls, defaults to None
+        :type pull_config: dict, optional
+        """
         path = os.path.dirname(prefix)
         os.makedirs(path, exist_ok=True)
         for name in self.all_frame:
@@ -575,7 +654,7 @@ class Plotter:
             plt.savefig(prefix + name + "." + format)
 
     def add_ref_amp(self, ref_amp, name="reference fit"):
-        for i in self.componets:
+        for i in self.alldatas:
             base_data = i.datasets["fitted"]
             phsp = base_data.dataset
             i.datasets[name] = PlotData(
@@ -584,7 +663,7 @@ class Plotter:
             i.datasets[name].scale = (
                 base_data.total_size() / i.datasets[name].total_size()
             )
-        if "bg" in self.componets[0].datasets:
+        if "bg" in self.alldatas[0].datasets:
             key = ((name,), ("bg",))
             self.hidden_plot_item.append(((name,),))
         else:
@@ -594,12 +673,21 @@ class Plotter:
 
 
 @ConfigLoader.register_function()
-def get_plotter(self, legend_file=None, res=None, use_weighted=False):
-    return Plotter(self, legend_file, res=res, use_weighted=use_weighted)
+def get_plotter(
+    self, legend_file=None, res=None, datasets=None, use_weighted=False
+):
+    datasets = None if datasets is None else datasets
+    return Plotter(
+        self,
+        legend_file,
+        res=res,
+        datasets=datasets,
+        use_weighted=use_weighted,
+    )
 
 
 @ConfigLoader.register_function()
-def get_all_components(
+def get_all_plotdatas(
     self, data=None, phsp=None, bg=None, res=None, use_weighted=False
 ):
     amp = self.get_amplitude()

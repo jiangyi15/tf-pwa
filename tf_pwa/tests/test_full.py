@@ -135,6 +135,7 @@ def test_cfit(gen_toy):
         plotter.save_all_frame(prefix="toy_data/figure/s4", plot_pull=True)
     plotter.forzen_style()
     plotter.style.save()
+    plotter.plot_var(amp)
 
 
 def test_cfit_cached(gen_toy):
