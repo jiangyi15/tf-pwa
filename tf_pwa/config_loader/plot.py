@@ -9,6 +9,7 @@ import yaml
 from tf_pwa.adaptive_bins import AdaptiveBound
 from tf_pwa.adaptive_bins import cal_chi2 as cal_chi2_o
 from tf_pwa.data import (
+    batch_call,
     data_index,
     data_merge,
     data_replace,
@@ -63,13 +64,16 @@ class LineStyleSet:
         self.linestyle_generator = default_color_generator(color_first)
         self.style_key = ["label", "linestyle", "marker", "color"]
 
-    def get(self, id_):
+    def get(self, id_, default=None):
         id_ = str(id_)
         used_linestyle = []
         for i in self.linestyle_table:
             if i["id"] == id_:
                 return i
             used_linestyle.append((i["marker"], i["linestyle"], i["color"]))
+        if default is not None:
+            self.linestyle_table.append({"id": id_, **default})
+            return default
         for i in self.linestyle_generator:
             if i in used_linestyle:
                 continue
@@ -442,6 +446,7 @@ def _cal_partial_wave(
     bin_scale=3,
     res=None,
     batch=65000,
+    ref_amp=None,
     **kwargs
 ):
     data_dict = {}
@@ -449,10 +454,13 @@ def _cal_partial_wave(
     bg_dict = {}
     with amp.temp_params(params):
         weights_i = [amp(i) for i in data_split(phsp, batch)]
-        weight_phsp = data_merge(*weights_i)  # amp(phsp)
-        total_weight = (
-            weight_phsp * phsp.get("weight", 1.0) * phsp.get("eff_value", 1.0)
-        )
+        weight_phsp = data_merge(*weights_i)
+        phsp_origin_w = phsp.get("weight", 1.0) * phsp.get("eff_value", 1.0)
+        total_weight = weight_phsp * phsp_origin_w
+        if ref_amp is not None:
+            weights_i_ref = [ref_amp(i) for i in data_split(phsp, batch)]
+            weight_phsp_ref = data_merge(*weights_i_ref)
+            total_weight_ref = weight_phsp_ref * phsp_origin_w
         data_weight = data.get("weight", None)
         if data_weight is None:
             n_data = data_shape(data)
@@ -460,13 +468,16 @@ def _cal_partial_wave(
             n_data = np.sum(data_weight)
         if bg is None:
             norm_frac = n_data / np.sum(total_weight)
+            if ref_amp is not None:
+                norm_frac_ref = n_data / np.sum(total_weight_ref)
         else:
             if isinstance(w_bkg, float):
-                norm_frac = (n_data - w_bkg * data_shape(bg)) / np.sum(
-                    total_weight
-                )
+                n_sig = n_data - w_bkg * data_shape(bg)
             else:
-                norm_frac = (n_data + np.sum(w_bkg)) / np.sum(total_weight)
+                n_sig = n_data + np.sum(w_bkg)
+            norm_frac = n_sig / np.sum(total_weight)
+            if ref_amp is not None:
+                norm_frac_ref = n_sig / np.sum(total_weight_ref)
         if res is None:
             weights = amp.partial_weight(phsp)
         else:
@@ -484,6 +495,8 @@ def _cal_partial_wave(
         data_dict["data_weights"] = data_weights
         phsp_weights = total_weight * norm_frac
         phsp_dict["MC_total_fit"] = phsp_weights  # MC total weight
+        if ref_amp is not None:
+            phsp_dict["MC_total_fit_ref"] = total_weight_ref * norm_frac_ref
         if bg is not None:
             if isinstance(w_bkg, float):
                 bg_weight = [w_bkg] * data_shape(bg)
@@ -562,6 +575,7 @@ def _plot_partial_wave(
     smooth=True,
     linestyle_file=None,
     color_first=True,
+    ref_amp=None,
     **kwargs
 ):
 
@@ -615,6 +629,13 @@ def _plot_partial_wave(
         fitted_hist = Hist1D.histogram(
             phsp_i, weights=phsp_weights, range=xrange, bins=bins
         )
+        if ref_amp is not None:
+            fitted_hist_ref = Hist1D.histogram(
+                phsp_i,
+                weights=phsp_dict["MC_total_fit_ref"],
+                range=xrange,
+                bins=bins,
+            )
 
         if bg_dict:
             bg_hist = Hist1D.histogram(
@@ -624,9 +645,16 @@ def _plot_partial_wave(
                 ax, label="back ground", alpha=0.5, color="grey"
             )
             fitted_hist = fitted_hist + bg_hist
+            if ref_amp is not None:
+                fitted_hist_ref = fitted_hist_ref + bg_hist
             legends.append(le)
             legends_label.append("back ground")
-
+        if ref_amp is not None:
+            le2 = fitted_hist_ref.draw(
+                ax, label="reference fit", color="red", linewidth=2
+            )
+            legends.append(le2[0])
+            legends_label.append("reference fit")
         le2 = fitted_hist.draw(ax, label="total fit", color="black")
         legends.append(le2[0])
         legends_label.append("total fit")
@@ -655,6 +683,7 @@ def _plot_partial_wave(
                 if curve_style is None:
                     line = style.get_style(name_i)
                     label = line.get("label", label)
+                    line["label"] = label
                     kwargs = {"linewidth": 1, **line}
                     # marker, ls, color = line["marker"], line["linestyle"], line["color"]
                     le3 = hist_i.draw(ax, **kwargs)
@@ -1030,7 +1059,7 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
     if not hasattr(weights, "__len__"):
         weights = [weights] * data.__len__()
     data_hist = np.histogram(data, bins=bins, weights=weights, range=xrange)
-    # ax.hist(fd(data[idx].numpy()),range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
+    # ax.hist(fd(data[idx].numpy())components,range=xrange,bins=bins,histtype="step",label="data",zorder=99,color="black")
     data_y, data_x = data_hist[0:2]
     data_x = (data_x[:-1] + data_x[1:]) / 2
     if kind == "poisson":
@@ -1049,7 +1078,15 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
 def hist_line(
     data, weights, bins, xrange=None, inter=1, kind="UnivariateSpline"
 ):
-    """interpolate data from hostgram into a line"""
+    """interpolate data from hostgram into a line
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot
+    >>> z = np.random.normal(size=1000)
+    >>> x, y = hist_line(z, None, 50)
+    >>> a = plt.plot(x, y)
+
+    """
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     num = data.shape[0] * inter
     return interp_hist(x, y, num=num, kind=kind)
@@ -1058,6 +1095,15 @@ def hist_line(
 def hist_line_step(
     data, weights, bins, xrange=None, inter=1, kind="quadratic"
 ):
+    """
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot
+    >>> z = np.random.normal(size=1000)
+    >>> x, y = hist_line_step(z, None, 50)
+    >>> a = plt.step(x, y)
+
+    """
     y, x = np.histogram(data, bins=bins, range=xrange, weights=weights)
     dx = x[1] - x[0]
     x = (x[:-1] + x[1:]) / 2
