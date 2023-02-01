@@ -85,7 +85,7 @@ def weighted_kde(m, w, bw, kind="gauss"):
 
 def kde_bnd_fix(x, range, bw, kind="gauss"):
     kind_map = {"gauss": guass_integral, "cauchy": cauchy_integral}
-    if isinstance(kind, str):
+    if isinstance(kind, str) and kind in kind_map:
         kernel_cdf = kind_map[kind]
     else:
         return 1.0
