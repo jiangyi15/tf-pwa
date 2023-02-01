@@ -972,6 +972,11 @@ class Bound(object):
                 else:
                     self.func = "(b-a)*(sin(x)+1)/2+a"
         self.f, self.df, self.df2, self.inv = self.get_func()
+        x = sy.symbols("x")
+        self.f_f = sy.lambdify([x], self.f)
+        self.df_f = sy.lambdify([x], self.df)
+        self.df2_f = sy.lambdify([x], self.df2)
+        self.inv_f = sy.lambdify([sy.symbols("y")], self.inv)
 
     def __repr__(self):
         return "[" + str(self.lower) + ", " + str(self.upper) + "]"
@@ -987,12 +992,14 @@ class Bound(object):
         """
         x, a, b, y = sy.symbols("x a b y")
         f = sy.sympify(self.func)
-        f = f.subs({a: self.lower, b: self.upper})
         df = sy.diff(f, x)
         df2 = sy.diff(df, x)
         inv = sy.solve(f - y, x)
         if hasattr(inv, "__len__"):
             inv = inv[-1]
+        f, df, df2, inv = [
+            i.subs({a: self.lower, b: self.upper}) for i in [f, df, df2, inv]
+        ]
         return f, df, df2, inv
 
     def get_x2y(self, val):  # var->gls
@@ -1002,8 +1009,7 @@ class Bound(object):
         :param val: Real number *x*
         :return: Real number *y*
         """
-        x = sy.symbols("x")
-        return float(self.f.evalf(subs={x: val}))
+        return self.f_f(val)
 
     def get_y2x(self, val):  # gls->var
         """
@@ -1012,13 +1018,12 @@ class Bound(object):
         :param val: Real number *y*
         :return: Real number *x*
         """
-        y = sy.symbols("y")
+        # y = sy.symbols("y")
         if self.lower is not None and val < self.lower:
             val = self.lower
         elif self.upper is not None and val > self.upper:
             val = self.upper
-        x = self.inv.evalf(subs={y: val})
-        return complex(x).real
+        return self.inv_f(val)
 
     def get_dydx(self, val):  # gradient in fitting: dNLL/dx = dNLL/dy * dy/dx
         """
@@ -1027,20 +1032,18 @@ class Bound(object):
         :param val: Real number *x*
         :return: Real number :math:`\\frac{dy}{dx}`
         """
-        x = sy.symbols("x")
-        return float(self.df.evalf(subs={x: val}))
+        return self.df_f(val)
 
     def get_d2ydx2(
         self, val
     ):  # gradient in fitting: dNLL/dx = dNLL/dy * dy/dx
         """
-        To calculate the derivative :math:`\\frac{dy}{dx}`.
+        To calculate the derivative :math:`\\frac{d^2y}{dx^2}`.
 
         :param val: Real number *x*
-        :return: Real number :math:`\\frac{dy}{dx}`
+        :return: Real number :math:`\\frac{d^2y}{dx^2}`
         """
-        x = sy.symbols("x")
-        return float(self.df2.evalf(subs={x: val}))
+        return self.df2_f(val)
 
 
 def _get_val_from_index(val, index):
