@@ -44,16 +44,19 @@ class PlotData:
             return ret
         raise NotImplementedError()
 
-    def get_histogram(self, var, partial=None, **kwargs):
+    def get_histogram(self, var, partial=None, weight_f=None, **kwargs):
         value = var(self.dataset)
+        w2 = 1.0 if weight_f is None else weight_f(self.dataset)
         if partial is not None:
-            w = self.partial_weight[partial]
+            w = w2 * self.partial_weight[partial]
         else:
-            w = self.weight
+            w = w2 * self.weight
         if self.use_weighted:
-            return WeightedData(value, weights=w * self.scale, **kwargs)
+            ret = WeightedData(value, weights=w * self.scale, **kwargs)
         else:
-            return Hist1D.histogram(value, weights=w * self.scale, **kwargs)
+            ret = Hist1D.histogram(value, weights=w * self.scale, **kwargs)
+        # print(ret.count, w2)
+        return ret
 
 
 class ReadData:
@@ -111,7 +114,7 @@ class Frame:
         self.extra = extra
         self.no_below = True
 
-    def get_histogram(self, data, partial=None, bin_scale=1):
+    def get_histogram(self, data, partial=None, bin_scale=1, weight_f=None):
         if self.nbins is None:
             n_bins = max(5, min(data.n_data // 25, 200))
             hist = (
@@ -120,6 +123,7 @@ class Frame:
                     partial=partial,
                     range=self.x_range,
                     bins=n_bins,
+                    weight_f=weight_f,
                 )
                 * bin_scale
             )
@@ -130,6 +134,7 @@ class Frame:
                     partial=partial,
                     range=self.x_range,
                     bins=self.nbins * bin_scale,
+                    weight_f=weight_f,
                 )
                 * bin_scale
             )
@@ -244,13 +249,13 @@ class PlotAllData:
             n_sig / self.datasets["fitted"].total_size()
         )
 
-    def get_all_histogram(self, var, bin_scale=3):
+    def get_all_histogram(self, var, bin_scale=3, weight_f=None):
         ret = {}
         for k, v in self.datasets.items():
-            ret[(k,)] = var.get_histogram(v)
+            ret[(k,)] = var.get_histogram(v, weight_f=weight_f)
             for k2 in v.partial_weight:
                 ret[(k, k2)] = var.get_histogram(
-                    v, partial=k2, bin_scale=bin_scale
+                    v, partial=k2, bin_scale=bin_scale, weight_f=weight_f
                 )
         return ret
 
@@ -418,7 +423,7 @@ class Plotter:
             if self.small_bg:
                 self.plot_item.remove((("fitted",),))
 
-    def plot_frame(self, name, idx=None, ax=plt, bin_scale=3):
+    def plot_frame(self, name, idx=None, ax=plt, bin_scale=3, weight_f=None):
         """plot frame for all partial wave
 
         :param name: data variable frame name
@@ -434,9 +439,11 @@ class Plotter:
         frame = self.all_frame.get(name, None)
         if frame is None:
             raise IndexError("no such frame")
-        return self.plot_var(frame, idx, ax=ax, bin_scale=bin_scale)
+        return self.plot_var(
+            frame, idx, ax=ax, bin_scale=bin_scale, weight_f=weight_f
+        )
 
-    def get_all_hist(self, frame, idx=None, bin_scale=3):
+    def get_all_hist(self, frame, idx=None, bin_scale=3, weight_f=None):
         """create all partial wave histogram for observation frame.
 
         :param name: Function for get observation in datasets
@@ -450,16 +457,18 @@ class Plotter:
         """
         if idx is None:
             hists = merge_hist(
-                i.get_all_histogram(frame, bin_scale=bin_scale)
+                i.get_all_histogram(
+                    frame, bin_scale=bin_scale, weight_f=weight_f
+                )
                 for i in self.alldatas
             )
         else:
             hists = self.alldatas[idx].get_all_histogram(
-                frame, bin_scale=bin_scale
+                frame, bin_scale=bin_scale, weight_f=weight_f
             )
         return hists
 
-    def plot_var(self, frame, idx=None, ax=plt, bin_scale=3):
+    def plot_var(self, frame, idx=None, ax=plt, bin_scale=3, weight_f=None):
         """plot data observation for all partial wave
 
         :param name: Function for get observation in datasets
@@ -474,7 +483,9 @@ class Plotter:
         """
         if not isinstance(frame, Frame):
             frame = Frame(frame)
-        hists = self.get_all_hist(frame, idx=idx, bin_scale=bin_scale)
+        hists = self.get_all_hist(
+            frame, idx=idx, bin_scale=bin_scale, weight_f=weight_f
+        )
         plot_style = self.get_plot_style(hists)
         if self.plot_item is None:
             self.set_plot_item(hists)

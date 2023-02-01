@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, interp1d
+from scipy.stats import norm
 
 
 def plot_hist(binning, count, ax=plt, **kwargs):
@@ -13,7 +14,7 @@ def plot_hist(binning, count, ax=plt, **kwargs):
     return ax.step(a, b, **kwargs)
 
 
-def interp_hist(binning, y, num=1000, kind="UnivariateSpline"):
+def interp_hist(binning, y, num=400, kind="UnivariateSpline"):
     """interpolate data from hostgram into a line"""
     x = (binning[:-1] + binning[1:]) / 2
     if kind == "UnivariateSpline":
@@ -28,11 +29,19 @@ def interp_hist(binning, y, num=1000, kind="UnivariateSpline"):
 
 
 def gauss(x):
-    return np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
+    return norm.pdf(x)  # np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
+
+
+def guass_integral(x, range):
+    return 1 - norm.cdf(range[0] - x) - norm.sf(range[1] - x)
 
 
 def cauchy(x):
     return 1 / (x**2 + 1) / np.pi
+
+
+def cauchy_integral(x, range):
+    return (np.arctan(range[1] - x) - np.arctan(range[0] - x)) / np.pi
 
 
 def epanechnikov(x):
@@ -72,6 +81,17 @@ def weighted_kde(m, w, bw, kind="gauss"):
         # return ret
 
     return f
+
+
+def kde_bnd_fix(x, range, bw, kind="gauss"):
+    kind_map = {"gauss": guass_integral, "cauchy": cauchy_integral}
+    if isinstance(kind, str):
+        kernel_cdf = kind_map[kind]
+    else:
+        return 1.0
+    new_range = range[0] / bw, range[1] / bw
+    y = kernel_cdf(x / bw, new_range)
+    return 1 / y
 
 
 class Hist1D:
@@ -116,7 +136,9 @@ class Hist1D:
             **kwargs,
         )
 
-    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
+    def draw_kde(
+        self, ax=plt, kind="gauss", bin_scale=1.0, bnd_fix="const", **kwargs
+    ):
         color = kwargs.pop("color", self._cached_color)
         m = self.bin_center
         bw = self.bin_width * bin_scale
@@ -124,11 +146,17 @@ class Hist1D:
         x = np.linspace(
             self.binning[0], self.binning[-1], self.count.shape[0] * 10
         )
+        y = kde(x)
+        if bnd_fix == "const":
+            bw_x = interp1d(m, bw, fill_value="extrapolate")(x)
+            y = y * kde_bnd_fix(
+                x, (self.binning[0], self.binning[-1]), bw_x, kind
+            )
         if "fmt" in kwargs:
             fmt = kwargs.pop("fmt")
-            return ax.plot(x, kde(x), fmt, color=color, **kwargs)
+            return ax.plot(x, y, fmt, color=color, **kwargs)
         else:
-            return ax.plot(x, kde(x), color=color, **kwargs)
+            return ax.plot(x, y, color=color, **kwargs)
 
     def draw_pull(self, ax=plt, **kwargs):
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -229,14 +257,21 @@ class WeightedData(Hist1D):
         self.weights = weights
         super().__init__(binning, count, np.sqrt(count2))
 
-    def draw_kde(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
+    def draw_kde(
+        self, ax=plt, kind="gauss", bin_scale=1.0, bnd_fix="const", **kwargs
+    ):
         color = kwargs.pop("color", self._cached_color)
         bw = np.mean(self.bin_width) * bin_scale * np.ones_like(self.value)
         kde = weighted_kde(self.value, self.weights, bw, kind)
         x = np.linspace(
             self.binning[0], self.binning[-1], self.count.shape[0] * 10
         )
-        return ax.plot(x, kde(x), color=color, **kwargs)
+        y = kde(x)
+        if bnd_fix == "const":
+            y = y * kde_bnd_fix(
+                x, (self.binning[0], self.binning[-1]), np.mean(bw), kind
+            )
+        return ax.plot(x, y, color=color, **kwargs)
 
     def __add__(self, other):
         assert np.allclose(
