@@ -91,7 +91,7 @@ class ConfigLoader(BaseConfig):
         self._neglect_when_set_params = []
         self.data = load_data_mode(self["data"], self.decay_struct)
         self.inv_he = None
-        self._Ngroup = 1
+        self._Ngroup = self.data._Ngroup  # 1
         self.cached_fcn = {}
         self.extra_constrains = {}
         self.resolution_size = self.config.get("data", {}).get(
@@ -542,7 +542,7 @@ class ConfigLoader(BaseConfig):
             data, phsp, bg, inmc = self.get_all_data()
         else:
             data, phsp, bg, inmc = all_data
-        self._Ngroup = len(data)
+        # self._Ngroup = len(data)
         if inmc is None:
             inmc = [None] * self._Ngroup
         if bg is None:

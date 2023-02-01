@@ -136,7 +136,7 @@ def generate_toy(
     )
 
     if importance_f is None:
-        config.max_amplitude = max_weight
+        config.max_amplitude = status[1]
 
     return ret
 
@@ -184,7 +184,7 @@ def generate_toy_p(
     )
 
     if importance_f is None:
-        config.max_amplitude = max_weight
+        config.max_amplitude = status[1]
 
     return ret
 

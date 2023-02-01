@@ -15,6 +15,7 @@ from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import (
     LazyCall,
     data_index,
+    data_replace,
     data_shape,
     data_split,
     data_to_numpy,
@@ -71,6 +72,7 @@ class SimpleData:
                     self.re_map[v] = k
         self.scale_list = self.dic.get("scale_list", ["bg"])
         self.lazy_call = self.dic.get("lazy_call", False)
+        self.extra_var = self.dic.get("extra_var", {})
 
     def get_data_file(self, idx):
         if idx in self.dic:
@@ -113,16 +115,74 @@ class SimpleData:
             weight_sign = -1
         return weight_sign
 
+    def load_extra_var(self, idx, n_data):
+        ret = {}
+        for k, v in self.extra_var.items():
+            tail = "_" + k
+            insert_idx = v.get("index", k)
+            if isinstance(idx, str):
+                insert_idx = [insert_idx]
+            default = v.get("default", 1)
+            filename = self.dic.get(idx + tail)
+            tmp = self.default_load_file(filename, n_data, default)
+            tmp2 = ret
+            for i in insert_idx[:-1]:
+                if i not in ret:
+                    ret[i] = {}
+                tmp2 = ret[i]
+            tmp2[insert_idx[-1]] = tmp
+        return ret
+
+    def default_load_file(self, name, n_data, default=1):
+        if name is None:
+            return np.ones((n_data,)) * default
+        if isinstance(name, (int, float)):
+            return np.ones((n_data,)) * name
+        elif isinstance(name, str):
+            if name.endswith(".npy"):
+                data = np.load(name)
+            elif name.endswith(".npz"):
+                data = np.load(name)["arr_0"]
+            else:
+                data = np.loadtxt(name)
+            assert data.shape[0] == n_data, "data size not matched for" + name
+            return data
+        else:
+            raise NotImplementedError()
+
     def get_data(self, idx) -> dict:
         if self.cached_data is not None:
             data = self.cached_data.get(idx, None)
             if data is not None:
                 return data
         files = self.get_data_file(idx)
+        if files is None:
+            return None
         weights = self.dic.get(idx + "_weight", None)
         weight_sign = self.get_weight_sign(idx)
         charge = self.dic.get(idx + "_charge", None)
         ret = self.load_data(files, weights, weight_sign, charge)
+        n_data = data_shape(ret)
+        if self.dic.get(idx + "_eff_value", None) is not None:
+            ret = data_replace(
+                ret,
+                "eff_value",
+                self.default_load_file(
+                    self.dic.get(idx + "_eff_value", None), n_data, 1
+                ),
+            )
+        if self.dic.get(idx + "_bg_value", None) is not None:
+            print("add bg")
+            ret = data_replace(
+                ret,
+                "bg_value",
+                self.default_load_file(
+                    self.dic.get(idx + "_bg_value", None), n_data, 1
+                ),
+            )
+        extra_var = self.load_extra_var(idx, n_data)
+        for k, v in extra_var.items():
+            data = data_replace(ret, k, v)
         return self.process_scale(idx, ret)
 
     def process_scale(self, idx, data):
@@ -320,7 +380,51 @@ class SimpleData:
 class MultiData(SimpleData):
     def __init__(self, *args, **kwargs):
         super(MultiData, self).__init__(*args, **kwargs)
-        self._Ngroup = 0
+        self._Ngroup = self.get_n_group()
+        print(self._Ngroup)
+        self._mapable = self._build_mapable()
+        self.sub_data = []
+        for i in range(self._Ngroup):
+            tmp_dic = {}
+            for k, v in self.dic.items():
+                if k in self._mapable:
+                    tmp_dic[k] = self._get_map_idx(v, i)
+                else:
+                    tmp_dic[k] = v
+            self.sub_data.append(SimpleData(tmp_dic, self.decay_struct))
+
+    def _get_map_idx(self, v, i):
+        if isinstance(v, list):
+            return v[i]
+        else:
+            return v
+
+    def _build_mapable(self):
+        ret = []
+        for i in ["data", "bg", "phsp", "inmc"]:
+            for j in [
+                "",
+                "_weight",
+                "_charge",
+                "_eff_value",
+                "_bg_value",
+                "_frac",
+            ]:
+                ret.append(i + j)
+            for j in self.dic.get("extra_var", {}):
+                ret.append(i + "_" + j)
+        return ret
+
+    def get_n_group(self) -> int:
+        data = self.dic.get("data")
+        if data is None:
+            return 0
+        elif isinstance(data, str):
+            return 1
+        elif isinstance(data, list):
+            return len(data)
+        else:
+            return 0
 
     def process_scale(self, idx, data):
         if idx in self.scale_list and self.dic.get("weight_scale", False):
@@ -342,10 +446,13 @@ class MultiData(SimpleData):
 
     @functools.lru_cache()
     def get_data(self, idx) -> list:
+
         if self.cached_data is not None:
             data = self.cached_data.get(idx, None)
             if data is not None:
                 return data
+        return [i.get_data(idx) for i in self.sub_data]
+
         files = self.get_data_file(idx)
         if files is None:
             return None
