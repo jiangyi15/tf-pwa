@@ -4,7 +4,12 @@ import math
 import numpy as np
 import tensorflow as tf
 
-from tf_pwa.amp import DecayChain, register_decay_chain
+from tf_pwa.amp import (
+    DecayChain,
+    HelicityDecay,
+    register_decay,
+    register_decay_chain,
+)
 from tf_pwa.data import data_shape
 
 
@@ -644,6 +649,62 @@ def wave_function(J, p):
         return tf.stack(
             [tf.math.conj(epsilon_1), epsilon_0, -epsilon_1], axis=-1
         )
+
+
+@register_decay("cov_ten_ir")
+class CovTenDecayIR(HelicityDecay):
+    """
+    Decay Class for covariant tensor formula
+    """
+
+    def init_params(self):
+        super().init_params()
+        from tf_pwa.cov_ten_ir import create_proj
+
+        self.proj = []
+        ja, jb, jc = self.core.J, self.outs[0].J, self.outs[1].J
+        coeff_list = getattr(self, "coeff_list", [])
+        for i, (l, s) in enumerate(self.get_ls_list()):
+            if i < len(coeff_list):
+                coeff_s = coeff_list[i][0]
+                coeff_ls = coeff_list[i][1]
+            else:
+                import itertools
+
+                coeff_s = itertools.repeat(1)
+                coeff_ls = itertools.repeat(1)
+            self.proj.append(
+                create_proj(ja, jb, jc, l, s, coeff_s, coeff_ls)[
+                    ::-1, ::-1, ::-1
+                ]
+            )
+
+    def get_amp(self, data, data_p, **kwargs):
+        p1 = data_p[self.outs[0]]["p"]
+        p2 = data_p[self.outs[1]]["p"]
+        gls = self.g_ls()
+        p0 = p1 + p2
+        from tf_pwa.angle import LorentzVector as lv
+
+        p1star = lv.rest_vector(p0, p1)
+        p2star = lv.rest_vector(p0, p2)
+        tl = {}
+        for l in self.get_l_list():
+            tl[l] = self.eval_tl(l, p1star - p2star)
+        ret = 0
+        for i, (gi, (l, s)) in enumerate(zip(gls, self.get_ls_list())):
+            mstar = tf.reduce_sum(tl[l] * self.proj[i], axis=-4)
+            ret = ret + gi * tf.cast(mstar, gi.dtype)
+        return ret
+
+    def eval_tl(self, l, p):
+        from tf_pwa.cov_ten_ir import tmL
+
+        ret = tmL(p, l, lib=tf)
+        ret = tf.expand_dims(ret, axis=-1)
+        ret = tf.expand_dims(ret, axis=-1)
+        ret = tf.expand_dims(ret, axis=-1)
+        return ret
 
 
 @register_decay_chain("cov_ten2")
