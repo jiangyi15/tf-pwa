@@ -729,7 +729,6 @@ class CovTenDecayIR(HelicityDecay):
             )
         for i, (gi, (l, s)) in enumerate(zip(gls, self.get_ls_list())):
             proj = self.proj[i]
-            # print(proj.shape, self)
             if self.m2_zero or self.scheme == 2:
                 proj = self.final_prod(proj, boost_m2)
                 if self.m1_zero or self.scheme == 2:
@@ -737,8 +736,14 @@ class CovTenDecayIR(HelicityDecay):
             else:
                 if self.m1_zero or self.scheme == 2:
                     proj = self.final_prod(proj, boost_m1)
-            # print(proj.shape, self)
-            mstar = tf.reduce_sum(tf.cast(tl[l], proj.dtype) * proj, axis=-4)
+            if tl[l].dtype in [tf.complex128, tf.complex64]:
+                mstar = tf.reduce_sum(
+                    tl[l] * tf.cast(proj, tl[l].dtype), axis=-4
+                )
+            else:
+                mstar = tf.reduce_sum(
+                    tf.cast(tl[l], proj.dtype) * proj, axis=-4
+                )
             ret = ret + gi * tf.cast(mstar, gi.dtype)
         # print(self, ret.shape)
         return ret
