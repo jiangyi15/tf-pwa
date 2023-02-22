@@ -651,33 +651,60 @@ def wave_function(J, p):
         )
 
 
-@register_decay("cov_ten_ir")
+@register_decay("cov_ten_com")
 class CovTenDecayIR(HelicityDecay):
     """
     Decay Class for covariant tensor formula
     """
 
+    def __init__(self, *args, **kwargs):
+        self.scheme = 1
+        super().__init__(*args, **kwargs)
+        if not hasattr(self, "m1_zero"):
+            self.m1_zero = self.outs[0].mass == 0.0
+        if not hasattr(self, "m2_zero"):
+            self.m2_zero = self.outs[1].mass == 0.0
+
     def init_params(self):
         super().init_params()
-        from tf_pwa.cov_ten_ir import create_proj
+        from tf_pwa.cov_ten_ir import create_proj2, create_proj3
 
         self.proj = []
         ja, jb, jc = self.core.J, self.outs[0].J, self.outs[1].J
-        coeff_list = getattr(self, "coeff_list", [])
+        pa, pb, pc = self.core.P, self.outs[0].P, self.outs[1].P
+        cond1 = self.m1_zero
+        cond2 = self.m2_zero
         for i, (l, s) in enumerate(self.get_ls_list()):
-            if i < len(coeff_list):
-                coeff_s = coeff_list[i][0]
-                coeff_ls = coeff_list[i][1]
+            if self.scheme == 2:
+                self.proj.append(
+                    create_proj3(
+                        ja,
+                        pa,
+                        jb,
+                        pb,
+                        jc,
+                        pc,
+                        s,
+                        l,
+                        m1_zero=cond1,
+                        m2_zero=cond2,
+                    )[:, ::-1, ::-1, ::-1]
+                )
             else:
-                import itertools
-
-                coeff_s = itertools.repeat(1)
-                coeff_ls = itertools.repeat(1)
-            self.proj.append(
-                create_proj(ja, jb, jc, l, s, coeff_s, coeff_ls)[
-                    ::-1, ::-1, ::-1
-                ]
-            )
+                self.proj.append(
+                    create_proj2(
+                        ja,
+                        pa,
+                        jb,
+                        pb,
+                        jc,
+                        pc,
+                        s,
+                        l,
+                        m1_zero=cond1,
+                        m2_zero=cond2,
+                    )[:, ::-1, ::-1, ::-1]
+                )
 
     def get_amp(self, data, data_p, **kwargs):
         p1 = data_p[self.outs[0]]["p"]
@@ -692,9 +719,48 @@ class CovTenDecayIR(HelicityDecay):
         for l in self.get_l_list():
             tl[l] = self.eval_tl(l, p1star - p2star)
         ret = 0
+        if self.m2_zero or self.scheme == 2:
+            boost_m2 = self.eval_boost_invsc(
+                self.outs[1].J, p0, p2, self.m2_zero
+            )  # np.diag(np.array([1,1,1,1]))
+        if self.m1_zero or self.scheme == 2:
+            boost_m1 = self.eval_boost_invsc(
+                self.outs[0].J, p0, p1, self.m1_zero
+            )
         for i, (gi, (l, s)) in enumerate(zip(gls, self.get_ls_list())):
-            mstar = tf.reduce_sum(tl[l] * self.proj[i], axis=-4)
+            proj = self.proj[i]
+            # print(proj.shape, self)
+            if self.m2_zero or self.scheme == 2:
+                proj = self.final_prod(proj, boost_m2)
+                if self.m1_zero or self.scheme == 2:
+                    proj = self.final_prod(proj, boost_m1, 0)
+            else:
+                if self.m1_zero or self.scheme == 2:
+                    proj = self.final_prod(proj, boost_m1)
+            # print(proj.shape, self)
+            mstar = tf.reduce_sum(tf.cast(tl[l], proj.dtype) * proj, axis=-4)
             ret = ret + gi * tf.cast(mstar, gi.dtype)
+        # print(self, ret.shape)
+        return ret
+
+    def eval_boost_invsc(self, s, p, p1, m_zero=False):
+        from tf_pwa.cov_ten_ir import LorentzInvSC
+
+        if self.scheme == 2:
+            a = LorentzInvSC(p * np.array([1, -1, -1, -1]), s, m_zero=False)
+            b = LorentzInvSC(p1, s, m_zero=m_zero)
+            return tf.einsum(
+                "...ab,...bc->...ac", a, b
+            )  # np.diag(np.array([1.,1,1,1]))
+        else:
+            return LorentzInvSC(p1, s, m_zero=m_zero)
+
+    def final_prod(self, a, b, bias=1):
+        # print(a.shape, b.shape, self)
+        for i in range(len(a.shape) - len(b.shape) + bias):
+            b = tf.expand_dims(b, axis=1)
+        ret = tf.reduce_sum(a * b, axis=-1)
+        ret = tf.reduce_sum(ret, axis=-1)
         return ret
 
     def eval_tl(self, l, p):

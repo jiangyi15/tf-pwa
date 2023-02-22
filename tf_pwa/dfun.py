@@ -185,7 +185,10 @@ def exp_i(theta, mi):
     mi = tf.cast(mi, dtype=theta.dtype)
     m_theta = mi * theta_i
     zeros = tf.zeros_like(m_theta)
-    im_theta = tf.complex(zeros, m_theta)
+    if m_theta.dtype in [tf.complex128, tf.complex64]:
+        im_theta = 1.0j * m_theta
+    else:
+        im_theta = tf.complex(zeros, m_theta)
     exp_theta = tf.exp(im_theta)
     return exp_theta
 
