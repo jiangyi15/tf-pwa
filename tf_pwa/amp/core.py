@@ -621,6 +621,7 @@ class HelicityDecay(AmpDecay):
         has_barrier_factor=True,
         l_list=None,
         barrier_factor_mass=False,
+        has_ql=True,
         has_bprime=True,
         aligned=False,
         allow_cc=True,
@@ -634,6 +635,7 @@ class HelicityDecay(AmpDecay):
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
         self.barrier_factor_mass = barrier_factor_mass
+        self.has_ql = has_ql
         self.has_bprime = has_bprime
         self.aligned = aligned
         self.allow_cc = allow_cc
@@ -894,11 +896,17 @@ class HelicityDecay(AmpDecay):
         for l in ls:
             if self.has_bprime:
                 bp = Bprime_q2(l, q2, q02, d)
-                tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
+                if self.has_ql:
+                    tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
+                else:
+                    tmp = tf.ones_like(q2) * tf.cast(bp, dtype=q2.dtype)
                 if self.barrier_factor_norm:
                     tmp = tmp / tf.cast(tf.abs(q02), tmp.dtype) ** (l / 2)
             else:
-                tmp = q2 ** (l / 2)
+                if self.has_ql:
+                    tmp = q2 ** (l / 2)
+                else:
+                    tmp = tf.ones_like(q2)
             # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
             ret.append(tf.reshape(tmp, (-1, 1)))
         ret = tf.concat(ret, axis=-1)

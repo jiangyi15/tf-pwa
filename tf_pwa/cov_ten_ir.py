@@ -220,7 +220,7 @@ def tLGen(q_mu, L, lib=np):
 
 def tmL(q_mu, L, lib=np):
     if L == 0:
-        return np.array([1.0])
+        return lib.ones_like(q_mu[..., :1])
     res = tLGen(q_mu, 1)[..., :, 0]
     for i in range(2, L + 1):
         res = lib.einsum("...ab,...b->...a", tLGen(q_mu, i, lib=lib), res)
