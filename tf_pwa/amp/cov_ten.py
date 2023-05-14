@@ -722,6 +722,7 @@ class CovTenDecayCom(HelicityDecay):
             self.m1_zero = self.outs[0].mass == 0.0
         if not hasattr(self, "m2_zero"):
             self.m2_zero = self.outs[1].mass == 0.0
+        self.decay_chain_params = {"aligned": False}
 
     def init_params(self):
         super().init_params()

@@ -21,8 +21,8 @@ class ParticleFunction:
         self.name = name
         self.config = config
 
-    def __call__(self, m):
-        p = self.ha.generate_p_mass(self.name, m)
+    def __call__(self, m, random=False):
+        p = self.ha.generate_p_mass(self.name, m, random=random)
         data = self.config.data.cal_angle(p)
         a = build_amp.build_params_vector(self.decay_group, data)
         ret = a[self.idx]

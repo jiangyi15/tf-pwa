@@ -1038,10 +1038,10 @@ class AngSam3Decay(AmpDecay, AmpBase):
 
 
 class AmpDecayChain(BaseDecayChain, AmpBase):
-    def __init__(self, *args, is_cp=False, **kwargs):
+    def __init__(self, *args, is_cp=False, aligned=True, **kwargs):
         self.is_cp = is_cp
+        self.aligned = aligned
         super(AmpDecayChain, self).__init__(*args, **kwargs)
-        self.aligned = True
         self.need_amp_particle = True
 
 
