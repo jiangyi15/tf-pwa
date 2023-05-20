@@ -43,8 +43,8 @@ def _batch_sum(f, data_i, weight_i, trans, resolution_size, args, kwargs):
     part_y = tf.reshape(part_y, (-1, resolution_size))
     part_y = tf.reduce_sum(part_y, axis=-1)
     event_w = tf.reduce_sum(rw, axis=-1)
-    event_w = tf.where(event_w == 0, tf.ones_like(event_w), event_w)
-    part_y = part_y / event_w
+    dom_event_w = tf.where(event_w == 0, tf.ones_like(event_w), event_w)
+    part_y = part_y / dom_event_w  # event_w
     part_y = trans(part_y)
     y_i = tf.reduce_sum(event_w * part_y)
     return y_i
@@ -311,7 +311,8 @@ class BaseModel(object):
         amp_s2 = tf.reshape(amp_s2, (-1, self.resolution_size))
         amp_s2 = tf.reduce_sum(amp_s2, axis=-1)
         weight = tf.reduce_sum(rw, axis=-1)
-        ln_data = clip_log(amp_s2 / weight)
+        dom_weight = tf.where(weight == 0, 1.0, weight)
+        ln_data = clip_log(amp_s2 / dom_weight)
         mc_weight = mcdata.get("weight", tf.ones((data_shape(mcdata),)))
         int_mc = tf.reduce_sum(
             mc_weight * self.signal(mcdata)

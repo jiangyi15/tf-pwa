@@ -153,12 +153,14 @@ class SimpleData:
         center_mass = self.dic.get("center_mass", False)
         r_boost = self.dic.get("r_boost", True)
         random_z = self.dic.get("random_z", True)
+        align_ref = self.dic.get("align_ref", None)
         data = cal_angle_from_momentum(
             p4,
             self.decay_struct,
             center_mass=center_mass,
             r_boost=r_boost,
             random_z=random_z,
+            align_ref=align_ref,
         )
         if charge is not None:
             data["charge_conjugation"] = charge
