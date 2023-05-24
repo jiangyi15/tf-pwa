@@ -6,6 +6,7 @@ data:
   bg_weight: 0.1
   random_z: False
   r_boost: False
+  align_ref: "center_mass"
   use_tf_function: True
   cached_int: True
   cached_data: "toy_data/data.npy"
