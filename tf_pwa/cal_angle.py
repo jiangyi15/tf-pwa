@@ -672,6 +672,7 @@ def identical_particles_swap(id_particles):
 
 
 def identical_particles_swap_p(p4, id_particles):
+    old_order = tuple(tuple(i) for i in id_particles)
     for comb in identical_particles_swap(id_particles):
         all_keys = tuple(p4.keys())
         name_map = {str(k): k for k in all_keys}
@@ -680,7 +681,7 @@ def identical_particles_swap_p(p4, id_particles):
             for ci, pi in zip(c, p_list):
                 swap_map[ci] = name_map[pi]
         new_order = tuple([swap_map.get(str(i), i) for i in all_keys])
-        if all_keys == new_order:
+        if comb == old_order:
             continue
         yield (new_order, comb), dict(zip(new_order, p4.values()))
 
