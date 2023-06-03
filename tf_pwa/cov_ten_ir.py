@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
+from tf_pwa.angle import LorentzVector as lv
+
 
 def _half2(s):
     return int(round(s * 2))
@@ -50,6 +52,24 @@ def CGlrs(l, r, s):
         for i_r, ri in enumerate(_srange(r)):
             for i_s, si in enumerate(_srange(s)):
                 ret[i_l, i_r, i_s] = float(
+                    CG(_S(l), _S(li), _S(r), _S(ri), _S(s), _S(si))
+                    .doit()
+                    .evalf()
+                )
+    return ret[::-1, ::-1, ::-1]
+
+
+def CGslr(l, r, s):
+    """
+    CG coeffs l + r -> s, order [l, r, s]
+    """
+    from sympy.physics.quantum.cg import CG
+
+    ret = np.zeros((_size(s), _size(l), _size(r)))
+    for i_l, li in enumerate(_srange(l)):  # -s + 02 s + 1
+        for i_r, ri in enumerate(_srange(r)):
+            for i_s, si in enumerate(_srange(s)):
+                ret[i_s, i_l, i_r] = float(
                     CG(_S(l), _S(li), _S(r), _S(ri), _S(s), _S(si))
                     .doit()
                     .evalf()
@@ -227,6 +247,18 @@ def tmL(q_mu, L, lib=np):
     return res
 
 
+def t_sigma_L(q_Mu, L, lib=np):
+    q_Sigma = lib.einsum(
+        "ab,bc,...c->...a", Ubar_sigma_m(1 / 2, 1 / 2, 1, 1), X_m_mu, q_Mu
+    )
+    res = lib.ones_like(q_Sigma[..., 0:1])
+    for i in range(1, L + 1):
+        res = lib.einsum(
+            "abc,...c,...b->...a", CGslr(i - 1, 1, i), q_Sigma, res
+        )
+    return res
+
+
 def _slr(s, m=1):
     if _half2(s) % 2 == 0:
         return [s, s / 2, s / 2]
@@ -304,6 +336,7 @@ def U_zeta_sigma(H, nH):
     b[0] = 1
     b = np.diag(b)
     res = DirectSum(a, b, nH)
+    # print(res)
     # res = DirectSum(
     #        DiagonalMatrix(Table(KroneckerDelta(l, dim), [l, 1, dim])),
     #        DiagonalMatrix(Table(KroneckerDelta(r, 1), [r, 1, dim])), nH);
@@ -315,6 +348,15 @@ def Ubar_sigma_zeta(H, nH):
 
 
 def SCRep(s):
+    if int(s * 2) % 2 == 0:
+        return s / 2, s / 2
+    else:
+        return (2 * s + 1) / 4, (2 * s - 1) / 4
+
+
+def SCRep(s, m=1):
+    if m == 0:
+        return s, 0
     if int(s * 2) % 2 == 0:
         return s / 2, s / 2
     else:
@@ -484,6 +526,24 @@ def LorentzInvSC(p_Mu, s, m_zero=True):
     if m_zero:
         return LorentzInvSC_m_zero(p_Mu, s)
     return LorentzInvSC_m_nzero(p_Mu, s)
+
+
+def LorentzISO2(l, r, CurlyTheta, Theta, Phi):
+    return tf.matmul(
+        LorentzRotation(l, r, Theta, Phi), LorentzBoost3(l, r, CurlyTheta)
+    )
+
+
+def LorentzISO2SC(l, r, CurlyTheta, Theta, Phi):
+    if l == r:
+        return LorentzISO2(l, r, CurlyTheta, Theta, Phi)
+    else:
+        raise NotImplemented
+
+
+# ArrayFlatten[{{LorentzISO2[l,
+# r, {\[CurlyTheta], \[Theta], \[Phi]}], 0}, {0,
+# LorentzISO2[r, l, {\[CurlyTheta], \[Theta], \[Phi]}]}}]];
 
 
 def create_proj2(
@@ -721,3 +781,238 @@ def create_proj(j0, j1, j2, l, s, coeff_s=[1], coeff_ls=[1]):
     # return np.einsum("xa,asl,...l,sbc,by,cz->...xyz",Ubar0, P0SL , tL ,PS12, U1, U2 )
     proj = np.einsum("xa,asl,sbc,by,cz->lxyz", Ubar0, P0SL, PS12, U1, U2)
     return proj
+
+
+class WrapTF:
+    def arccosh(x):
+        return tf.math.acosh(x)
+
+    def arccos(x):
+        return tf.math.acos(x)
+
+    def arctan2(y, x):
+        return tf.math.atan2(y, x)
+
+    def where(x, a, b):
+        return tf.where(x, a, b)
+
+    def sqrt(x):
+        return tf.sqrt(x)
+
+    def zeros_like(x):
+        return tf.zeros_like(x)
+
+    def log(x):
+        return tf.math.log(x)
+
+
+def ExRotationPara(mm, pMu, lib=np):
+    if lib == "tf":
+        lib = WrapTF
+    px, py, pz = pMu[..., 1], pMu[..., 2], pMu[..., 3]
+    r = lib.sqrt(px * px + py * py + pz * pz)
+    Theta = lib.where(r < 1e-6, lib.zeros_like(pz), lib.arccos(pz / r))
+    Phi = lib.arctan2(py, px)
+    # {x0, x1, x2, x3, \[Theta], \[Phi], res},
+    # if mm == 0:
+    # x = p_Mu/p_Mu[...,0:1];
+    # else:
+    # x = lib.where(
+    # lib.abs(mm - p_Mu[...,0]**2, 1e-6)
+    # p_Mu/p_Mu[...,0:1], p_Mu/np.sqrt(p_Mu[...,0:1]**2 - mm[...,None])
+    # if x1 == 0 and x2 == 0:
+    # Theta, Phi = [0, 0]
+    # else:
+    # Theta = np.arccos(x3)
+    # np.atan2()
+    # if x2 >= 0:
+    # Phi = np.arccos(x1/(np.sqrt(1 - x3**2)))
+    # else:
+    # Phi =  2 * np.pi - np.arccos(x1/np.sqrt(1 - x3**2))
+    return Theta, Phi
+
+
+def ExBoostPara(mm, p_Mu, lib=np):
+    if lib == "tf":
+        lib = WrapTF
+    # {x0, \[CurlyTheta], \[Theta], \[Phi], res},
+    CurlyTheta = lib.where(
+        mm == 0,
+        lib.log(p_Mu[..., 0]),
+        lib.arccosh(p_Mu[..., 0] / lib.sqrt(mm)),
+    )
+    Theta, Phi = ExRotationPara(mm, p_Mu, lib=lib)
+    return CurlyTheta, Theta, Phi
+
+
+def SO3SWF(m, s, P):
+    # {l, r, res},
+    l, r = SCRep(s, m)
+    if l == r:
+        res = u_m_sigma(l, r, s)
+    else:
+        res = (
+            1
+            / np.sqrt(2)
+            * (U_m_sigma(l, r, s, 1) + P * U_m_sigma(l, r, s, 2))
+        )
+    return res
+
+
+def SO3SWFbar(m, s, P):
+    l, r = SCRep(s, m)
+    if l == r:
+        res = u_m_sigma(l, r, s).T
+    else:
+        res = (
+            1
+            / np.sqrt(2)
+            * (P * Ubar_sigma_m(l, r, s, 1) + Ubar_sigma_m(l, r, s, 2))
+        )
+    return res
+
+
+def CouplingLS(m, s, P, m1, s1, P1, m2, s2, P2, L, S, t_Sigma):
+    return np.einsum(
+        "al,gd,hf,ghk,...j,jkl->...adf",
+        SO3SWF(m, s, P),
+        SO3SWFbar(m1, s1, P1),
+        SO3SWFbar(m2, s2, P2),
+        CGlrs(s1, s2, S),
+        t_Sigma,
+        CGlrs(L, S, s),
+    )
+
+
+def CouplingLS_proj(m, s, P, m1, s1, P1, m2, s2, P2, L, S):
+    return np.einsum(
+        "al,gd,hf,ghk,jkl->adfj",
+        SO3SWF(m, s, P),
+        SO3SWFbar(m1, s1, P1),
+        SO3SWFbar(m2, s2, P2),
+        CGlrs(s1, s2, S),
+        CGlrs(L, S, s),
+    )
+
+
+# Flatten[dyad[SO3SWF[m, s, P], SO3SWFbar[m1, s1, P1],
+# SO3SWFbar[m2, s2, P2]], {{1}, {4}, {6}, {3, 5, 2}}] .
+# Flatten[CGlrs[s1, s2, S] . (t\[Sigma] . CGlrs[L, S, s])];
+
+
+def covtenPWA(
+    p_Mu,
+    s,
+    id0,
+    p1_Mu,
+    s1,
+    id1,
+    p2_Mu,
+    s2,
+    id2,
+    S,
+    L,
+):
+    mm = lv.M2(p_Mu)
+    mm1 = lv.M2(p1_Mu)
+    mm2 = lv.M2(p2_Mu)
+    # swf1, swf2, qs\[Mu],  p1s\[Mu], p2s\[Mu], paraInv, para1, para2, l1, r1, l2, r2,  tLq, [CapitalGamma], Amp, res
+    p1s_Mu = lv.rest_vector(
+        p_Mu, p1_Mu
+    )  # LorentzTrans[g\[Mu]\[Nu] . p\[Mu]] . p1\[Mu];
+    p2s_Mu = lv.rest_vector(
+        p_Mu, p2_Mu
+    )  # LorentzTrans[g\[Mu]\[Nu] . p\[Mu]] . p2\[Mu];
+    # print(p1s_Mu, p2s_Mu)
+    paraInv = ExBoostPara(mm, lv.neg(p_Mu))  # g\[Mu]\[Nu] . p\[Mu]];
+    para1 = ExBoostPara(mm1, p1_Mu)  # ExBoostPara[mm1, p1\[Mu]];
+    para2 = ExBoostPara(mm2, p2_Mu)
+    # print(paraInv, para1, para2)
+    l1, r1 = SCRep(s1, mm1)
+    l2, r2 = SCRep(s2, mm2)
+    # print(LorentzBoostSC(l1, r1, *paraInv))
+    if mm1 == 0:
+        swf1 = np.einsum(
+            "...ab,...bc,...cd->...ad",
+            LorentzBoostSC(l1, r1, *paraInv),
+            LorentzISO2SC(l1, r1, *para1),
+            U_zeta_sigma(s1, id1 % 3),
+        )
+    else:
+        swf1 = np.einsum(
+            "...ab,...bc,...cd->...ad",
+            LorentzBoostSC(l1, r1, *paraInv),
+            LorentzBoostSC(l1, r1, *para1),
+            SO3SWF(mm1, s1, id1),
+        )
+    # print("swf1", LorentzBoostSC(l1, r1, *para1), swf1)
+    if mm2 == 0:
+        swf2 = np.einsum(
+            "...ab,...bc,...cd->...ad",
+            LorentzBoostSC(l2, r2, *paraInv),
+            LorentzISO2SC(l2, r2, *para2),
+            U_zeta_sigma(s2, id2 % 3),
+        )
+    else:
+        swf2 = np.einsum(
+            "...ab,...bc,...cd->...ad",
+            LorentzBoostSC(l2, r2, *paraInv),
+            LorentzBoostSC(l2, r2, *para2),
+            SO3SWF(mm2, s2, id2),
+        )
+    # print("swf2", LorentzBoostSC(l2, r2, *para2), swf2)
+    qs = p1s_Mu - p2s_Mu
+    tLq = t_sigma_L(qs, L)
+    # print(tLq)
+    CapitalGamma = CouplingLS(
+        mm, s, id0, mm1, s1, id1, mm2, s2, id2, L, S, tLq
+    )
+    # print(CapitalGamma)
+    # print(SO3SWFbar(mm, s, id0))
+    Amp = np.einsum(
+        "...ab,...bcd,...ce,...df->...aef",
+        SO3SWFbar(mm, s, id0),
+        CapitalGamma,
+        swf1,
+        swf2,
+    )  # SO3SWFbar(mm, s, id0) . Flatten[\[CapitalGamma], {{1}, {2, 3}}] . Flatten[dyad[swf1, swf2], {{1, 3}, {2}, {4}}];
+    res = Amp
+    return res
+
+
+def create_proj4(
+    s, id0, s1, id1, s2, id2, S, L, m1_zero=False, m2_zero=False, m0_zero=False
+):
+    mm = 0 if m0_zero else 1  # lv.M2(p_Mu)
+    mm1 = 0 if m1_zero else 1  # lv.M2(p1_Mu)
+    mm2 = 0 if m2_zero else 1  #  lv.M2(p_Mu)
+    # swf1, swf2, qs\[Mu],  p1s\[Mu], p2s\[Mu], paraInv, para1, para2, l1, r1, l2, r2,  tLq, [CapitalGamma], Amp, res
+    # p1s_Mu = lv.rest_vector(p_Mu, p1_Mu) # LorentzTrans[g\[Mu]\[Nu] . p\[Mu]] . p1\[Mu];
+    # p2s_Mu = lv.rest_vector(p_Mu, p1_Mu) # LorentzTrans[g\[Mu]\[Nu] . p\[Mu]] . p2\[Mu];
+    # paraInv = ExBoostPara(mm, lv.neg(p_Mu)) # g\[Mu]\[Nu] . p\[Mu]];
+    # para1 = ExBoostPara(mm1, p1_Mu) # ExBoostPara[mm1, p1\[Mu]];
+    #  para2 = ExBoostPara(mm2, p2_Mu);
+    l1, r1 = SCRep(s1, mm1)
+    l2, r2 = SCRep(s2, mm2)
+    if mm1 == 0:
+        # swf1 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l1, r1, *paraInv), LorentzISO2SC(l1, r1, *para1), U_zeta_sigma(s1, id1%3))
+        swf1 = U_zeta_sigma(s1, id1 % 3)
+    else:
+        # swf1 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l1, r1, *paraInv), LorentzBoostSC(l1, r1, *para1), SO3SWF(mm1, s1, id1))
+        swf1 = SO3SWF(mm1, s1, id1 % 3)
+    if mm2 == 0:
+        # swf2 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l2, r2, *paraInv), LorentzISO2SC(l2, r2, *para2) , U_zeta_sigma(s2, id2 % 3))
+        swf2 = U_zeta_sigma(s2, id2 % 3)
+    else:
+        # swf2 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l2, r2, *paraInv), LorentzISO2SC(l2, r2, *para2) , U_zeta_sigma(s2, id2 % 3))
+        swf2 = SO3SWF(mm2, s2, id2 % 3)
+    # qs = p1s - p2s
+    #  tLq = t_sigma_L(qs, L);
+    CapitalGamma = CouplingLS_proj(
+        mm, s, id0, mm1, s1, id1, mm2, s2, id2, L, S
+    )
+    # Amp = np.einsum("...ab,...bcd,...ce,...df->...aef", SO3SWFbar(mm, s, id0), CapitalGamma, swf1, swf2)
+    Amp = np.einsum("ab,bcdj->acdj", SO3SWFbar(mm, s, id0), CapitalGamma)
+    # SO3SWFbar(mm, s, id0) . Flatten[\[CapitalGamma], {{1}, {2, 3}}] . Flatten[dyad[swf1, swf2], {{1, 3}, {2}, {4}}];
+    res = Amp, swf1, swf2
+    return res

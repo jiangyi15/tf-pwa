@@ -791,6 +791,7 @@ class CovTenDecayCom(HelicityDecay):
         # ret = 0
         for i, (gi, (l, s)) in enumerate(zip(gls, self.get_ls_list())):
             proj = self.proj[i]
+            #  print(self, proj)
             if self.m2_zero or self.scheme == 2:
                 proj = self.final_prod(proj, boost_m2)
                 if self.m1_zero or self.scheme == 2:
@@ -841,6 +842,158 @@ class CovTenDecayCom(HelicityDecay):
         ret = tf.expand_dims(ret, axis=-1)
         ret = tf.expand_dims(ret, axis=-1)
         ret = tf.expand_dims(ret, axis=-1)
+        return ret
+
+
+@register_decay("cov_ten_new")
+class CovTenDecayNew(HelicityDecay):
+    """
+    Decay Class for covariant tensor formula
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.scheme = 1
+        super().__init__(*args, **kwargs)
+        if "has_ql" not in kwargs:
+            self.has_ql = False
+        self.m0_zero = False
+        if not hasattr(self, "m1_zero"):
+            self.m1_zero = self.outs[0].mass == 0.0
+        if not hasattr(self, "m2_zero"):
+            self.m2_zero = self.outs[1].mass == 0.0
+        self.decay_chain_params = {"aligned": False}
+
+    def init_params(self):
+        super().init_params()
+        from tf_pwa.cov_ten_ir import create_proj4
+
+        self.proj = []
+        ja, jb, jc = self.core.J, self.outs[0].J, self.outs[1].J
+        pa, pb, pc = self.core.P, self.outs[0].P, self.outs[1].P
+        cond1 = self.m1_zero
+        cond2 = self.m2_zero
+        for i, (l, s) in enumerate(self.get_ls_list()):
+            self.proj.append(
+                create_proj4(
+                    ja,
+                    pa,
+                    jb,
+                    pb,
+                    jc,
+                    pc,
+                    s,
+                    l,
+                    m1_zero=cond1,
+                    m2_zero=cond2,
+                )
+            )
+
+    def get_amp(self, data, data_p, **kwargs):
+        # print(self)
+        p1 = data_p[self.outs[0]]["p"]
+        p2 = data_p[self.outs[1]]["p"]
+        gls = self.g_ls()
+        p0 = p1 + p2
+        from tf_pwa.angle import LorentzVector as lv
+
+        p1star = lv.rest_vector(p0, p1)
+        p2star = lv.rest_vector(p0, p2)
+        zeros = tf.zeros_like(p1star)
+        tl = {}
+        for l in self.get_l_list():
+            tl[l] = self.eval_tl(l, tf.complex(p1star - p2star, zeros))
+        ret = 0
+        neg_p0 = lv.neg(p0)
+        if self.m2_zero:
+            boost_m2 = tf.matmul(
+                self.eval_boost_sc(self.outs[1].J, neg_p0, self.m2_zero),
+                self.eval_ISO_sc(self.outs[1].J, p2, self.m2_zero),
+            )
+        else:
+            boost_m2 = tf.matmul(
+                self.eval_boost_sc(self.outs[1].J, neg_p0, self.m2_zero),
+                self.eval_boost_sc(self.outs[1].J, p2, self.m2_zero),
+            )
+            # print(self.outs[1].J)
+            # print(self.eval_boost_sc(
+            #    self.outs[1].J, neg_p0, self.m2_zero
+            # ).shape)
+            # print(self.eval_boost_sc(
+            #    self.outs[1].J, p2, self.m2_zero
+            # ).shape)
+
+        if self.m1_zero:
+            boost_m1 = tf.matmul(
+                self.eval_boost_sc(self.outs[0].J, neg_p0, self.m1_zero),
+                self.eval_ISO2_sc(self.outs[0].J, p1, self.m1_zero),
+            )
+        else:
+            boost_m1 = tf.matmul(
+                self.eval_boost_sc(self.outs[0].J, neg_p0, self.m1_zero),
+                self.eval_boost_sc(self.outs[0].J, p1, self.m1_zero),
+            )
+        m_dep = self.get_ls_amp(data, data_p, **kwargs)
+        ret_list = []
+        # ret = 0
+        swf1 = tf.matmul(boost_m1, self.proj[0][1])
+        swf2 = tf.matmul(boost_m2, self.proj[0][2])
+        for i, (gi, (l, s)) in enumerate(zip(gls, self.get_ls_list())):
+            proj, swf1, swf2 = self.proj[i]
+            # if self.m2_zero or self.scheme == 2:
+            #    proj = self.final_prod(proj, boost_m2)
+            #    if self.m1_zero or self.scheme == 2:
+            #        proj = self.final_prod(proj, boost_m1, 0)
+            # else:
+            #    if self.m1_zero or self.scheme == 2:
+            #        proj = self.final_prod(proj, boost_m1)
+            # if tl[l].dtype in [tf.complex128, tf.complex64]:
+            #    mstar = tf.reduce_sum(
+            #        tl[l] * tf.cast(proj, tl[l].dtype), axis=-4
+            #    )
+            # else:
+            #    mstar = tf.reduce_sum(
+            #        tf.cast(tl[l], proj.dtype) * proj, axis=-4
+            #    )
+            tmp1 = tf.reduce_sum(
+                proj * tl[l][..., None, None, None, :], axis=-1
+            )
+            tmp2 = tf.reduce_sum(
+                tmp1[..., None] * swf2[..., None, None, :, :], axis=-2
+            )
+            tmp3 = tf.reduce_sum(
+                tmp2[..., None, :] * swf1[..., None, :, :, None], axis=-3
+            )
+            mstar = tmp3  # tf.einsum("...acd,...ce,...dh->...aeh", tmp1, swf1, swf2)
+            ret_list.append(tf.cast(mstar, m_dep.dtype))
+            # ret = ret + m_dep[...,i] * tf.cast(mstar, m_dep.dtype)
+        ret = tf.stop_gradient(tf.stack(ret_list, axis=-1))
+        return tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1)
+        # ret = ret + gi * tf.cast(mstar, gi.dtype)
+        # print(self, ret.shape)
+        # return ret
+
+    def eval_ISO2_sc(self, s, p, p1, m_zero=False):
+        from tf_pwa.angle import LorentzVector as lv
+        from tf_pwa.cov_ten_ir import ExBoostPara, LorentzISO2SC, SCRep
+
+        mm = lv.M2(p)
+        para = ExBoostPara(mm, p, lib="tf")
+        l, r = SCRep(s, 0 if m_zero else 1)
+        return LorentzISO2SC(l, r, *para)
+
+    def eval_boost_sc(self, s, p, m_zero=False):
+        from tf_pwa.angle import LorentzVector as lv
+        from tf_pwa.cov_ten_ir import ExBoostPara, LorentzBoostSC, SCRep
+
+        mm = lv.M2(p)
+        para = ExBoostPara(mm, p, lib="tf")
+        l, r = SCRep(s, 0 if m_zero else 1)
+        return LorentzBoostSC(l, r, *para)
+
+    def eval_tl(self, l, p):
+        from tf_pwa.cov_ten_ir import t_sigma_L
+
+        ret = t_sigma_L(p, l, lib=tf)
         return ret
 
 
