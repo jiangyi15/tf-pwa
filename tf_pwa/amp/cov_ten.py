@@ -938,7 +938,9 @@ class CovTenDecayNew(HelicityDecay):
         swf1 = tf.matmul(boost_m1, self.proj[0][1])
         swf2 = tf.matmul(boost_m2, self.proj[0][2])
         for i, (gi, (l, s)) in enumerate(zip(gls, self.get_ls_list())):
-            proj, swf1, swf2 = self.proj[i]
+            proj, _, _ = self.proj[i]
+            # swf1 = tf.matmul(boost_m1, swf1) # self.proj[0][1])
+            # swf2 = tf.matmul(boost_m2, swf2) # self.proj[0][2])
             # if self.m2_zero or self.scheme == 2:
             #    proj = self.final_prod(proj, boost_m2)
             #    if self.m1_zero or self.scheme == 2:
@@ -965,8 +967,15 @@ class CovTenDecayNew(HelicityDecay):
             )
             mstar = tmp3  # tf.einsum("...acd,...ce,...dh->...aeh", tmp1, swf1, swf2)
             ret_list.append(tf.cast(mstar, m_dep.dtype))
+
+            # from tf_pwa.cov_ten_ir import  covtenPWA
+            # ret2 = covtenPWA(p1[0] + p2[0],self.core.J,self.core.P, p1[0],self.outs[0].J,self.outs[0].P,p2[0],self.outs[1].J,self.outs[1].P,s,l)
+            # print(ret2)
+            # print(np.sum(np.abs(ret2)**2))
             # ret = ret + m_dep[...,i] * tf.cast(mstar, m_dep.dtype)
         ret = tf.stop_gradient(tf.stack(ret_list, axis=-1))
+        # print(m_dep)
+        # print(self, tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1))
         return tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1)
         # ret = ret + gi * tf.cast(mstar, gi.dtype)
         # print(self, ret.shape)
