@@ -60,7 +60,7 @@ def run_BWR_LS(**extra):
     var = p.get_sympy_var()
     f = p.get_sympy_dom(*var)
     var_num = p.get_num_var()
-    g = f.subs(dict(zip(var[1:], var_num)))
+    g = f.subs(nest_dict_zip(var[1:], var_num))
     b = np.array([complex(g.subs({var[0]: i}).evalf()) for i in m])
 
     q = get_relative_p2(m, *var_num[-2:])
