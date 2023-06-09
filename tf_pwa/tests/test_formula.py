@@ -24,7 +24,7 @@ def simple_test(model, **extra):
     a = 1 / p(m).numpy()
     var = p.get_sympy_var()
     f = p.get_sympy_dom(*var)
-    g = f.subs(dict(zip(var[1:], p.get_num_var())))
+    g = f.subs(dict(zip(var[1:], p.get_num_var())), strict=False)
     b = np.array([complex(g.subs({var[0]: i}).evalf()) for i in m])
     assert np.allclose(np.real(a), np.real(b))
     assert np.allclose(np.imag(a), np.imag(b))
