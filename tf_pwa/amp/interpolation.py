@@ -85,6 +85,43 @@ class InterpolationParticle(Particle):
         return bin_idx
 
 
+@register_particle("linear_npy")
+class InterpLinearNpy(InterpolationParticle):
+    def __init__(self, *args, **kwargs):
+        self.input_file = kwargs.get("file")
+        self.data = np.load(self.input_file)
+        points = self.data[:, 0]
+        kwargs["points"] = points
+        super().__init__(*args, **kwargs)
+
+    def init_params(self):
+        pass
+
+    def get_point_values(self):
+        v_r = np.concatenate([[0.0], self.data[:, 1], [0.0]])
+        v_i = np.concatenate([[0.0], self.data[:, 1], [0.0]])
+        return self.data[:, 0], v_r, v_i
+
+    def interp(self, m):
+        x, p_r, p_i = self.get_point_values()
+        bin_idx = tf.raw_ops.Bucketize(input=m, boundaries=x)
+        bin_idx = (bin_idx + len(self.bound)) % len(self.bound)
+        ret_r_l = tf.gather(p_r[1:], bin_idx)
+        ret_i_l = tf.gather(p_r[1:], bin_idx)
+        ret_r_r = tf.gather(p_r[:-1], bin_idx)
+        ret_i_r = tf.gather(p_r[:-1], bin_idx)
+        delta = np.concatenate(
+            [[1.0], self.data[1:, 1] - self.data[:-1, 1], [1.0]]
+        )
+        x_left = np.concatenate([[x[0] - 1], x])
+        delta = tf.gather(delta, bin_idx)
+        x_left = tf.gather(x_left, bin_idx)
+        step = (m - x_left) / delta
+        a = step * (ret_r_l - ret_r_r)
+        b = step * (ret_i_l - ret_i_r)
+        return tf.complex(a, b)
+
+
 @register_particle("interp")
 class Interp(InterpolationParticle):
     """linear interpolation for real number"""
