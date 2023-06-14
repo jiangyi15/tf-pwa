@@ -11,6 +11,7 @@ from tf_pwa.amp import (
     register_decay_chain,
 )
 from tf_pwa.data import data_shape
+from tf_pwa.particle import _spin_int
 
 
 class IndexMap:
@@ -976,10 +977,14 @@ class CovTenDecayNew(HelicityDecay):
         ret = tf.stop_gradient(tf.stack(ret_list, axis=-1))
         # print(m_dep)
         # print(self, tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1))
-        return tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1)
+        ret = tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1)
         # ret = ret + gi * tf.cast(mstar, gi.dtype)
         # print(self, ret.shape)
-        # return ret
+        for p, idx in zip([self.core, *self.outs], [-3, -2, -1]):
+            if len(p.spins) > 0 and len(p.spins) != _spin_int(p.J * 2 + 1):
+                indices = [_spin_int(i + p.J) for i in p.spins]
+                ret = tf.gather(ret, axis=idx, indices=indices)
+        return ret
 
     def eval_ISO2_sc(self, s, p, p1, m_zero=False):
         from tf_pwa.angle import LorentzVector as lv
