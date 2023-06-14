@@ -811,7 +811,12 @@ class CovTenDecayCom(HelicityDecay):
             ret_list.append(tf.cast(mstar, m_dep.dtype))
             # ret = ret + m_dep[...,i] * tf.cast(mstar, m_dep.dtype)
         ret = tf.stack(ret_list, axis=-1)
-        return tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1)
+        ret = tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1)
+        for p, idx in zip([self.core, *self.outs], [-3, -2, -1]):
+            if len(p.spins) > 0 and len(p.spins) != _spin_int(p.J * 2 + 1):
+                indices = [_spin_int(i + p.J) for i in p.spins]
+                ret = tf.gather(ret, axis=idx, indices=indices)
+        return ret
         # ret = ret + gi * tf.cast(mstar, gi.dtype)
         # print(self, ret.shape)
         # return ret
