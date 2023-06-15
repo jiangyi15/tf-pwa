@@ -941,8 +941,8 @@ class CovTenDecayNew(HelicityDecay):
         m_dep = self.get_ls_amp(data, data_p, **kwargs)
         ret_list = []
         # ret = 0
-        swf1 = tf.matmul(boost_m1, self.proj[0][1])
-        swf2 = tf.matmul(boost_m2, self.proj[0][2])
+        swf1 = tf.matmul(boost_m1, tf.cast(self.proj[0][1], boost_m1.dtype))
+        swf2 = tf.matmul(boost_m2, tf.cast(self.proj[0][2], boost_m2.dtype))
         for i, (gi, (l, s)) in enumerate(zip(gls, self.get_ls_list())):
             proj, _, _ = self.proj[i]
             # swf1 = tf.matmul(boost_m1, swf1) # self.proj[0][1])
@@ -963,7 +963,8 @@ class CovTenDecayNew(HelicityDecay):
             #        tf.cast(tl[l], proj.dtype) * proj, axis=-4
             #    )
             tmp1 = tf.reduce_sum(
-                proj * tl[l][..., None, None, None, :], axis=-1
+                tf.cast(proj, tl[l].dtype) * tl[l][..., None, None, None, :],
+                axis=-1,
             )
             tmp2 = tf.reduce_sum(
                 tmp1[..., None] * swf2[..., None, None, :, :], axis=-2
