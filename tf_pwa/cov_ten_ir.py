@@ -805,6 +805,12 @@ class WrapTF:
     def log(x):
         return tf.math.log(x)
 
+    def conjugate(x):
+        return tf.math.conj(x)
+
+    def einsum(*x):
+        return tf.einsum(*x)
+
 
 def ExRotationPara(mm, pMu, lib=np):
     if lib == "tf":
@@ -843,6 +849,35 @@ def ExBoostPara(mm, p_Mu, lib=np):
     )
     Theta, Phi = ExRotationPara(mm, p_Mu, lib=lib)
     return CurlyTheta, Theta, Phi
+
+
+"""根据粒子的质量平方 mm 和四动量 p\[Mu]
+给出任意自共轭表示[l,r]下任意参考系(pi,pf)中的振幅与质心系(ki,pfs)振幅之间的转换关系"""
+
+
+def FrameTransSC(l, r, mmi, pi_Mu, mmf, pf_Mu, pfs_Mu, m_zero=False, lib=np):
+    if lib == "tf":
+        lib = WrapTF
+    paraiInv = ExBoostPara(mmi, lv.neg(pi_Mu), lib=lib)
+    paraf = ExBoostPara(mmf, pf_Mu, lib=lib)
+    parafsInv = ExBoostPara(mmf, lv.neg(pfs_Mu), lib=lib)
+    TransD = lib.einsum(
+        "...ij,...jk,...kl->...il",
+        LorentzBoostSC(l, r, *parafsInv),
+        LorentzBoostSC(l, r, *paraiInv),
+        LorentzBoostSC(l, r, *paraf),
+    )
+    if not m_zero:
+        res = TransD
+    else:
+        parafs = ExBoostPara(mmf, pfs_Mu, lib=lib)
+        res = lib.einsum(
+            "...ij,...ik,...kl->...jl",
+            lib.conjugate(LorentzRotationSC(l, r, *parafs[1:], lib=lib)),
+            TransD,
+            LorentzRotationSC(l, r, *paraf[1:], lib=lib),
+        )
+    return res
 
 
 def SO3SWF(m, s, P):
@@ -927,6 +962,7 @@ def covtenPWA(
     paraInv = ExBoostPara(mm, lv.neg(p_Mu))  # g\[Mu]\[Nu] . p\[Mu]];
     para1 = ExBoostPara(mm1, p1_Mu)  # ExBoostPara[mm1, p1\[Mu]];
     para2 = ExBoostPara(mm2, p2_Mu)
+    print(paraInv)
     # print(paraInv, para1, para2)
     l1, r1 = SCRep(s1, mm1)
     l2, r2 = SCRep(s2, mm2)
@@ -1016,3 +1052,62 @@ def create_proj4(
     # SO3SWFbar(mm, s, id0) . Flatten[\[CapitalGamma], {{1}, {2, 3}}] . Flatten[dyad[swf1, swf2], {{1, 3}, {2}, {4}}];
     res = Amp, swf1, swf2
     return res
+
+
+def helicityPWA(p_Mu, s, id0, p1_Mu, s1, id1, p2_Mu, s2, id2, S, L):
+    """螺旋度方案下的三粒子分波振幅, 其中 id=1,-1 对于有质量粒子和无质量粒子分别代表宇称和螺旋度"""
+    mm = lv.M2(p_Mu)
+    mm1 = lv.M2(p1_Mu)
+    mm2 = lv.M2(p2_Mu)
+    p1s_Mu = lv.rest_vector(p_Mu, p1_Mu)
+    p2s_Mu = lv.rest_vector(p_Mu, p2_Mu)
+    l1, r1 = SCRep(s1, mm1)
+    l2, r2 = SCRep(s2, mm2)
+    TransD1 = FrameTransSC(l1, r1, mm, p_Mu, mm1, p1_Mu, p1s_Mu)
+    TransD2 = FrameTransSC(l2, r2, mm, p_Mu, mm2, p2_Mu, p2s_Mu)
+    # print(TransD1)
+    # print(TransD2)
+    if mm1 == 0:
+        swf1 = (np.dot(TransD1, U_zeta_sigma(s1, id1 % 3)),)
+    else:
+        swf1 = np.dot(TransD1, SO3SWF(mm1, s1, id1))
+    if mm1 == 0:
+        swf2 = (np.dot(TransD2, U_zeta_sigma(s2, id2 % 3)),)
+    else:
+        swf2 = np.dot(TransD2, SO3SWF(mm2, s2, id2))
+    qs_Mu = p1s_Mu - p2s_Mu
+    tLq = t_sigma_L(qs_Mu, L)
+    CapitalGamma = CouplingLS(
+        mm, s, id0, mm1, s1, id1, mm2, s2, id2, L, S, tLq
+    )
+    Amp = np.einsum(
+        "...ab,...bcd,...ce,...df->...aef",
+        SO3SWFbar(mm, s, id0),
+        CapitalGamma,
+        swf1,
+        swf2,
+    )
+    return Amp
+
+
+def create_proj5(
+    s, id0, s1, id1, s2, id2, S, L, m1_zero=False, m2_zero=False, m0_zero=False
+):
+    mm = 0 if m0_zero else 1  # lv.M2(p_Mu)
+    mm1 = 0 if m1_zero else 1  # lv.M2(p1_Mu)
+    mm2 = 0 if m2_zero else 1  #  lv.M2(p_Mu)
+    l1, r1 = SCRep(s1, mm1)
+    l2, r2 = SCRep(s2, mm2)
+    if mm1 == 0:
+        swf1 = (U_zeta_sigma(s1, id1 % 3),)
+    else:
+        swf1 = SO3SWF(mm1, s1, id1)
+    if mm1 == 0:
+        swf2 = (U_zeta_sigma(s2, id2 % 3),)
+    else:
+        swf2 = SO3SWF(mm2, s2, id2)
+    CapitalGamma = CouplingLS_proj(
+        mm, s, id0, mm1, s1, id1, mm2, s2, id2, L, S
+    )
+    Amp = np.einsum("ab,bcdj->acdj", SO3SWFbar(mm, s, id0), CapitalGamma)
+    return Amp, swf1, swf2

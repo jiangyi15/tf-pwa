@@ -993,6 +993,11 @@ class HelicityDecay(AmpDecay):
     def get_m_dep(self, data, data_p, **kwargs):
         return self.get_ls_amp(data, data_p, **kwargs)
 
+    def get_total_ls_list(self):
+        if self.total_ls is None:
+            self.total_ls = self.get_ls_list()
+        return self.total_ls
+
     def get_ls_list(self):
         """get possible ls for decay, with l_list filter possible l"""
         ls_list = super(HelicityDecay, self).get_ls_list()
