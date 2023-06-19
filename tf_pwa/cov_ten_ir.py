@@ -324,9 +324,9 @@ def Flatten(a, idxs=None, keep=False):
         ret = tf.reshape(a, sizes)
 
 
-def U_zeta_sigma(H, nH):
+def U_zeta_sigma(H, P):
     """
-    螺旋度为 H 的无质量粒子的协变和逆变自旋波函数, 其中 nH=1,2 分别代表左旋和右旋
+    螺旋度为 H 的无质量粒子的协变和逆变自旋波函数, 其中 P = 1, -1 代表宇称
     """
     dim = 2 * H + 1
     a = np.zeros(dim)
@@ -335,7 +335,8 @@ def U_zeta_sigma(H, nH):
     b = np.zeros(dim)
     b[0] = 1
     b = np.diag(b)
-    res = DirectSum(a, b, nH)
+    res = DirectSum(a, b, 1)
+    res += P * DirectSum(a, b, 2)
     # print(res)
     # res = DirectSum(
     #        DiagonalMatrix(Table(KroneckerDelta(l, dim), [l, 1, dim])),
@@ -344,7 +345,7 @@ def U_zeta_sigma(H, nH):
 
 
 def Ubar_sigma_zeta(H, nH):
-    return U_zeta_sigma(H, (2 * nH) % 3).T
+    return U_zeta_sigma(H, nH).T
 
 
 def SCRep(s):
@@ -972,7 +973,7 @@ def covtenPWA(
             "...ab,...bc,...cd->...ad",
             LorentzBoostSC(l1, r1, *paraInv),
             LorentzISO2SC(l1, r1, *para1),
-            U_zeta_sigma(s1, id1 % 3),
+            U_zeta_sigma(s1, id1),
         )
     else:
         swf1 = np.einsum(
@@ -987,7 +988,7 @@ def covtenPWA(
             "...ab,...bc,...cd->...ad",
             LorentzBoostSC(l2, r2, *paraInv),
             LorentzISO2SC(l2, r2, *para2),
-            U_zeta_sigma(s2, id2 % 3),
+            U_zeta_sigma(s2, id2),
         )
     else:
         swf2 = np.einsum(
@@ -1032,16 +1033,16 @@ def create_proj4(
     l2, r2 = SCRep(s2, mm2)
     if mm1 == 0:
         # swf1 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l1, r1, *paraInv), LorentzISO2SC(l1, r1, *para1), U_zeta_sigma(s1, id1%3))
-        swf1 = U_zeta_sigma(s1, id1 % 3)
+        swf1 = U_zeta_sigma(s1, id1)
     else:
         # swf1 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l1, r1, *paraInv), LorentzBoostSC(l1, r1, *para1), SO3SWF(mm1, s1, id1))
-        swf1 = SO3SWF(mm1, s1, id1 % 3)
+        swf1 = SO3SWF(mm1, s1, id1)
     if mm2 == 0:
         # swf2 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l2, r2, *paraInv), LorentzISO2SC(l2, r2, *para2) , U_zeta_sigma(s2, id2 % 3))
-        swf2 = U_zeta_sigma(s2, id2 % 3)
+        swf2 = U_zeta_sigma(s2, id2)
     else:
         # swf2 = np.einsum("...ab,...bc,...cd->...ad", LorentzBoostSC(l2, r2, *paraInv), LorentzISO2SC(l2, r2, *para2) , U_zeta_sigma(s2, id2 % 3))
-        swf2 = SO3SWF(mm2, s2, id2 % 3)
+        swf2 = SO3SWF(mm2, s2, id2)
     # qs = p1s - p2s
     #  tLq = t_sigma_L(qs, L);
     CapitalGamma = CouplingLS_proj(
@@ -1055,7 +1056,7 @@ def create_proj4(
 
 
 def helicityPWA(p_Mu, s, id0, p1_Mu, s1, id1, p2_Mu, s2, id2, S, L):
-    """螺旋度方案下的三粒子分波振幅, 其中 id=1,-1 对于有质量粒子和无质量粒子分别代表宇称和螺旋度"""
+    """协变张量方案下的三粒子分波振幅, 其中 id=1,-1 代表粒子的内禀宇称"""
     mm = lv.M2(p_Mu)
     mm1 = lv.M2(p1_Mu)
     mm2 = lv.M2(p2_Mu)
@@ -1068,11 +1069,11 @@ def helicityPWA(p_Mu, s, id0, p1_Mu, s1, id1, p2_Mu, s2, id2, S, L):
     # print(TransD1)
     # print(TransD2)
     if mm1 == 0:
-        swf1 = (np.dot(TransD1, U_zeta_sigma(s1, id1 % 3)),)
+        swf1 = np.dot(TransD1, U_zeta_sigma(s1, id1))
     else:
         swf1 = np.dot(TransD1, SO3SWF(mm1, s1, id1))
     if mm1 == 0:
-        swf2 = (np.dot(TransD2, U_zeta_sigma(s2, id2 % 3)),)
+        swf2 = np.dot(TransD2, U_zeta_sigma(s2, id2))
     else:
         swf2 = np.dot(TransD2, SO3SWF(mm2, s2, id2))
     qs_Mu = p1s_Mu - p2s_Mu
@@ -1099,11 +1100,11 @@ def create_proj5(
     l1, r1 = SCRep(s1, mm1)
     l2, r2 = SCRep(s2, mm2)
     if mm1 == 0:
-        swf1 = (U_zeta_sigma(s1, id1 % 3),)
+        swf1 = U_zeta_sigma(s1, id1)
     else:
         swf1 = SO3SWF(mm1, s1, id1)
     if mm1 == 0:
-        swf2 = (U_zeta_sigma(s2, id2 % 3),)
+        swf2 = U_zeta_sigma(s2, id2)
     else:
         swf2 = SO3SWF(mm2, s2, id2)
     CapitalGamma = CouplingLS_proj(
