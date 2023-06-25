@@ -16,6 +16,11 @@ class ParamsTrans:
             yield self
         self.tape = tape
 
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        with self.vm.mask_params(params):
+            yield
+
     def get_grad(self, val, keep=False):
         grad = self.tape.gradient(
             val,

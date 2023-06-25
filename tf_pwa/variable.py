@@ -58,10 +58,12 @@ def combineVM(vm1, vm2, name="", same_list=None):
         vm.var_head[V] = [vm1.name + i for i in vm1.var_head[V]]  # vm.var_head
         V.name = vm1.name + V.name
         V.vm = vm
+        V.all_name_list = V.init_name_list()
     for V in vm2.var_head:
         vm.var_head[V] = [vm2.name + i for i in vm2.var_head[V]]
         V.name = vm2.name + V.name
         V.vm = vm
+        V.all_name_list = V.init_name_list()
 
     for i in same_list:
         if type(i) == str:
@@ -96,6 +98,7 @@ class VarsManager(object):
         self.trainable_vars = []  # [name,...]
         self.complex_vars = {}  # {name:polar(bool),...}
         self.same_list = []  # [[name1,name2],...]
+        self.mask_vars = []
 
         self.bnd_dic = {}  # {name:(a,b),...}
 
@@ -535,6 +538,11 @@ class VarsManager(object):
         else:
             return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
 
+    def read(self, name):
+        if name in self.mask_vars:
+            return tf.stop_gradient(self.variables[name])
+        return self.variables[name]
+
     def set(self, name, value, val_in_fit=True):
         """
         Set value for a real variable. If ``val_in_fit is True``, this is the variable used in fitting, not considering its boundary transformation.
@@ -855,6 +863,16 @@ class VarsManager(object):
         with ParamsTrans(self, err_matrix).trans() as f:
             yield f
 
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        old_mask = self.mask_vars
+        self.mask_vars = list(params.keys())
+        old_params = {i: self.get(i) for i in params.keys()}
+        self.set_all(params)
+        yield
+        self.set_all(old_params)
+        self.mask_vars = old_mask
+
     def minimize(self, fcn, jac=True, method="BFGS", mini_kwargs={}):
         """
         minimize a give function
@@ -1131,6 +1149,7 @@ class Variable(object):
         else:
             self.real_var(**kwargs)
         self.bound = None
+        self.all_name_list = self.init_name_list()
 
     def real_var(self, value=None, range_=None, fix=False):
         """
@@ -1575,75 +1594,81 @@ class Variable(object):
 
         _shape_func(func, self.shape, "")
 
-    def __call__(self, charge=1):
-        var_list = np.ones(shape=self.shape).tolist()
+    def init_name_list(self):
+        all_name_list = []
         if self.shape:
 
             def func(name, idx, **kwargs):
-                tmp = var_list
-                idx_str = name.split("_")[-len(self.shape) :]
-                for i in idx_str[:-1]:
-                    tmp = tmp[int(i)]
-
+                nonlocal all_name_list
                 if self.cp_effect:
-                    if (name in self.vm.complex_vars) and self.vm.complex_vars[
-                        name
-                    ]:
-                        real = (
-                            self.vm.variables[name + "r"]
-                            + charge * self.vm.variables[name + "deltar"]
-                        )
-                        imag = (
-                            self.vm.variables[name + "i"]
-                            + charge * self.vm.variables[name + "deltai"]
-                        )
-                        tmp[int(idx_str[-1])] = tf.complex(real, imag)
+                    all_name_list += [
+                        name + "r",
+                        name + "deltar",
+                        name + "i",
+                        name + "deltai",
+                    ]
                 elif self.cplx:
-                    if (name in self.vm.complex_vars) and self.vm.complex_vars[
-                        name
-                    ]:
-                        real = self.vm.variables[name + "r"] * tf.cos(
-                            self.vm.variables[name + "i"]
-                        )
-                        imag = self.vm.variables[name + "r"] * tf.sin(
-                            self.vm.variables[name + "i"]
-                        )
-                        tmp[int(idx_str[-1])] = tf.complex(real, imag)
-                        # print("&&&&&pg",name)
-                    else:
-                        # print("$$$$$xg",name)
-                        tmp[int(idx_str[-1])] = tf.complex(
-                            self.vm.variables[name + "r"],
-                            self.vm.variables[name + "i"],
-                        )
-                    # print(tmp[int(idx_str[-1])])
+                    all_name_list += [name + "r", name + "i"]
                 else:
-                    tmp[int(idx_str[-1])] = self.vm.variables[name]
+                    all_name_list.append(name)
 
             _shape_func(func, self.shape, self.name)
+        else:
+            if self.cplx:
+                name = self.name
+                all_name_list += [name + "r", name + "i"]
+            else:
+                all_name_list.append(self.name)
+
+        return all_name_list
+
+    def __call__(self, charge=1):
+        var = [self.vm.read(i) for i in self.all_name_list]
+        if self.shape:
+            name = self.all_name_list[0]
+            if self.cp_effect:
+                r = tf.stack(var[::4])
+                deltar = tf.stack(var[1::4])
+                i = tf.stack(var[2::4])
+                deltai = tf.stack(var[3::4])
+                if (name in self.vm.complex_vars) and self.vm.complex_vars[
+                    name
+                ]:
+                    real = r + charge * deltar
+                    imag = i + charge * deltai
+                    ret = tf.complex(real, imag)
+                else:
+                    ret = tf.complex(r, i) + charge * tf.complex(
+                        deltar, deltai
+                    )
+            elif self.cplx:
+                r = tf.stack(var[::2])
+                i = tf.stack(var[1::2])
+                if (name in self.vm.complex_vars) and self.vm.complex_vars[
+                    name
+                ]:
+                    ret = tf.complex(
+                        r * tf.math.cos(i), r * tf.math.sin(i)
+                    )  # print("&&&&&pg",name)
+                else:
+                    ret = tf.complex(r, i)
+            else:
+                ret = tf.stack(var)
+
+            return tf.reshape(ret, self.shape)
         else:
             if self.cplx:
                 name = self.name
                 if (name in self.vm.complex_vars) and self.vm.complex_vars[
                     name
                 ]:
-                    real = self.vm.variables[name + "r"] * tf.cos(
-                        self.vm.variables[name + "i"]
-                    )
-                    imag = self.vm.variables[name + "r"] * tf.sin(
-                        self.vm.variables[name + "i"]
-                    )
+                    real = var[0] * tf.cos(var[1])
+                    imag = var[0] * tf.sin(var[1])
                     var_list = tf.complex(real, imag)
-                    # print("&&&pt",name)
                 else:
-                    # print("$$$xt",name)
-                    var_list = tf.complex(
-                        self.vm.variables[self.name + "r"],
-                        self.vm.variables[self.name + "i"],
-                    )
-                # print(var_list)
+                    var_list = tf.complex(var[0], var[1])
             else:
-                var_list = self.vm.variables[self.name]
+                var_list = var[0]
 
         # return tf.stack(var_list)
         return var_list
