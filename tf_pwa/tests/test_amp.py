@@ -169,6 +169,31 @@ def test_BW():
     )
 
 
+def test_linear_npy():
+    import os
+
+    dir_name = os.path.dirname(__file__)
+    from tf_pwa.amp import interpolation
+
+    a = get_particle(
+        "linear",
+        J=1,
+        P=-1,
+        model="linear_npy",
+        mass=3.6,
+        width=0.01,
+        file=os.path.join(dir_name, "linear_npy.npy"),
+    )
+    b = [get_particle(i, J=0, P=-1) for i in "ac"]
+    get_decay(a, b)
+    a.init_params()
+    b = a.get_amp(
+        {"m": np.array(1.0)},
+        {"|q|": np.array(1.0), "|q0|": np.array(1.0)},
+        all_data={},
+    )
+
+
 def simple_run(name):
     a = get_particle(name, J=1, P=-1, model=name, mass=3.6, width=0.01)
     b = [get_particle(i, J=0, P=-1) for i in "ac"]

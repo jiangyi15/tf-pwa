@@ -987,7 +987,12 @@ class Bound(object):
         """
         x, a, b, y = sy.symbols("x a b y")
         f = sy.sympify(self.func)
-        f = f.subs({a: self.lower, b: self.upper})
+        f = f.subs(
+            {
+                a: self.lower if self.lower is not None else -1e9,
+                b: self.upper if self.upper is not None else 1e9,
+            }
+        )
         df = sy.diff(f, x)
         df2 = sy.diff(df, x)
         inv = sy.solve(f - y, x)

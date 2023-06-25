@@ -17,6 +17,17 @@ def simple_decay(name, **extra):
     return a
 
 
+def nest_dict_zip(a, b):
+    ret = {}
+    for i, j in zip(a, b):
+        if isinstance(i, (list, tuple)):
+            tmp = nest_dict_zip(i, j)
+        else:
+            tmp = {i: j}
+        ret.update(tmp)
+    return ret
+
+
 def simple_test(model, **extra):
     p = simple_decay(model, **extra)
     p.solve_pole()
@@ -24,7 +35,7 @@ def simple_test(model, **extra):
     a = 1 / p(m).numpy()
     var = p.get_sympy_var()
     f = p.get_sympy_dom(*var)
-    g = f.subs(dict(zip(var[1:], p.get_num_var())))
+    g = f.subs(nest_dict_zip(var[1:], p.get_num_var()))
     b = np.array([complex(g.subs({var[0]: i}).evalf()) for i in m])
     assert np.allclose(np.real(a), np.real(b))
     assert np.allclose(np.imag(a), np.imag(b))
@@ -49,7 +60,7 @@ def run_BWR_LS(**extra):
     var = p.get_sympy_var()
     f = p.get_sympy_dom(*var)
     var_num = p.get_num_var()
-    g = f.subs(dict(zip(var[1:], var_num)))
+    g = f.subs(nest_dict_zip(var[1:], var_num))
     b = np.array([complex(g.subs({var[0]: i}).evalf()) for i in m])
 
     q = get_relative_p2(m, *var_num[-2:])
