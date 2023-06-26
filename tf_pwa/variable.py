@@ -477,7 +477,7 @@ class VarsManager(object):
         name_r_list = [name + "r" for name in name_list]
         self.set_same(name_r_list)
         for name in name_r_list:
-            self.complex_vars[name[:-1]] = name_r_list
+            self.complex_vars[name[:-1]] = True  # name_r_list
 
     def set_same(self, name_list, cplx=False):
         """
@@ -1625,33 +1625,34 @@ class Variable(object):
     def __call__(self, charge=1):
         var = [self.vm.read(i) for i in self.all_name_list]
         if self.shape:
-            name = self.all_name_list[0]
             if self.cp_effect:
                 r = tf.stack(var[::4])
                 deltar = tf.stack(var[1::4])
                 i = tf.stack(var[2::4])
                 deltai = tf.stack(var[3::4])
-                if (name in self.vm.complex_vars) and self.vm.complex_vars[
-                    name
-                ]:
-                    real = r + charge * deltar
-                    imag = i + charge * deltai
-                    ret = tf.complex(real, imag)
-                else:
-                    ret = tf.complex(r, i) + charge * tf.complex(
-                        deltar, deltai
-                    )
+                cplx = []
+                for k in self.all_name_list[::4]:
+                    cond_i = self.vm.complex_vars.get(k[:-1], False)
+                    cplx.append(cond_i)
+                cond = tf.stack(cplx)
+                real = r + charge * deltar
+                imag = i + charge * deltai
+                ret_polar = tf.complex(
+                    real * tf.math.cos(imag), real * tf.math.sin(imag)
+                )
+                ret_rect = tf.complex(real, imag)
+                ret = tf.where(cond, ret_polar, ret_rect)
             elif self.cplx:
                 r = tf.stack(var[::2])
                 i = tf.stack(var[1::2])
-                if (name in self.vm.complex_vars) and self.vm.complex_vars[
-                    name
-                ]:
-                    ret = tf.complex(
-                        r * tf.math.cos(i), r * tf.math.sin(i)
-                    )  # print("&&&&&pg",name)
-                else:
-                    ret = tf.complex(r, i)
+                cplx = []
+                for k in self.all_name_list[::2]:
+                    cond_i = self.vm.complex_vars.get(k[:-1], False)
+                    cplx.append(cond_i)
+                cond = tf.stack(cplx)
+                ret_polar = tf.complex(r * tf.math.cos(i), r * tf.math.sin(i))
+                ret_rect = tf.complex(r, i)
+                ret = tf.where(cond, ret_polar, ret_rect)
             else:
                 ret = tf.stack(var)
 
