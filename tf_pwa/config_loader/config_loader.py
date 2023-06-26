@@ -895,6 +895,14 @@ class ConfigLoader(BaseConfig):
         with self.vm.error_trans(self.inv_he) as f:
             yield f
 
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        with self.vm.mask_params(params):
+            yield
+
+    def batch_sum_var(self, *args, **kwargs):
+        return self.vm.batch_sum_var(*args, **kwargs)
+
     def save_tensorflow_model(self, dir_name):
         class CustomModule(tf.Module):
             def __init__(self, config_name, share_dict, final_params):

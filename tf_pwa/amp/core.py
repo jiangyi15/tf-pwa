@@ -1764,10 +1764,13 @@ class AmplitudeModel(object):
 
     @contextlib.contextmanager
     def temp_params(self, var):
-        params = self.get_params()
-        self.set_params(var)
-        yield var
-        self.set_params(params)
+        with self.vm.temp_params(var):
+            yield
+
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        with self.vm.mask_params(params):
+            yield
 
     def chains_particle(self):
         return self.decay_group.chains_particle()

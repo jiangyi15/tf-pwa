@@ -858,19 +858,32 @@ class VarsManager(object):
         hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
         return hess_inv
 
+    def batch_sum_var(self, fun, data, batch=65000):
+        from tf_pwa.data import batch_sum
+
+        var = self.trainable_variables
+        return batch_sum(
+            lambda x: SumVar.from_call(fun, var, x), data, batch=batch
+        )
+
     @contextlib.contextmanager
     def error_trans(self, err_matrix):
         with ParamsTrans(self, err_matrix).trans() as f:
             yield f
 
     @contextlib.contextmanager
-    def mask_params(self, params):
-        old_mask = self.mask_vars
-        self.mask_vars = list(params.keys())
+    def temp_params(self, params):
         old_params = {i: self.get(i) for i in params.keys()}
         self.set_all(params)
         yield
         self.set_all(old_params)
+
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        old_mask = self.mask_vars
+        self.mask_vars = list(params.keys())
+        with self.temp_params(params):
+            yield
         self.mask_vars = old_mask
 
     def minimize(self, fcn, jac=True, method="BFGS", mini_kwargs={}):
@@ -1673,3 +1686,38 @@ class Variable(object):
 
         # return tf.stack(var_list)
         return var_list
+
+
+class SumVar:
+    def __init__(self, value, grad, var):
+        self.var = var
+        self.value = tf.nest.map_structure(tf.stop_gradient, value)
+        self.grad = grad
+
+    def from_call(fun, var, *args, **kwargs):
+        with tf.GradientTape(persistent=True) as tape:
+            y = tf.nest.map_structure(tf.reduce_sum, fun(*args, **kwargs))
+        dy = tf.nest.map_structure(
+            lambda x: tf.stack(
+                tape.gradient(x, var, unconnected_gradients="zero")
+            ),
+            y,
+        )
+        del tape
+        return SumVar(y, dy, var)
+
+    def __call__(self):
+        var = tf.stack(self.var)
+        fun = lambda x, y: x + tf.reduce_sum(y * (var - tf.stop_gradient(var)))
+        return tf.nest.map_structure(fun, self.value, self.grad)
+
+    def __add__(self, others):
+        if not isinstance(others, SumVar):
+            return NotImplemented
+        value = tf.nest.map_structure(
+            lambda x, y: x + y, self.value, others.value
+        )
+        grad = tf.nest.map_structure(
+            lambda x, y: x + y, self.grad, others.grad
+        )
+        return SumVar(value, grad, self.var)

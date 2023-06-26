@@ -488,6 +488,16 @@ def batch_call(function, data, batch=10000):
     return data_merge(*ret)
 
 
+def batch_sum(function, data, batch=10000):
+    ret = []
+    for i in data_split(data, batch):
+        ret.append(function(i))
+    tmp = ret[0]
+    for i in ret[1:]:
+        tmp = tmp + i
+    return tmp
+
+
 def data_index(data, key):
     """Indexing data for key or a list of keys."""
     if isinstance(data, LazyCall):
