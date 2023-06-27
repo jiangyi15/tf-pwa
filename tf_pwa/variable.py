@@ -98,7 +98,7 @@ class VarsManager(object):
         self.trainable_vars = []  # [name,...]
         self.complex_vars = {}  # {name:polar(bool),...}
         self.same_list = []  # [[name1,name2],...]
-        self.mask_vars = []
+        self.mask_vars = {}
 
         self.bnd_dic = {}  # {name:(a,b),...}
 
@@ -539,8 +539,9 @@ class VarsManager(object):
             return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
 
     def read(self, name):
+        val = self.variables[name]
         if name in self.mask_vars:
-            return tf.stop_gradient(self.variables[name])
+            return tf.stop_gradient(tf.cast(self.mask_vars[name], val.dtype))
         return self.variables[name]
 
     def set(self, name, value, val_in_fit=True):
@@ -881,9 +882,8 @@ class VarsManager(object):
     @contextlib.contextmanager
     def mask_params(self, params):
         old_mask = self.mask_vars
-        self.mask_vars = list(params.keys())
-        with self.temp_params(params):
-            yield
+        self.mask_vars = params
+        yield
         self.mask_vars = old_mask
 
     def minimize(self, fcn, jac=True, method="BFGS", mini_kwargs={}):

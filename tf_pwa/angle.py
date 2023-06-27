@@ -416,8 +416,8 @@ def kine_min_max(s12, m0, m1, m2, m3):
     # if(mz > (m_b-m_pi)) return 0;
     E2st = 0.5 * (m12 * m12 - m1 * m1 + m2 * m2) / m12
     E3st = 0.5 * (m0 * m0 - m12 * m12 - m3 * m3) / m12
-    p2st = tf.sqrt(E2st * E2st - m2 * m2)
-    p3st = tf.sqrt(E3st * E3st - m3 * m3)
+    p2st = tf.sqrt(tf.abs(E2st * E2st - m2 * m2))
+    p3st = tf.sqrt(tf.abs(E3st * E3st - m3 * m3))
     s_min = (E2st + E3st) ** 2 - (p2st + p3st) ** 2
     s_max = (E2st + E3st) ** 2 - (p2st - p3st) ** 2
     return s_min, s_max

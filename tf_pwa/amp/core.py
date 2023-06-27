@@ -1625,6 +1625,8 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         self.chains_idx = list(used_chains)
         if len(self.chains_idx) != len(self.chains):
             self.not_full = True
+        else:
+            self.not_full = False
 
     def partial_weight(self, data, combine=None):
         chains = list(self.chains)
