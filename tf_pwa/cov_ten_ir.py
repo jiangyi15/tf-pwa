@@ -447,7 +447,7 @@ def LorentzBoost(l, r, CurlyTheta, Theta, Phi):
 
 
 # (*任意自共轭表示 [l,r] 下的洛伦兹 BOOST 和转动*)
-def LorentzBoostSC(l, r, CurlyTheta, Theta, Phi):
+def LorentzBoostSC(l, r, CurlyTheta, Theta, Phi, lib=None):
     if l == r:
         return LorentzBoost(l, r, CurlyTheta, Theta, Phi)
     else:
@@ -460,7 +460,7 @@ def LorentzBoostSC(l, r, CurlyTheta, Theta, Phi):
         return tf.concat([d1, d2], axis=-1)
 
 
-def LorentzRotationSC(l, r, Theta, Phi):
+def LorentzRotationSC(l, r, Theta, Phi, lib=None):
     if l == r:
         return LorentzRotation(l, r, Theta, Phi)
     else:
@@ -844,7 +844,7 @@ def ExBoostPara(mm, p_Mu, lib=np):
         lib = WrapTF
     # {x0, \[CurlyTheta], \[Theta], \[Phi], res},
     CurlyTheta = lib.where(
-        mm == 0,
+        mm < 1e-6,
         lib.log(p_Mu[..., 0]),
         lib.arccosh(p_Mu[..., 0] / lib.sqrt(mm)),
     )
