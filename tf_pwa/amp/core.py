@@ -773,7 +773,7 @@ class HelicityDecay(AmpDecay):
                             lambda_b - lambda_c,
                         )
                     )
-        return tf.convert_to_tensor(ret)
+        return ret
 
     def get_helicity_amp(self, data, data_p, **kwargs):
         m_dep = self.get_ls_amp(data, data_p, **kwargs)

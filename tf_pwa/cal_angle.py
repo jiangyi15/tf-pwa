@@ -261,8 +261,8 @@ def cal_single_boost(data, decay_chain: DecayChain) -> dict:
 def cal_helicity_angle(
     data: dict,
     decay_chain: DecayChain,
-    base_z=np.array([[0.0, 0.0, 1.0]]),
-    base_x=np.array([[1.0, 0.0, 0.0]]),
+    base_z=np.array([0.0, 0.0, 1.0]),
+    base_x=np.array([1.0, 0.0, 0.0]),
 ) -> dict:
     """
     Calculate helicity angle for A -> B + C: :math:`\\theta_{B}^{A}, \\phi_{B}^{A}` from momentum.
@@ -276,7 +276,6 @@ def cal_helicity_angle(
 
     # print(decay_chain, part_data)
     part_data = cal_chain_boost(data, decay_chain)
-    # print(decay_chain , part_data)
     # calculate angle and base x,z axis from mother particle rest frame momentum and base axis
     set_x = {decay_chain.top: base_x}
     set_z = {decay_chain.top: base_z}
@@ -422,7 +421,7 @@ def cal_angle_from_particle(
     # get base z axis
     p4 = data[decay_group.top]["p"]
     p3 = LorentzVector.vect(p4)
-    base_z = np.array([[0.0, 0.0, 1.0]]) + tf.zeros_like(p3)
+    base_z = np.array([0.0, 0.0, 1.0]) + tf.zeros_like(p3)
     if random_z:
         p3_norm = Vector3.norm(p3)
         mask = tf.expand_dims(p3_norm < 1e-5, -1)
