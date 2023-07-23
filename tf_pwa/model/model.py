@@ -302,14 +302,17 @@ class BaseModel(object):
         self.vm = signal.vm
         self.resolution_size = resolution_size
 
+    def sum_resolution(self, w):
+        w = tf.reshape(w, (-1, self.resolution_size))
+        return tf.reduce_sum(w, axis=-1)
+
     def nll(self, data, mcdata):
         """Negative log-Likelihood"""
         weight = data.get("weight", tf.ones((data_shape(data),)))
         sw = tf.reduce_sum(weight)
         rw = tf.reshape(weight, (-1, self.resolution_size))
         amp_s2 = self.signal(data) * weight
-        amp_s2 = tf.reshape(amp_s2, (-1, self.resolution_size))
-        amp_s2 = tf.reduce_sum(amp_s2, axis=-1)
+        amp_s2 = self.sum_resolution(amp_s2)
         weight = tf.reduce_sum(rw, axis=-1)
         ln_data = clip_log(amp_s2 / weight)
         mc_weight = mcdata.get("weight", tf.ones((data_shape(mcdata),)))

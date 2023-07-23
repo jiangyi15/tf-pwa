@@ -377,7 +377,6 @@ class MultiData(SimpleData):
         elif idx != "phsp_noeff":
             assert self._Ngroup == len(ret), "not the same data group"
         bg_value = self.dic.get(idx + "_bg_value", None)
-        print(len(ret), files, weights, charge)
         if bg_value is not None:
             if isinstance(bg_value, str):
                 bg_value = [bg_value]

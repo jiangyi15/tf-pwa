@@ -550,14 +550,18 @@ def check_nan(data, no_raise=False):
         if isinstance(dat, tuple):
             return tuple(
                 [
-                    data_struct(data_i, head + [i])
+                    _check_nan(data_i, head + [i])
                     for i, data_i in enumerate(dat)
                 ]
             )
         if np.any(tf.math.is_nan(dat)):
             if no_raise:
                 return False
-            raise ValueError("nan in data[{}]".format(head))
+            raise ValueError(
+                "nan in data[{}], idx:{}".format(
+                    head, tf.where(tf.math.is_nan(dat))
+                )
+            )
         return True
 
     return _check_nan(data, head_keys)

@@ -196,13 +196,19 @@ class ConfigLoader(BaseConfig):
         )
         return self.get_data("phsp")[0]
 
-    def get_phsp_plot(self):
-        if "phsp_plot" in self.config["data"]:
-            assert len(self.config["data"]["phsp_plot"]) == len(
-                self.config["data"]["phsp"]
+    def get_phsp_plot(self, tail=""):
+        if "phsp_plot" + tail in self.config["data"]:
+            assert len(self.config["data"]["phsp_plot" + tail]) == len(
+                self.config["data"]["phsp" + tail]
             )
-            return self.get_data("phsp_plot")
-        return self.get_data("phsp")
+            return self.get_data("phsp_plot" + tail)
+        return self.get_data("phsp" + tail)
+
+    def get_data_rec(self, name):
+        ret = self.get_data(name + "_rec")
+        if ret is None:
+            ret = self.get_data(name)
+        return ret
 
     def get_decay(self, full=True):
         if full:
@@ -481,7 +487,13 @@ class ConfigLoader(BaseConfig):
                     )
                 else:
                     model.append(
-                        Model_cfit(amp, wb, bg_function, eff_function)
+                        Model_cfit(
+                            amp,
+                            wb,
+                            bg_function,
+                            eff_function,
+                            resolution_size=self.resolution_size,
+                        )
                     )
         elif "inmc" in self.config["data"]:
             float_wmc = self.config["data"].get(
