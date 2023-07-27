@@ -562,6 +562,10 @@ class Model(object):
         self.vm = amp.vm
         self.resolution_size = self.model.resolution_size
 
+    def sum_resolution(self, w):
+        w = tf.reshape(w, (-1, self.resolution_size))
+        return tf.reduce_sum(w, axis=-1)
+
     def get_weight_data(self, data, weight=None, bg=None, alpha=True):
         """
         Blend data and background data together multiplied by their weights.

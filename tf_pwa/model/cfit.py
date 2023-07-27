@@ -63,8 +63,9 @@ class Model_cfit(Model):
         """
         data, weight = self.get_weight_data(data, weight)
         sw = tf.reduce_sum(weight)
-        sig_data = self.sum_resolution(self.sig(data))
-        bg_data = self.sum_resolution(self.bg(data))
+        weight_norm = self.sum_resolution(weight)
+        sig_data = self.sum_resolution(weight * self.sig(data)) / weight_norm
+        bg_data = self.sum_resolution(weight * self.bg(data)) / weight_norm
         if mc_weight is None:
             int_mc = tf.reduce_mean(self.sig(mcdata))
             int_bg = tf.reduce_mean(self.bg(mcdata))
@@ -75,7 +76,7 @@ class Model_cfit(Model):
             (1 - self.w_bkg) * sig_data / int_mc
             + self.w_bkg * bg_data / int_bg
         )
-        nll_0 = -tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
+        nll_0 = -tf.reduce_sum(tf.cast(weight_norm, ln_data.dtype) * ln_data)
         return nll_0
 
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
