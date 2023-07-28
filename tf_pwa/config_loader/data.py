@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 import warnings
 
 import numpy as np
@@ -107,10 +108,11 @@ class SimpleData:
         return new_order
 
     def get_weight_sign(self, idx):
-        negtive_idx = self.dic.get("negtive_idx", ["bg"])
+        negtive_idx = self.dic.get("negtive_idx", ["bg*"])
         weight_sign = 1
-        if idx in negtive_idx:
-            weight_sign = -1
+        for i in negtive_idx:
+            if re.match(i, idx):
+                weight_sign = -1
         return weight_sign
 
     def get_data(self, idx) -> dict:

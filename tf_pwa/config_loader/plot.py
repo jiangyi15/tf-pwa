@@ -491,10 +491,7 @@ def _cal_partial_wave(
             if ref_amp is not None:
                 norm_frac_ref = n_data / np.sum(total_weight_ref)
         else:
-            if isinstance(w_bkg, float):
-                n_sig = n_data - w_bkg * data_shape(bg)
-            else:
-                n_sig = n_data + np.sum(w_bkg)
+            n_sig = n_data + np.sum(w_bkg)
             norm_frac = n_sig / np.sum(total_weight)
             if ref_amp is not None:
                 norm_frac_ref = n_sig / np.sum(total_weight_ref)
@@ -522,10 +519,7 @@ def _cal_partial_wave(
                 cut_function(phsp_rec) * total_weight_ref * norm_frac_ref
             )
         if bg is not None:
-            if isinstance(w_bkg, float):
-                bg_weight = [w_bkg] * data_shape(bg)
-            else:
-                bg_weight = -w_bkg
+            bg_weight = -w_bkg
             bg_dict["sideband_weights"] = (
                 cut_function(bg) * bg_weight
             )  # sideband weight
