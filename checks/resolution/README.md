@@ -70,4 +70,5 @@ $$ -\ln L = - \sum \ln P(m_j') + N \ln \int P(m_i') d \Phi \approx - \sum_{j} \l
 
 # 6. plot_resolution.py
 
-Draw the histogram of fit results.
+Draw the histogram of fit results. Use "phsp" to calculate the weights and draw
+the variables in "phsp".

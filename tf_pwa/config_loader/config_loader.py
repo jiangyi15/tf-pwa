@@ -199,7 +199,7 @@ class ConfigLoader(BaseConfig):
     def get_phsp_plot(self, tail=""):
         if "phsp_plot" + tail in self.config["data"]:
             assert len(self.config["data"]["phsp_plot" + tail]) == len(
-                self.config["data"]["phsp" + tail]
+                self.config["data"]["phsp"]
             )
             return self.get_data("phsp_plot" + tail)
         return self.get_data("phsp" + tail)
