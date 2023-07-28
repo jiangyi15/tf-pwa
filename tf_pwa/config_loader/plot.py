@@ -990,10 +990,14 @@ def _2d_plot_v2(
             return dict(zip(var_index, ret))
 
         var_x_f = sym.lambdify(
-            var_x.free_symbols | var_y.free_symbols, var_x, modules="numpy"
+            tuple(var_x.free_symbols | var_y.free_symbols),
+            var_x,
+            modules="numpy",
         )
         var_y_f = sym.lambdify(
-            var_x.free_symbols | var_y.free_symbols, var_y, modules="numpy"
+            tuple(var_x.free_symbols | var_y.free_symbols),
+            var_y,
+            modules="numpy",
         )
 
         data_1 = var_x_f(**get_var(data_dict, ""))

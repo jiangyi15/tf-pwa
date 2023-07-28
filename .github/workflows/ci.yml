@@ -91,6 +91,7 @@ jobs:
         run: |
           conda install --file requirements-min.txt -y
           python -m pip install -e . --no-deps
+          conda install pylint -y
           conda install pre-commit -c conda-forge -y
           pre-commit install
           pre-commit run -a
@@ -117,6 +118,7 @@ jobs:
         run: |
           conda install --file tensorflow_2_6_requirements.txt -c conda-forge -y
           python -m pip install -e . --no-deps
+          conda install pylint -y
           conda install pre-commit -c conda-forge -y
           pre-commit install
           pre-commit run -a

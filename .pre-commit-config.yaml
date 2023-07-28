@@ -50,10 +50,13 @@ repos:
     hooks:
       - id: isort
 
-  - repo: https://github.com/pre-commit/mirrors-pylint
-    rev: v2.5.0 # Use the sha / tag you want to point at
+  - repo: local
     hooks:
       - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
         args: ["--rcfile=.pylintrc", "--score=no"]
 
   - repo: https://github.com/myint/rstcheck

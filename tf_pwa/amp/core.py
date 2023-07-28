@@ -1409,14 +1409,47 @@ class DecayGroup(BaseDecayGroup, AmpBase):
     @functools.lru_cache()
     def get_swap_factor(self, key):
         factor = 1.0
+        used = []
         for i, j in zip(self.identical_particles, key[1]):
             p = self.get_particle(i[0])
             if int(p.J * 2) % 2 == 0:
                 continue
             for m, n in zip(i, j):
+                if (m, n) in used or (n, m) in used:
+                    continue
+                used.append((m, n))
                 if m != n:
                     factor *= -1.0
         return factor
+
+    @functools.lru_cache()
+    def get_id_swap_transpose(self, key, n):
+        _, change = key
+        # print(key)
+        old_order = [str(i) for i in self.outs]
+        trans = []
+        for i, j in zip(self.identical_particles, change):
+            for k, l in zip(i, j):
+                trans.append((k, l))
+        trans = tuple(trans)
+        return self.get_swap_transpose(trans, n)
+
+    @functools.lru_cache()
+    def get_swap_transpose(self, trans, n):
+        trans = dict(trans)
+        # print(trans)
+        tmp = {v: k for k, v in trans.items()}
+        tmp.update(trans)
+        trans = tmp
+        # print(trans)
+        old_order = [str(i) for i in self.outs]
+        new_order = []
+        for i in old_order:
+            new_order.append(trans.get(i, i))
+        index_map = {k: i for i, k in enumerate(new_order)}
+        trans_order = [index_map[str(i)] for i in self.outs]
+        diff = n - len(trans_order)
+        return [i for i in range(diff)] + [i + diff for i in trans_order]
 
     def get_amp2(self, data):
         amp = self.get_amp(data)
@@ -1426,6 +1459,9 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             factor = self.get_swap_factor(k)
             amp_swap = factor * self.get_amp(new_data)
             # print(k, amp, amp_swap)
+            swap_index = self.get_id_swap_transpose(k, len(amp_swap.shape))
+            # print(swap_index)
+            amp_swap = tf.transpose(amp_swap, swap_index)
             amp = amp + amp_swap
         return amp
 
@@ -1441,15 +1477,26 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             name_map = {str(i): i for i in self.outs}
             frac = 1.0
             same_particle = []
+            change = []
             for a, b in cg:
                 for i, j in zip(a, b):
                     if i == j:
                         same_particle.append(i)
                         frac = frac * getattr(name_map[i], "C", -1)
+                    else:
+                        change.append((i, j))
+            transpose = self.get_swap_transpose(
+                tuple(change), len(amp_swap.shape)
+            )
             p_reverse = [Ellipsis] + [
                 slice(None, None, -1) for i in range(len(amp_swap.shape) - 1)
             ]
-            amp = amp + amp_swap.__getitem__(p_reverse) * frac
+
+            amp = (
+                amp
+                + tf.transpose(amp_swap, transpose).__getitem__(p_reverse)
+                * frac
+            )
         return amp
 
     def sum_amp(self, data, cached=True):
