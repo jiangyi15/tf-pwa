@@ -1067,6 +1067,14 @@ class ConstrainModel(Model):
         return nll, g
 
 
+def _covert_batch(data, batch):
+    from tf_pwa.data import LazyCall
+
+    if isinstance(data, LazyCall):
+        return data.as_dataset(batch)
+    return list(split_generator(data, batch))
+
+
 class FCN(object):
     """
     This class implements methods to calculate the NLL as well as its derivatives for a general function.
@@ -1095,17 +1103,17 @@ class FCN(object):
         self.cached_nll = None
         if inmc is None:
             data, weight = self.model.get_weight_data(data, bg=bg)
-            print("Using Model_old")
+            print("Using Model")
         else:
             data, weight = self.model.get_weight_data(data, bg=bg, inmc=inmc)
-            print("Using Model_new")
+            print("Using Model with inmc")
         n_mcdata = data_shape(mcdata)
         self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = weight
         self.data = data
-        self.batch_data = list(split_generator(data, batch))
+        self.batch_data = _covert_batch(data, batch)
         self.mcdata = mcdata
-        self.batch_mcdata = list(split_generator(mcdata, batch))
+        self.batch_mcdata = _covert_batch(mcdata, batch)
         self.batch = batch
         if mcdata.get("weight", None) is not None:
             mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
@@ -1114,7 +1122,7 @@ class FCN(object):
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64"
             )
-        self.batch_mc_weight = list(data_split(self.mc_weight, self.batch))
+        self.batch_mc_weight = _covert_batch(self.mc_weight, self.batch)
         self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
         self.cached_mc = {}
 

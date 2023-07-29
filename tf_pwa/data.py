@@ -87,6 +87,25 @@ class LazyCall:
                 ret[k] = v
             yield ret
 
+    def as_dataset(self, batch=65000):
+        def f(x):
+            x_a = x["x"]
+            extra = x["extra"]
+            ret = self.f(x_a, *self.args, **self.kwargs)
+            return {**ret, **extra}
+
+        if isinstance(self.x, LazyCall):
+            real_x = self.x.eval()
+        else:
+            real_x = self.x
+
+        data = tf.data.Dataset.from_tensor_slices(
+            {"x": real_x, "extra": self.extra}
+        )
+        data = data.batch(batch).map(f)
+        data = data.cache().prefetch(tf.data.AUTOTUNE)
+        return data
+
     def merge(self, *other, axis=0):
         all_x = [self.x]
         all_extra = [self.extra]
