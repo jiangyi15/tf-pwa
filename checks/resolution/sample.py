@@ -92,39 +92,16 @@ def main():
 
     decay_chain = config.get_decay(False).get_decay_chain("BC")
 
-    toy = config.get_data("data_origin")[0]
-    # print(toy)
-    # exit()
+    toy = config.get_data("data_rec")[0]
 
     ha = HelicityAngle(decay_chain)
     ms, costheta, phi = ha.find_variable(toy)
     dat = ha.build_data(ms, costheta, phi)
 
-    # print(var)
-    # print(ha.build_data(*var))
     p4, w = random_sample(config, decay_chain, toy)
-    # exit()
 
     np.savetxt("data/data.dat", np.stack(p4).reshape((-1, 4)))
-    np.savetxt(
-        "data/data_w.dat", np.transpose(w).reshape((-1,))
-    )  # np.ones(p4.reshape((-1,4)).shape[0]))
-
-    toy = config.get_data("phsp_plot")[0]
-    p4, w = random_sample(config, decay_chain, toy)
-
-    np.save("data/phsp_plot_re.npy", p4.reshape((-1, 4)))
-    np.savetxt(
-        "data/phsp_plot_re_w.dat",
-        np.transpose(w * toy.get_weight()).reshape((-1,)),
-    )  # np.repeat(toy.get_weight(), config.resolution_size))
-
-    # toy = config.get_data("phsp_origin")[0]
-    # p4, w = random_sample(config, decay_chain, toy)
-
-
-#  np.savetxt("data/phsp_re.dat", p4.reshape((-1,4)))
-#  np.savetxt("data/phsp_re_w.dat", np.transpose(w * toy.get_weight()).reshape((-1,))) # np.repeat(toy.get_weight(), config.resolution_size))
+    np.savetxt("data/data_w.dat", np.transpose(w).reshape((-1,)))
 
 
 if __name__ == "__main__":

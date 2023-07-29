@@ -20,8 +20,10 @@ def f_eff(data):
 
 
 class Model_cfit(Model):
-    def __init__(self, amp, w_bkg=0.001, bg_f=None, eff_f=None):
-        super().__init__(amp, w_bkg)
+    def __init__(
+        self, amp, w_bkg=0.001, bg_f=None, eff_f=None, resolution_size=1
+    ):
+        super().__init__(amp, w_bkg, resolution_size)
         if bg_f is None:
             bg_f = get_function("default_bg")
         elif isinstance(bg_f, str):
@@ -61,8 +63,9 @@ class Model_cfit(Model):
         """
         data, weight = self.get_weight_data(data, weight)
         sw = tf.reduce_sum(weight)
-        sig_data = self.sig(data)
-        bg_data = self.bg(data)
+        weight_norm = self.sum_resolution(weight)
+        sig_data = self.sum_resolution(weight * self.sig(data)) / weight_norm
+        bg_data = self.sum_resolution(weight * self.bg(data)) / weight_norm
         if mc_weight is None:
             int_mc = tf.reduce_mean(self.sig(mcdata))
             int_bg = tf.reduce_mean(self.bg(mcdata))
@@ -73,7 +76,7 @@ class Model_cfit(Model):
             (1 - self.w_bkg) * sig_data / int_mc
             + self.w_bkg * bg_data / int_bg
         )
-        nll_0 = -tf.reduce_sum(tf.cast(weight, ln_data.dtype) * ln_data)
+        nll_0 = -tf.reduce_sum(tf.cast(weight_norm, ln_data.dtype) * ln_data)
         return nll_0
 
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
@@ -107,7 +110,12 @@ class Model_cfit(Model):
             ) / v_int_sig + self.w_bkg * self.bg(x) / v_int_bg
 
         ll, g_ll = sum_gradient(
-            prob, data, var + [v_int_sig, v_int_bg], weight, trans=clip_log
+            prob,
+            data,
+            var + [v_int_sig, v_int_bg],
+            weight,
+            trans=clip_log,
+            resolution_size=self.resolution_size,
         )
         g_ll_sig, g_ll_bg = g_ll[-2], g_ll[-1]
         g = [
@@ -177,6 +185,7 @@ class Model_cfit(Model):
             var + [v_int_sig, v_int_bg],
             weight=split_generator(weight, batch),
             trans=clip_log,
+            resolution_size=self.resolution_size,
         )
 
         n_var = len(var)

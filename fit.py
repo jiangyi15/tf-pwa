@@ -171,9 +171,17 @@ def fit(
     return fit_result
 
 
-def write_some_results(config, fit_result, save_root=False):
+def write_some_results(config, fit_result, save_root=False, cpu_plot=False):
     # plot partial wave distribution
-    config.plot_partial_wave(fit_result, plot_pull=True, save_root=save_root)
+    if cpu_plot:
+        with tf.device("CPU"):
+            config.plot_partial_wave(
+                fit_result, plot_pull=True, save_root=save_root
+            )
+    else:
+        config.plot_partial_wave(
+            fit_result, plot_pull=True, save_root=save_root
+        )
 
     # calculate fit fractions
     phsp_noeff = config.get_phsp_noeff()
@@ -197,14 +205,24 @@ def write_some_results(config, fit_result, save_root=False):
     # chi2, ndf = config.cal_chi2(mass=["R_BC", "R_CD"], bins=[[2,2]]*4)
 
 
-def write_some_results_combine(config, fit_result, save_root=False):
+def write_some_results_combine(
+    config, fit_result, save_root=False, cpu_plot=False
+):
 
     from tf_pwa.applications import fit_fractions
 
     for i, c in enumerate(config.configs):
-        c.plot_partial_wave(
-            fit_result, prefix="figure/s{}_".format(i), save_root=save_root
-        )
+        if cpu_plot:
+            with tf.device("CPU"):
+                c.plot_partial_wave(
+                    fit_result,
+                    prefix="figure/s{}_".format(i),
+                    save_root=save_root,
+                )
+        else:
+            c.plot_partial_wave(
+                fit_result, prefix="figure/s{}_".format(i), save_root=save_root
+            )
 
     for it, config_i in enumerate(config.configs):
         print("########## fit fractions {}:".format(it))
@@ -255,6 +273,9 @@ def main():
     parser.add_argument(
         "--no-GPU", action="store_false", default=True, dest="has_gpu"
     )
+    parser.add_argument(
+        "--CPU-plot", action="store_true", default=False, dest="cpu_plot"
+    )
     parser.add_argument("-c", "--config", default="config.yml", dest="config")
     parser.add_argument(
         "-i", "--init_params", default="init_params.json", dest="init"
@@ -285,10 +306,18 @@ def main():
             results.printer,
         )
         if isinstance(config, ConfigLoader):
-            write_some_results(config, fit_result, save_root=results.save_root)
+            write_some_results(
+                config,
+                fit_result,
+                save_root=results.save_root,
+                cpu_plot=results.cpu_plot,
+            )
         else:
             write_some_results_combine(
-                config, fit_result, save_root=results.save_root
+                config,
+                fit_result,
+                save_root=results.save_root,
+                cpu_plot=results.cpu_plot,
             )
 
 

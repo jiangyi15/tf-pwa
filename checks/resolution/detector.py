@@ -128,4 +128,3 @@ def run(name):
 if __name__ == "__main__":
     run("toy")
     run("phsp")
-    run("phsp_plot")
