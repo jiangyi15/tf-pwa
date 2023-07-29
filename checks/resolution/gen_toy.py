@@ -13,9 +13,6 @@ phsp = config.generate_phsp(500000)
 toy.savetxt("data/toy.dat", config.get_dat_order())
 phsp.savetxt("data/phsp.dat", config.get_dat_order())
 
-phsp = config.generate_phsp(50000)
-phsp.savetxt("data/phsp_plot.dat", config.get_dat_order())
-
 
 config.plot_partial_wave(
     data=[toy], phsp=[phsp], prefix="figure/toy_", plot_pull=True

@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 import warnings
 
 import numpy as np
@@ -107,10 +108,11 @@ class SimpleData:
         return new_order
 
     def get_weight_sign(self, idx):
-        negtive_idx = self.dic.get("negtive_idx", ["bg"])
+        negtive_idx = self.dic.get("negtive_idx", ["bg*"])
         weight_sign = 1
-        if idx in negtive_idx:
-            weight_sign = -1
+        for i in negtive_idx:
+            if re.match(i, idx):
+                weight_sign = -1
         return weight_sign
 
     def get_data(self, idx) -> dict:
@@ -204,10 +206,16 @@ class SimpleData:
         ret = []
         if isinstance(weight_files, list):
             for i in weight_files:
-                data = np.loadtxt(i).reshape((-1,))
+                if i.endswith(".npy"):
+                    data = np.load(i).reshape((-1,))
+                else:
+                    data = np.loadtxt(i).reshape((-1,))
                 ret.append(data)
         elif isinstance(weight_files, str):
-            data = np.loadtxt(weight_files).reshape((-1,))
+            if weight_files.endswith(".npy"):
+                data = np.load(weight_files).reshape((-1,))
+            else:
+                data = np.loadtxt(weight_files).reshape((-1,))
             ret.append(data)
         else:
             raise TypeError(
@@ -362,7 +370,7 @@ class MultiData(SimpleData):
         charge = self.dic.get(idx + "_charge", None)
         if charge is None:
             charge = [None] * len(files)
-        elif not isinstance(charge[0], list):
+        elif not isinstance(charge, list):
             charge = [charge]
         ret = [
             self.load_data(i, j, weight_sign, k)
@@ -377,13 +385,25 @@ class MultiData(SimpleData):
             if isinstance(bg_value, str):
                 bg_value = [bg_value]
             for i, file_name in enumerate(bg_value):
-                ret[i]["bg_value"] = np.reshape(np.loadtxt(file_name), (-1,))
+                ret[i]["bg_value"] = self.load_weight_file(file_name)
         eff_value = self.dic.get(idx + "_eff_value", None)
         if eff_value is not None:
             if isinstance(eff_value, str):
                 eff_value = [eff_value]
             for i, file_name in enumerate(eff_value):
-                ret[i]["eff_value"] = np.reshape(np.loadtxt(file_name), (-1,))
+                ret[i]["eff_value"] = self.load_weight_file(file_name)
+        extra_var = self.dic.get("extra_var", None)
+        if extra_var:
+            for i in extra_var:
+                idx_var = self.dic.get(idx + "_" + i, None)
+                if idx_var is not None:
+                    for j, file_name in enumerate(idx_var):
+                        ret[j][i] = self.load_weight_file(file_name)
+                else:
+                    for j, k in enumerate(ret):
+                        ret[j][i] = extra_var[i]["default"] * np.ones(
+                            data_shape(k)
+                        )
         ret = self.process_scale(idx, ret)
         return ret
 
