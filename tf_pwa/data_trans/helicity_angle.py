@@ -164,6 +164,12 @@ class HelicityAngle:
         ms = {topo_map[k]: v for k, v in ms.items()}
         return ms, costheta, phi
 
+    def cal_angle(self, p4):
+        from tf_pwa.cal_angle import DecayGroup, cal_angle_from_momentum
+
+        decay_group = DecayGroup([self.decay_chain])
+        return cal_angle_from_momentum(p4, decay_group)
+
     def mass_linspace(self, name, N):
         x_min, x_max = self.get_mass_range(name)
         return np.linspace(x_min + 1e-10, x_max - 1e-10, N)

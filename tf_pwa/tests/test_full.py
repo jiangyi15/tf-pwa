@@ -180,6 +180,16 @@ def test_fit_lazy_call(gen_toy):
     config.cal_fitfractions()
 
 
+def test_cfit_resolution(gen_toy):
+    with open(f"{this_dir}/config_rec.yml") as f:
+        config_dic = yaml.full_load(f)
+    config = ConfigLoader(config_dic)
+    config.set_params(f"{this_dir}/exp_params.json")
+    fcn = config.get_fcn()
+    fcn.nll_grad()
+    config.plot_partial_wave(prefix="toy_data/figure/c3")
+
+
 def test_constrains(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_cfit.yml")
     var_name = "A->R_CD.B_g_ls_1r"
