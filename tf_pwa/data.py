@@ -103,7 +103,7 @@ class LazyCall:
             {"x": real_x, "extra": self.extra}
         )
         data = data.batch(batch).map(f)
-        data = data.cache().prefetch(tf.data.AUTOTUNE)
+        data = data.prefetch(tf.data.AUTOTUNE)
         return data
 
     def merge(self, *other, axis=0):

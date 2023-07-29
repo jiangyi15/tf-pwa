@@ -322,8 +322,11 @@ class SimpleData:
         else:
             raise ValueError("not support data")
         p4 = data_to_numpy(p4)
-        p4 = np.stack(p4).transpose((1, 0, 2)).reshape((-1, 4))
-        np.savetxt(file_name, p4)
+        p4 = np.stack(p4).transpose((1, 0, 2))
+        if file_name.endswith("npy"):
+            np.save(file_name, p4)
+        else:
+            np.savetxt(file_name, p4.reshape((-1, 4)))
 
 
 @register_data_mode("multi")
