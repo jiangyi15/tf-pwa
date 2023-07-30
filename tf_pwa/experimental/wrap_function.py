@@ -52,10 +52,11 @@ def _nest(dic, value, idx=None):
 
 
 class WrapFun:
-    def __init__(self, f):
+    def __init__(self, f, jit_compile=False):
         self.f = f
         self.cached_f = {}
         self.struct = {}
+        self.jit_compile = jit_compile
 
     def __call__(self, *args, **kwargs):
 
@@ -71,7 +72,9 @@ class WrapFun:
                     *new_args, **new_kwargs
                 )  # *new_args, **new_kwargs)
 
-            self.cached_f[idx] = tf.function(_g).get_concrete_function(
+            _g2 = tf.function(_g, jit_compile=self.jit_compile)
+
+            self.cached_f[idx] = _g2.get_concrete_function(
                 *list(_flatten(self.struct[idx]))
             )
         new_x = [

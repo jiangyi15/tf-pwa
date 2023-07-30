@@ -102,7 +102,7 @@ class LazyCall:
         data = tf.data.Dataset.from_tensor_slices(
             {"x": real_x, "extra": self.extra}
         )
-        data = data.batch(batch).map(f)
+        data = data.batch(batch).cache().map(f)
         data = data.prefetch(tf.data.AUTOTUNE)
         return data
 

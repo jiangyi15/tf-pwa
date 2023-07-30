@@ -218,9 +218,10 @@ class ConfigLoader(BaseConfig):
 
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
-        use_tf_function = self.config.get("data", {}).get(
-            "use_tf_function", False
-        )
+        amp_config = self.config.get("data", {})
+        use_tf_function = amp_config.get("use_tf_function", False)
+        no_id_cached = amp_config.get("no_id_cached", False)
+        jit_compile = amp_config.get("jit_compile", False)
         decay_group = self.full_decay
         self.check_valid_jp(decay_group)
         if vm is None:
@@ -228,7 +229,12 @@ class ConfigLoader(BaseConfig):
         if vm in self.amps:
             return self.amps[vm]
         amp = AmplitudeModel(
-            decay_group, vm=vm, name=name, use_tf_function=use_tf_function
+            decay_group,
+            vm=vm,
+            name=name,
+            use_tf_function=use_tf_function,
+            no_id_cached=no_id_cached,
+            jit_compile=jit_compile,
         )
         self.add_constraints(amp)
         self.amps[vm] = amp

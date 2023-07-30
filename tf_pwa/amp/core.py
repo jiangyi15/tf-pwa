@@ -1704,10 +1704,18 @@ def value_and_grad(f, var):
 
 class AmplitudeModel(object):
     def __init__(
-        self, decay_group, name="", polar=None, vm=None, use_tf_function=False
+        self,
+        decay_group,
+        name="",
+        polar=None,
+        vm=None,
+        use_tf_function=False,
+        no_id_cached=True,
+        jit_compile=False,
     ):
         self.decay_group = decay_group
         self._name = name
+        self.no_id_cached = no_id_cached
         with variable_scope(vm) as vm:
             if polar is not None:
                 vm.polar = polar
@@ -1720,7 +1728,9 @@ class AmplitudeModel(object):
         if use_tf_function:
             from tf_pwa.experimental.wrap_function import WrapFun
 
-            self.cached_fun = WrapFun(self.decay_group.sum_amp)
+            self.cached_fun = WrapFun(
+                self.decay_group.sum_amp, jit_compile=jit_compile
+            )
         else:
             self.cached_fun = self.decay_group.sum_amp
 
@@ -1783,7 +1793,7 @@ class AmplitudeModel(object):
     def __call__(self, data, cached=False):
         if isinstance(data, LazyCall):
             data = data.eval()
-        if id(data) in self.f_data:
+        if id(data) in self.f_data or self.no_id_cached:
             if not self.decay_group.not_full:
                 return self.cached_fun(data)
         else:
