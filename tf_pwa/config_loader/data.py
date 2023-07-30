@@ -185,18 +185,17 @@ class SimpleData:
         p4 = self.load_p4(files)
         charges = None if charges is None else charges[: data_shape(p4)]
         data = self.cal_angle(p4, charges)
-        if weights is not None:
-            if isinstance(weights, float):
-                data["weight"] = np.array(
-                    [weights * weights_sign] * data_shape(data)
-                )
-            elif isinstance(weights, str):  # weight files
-                weight = self.load_weight_file(weights)
-                data["weight"] = weight[: data_shape(data)] * weights_sign
-            else:
-                raise TypeError(
-                    "weight format error: {}".format(type(weights))
-                )
+        if weights is None:
+            data["weight"] = np.array([1.0 * weights_sign] * data_shape(data))
+        elif isinstance(weights, float):
+            data["weight"] = np.array(
+                [weights * weights_sign] * data_shape(data)
+            )
+        elif isinstance(weights, str):  # weight files
+            weight = self.load_weight_file(weights)
+            data["weight"] = weight[: data_shape(data)] * weights_sign
+        else:
+            raise TypeError("weight format error: {}".format(type(weights)))
 
         if charge is None:
             data["charge_conjugation"] = tf.ones((data_shape(data),))

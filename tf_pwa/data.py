@@ -111,7 +111,7 @@ class LazyCall:
         all_extra = [self.extra]
         for i in other:
             all_x.append(i.x)
-            all_extra = [i.extra]
+            all_extra.append(i.extra)
         new_extra = data_merge(*all_extra, axis=axis)
         ret = LazyCall(
             self.f, data_merge(*all_x, axis=axis), *self.args, **self.kwargs
@@ -152,6 +152,12 @@ class LazyCall:
                 v = v.eval()
             ret[k] = v
         return ret
+
+    def __len__(self):
+        x = self.x
+        if isinstance(self.x, LazyCall):
+            x = x.eval()
+        return data_shape(x)
 
 
 class EvalLazy:
