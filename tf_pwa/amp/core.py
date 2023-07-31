@@ -1622,6 +1622,8 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                 self.chains_idx.append(i)
 
     def set_used_chains(self, used_chains):
+        if isinstance(used_chains, str):
+            used_chains = [used_chains]
         self.chains_idx = list(used_chains)
         if len(self.chains_idx) != len(self.chains):
             self.not_full = True

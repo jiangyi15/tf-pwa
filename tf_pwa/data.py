@@ -76,6 +76,8 @@ class LazyCall:
         self.args = args
         self.kwargs = kwargs
         self.extra = {}
+        self.cached_batch = None
+        self.cached_batch_dataset = None
 
     def batch(self, batch, axis):
         for i, j in zip(
@@ -88,6 +90,9 @@ class LazyCall:
             yield ret
 
     def as_dataset(self, batch=65000, cached_file=None):
+        if self.cached_batch == batch:
+            return self.cached_batch_dataset
+
         def f(x):
             x_a = x["x"]
             extra = x["extra"]
@@ -113,6 +118,9 @@ class LazyCall:
         else:
             data = data.batch(batch).cache().map(f)
         data = data.prefetch(tf.data.AUTOTUNE)
+
+        self.cached_batch = batch
+        self.cached_batch_dataset = data
         return data
 
     def merge(self, *other, axis=0):
@@ -517,9 +525,20 @@ def flatten_dict_data(data, fun="{}/{}".format):
 
 def batch_call(function, data, batch=10000):
     ret = []
-    for i in data_split(data, batch):
-        ret.append(function(i))
+    if isinstance(data, LazyCall):
+        batches = data.as_dataset(batch)
+    else:
+        batches = data_split(data, batch)
+    for i in batches:
+        tmp = function(i)
+        if isinstance(tmp, (int, float)):
+            tmp = tmp * np.ones((data_shape(i),))
+        ret.append(tmp)
     return data_merge(*ret)
+
+
+def batch_call_numpy(function, data, batch=10000):
+    return data_to_numpy(batch_call(function, data, batch))
 
 
 def data_index(data, key):
