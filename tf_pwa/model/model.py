@@ -1098,9 +1098,7 @@ class FCN(object):
         batch=65000,
         inmc=None,
         gauss_constr={},
-        cached_file=None,
     ):
-        self.cached_file = cached_file
         self.model = model
         self.vm = model.vm
         self.n_call = 0
@@ -1116,9 +1114,9 @@ class FCN(object):
         self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = weight
         self.data = data
-        self.batch_data = self._convert_batch(data, batch, "data")
+        self.batch_data = self._convert_batch(data, batch)
         self.mcdata = mcdata
-        self.batch_mcdata = self._convert_batch(mcdata, batch, "mc")
+        self.batch_mcdata = self._convert_batch(mcdata, batch)
         self.batch = batch
         if mcdata.get("weight", None) is not None:
             mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
@@ -1127,16 +1125,12 @@ class FCN(object):
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64"
             )
-        self.batch_mc_weight = self._convert_batch(
-            self.mc_weight, self.batch, "mcweight"
-        )
+        self.batch_mc_weight = self._convert_batch(self.mc_weight, self.batch)
         self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
         self.cached_mc = {}
 
-    def _convert_batch(self, data, batch, name):
-        return _convert_batch(
-            data, batch, cached_file=self.cached_file, name=name
-        )
+    def _convert_batch(self, data, batch):
+        return _convert_batch(data, batch)
 
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)

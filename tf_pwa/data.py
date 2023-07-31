@@ -76,8 +76,10 @@ class LazyCall:
         self.args = args
         self.kwargs = kwargs
         self.extra = {}
-        self.cached_batch = None
-        self.cached_batch_dataset = None
+        self.cached_batch = {}
+        self.cached_file = None
+        self.name = ""
+        self.version = 0
 
     def batch(self, batch, axis):
         for i, j in zip(
@@ -89,9 +91,9 @@ class LazyCall:
                 ret[k] = v
             yield ret
 
-    def as_dataset(self, batch=65000, cached_file=None):
-        if self.cached_batch == batch:
-            return self.cached_batch_dataset
+    def as_dataset(self, batch=65000):
+        if batch in self.cached_batch:
+            return self.cached_batch[batch]
 
         def f(x):
             x_a = x["x"]
@@ -108,8 +110,10 @@ class LazyCall:
             {"x": real_x, "extra": self.extra}
         )
         # data = data.batch(batch).cache().map(f)
-        if cached_file is not None:
+        if self.cached_file is not None:
             from tf_pwa.utils import create_dir
+
+            cached_file = self.cached_file + self.name + str(self.version)
 
             cached_file += "_" + str(batch)
             create_dir(cached_file)
@@ -119,8 +123,7 @@ class LazyCall:
             data = data.batch(batch).cache().map(f)
         data = data.prefetch(tf.data.AUTOTUNE)
 
-        self.cached_batch = batch
-        self.cached_batch_dataset = data
+        self.cached_batch[batch] = data
         return data
 
     def merge(self, *other, axis=0):
@@ -134,6 +137,10 @@ class LazyCall:
             self.f, data_merge(*all_x, axis=axis), *self.args, **self.kwargs
         )
         ret.extra = new_extra
+        ret.cached_file = self.cached_file
+        ret.name = self.name
+        for i in other:
+            ret.name += "_" + i.name
         return ret
 
     def __setitem__(self, index, value):
@@ -155,8 +162,11 @@ class LazyCall:
         return tf.ones(data_shape(self), dtype=get_config("dtype"))
 
     def copy(self):
-        ret = LazyCall(lambda x: x, self)
+        ret = LazyCall(self.f, self.x, *self.args, **self.kwargs)
         ret.extra = self.extra.copy()
+        ret.cached_file = self.cached_file
+        ret.name = self.name
+        ret.version += self.version + 1
         return ret
 
     def eval(self):

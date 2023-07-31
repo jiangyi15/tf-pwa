@@ -738,7 +738,7 @@ def _plot_partial_wave(
             ax.set_title(display, fontsize="xx-large")
         else:
             ax.set_title(
-                "{}: -lnL= {:.5}".format(display, nll), fontsize="xx-large"
+                "{}: -lnL= {:.2f}".format(display, nll), fontsize="xx-large"
             )
         ax.set_xlabel(display + units)
         ywidth = np.mean(
@@ -886,6 +886,23 @@ def _2d_plot(
             plt.xlim(range1)
             plt.ylim(range2)
             plt.savefig(prefix + k + "_data")
+            plt.clf()
+            print("Finish plotting 2D data " + prefix + k)  # data
+        if "data_hist" in plot_figs:
+            plt.hist2d(
+                data_1,
+                data_2,
+                bins=100,
+                weights=data_dict["data_weights"],
+                cmin=1e-12,
+            )
+            plt.xlabel(name1)
+            plt.ylabel(name2)
+            plt.title(display, fontsize="xx-large")
+            plt.legend()
+            plt.xlim(range1)
+            plt.ylim(range2)
+            plt.savefig(prefix + k + "_data_hist")
             plt.clf()
             print("Finish plotting 2D data " + prefix + k)
         # sideband

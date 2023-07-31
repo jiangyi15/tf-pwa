@@ -125,7 +125,8 @@ class SimpleData:
         weight_sign = self.get_weight_sign(idx)
         charge = self.dic.get(idx + "_charge", None)
         ret = self.load_data(files, weights, weight_sign, charge)
-        return self.process_scale(idx, ret)
+        ret = self.process_scale(idx, ret)
+        return ret
 
     def process_scale(self, idx, data):
         if idx in self.scale_list and self.dic.get("weight_scale", False):
@@ -135,6 +136,11 @@ class SimpleData:
                 data.get("weight", np.ones((n_bg,))) * scale_factor
             )
         return data
+
+    def set_lazy_call(self, data, idx):
+        if isinstance(data, LazyCall):
+            data.name = idx
+            data.cached_file = self.dic.get("cached_lazy_call", None)
 
     def get_n_data(self):
         data = self.get_data("data")
@@ -344,6 +350,10 @@ class MultiData(SimpleData):
                 )
         return data
 
+    def set_lazy_call(self, data, idx):
+        for i, data_i in enumerate(data):
+            super().set_lazy_call(data_i, "s{}{}".format(i, idx))
+
     def get_n_data(self):
         data = self.get_data("data")
         weight = [
@@ -407,6 +417,7 @@ class MultiData(SimpleData):
                             data_shape(k)
                         )
         ret = self.process_scale(idx, ret)
+        self.set_lazy_call(ret, idx)
         return ret
 
     def get_phsp_noeff(self):
