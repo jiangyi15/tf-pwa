@@ -567,6 +567,9 @@ class ConfigLoader(BaseConfig):
             bg = [None] * self._Ngroup
         model = self._get_model(vm=vm, name=name)
         fcns = []
+
+        cached_file = self.config["data"].get("cached_lazy_call", None)
+
         # print(self.config["data"].get("using_mix_likelihood", False))
         if self.config["data"].get("using_mix_likelihood", False):
             print("  Using Mix Likelihood")
@@ -581,7 +584,12 @@ class ConfigLoader(BaseConfig):
             if all_data is None:
                 self.cached_fcn[vm] = fcn
             return fcn
-        for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
+        for idx, (md, dt, mc, sb, ij) in enumerate(
+            zip(model, data, phsp, bg, inmc)
+        ):
+            cached_file2 = (
+                None if cached_file is None else cached_file + "s" + str(idx)
+            )
             if self.config["data"].get("model", "auto") == "cfit":
                 fcns.append(
                     FCN(
@@ -591,6 +599,7 @@ class ConfigLoader(BaseConfig):
                         batch=batch,
                         inmc=ij,
                         gauss_constr=self.gauss_constr_dic,
+                        cached_file=cached_file2,
                     )
                 )
             else:
@@ -603,6 +612,7 @@ class ConfigLoader(BaseConfig):
                         batch=batch,
                         inmc=ij,
                         gauss_constr=self.gauss_constr_dic,
+                        cached_file=cached_file2,
                     )
                 )
         if len(fcns) == 1:

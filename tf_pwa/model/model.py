@@ -1067,11 +1067,14 @@ class ConstrainModel(Model):
         return nll, g
 
 
-def _covert_batch(data, batch):
+def _convert_batch(data, batch, cached_file=None, name=""):
     from tf_pwa.data import LazyCall
 
     if isinstance(data, LazyCall):
-        return data.as_dataset(batch)
+        if cached_file is not None:
+            return data.as_dataset(batch, cached_file + name)
+        else:
+            return data.as_dataset(batch)
     return list(split_generator(data, batch))
 
 
@@ -1095,7 +1098,9 @@ class FCN(object):
         batch=65000,
         inmc=None,
         gauss_constr={},
+        cached_file=None,
     ):
+        self.cached_file = cached_file
         self.model = model
         self.vm = model.vm
         self.n_call = 0
@@ -1111,9 +1116,9 @@ class FCN(object):
         self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = weight
         self.data = data
-        self.batch_data = _covert_batch(data, batch)
+        self.batch_data = self._convert_batch(data, batch, "data")
         self.mcdata = mcdata
-        self.batch_mcdata = _covert_batch(mcdata, batch)
+        self.batch_mcdata = self._convert_batch(mcdata, batch, "mc")
         self.batch = batch
         if mcdata.get("weight", None) is not None:
             mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
@@ -1122,9 +1127,16 @@ class FCN(object):
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64"
             )
-        self.batch_mc_weight = _covert_batch(self.mc_weight, self.batch)
+        self.batch_mc_weight = self._convert_batch(
+            self.mc_weight, self.batch, "mcweight"
+        )
         self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
         self.cached_mc = {}
+
+    def _convert_batch(self, data, batch, name):
+        return _convert_batch(
+            data, batch, cached_file=self.cached_file, name=name
+        )
 
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)

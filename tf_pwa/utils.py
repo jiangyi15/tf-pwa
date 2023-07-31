@@ -32,6 +32,18 @@ def _load_yaml_file(name):
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
+def create_dir(name):
+    import os
+
+    dirname = os.path.dirname(name)
+    if dirname == "":
+        return True
+    if not os.path.exists(dirname):
+        os.makedirs(dirname, exist_ok=True)
+        return False
+    return True
+
+
 def load_config_file(name):
     """
     Load config file such as **Resonances.yml**.

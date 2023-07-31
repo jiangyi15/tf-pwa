@@ -101,19 +101,30 @@ class MultiConfig(object):
             if not self.total_same:
                 fcns = [
                     i[1].get_fcn(
-                        name="s" + str(i[0]), all_data=j, vm=vm, batch=batch
+                        name="s" + str(i[0]),
+                        all_data=j,
+                        vm=vm,
+                        batch=batch,
                     )
                     for i, j in zip(enumerate(self.configs), datas)
                 ]
             else:
                 fcns = [
-                    j.get_fcn(all_data=data, vm=vm, batch=batch)
+                    j.get_fcn(
+                        all_data=data,
+                        vm=vm,
+                        batch=batch,
+                    )
                     for data, j in zip(datas, self.configs)
                 ]
         else:
             if not self.total_same:
                 fcns = [
-                    j.get_fcn(name="s" + str(i), vm=vm, batch=batch)
+                    j.get_fcn(
+                        name="s" + str(i),
+                        vm=vm,
+                        batch=batch,
+                    )
                     for i, j in enumerate(self.configs)
                 ]
             else:

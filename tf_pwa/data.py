@@ -87,7 +87,7 @@ class LazyCall:
                 ret[k] = v
             yield ret
 
-    def as_dataset(self, batch=65000):
+    def as_dataset(self, batch=65000, cached_file=None):
         def f(x):
             x_a = x["x"]
             extra = x["extra"]
@@ -102,7 +102,16 @@ class LazyCall:
         data = tf.data.Dataset.from_tensor_slices(
             {"x": real_x, "extra": self.extra}
         )
-        data = data.batch(batch).cache().map(f)
+        # data = data.batch(batch).cache().map(f)
+        if cached_file is not None:
+            from tf_pwa.utils import create_dir
+
+            cached_file += "_" + str(batch)
+            create_dir(cached_file)
+            data = data.batch(batch).map(f)
+            data = data.cache(cached_file)
+        else:
+            data = data.batch(batch).cache().map(f)
         data = data.prefetch(tf.data.AUTOTUNE)
         return data
 
