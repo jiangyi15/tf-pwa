@@ -1710,7 +1710,7 @@ class AmplitudeModel(object):
         polar=None,
         vm=None,
         use_tf_function=False,
-        no_id_cached=True,
+        no_id_cached=False,
         jit_compile=False,
     ):
         self.decay_group = decay_group
