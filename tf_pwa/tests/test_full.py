@@ -71,6 +71,13 @@ def toy_config(gen_toy):
     return config
 
 
+@pytest.fixture
+def toy_config_lazy(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_lazycall.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
 def test_build_angle_amplitude(toy_config):
     data = toy_config.get_data("data")
     dec = toy_config.get_amplitude().decay_group
@@ -234,6 +241,13 @@ def test_fit(toy_config, fit_result):
         x = a + b
         y = a - b
     xy_err = pt.get_error_matrix([x, y])
+
+
+def test_lazycall(toy_config_lazy):
+    toy_config_lazy.fit(batch=100000)
+    toy_config_lazy.plot_partial_wave(
+        prefix="toy_data/figure_lazy", batch=100000
+    )
 
 
 def test_cal_chi2(toy_config, fit_result):

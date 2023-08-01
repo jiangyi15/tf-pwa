@@ -4,7 +4,9 @@ import tensorflow as tf
 
 def _wrap_struct(dic, first_none=True):
     if isinstance(dic, dict):
-        return {k: _wrap_struct(v, first_none) for k, v in dic.items()}
+        return {
+            k: _wrap_struct(dic[k], first_none) for k in sorted(dic.keys())
+        }
     if isinstance(dic, list):
         return [_wrap_struct(v, first_none) for v in dic]
     if isinstance(dic, tuple):
@@ -19,8 +21,8 @@ def _wrap_struct(dic, first_none=True):
 
 def _flatten(dic):
     if isinstance(dic, dict):
-        for k, v in dic.items():
-            yield from _flatten(v)
+        for k in sorted(dic.keys()):
+            yield from _flatten(dic[k])
     if isinstance(dic, (list, tuple)):
         for v in dic:
             yield from _flatten(v)
