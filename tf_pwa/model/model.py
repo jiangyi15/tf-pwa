@@ -12,6 +12,7 @@ from ..config import get_config
 from ..data import (
     EvalLazy,
     data_merge,
+    data_replace,
     data_shape,
     data_split,
     split_generator,
@@ -740,8 +741,8 @@ class Model(object):
             mc_weight = tf.convert_to_tensor(
                 [mc_weight] * data_shape(mcdata), dtype="float64"
             )
-        data_i = {**data, "weight": weight}
-        mcdata_i = {**mcdata, "weight": mc_weight}
+        data_i = data_replace(data, "weight", weight)
+        mcdata_i = data_replace(mcdata, "weight", mc_weight)
         return self.model.nll_grad_hessian(data_i, mcdata_i, batch=batch)
 
     def set_params(self, var):
