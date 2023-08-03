@@ -125,7 +125,8 @@ class SimpleData:
         weight_sign = self.get_weight_sign(idx)
         charge = self.dic.get(idx + "_charge", None)
         ret = self.load_data(files, weights, weight_sign, charge)
-        return self.process_scale(idx, ret)
+        ret = self.process_scale(idx, ret)
+        return ret
 
     def process_scale(self, idx, data):
         if idx in self.scale_list and self.dic.get("weight_scale", False):
@@ -135,6 +136,12 @@ class SimpleData:
                 data.get("weight", np.ones((n_bg,))) * scale_factor
             )
         return data
+
+    def set_lazy_call(self, data, idx):
+        if isinstance(data, LazyCall):
+            name = idx
+            cached_file = self.dic.get("cached_lazy_call", None)
+            data.set_cached_file(cached_file, name)
 
     def get_n_data(self):
         data = self.get_data("data")
@@ -156,6 +163,7 @@ class SimpleData:
         r_boost = self.dic.get("r_boost", True)
         random_z = self.dic.get("random_z", True)
         align_ref = self.dic.get("align_ref", None)
+        only_left_angle = self.dic.get("only_left_angle", False)
         data = cal_angle_from_momentum(
             p4,
             self.decay_struct,
@@ -163,6 +171,7 @@ class SimpleData:
             r_boost=r_boost,
             random_z=random_z,
             align_ref=align_ref,
+            only_left_angle=only_left_angle,
         )
         if charge is not None:
             data["charge_conjugation"] = charge
@@ -185,18 +194,17 @@ class SimpleData:
         p4 = self.load_p4(files)
         charges = None if charges is None else charges[: data_shape(p4)]
         data = self.cal_angle(p4, charges)
-        if weights is not None:
-            if isinstance(weights, float):
-                data["weight"] = np.array(
-                    [weights * weights_sign] * data_shape(data)
-                )
-            elif isinstance(weights, str):  # weight files
-                weight = self.load_weight_file(weights)
-                data["weight"] = weight[: data_shape(data)] * weights_sign
-            else:
-                raise TypeError(
-                    "weight format error: {}".format(type(weights))
-                )
+        if weights is None:
+            data["weight"] = np.array([1.0 * weights_sign] * data_shape(data))
+        elif isinstance(weights, float):
+            data["weight"] = np.array(
+                [weights * weights_sign] * data_shape(data)
+            )
+        elif isinstance(weights, str):  # weight files
+            weight = self.load_weight_file(weights)
+            data["weight"] = weight[: data_shape(data)] * weights_sign
+        else:
+            raise TypeError("weight format error: {}".format(type(weights)))
 
         if charge is None:
             data["charge_conjugation"] = tf.ones((data_shape(data),))
@@ -322,8 +330,11 @@ class SimpleData:
         else:
             raise ValueError("not support data")
         p4 = data_to_numpy(p4)
-        p4 = np.stack(p4).transpose((1, 0, 2)).reshape((-1, 4))
-        np.savetxt(file_name, p4)
+        p4 = np.stack(p4).transpose((1, 0, 2))
+        if file_name.endswith("npy"):
+            np.save(file_name, p4)
+        else:
+            np.savetxt(file_name, p4.reshape((-1, 4)))
 
 
 @register_data_mode("multi")
@@ -341,6 +352,10 @@ class MultiData(SimpleData):
                     data_i.get("weight", np.ones((n_bg,))) * scale_factor
                 )
         return data
+
+    def set_lazy_call(self, data, idx):
+        for i, data_i in enumerate(data):
+            super().set_lazy_call(data_i, "s{}{}".format(i, idx))
 
     def get_n_data(self):
         data = self.get_data("data")
@@ -405,6 +420,7 @@ class MultiData(SimpleData):
                             data_shape(k)
                         )
         ret = self.process_scale(idx, ret)
+        self.set_lazy_call(ret, idx)
         return ret
 
     def get_phsp_noeff(self):

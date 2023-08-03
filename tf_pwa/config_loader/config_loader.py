@@ -218,9 +218,10 @@ class ConfigLoader(BaseConfig):
 
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
-        use_tf_function = self.config.get("data", {}).get(
-            "use_tf_function", False
-        )
+        amp_config = self.config.get("data", {})
+        use_tf_function = amp_config.get("use_tf_function", False)
+        no_id_cached = amp_config.get("no_id_cached", False)
+        jit_compile = amp_config.get("jit_compile", False)
         decay_group = self.full_decay
         self.check_valid_jp(decay_group)
         if vm is None:
@@ -228,7 +229,12 @@ class ConfigLoader(BaseConfig):
         if vm in self.amps:
             return self.amps[vm]
         amp = AmplitudeModel(
-            decay_group, vm=vm, name=name, use_tf_function=use_tf_function
+            decay_group,
+            vm=vm,
+            name=name,
+            use_tf_function=use_tf_function,
+            no_id_cached=no_id_cached,
+            jit_compile=jit_compile,
         )
         self.add_constraints(amp)
         self.amps[vm] = amp
@@ -561,6 +567,7 @@ class ConfigLoader(BaseConfig):
             bg = [None] * self._Ngroup
         model = self._get_model(vm=vm, name=name)
         fcns = []
+
         # print(self.config["data"].get("using_mix_likelihood", False))
         if self.config["data"].get("using_mix_likelihood", False):
             print("  Using Mix Likelihood")
@@ -575,7 +582,9 @@ class ConfigLoader(BaseConfig):
             if all_data is None:
                 self.cached_fcn[vm] = fcn
             return fcn
-        for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
+        for idx, (md, dt, mc, sb, ij) in enumerate(
+            zip(model, data, phsp, bg, inmc)
+        ):
             if self.config["data"].get("model", "auto") == "cfit":
                 fcns.append(
                     FCN(
@@ -644,6 +653,7 @@ class ConfigLoader(BaseConfig):
         maxiter=None,
         jac=True,
         print_init_nll=True,
+        callback=None,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
@@ -677,6 +687,7 @@ class ConfigLoader(BaseConfig):
             improve=False,
             maxiter=maxiter,
             jac=jac,
+            callback=callback,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv

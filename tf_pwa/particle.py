@@ -877,10 +877,12 @@ class DecayGroup(object):
         """
         ret = []
         for i in self:
+            found = False
             for j in ret:
                 if i.topology_same(j, identical):
+                    found = True
                     break
-            else:
+            if not found:
                 ret.append(i)
         if standard:
             return [i.standard_topology() for i in ret]
