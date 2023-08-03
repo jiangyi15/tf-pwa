@@ -139,8 +139,9 @@ class SimpleData:
 
     def set_lazy_call(self, data, idx):
         if isinstance(data, LazyCall):
-            data.name = idx
-            data.cached_file = self.dic.get("cached_lazy_call", None)
+            name = idx
+            cached_file = self.dic.get("cached_lazy_call", None)
+            data.set_cached_file(cached_file, name)
 
     def get_n_data(self):
         data = self.get_data("data")
@@ -162,6 +163,7 @@ class SimpleData:
         r_boost = self.dic.get("r_boost", True)
         random_z = self.dic.get("random_z", True)
         align_ref = self.dic.get("align_ref", None)
+        only_left_angle = self.dic.get("only_left_angle", False)
         data = cal_angle_from_momentum(
             p4,
             self.decay_struct,
@@ -169,6 +171,7 @@ class SimpleData:
             r_boost=r_boost,
             random_z=random_z,
             align_ref=align_ref,
+            only_left_angle=only_left_angle,
         )
         if charge is not None:
             data["charge_conjugation"] = charge

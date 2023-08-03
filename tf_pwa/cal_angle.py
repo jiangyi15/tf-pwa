@@ -56,6 +56,7 @@ import numpy as np
 from .angle import SU2M, EulerAngle, LorentzVector, Vector3, _epsilon
 from .config import get_config
 from .data import (
+    HeavyCall,
     LazyCall,
     data_index,
     data_merge,
@@ -404,6 +405,7 @@ def cal_angle_from_particle(
     r_boost=True,
     final_rest=True,
     align_ref=None,  # "center_mass",
+    only_left_angle=False,
 ):
     """
     Calculate helicity angle for particle momentum, add aligned angle.
@@ -473,6 +475,10 @@ def cal_angle_from_particle(
                     # ang = AlignmentAngle.angle_px_px(z1, x1, z2, x2)
                     part_data[i]["aligned_angle"] = ang
     ret = data_strip(decay_data, ["r_matrix", "b_matrix", "x", "z"])
+    if only_left_angle:
+        for i in ret:
+            for j in ret[i]:
+                del ret[i][j][j.outs[1]]["ang"]
     return ret
 
 
@@ -628,6 +634,7 @@ def cal_angle_from_momentum_base(
     random_z=False,
     batch=65000,
     align_ref=None,
+    only_left_angle=False,
 ) -> CalAngleData:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
@@ -645,6 +652,7 @@ def cal_angle_from_momentum_base(
             r_boost,
             random_z,
             align_ref=align_ref,
+            only_left_angle=only_left_angle,
         )
     ret = []
     for i in split_generator(p, batch):
@@ -657,6 +665,7 @@ def cal_angle_from_momentum_base(
                 r_boost,
                 random_z,
                 align_ref=align_ref,
+                only_left_angle=only_left_angle,
             )
         )
     return data_merge(*ret)
@@ -706,11 +715,20 @@ def cal_angle_from_momentum_id_swap(
     random_z=False,
     batch=65000,
     align_ref=None,
+    only_left_angle=False,
 ) -> CalAngleData:
     ret = []
     id_particles = decs.identical_particles
     data = cal_angle_from_momentum_base(
-        p, decs, using_topology, center_mass, r_boost, random_z, batch
+        p,
+        decs,
+        using_topology,
+        center_mass,
+        r_boost,
+        random_z,
+        batch,
+        align_ref=align_ref,
+        only_left_angle=only_left_angle,
     )
     if id_particles is None or len(id_particles) == 0:
         return data
@@ -726,6 +744,7 @@ def cal_angle_from_momentum_id_swap(
                 random_z,
                 batch,
                 align_ref=align_ref,
+                only_left_angle=only_left_angle,
             )
         return data
 
@@ -739,6 +758,7 @@ def cal_angle_from_momentum(
     random_z=False,
     batch=65000,
     align_ref=None,
+    only_left_angle=False,
 ) -> CalAngleData:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
@@ -749,13 +769,15 @@ def cal_angle_from_momentum(
     """
     if isinstance(p, LazyCall):
         return LazyCall(
-            cal_angle_from_momentum,
+            HeavyCall(cal_angle_from_momentum),
             p,
             decs=decs,
             using_topology=using_topology,
             center_mass=center_mass,
             r_boost=r_boost,
             random_z=random_z,
+            align_ref=align_ref,
+            only_left_angle=only_left_angle,
             batch=batch,
         )
     ret = []
@@ -770,6 +792,7 @@ def cal_angle_from_momentum(
         random_z,
         batch,
         align_ref=align_ref,
+        only_left_angle=only_left_angle,
     )
     if cp_particles is None or len(cp_particles) == 0:
         return data
@@ -784,6 +807,7 @@ def cal_angle_from_momentum(
             random_z,
             batch,
             align_ref=align_ref,
+            only_left_angle=only_left_angle,
         )
         return data
 
@@ -796,6 +820,7 @@ def cal_angle_from_momentum_single(
     r_boost=True,
     random_z=True,
     align_ref=None,
+    only_left_angle=False,
 ) -> CalAngleData:
     """
     Transform 4-momentum data in files for the amplitude model automatically via DecayGroup.
@@ -823,6 +848,7 @@ def cal_angle_from_momentum_single(
         r_boost=r_boost,
         random_z=random_z,
         align_ref=align_ref,
+        only_left_angle=only_left_angle,
     )
     data = {"particle": data_p, "decay": data_d}
     add_relative_momentum(data)

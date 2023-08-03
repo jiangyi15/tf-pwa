@@ -10,6 +10,7 @@ data:
   use_tf_function: True
   no_id_cached: True
   jit_compile: True
+  only_left_angle: True
   cached_lazy_call: toy_data/cached/
 
 decay:
