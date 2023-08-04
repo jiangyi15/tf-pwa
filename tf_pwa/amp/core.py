@@ -1704,7 +1704,39 @@ def value_and_grad(f, var):
     return s, g
 
 
-class AmplitudeModel(object):
+class AbsPDF:
+    def __init__(self, *args, name="", vm=None, polar=None, **kwargs):
+        self.name = name
+        with variable_scope(vm) as vm:
+            if polar is not None:
+                vm.polar = polar
+            self.init_params(name)
+            self.vm = vm
+        self.vm = vm
+
+    def get_params(self, trainable_only=False):
+        return self.vm.get_all_dic(trainable_only)
+
+    def set_params(self, var):
+        self.vm.set_all(var)
+
+    @contextlib.contextmanager
+    def temp_params(self, var):
+        params = self.get_params()
+        self.set_params(var)
+        yield var
+        self.set_params(params)
+
+    @property
+    def variables(self):
+        return self.vm.variables
+
+    @property
+    def trainable_variables(self):
+        return self.vm.trainable_variables
+
+
+class AmplitudeModel(AbsPDF):
     def __init__(
         self,
         decay_group,
@@ -1716,13 +1748,8 @@ class AmplitudeModel(object):
         jit_compile=False,
     ):
         self.decay_group = decay_group
-        self._name = name
+        super().__init__(name=name, vm=vm, polar=polar)
         self.no_id_cached = no_id_cached
-        with variable_scope(vm) as vm:
-            if polar is not None:
-                vm.polar = polar
-            decay_group.init_params(name)
-        self.vm = vm
         res = decay_group.resonances
         self.used_res = res
         self.res = res
@@ -1735,6 +1762,9 @@ class AmplitudeModel(object):
             )
         else:
             self.cached_fun = self.decay_group.sum_amp
+
+    def init_params(self, name=""):
+        self.decay_group.init_params(name)
 
     def __del__(self):
         if hasattr(self, "cached_fun"):
@@ -1768,29 +1798,8 @@ class AmplitudeModel(object):
     def partial_weight_interference(self, data):
         return self.decay_group.partial_weight_interference(data)
 
-    def get_params(self, trainable_only=False):
-        return self.vm.get_all_dic(trainable_only)
-
-    def set_params(self, var):
-        self.vm.set_all(var)
-
-    @contextlib.contextmanager
-    def temp_params(self, var):
-        params = self.get_params()
-        self.set_params(var)
-        yield var
-        self.set_params(params)
-
     def chains_particle(self):
         return self.decay_group.chains_particle()
-
-    @property
-    def variables(self):
-        return self.vm.variables
-
-    @property
-    def trainable_variables(self):
-        return self.vm.trainable_variables
 
     def __call__(self, data, cached=False):
         if isinstance(data, LazyCall):
