@@ -89,7 +89,7 @@ class ConfigLoader(BaseConfig):
             self.config.get("plot", {}), self.decay_struct
         )
         self._neglect_when_set_params = []
-        self.data = load_data_mode(self["data"], self.decay_struct)
+        self.data = load_data_mode(self["data"], self.decay_config)
         self.inv_he = None
         self._Ngroup = 1
         self.cached_fcn = {}

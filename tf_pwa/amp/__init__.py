@@ -7,7 +7,9 @@ DecayGroup: addition (+)
         Decay, Particle(Propagator)
 
 """
+
 # pylint: disable=unused-wildcard-import,unused-import
+from .amp import AmplitudeModel
 from .base import *
 from .core import *
 from .flatte import ParticleFlatte

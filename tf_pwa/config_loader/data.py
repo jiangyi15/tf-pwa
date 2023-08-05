@@ -7,12 +7,14 @@ import numpy as np
 import tensorflow as tf
 
 from tf_pwa.amp import get_particle
+from tf_pwa.amp.preprocess import BasePreProcessor
 from tf_pwa.cal_angle import (
     cal_angle_from_momentum,
     load_dat_file,
     parity_trans,
 )
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
+from tf_pwa.config_loader.decay_config import DecayConfig
 from tf_pwa.data import (
     LazyCall,
     data_index,
@@ -60,8 +62,9 @@ def load_data_mode(dic, decay_struct, default_mode="multi"):
 
 @register_data_mode("simple")
 class SimpleData:
-    def __init__(self, dic, decay_struct):
-        self.decay_struct = decay_struct
+    def __init__(self, dic, decay_config):
+        self.decay_config = decay_config
+        self.decay_struct = decay_config.decay_struct
         self.dic = dic
         self.cached_data = None
         chain_map = self.decay_struct.get_chains_map()
@@ -72,6 +75,19 @@ class SimpleData:
                     self.re_map[v] = k
         self.scale_list = self.dic.get("scale_list", ["bg"])
         self.lazy_call = self.dic.get("lazy_call", False)
+        center_mass = self.dic.get("center_mass", False)
+        r_boost = self.dic.get("r_boost", True)
+        random_z = self.dic.get("random_z", True)
+        align_ref = self.dic.get("align_ref", None)
+        only_left_angle = self.dic.get("only_left_angle", False)
+        self.preprocessor = BasePreProcessor(
+            decay_config,
+            center_mass=center_mass,
+            r_boost=r_boost,
+            random_z=random_z,
+            align_ref=align_ref,
+            only_left_angle=only_left_angle,
+        )
 
     def get_data_file(self, idx):
         if idx in self.dic:
@@ -158,21 +174,9 @@ class SimpleData:
             p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
         p4 = self.process_cp_trans(p4, charge)
         if self.lazy_call:
-            p4 = LazyCall(lambda x: x, p4)
-        center_mass = self.dic.get("center_mass", False)
-        r_boost = self.dic.get("r_boost", True)
-        random_z = self.dic.get("random_z", True)
-        align_ref = self.dic.get("align_ref", None)
-        only_left_angle = self.dic.get("only_left_angle", False)
-        data = cal_angle_from_momentum(
-            p4,
-            self.decay_struct,
-            center_mass=center_mass,
-            r_boost=r_boost,
-            random_z=random_z,
-            align_ref=align_ref,
-            only_left_angle=only_left_angle,
-        )
+            data = LazyCall(self.preprocessor, p4)
+        else:
+            data = self.preprocessor(p4)
         if charge is not None:
             data["charge_conjugation"] = charge
         return data

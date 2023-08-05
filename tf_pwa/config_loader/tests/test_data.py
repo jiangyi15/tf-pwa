@@ -2,6 +2,7 @@ import numpy as np
 
 from tf_pwa.amp import Decay, DecayChain, DecayGroup, Particle
 from tf_pwa.config_loader.data import load_data_mode
+from tf_pwa.config_loader.decay_config import DecayConfig
 from tf_pwa.tests.test_full import gen_toy
 
 
@@ -10,6 +11,12 @@ def test_load_data(gen_toy):
     dec = DecayGroup(
         [DecayChain([Decay(p[0], [p[1], p[2]]), Decay(p[1], [p[3], p[4]])])]
     )
+
+    config = dec.as_config()
+    config["data"] = {"decay_chain_cut": []}
+
+    dec = DecayConfig(config)
+
     data_file = {
         "data": "toy_data/data.dat",
         "phsp": "toy_data/phsp.dat",
