@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 import tensorflow as tf
 
@@ -873,11 +875,16 @@ def FrameTransSC(l, r, mmi, pi_Mu, mmf, pf_Mu, pfs_Mu, m_zero=False, lib=np):
     else:
         parafs = ExBoostPara(mmf, pfs_Mu, lib=lib)
         res = lib.einsum(
-            "...ij,...ik,...kl->...jl",
-            lib.conjugate(LorentzRotationSC(l, r, *parafs[1:], lib=lib)),
+            "...ij,...jk->...ik",
             TransD,
-            LorentzRotationSC(l, r, *paraf[1:], lib=lib),
+            LorentzRotationSC(l, r, *parafs[1:], lib=lib),
         )
+        # res = lib.einsum(
+        #    "...ij,...ik,...kl->...jl",
+        #    lib.conjugate(LorentzRotationSC(l, r, *parafs[1:], lib=lib)),
+        #    TransD,
+        #    LorentzRotationSC(l, r, *paraf[1:], lib=lib),
+        # )
     return res
 
 
@@ -1112,3 +1119,15 @@ def create_proj5(
     )
     Amp = np.einsum("ab,bcdj->acdj", SO3SWFbar(mm, s, id0), CapitalGamma)
     return Amp, swf1, swf2
+
+
+@functools.lru_cache()
+def normal_factor(L):
+    from sympy.physics.quantum.cg import CG
+
+    if L < 2:
+        return (-1) ** L
+    ret = (-1) ** L
+    for k in range(1, L):
+        ret *= float(CG(k, 0, 1, 0, k + 1, 0).doit().evalf())
+    return ret

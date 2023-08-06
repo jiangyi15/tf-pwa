@@ -860,6 +860,7 @@ class CovTenDecayNew(HelicityDecay):
 
     def __init__(self, *args, **kwargs):
         self.scheme = 1
+        self.add_normal_factor = False
         super().__init__(*args, **kwargs)
         if "has_ql" not in kwargs:
             self.has_ql = False
@@ -872,7 +873,7 @@ class CovTenDecayNew(HelicityDecay):
 
     def init_params(self):
         super().init_params()
-        from tf_pwa.cov_ten_ir import create_proj4, create_proj5
+        from tf_pwa.cov_ten_ir import create_proj4, create_proj5, normal_factor
 
         self.proj = []
         ja, jb, jc = self.core.J, self.outs[0].J, self.outs[1].J
@@ -910,6 +911,14 @@ class CovTenDecayNew(HelicityDecay):
                         m2_zero=cond2,
                     )
                 )
+        if self.add_normal_factor:
+            for i, (l, s) in enumerate(self.get_ls_list()):
+                frac = (
+                    np.sqrt(2 * self.core.J + 1)
+                    / np.sqrt(2 * l + 1)
+                    * normal_factor(l)
+                )
+                self.proj[i] = self.proj[i][0] / frac, *self.proj[i][1:]
 
     def get_amp(self, data, data_p, **kwargs):
         ret = self.get_all_amp(data, data_p, **kwargs)
