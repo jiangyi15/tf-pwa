@@ -5,6 +5,8 @@ data:
   phsp: ["toy_data/PHSP.dat"]
   preprocessor: cached_amp
   amp_model: cached_amp
+  no_p4: True
+  no_angle: True
   bg_weight: 0.1
 
 decay:

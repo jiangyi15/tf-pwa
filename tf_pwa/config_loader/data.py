@@ -90,6 +90,8 @@ class SimpleData:
         align_ref = self.dic.get("align_ref", None)
         only_left_angle = self.dic.get("only_left_angle", False)
         preprocessor_model = self.dic.get("preprocessor", "default")
+        no_p4 = self.dic.get("no_p4", False)
+        no_angle = self.dic.get("no_angle", False)
         self.preprocessor = create_preprocessor(
             decay_struct,
             center_mass=center_mass,
@@ -99,6 +101,8 @@ class SimpleData:
             only_left_angle=only_left_angle,
             root_config=self.root_config,
             model=preprocessor_model,
+            no_p4=no_p4,
+            no_angle=no_angle,
         )
 
     def get_data_file(self, idx):
