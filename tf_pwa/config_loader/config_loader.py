@@ -17,10 +17,10 @@ from scipy.optimize import BFGS, basinhopping, minimize
 
 from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
 from tf_pwa.amp import (
-    AmplitudeModel,
     DecayChain,
     DecayGroup,
     HelicityDecay,
+    create_amplitude,
     get_decay,
     get_particle,
 )
@@ -89,7 +89,6 @@ class ConfigLoader(BaseConfig):
             self.config.get("plot", {}), self.decay_struct
         )
         self._neglect_when_set_params = []
-        self.data = load_data_mode(self["data"], self.decay_config)
         self.inv_he = None
         self._Ngroup = 1
         self.cached_fcn = {}
@@ -99,6 +98,9 @@ class ConfigLoader(BaseConfig):
         )
         self.chains_id_method = "auto"
         self.chains_id_method_table = {}
+        self.data = load_data_mode(
+            self["data"], self.decay_struct, config=self
+        )
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -222,19 +224,21 @@ class ConfigLoader(BaseConfig):
         use_tf_function = amp_config.get("use_tf_function", False)
         no_id_cached = amp_config.get("no_id_cached", False)
         jit_compile = amp_config.get("jit_compile", False)
+        amp_model = amp_config.get("amp_model", "default")
         decay_group = self.full_decay
         self.check_valid_jp(decay_group)
         if vm is None:
             vm = self.vm
         if vm in self.amps:
             return self.amps[vm]
-        amp = AmplitudeModel(
+        amp = create_amplitude(
             decay_group,
             vm=vm,
             name=name,
             use_tf_function=use_tf_function,
             no_id_cached=no_id_cached,
             jit_compile=jit_compile,
+            model=amp_model,
         )
         self.add_constraints(amp)
         self.amps[vm] = amp

@@ -145,6 +145,14 @@ def test_cfit(gen_toy):
     plotter.plot_var(amp)
 
 
+def test_precached(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_precached.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    fcn = config.get_fcn()
+    fcn({})
+    fcn.nll_grad({})
+
+
 def test_cfit_cached(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_cfit_cached.yml")
     config.set_params(f"{this_dir}/gen_params.json")

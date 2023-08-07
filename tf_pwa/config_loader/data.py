@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 from tf_pwa.amp import get_particle
-from tf_pwa.amp.preprocess import BasePreProcessor
+from tf_pwa.amp.preprocess import create_preprocessor
 from tf_pwa.cal_angle import (
     cal_angle_from_momentum,
     load_dat_file,
@@ -53,18 +53,18 @@ def register_data_mode(name=None, f=None):
     return regist(f)
 
 
-def load_data_mode(dic, decay_struct, default_mode="multi"):
+def load_data_mode(dic, decay_struct, default_mode="multi", config=None):
     if dic is None:
         dic = {}
     mode = dic.get("mode", default_mode)
-    return get_config(DATA_MODE)[mode](dic, decay_struct)
+    return get_config(DATA_MODE)[mode](dic, decay_struct, config=config)
 
 
 @register_data_mode("simple")
 class SimpleData:
-    def __init__(self, dic, decay_config):
-        self.decay_config = decay_config
-        self.decay_struct = decay_config.decay_struct
+    def __init__(self, dic, decay_struct, config=None):
+        self.decay_struct = decay_struct
+        self.root_config = config
         self.dic = dic
         self.extra_var = {
             "weight": {"default": 1},
@@ -89,13 +89,16 @@ class SimpleData:
         random_z = self.dic.get("random_z", True)
         align_ref = self.dic.get("align_ref", None)
         only_left_angle = self.dic.get("only_left_angle", False)
-        self.preprocessor = BasePreProcessor(
-            decay_config,
+        preprocessor_model = self.dic.get("preprocessor", "default")
+        self.preprocessor = create_preprocessor(
+            decay_struct,
             center_mass=center_mass,
             r_boost=r_boost,
             random_z=random_z,
             align_ref=align_ref,
             only_left_angle=only_left_angle,
+            root_config=self.root_config,
+            model=preprocessor_model,
         )
 
     def get_data_file(self, idx):
@@ -180,16 +183,15 @@ class SimpleData:
         p = load_dat_file(fnames, particles)
         return p
 
-    def cal_angle(self, p4, charge=None):
+    def cal_angle(self, p4, **kwargs):
         if isinstance(p4, (list, tuple)):
             p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
+        charge = kwargs.get("charge_conjugation", None)
         p4 = self.process_cp_trans(p4, charge)
         if self.lazy_call:
-            data = LazyCall(self.preprocessor, p4)
+            data = LazyCall(self.preprocessor, {"p4": p4, "extra": kwargs})
         else:
-            data = self.preprocessor(p4)
-        if charge is not None:
-            data["charge_conjugation"] = charge
+            data = self.preprocessor({"p4": p4, "extra": kwargs})
         return data
 
     def process_cp_trans(self, p4, charges):
@@ -222,11 +224,10 @@ class SimpleData:
         p4 = self.load_p4(files)
         n_data = data_shape(p4)
         extra_var = self.load_extra_var(n_data, **kwargs)
-        charges = extra_var["charge_conjugation"]
-        data = self.cal_angle(p4, charges)
+        extra_var["weight"] = weight_sign * extra_var["weight"]
+        data = self.cal_angle(p4, **extra_var)
         for k, v in extra_var.items():
             data[k] = v
-        data["weight"] = weight_sign * data["weight"]
         return data
 
     def load_weight_file(self, weight_files):

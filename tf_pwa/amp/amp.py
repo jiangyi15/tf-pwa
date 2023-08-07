@@ -1,7 +1,42 @@
 import contextlib
+import warnings
+
+import tensorflow as tf
 
 from tf_pwa.amp.core import variable_scope
+from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import LazyCall, data_shape, split_generator
+
+AMP_MODEL = "amplitude_model"
+regist_config(AMP_MODEL, {})
+
+
+def register_amp_model(name=None, f=None):
+    """register a data mode
+
+    :params name: mode name used in configuration
+    :params f: Data Mode class
+    """
+
+    def regist(g):
+        if name is None:
+            my_name = g.__name__
+        else:
+            my_name = name
+        config = get_config(AMP_MODEL)
+        if my_name in config:
+            warnings.warn("Override mode {}".format(my_name))
+        config[my_name] = g
+        return g
+
+    if f is None:
+        return regist
+    return regist(f)
+
+
+def create_amplitude(decay_group, **kwargs):
+    mode = kwargs.get("model", "default")
+    return get_config(AMP_MODEL)[mode](decay_group, **kwargs)
 
 
 class AbsPDF:
@@ -68,6 +103,7 @@ class AbsPDF:
         return ret
 
 
+@register_amp_model("default")
 class AmplitudeModel(AbsPDF):
     def __init__(self, decay_group, **kwargs):
         self.decay_group = decay_group
@@ -120,3 +156,23 @@ class AmplitudeModel(AbsPDF):
     def pdf(self, data):
         ret = self.decay_group.sum_amp(data)
         return ret
+
+
+@register_amp_model("cached_amp")
+class CachedAmpAmplitudeModel(AmplitudeModel):
+    def pdf(self, data):
+        from tf_pwa.experimental.build_amp import build_params_vector
+
+        n_data = data_shape(data)
+        cached_data = data["cached_amp"]
+        pv = build_params_vector(self.decay_group, data)
+        ret = []
+        for i, j in zip(pv, cached_data):
+            # print(j)
+            # print(i.shape)
+            a = tf.reshape(i, [-1, i.shape[1]] + [1] * (len(j[0].shape) - 1))
+            ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
+        # print(ret)
+        amp = tf.reduce_sum(ret, axis=0)
+        amp2s = tf.math.real(amp * tf.math.conj(amp))
+        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))

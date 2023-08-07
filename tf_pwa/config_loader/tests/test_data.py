@@ -12,10 +12,10 @@ def test_load_data(gen_toy):
         [DecayChain([Decay(p[0], [p[1], p[2]]), Decay(p[1], [p[3], p[4]])])]
     )
 
-    config = dec.as_config()
-    config["data"] = {"decay_chain_cut": []}
+    # config = dec.as_config()
+    # config["data"] = {"decay_chain_cut": []}
 
-    dec = DecayConfig(config)
+    # dec = DecayConfig(config)
 
     data_file = {
         "data": "toy_data/data.dat",
