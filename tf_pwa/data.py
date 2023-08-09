@@ -573,6 +573,8 @@ def batch_call(function, data, batch=10000):
         batches = data_split(data, batch)
     for i in batches:
         tmp = function(i)
+        if tmp is None:
+            return None
         if isinstance(tmp, (int, float)):
             tmp = tmp * np.ones((data_shape(i),))
         ret.append(tmp)
@@ -583,7 +585,7 @@ def batch_call_numpy(function, data, batch=10000):
     return data_to_numpy(batch_call(function, data, batch))
 
 
-def data_index(data, key):
+def data_index(data, key, no_raise=False):
     """Indexing data for key or a list of keys."""
     if isinstance(data, LazyCall):
         data = data.eval()
@@ -597,12 +599,14 @@ def data_index(data, key):
         for k, v in data.items():
             if str(k) == str(i):
                 return v
+        if no_raise:
+            return None
         raise ValueError("{} is not found".format(i))
 
     if isinstance(key, (list, tuple)):
         keys = list(key)
         if len(keys) > 1:
-            return data_index(idx(data, keys[0]), keys[1:])
+            return data_index(idx(data, keys[0]), keys[1:], no_raise=no_raise)
         return idx(data, keys[0])
     return idx(data, key)
 

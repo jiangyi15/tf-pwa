@@ -151,6 +151,7 @@ def test_precached(gen_toy):
     fcn = config.get_fcn()
     fcn({})
     fcn.nll_grad({})
+    config.plot_partial_wave(prefix="toy_data/figure/s5")
 
 
 def test_cfit_cached(gen_toy):

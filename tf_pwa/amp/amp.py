@@ -160,6 +160,20 @@ class AmplitudeModel(AbsPDF):
 
 @register_amp_model("cached_amp")
 class CachedAmpAmplitudeModel(AmplitudeModel):
+    def partial_weight(self, data, combine=None):
+        if isinstance(data, LazyCall):
+            data = data.eval()
+        if combine is None:
+            combine = [[i] for i in range(len(self.decay_group.chains))]
+        o_used_chains = self.decay_group.chains_idx
+        weights = []
+        for i in combine:
+            self.decay_group.set_used_chains(i)
+            weight = self.pdf(data)
+            weights.append(weight)
+        self.decay_group.set_used_chains(o_used_chains)
+        return weights
+
     def pdf(self, data):
         from tf_pwa.experimental.build_amp import build_params_vector
 
@@ -167,7 +181,9 @@ class CachedAmpAmplitudeModel(AmplitudeModel):
         cached_data = data["cached_amp"]
         pv = build_params_vector(self.decay_group, data)
         ret = []
-        for i, j in zip(pv, cached_data):
+        for idx, (i, j) in enumerate(zip(pv, cached_data)):
+            if idx not in self.decay_group.chains_idx:
+                break
             # print(j)
             # print(i.shape)
             a = tf.reshape(i, [-1, i.shape[1]] + [1] * (len(j[0].shape) - 1))
