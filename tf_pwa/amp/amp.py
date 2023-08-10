@@ -180,10 +180,11 @@ class CachedAmpAmplitudeModel(AmplitudeModel):
         n_data = data_shape(data)
         cached_data = data["cached_amp"]
         pv = build_params_vector(self.decay_group, data)
+        partial_cached_data = [
+            cached_data[i] for i in self.decay_group.chains_idx
+        ]
         ret = []
-        for idx, (i, j) in enumerate(zip(pv, cached_data)):
-            if idx not in self.decay_group.chains_idx:
-                break
+        for idx, (i, j) in enumerate(zip(pv, partial_cached_data)):
             # print(j)
             # print(i.shape)
             a = tf.reshape(i, [-1, i.shape[1]] + [1] * (len(j[0].shape) - 1))
