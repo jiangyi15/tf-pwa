@@ -7,12 +7,14 @@ import numpy as np
 import tensorflow as tf
 
 from tf_pwa.amp import get_particle
+from tf_pwa.amp.preprocess import create_preprocessor
 from tf_pwa.cal_angle import (
     cal_angle_from_momentum,
     load_dat_file,
     parity_trans,
 )
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
+from tf_pwa.config_loader.decay_config import DecayConfig
 from tf_pwa.data import (
     LazyCall,
     data_index,
@@ -51,18 +53,28 @@ def register_data_mode(name=None, f=None):
     return regist(f)
 
 
-def load_data_mode(dic, decay_struct, default_mode="multi"):
+def load_data_mode(dic, decay_struct, default_mode="multi", config=None):
     if dic is None:
         dic = {}
     mode = dic.get("mode", default_mode)
-    return get_config(DATA_MODE)[mode](dic, decay_struct)
+    return get_config(DATA_MODE)[mode](dic, decay_struct, config=config)
 
 
 @register_data_mode("simple")
 class SimpleData:
-    def __init__(self, dic, decay_struct):
+    def __init__(self, dic, decay_struct, config=None):
         self.decay_struct = decay_struct
+        self.root_config = config
         self.dic = dic
+        self.extra_var = {
+            "weight": {"default": 1},
+            "charge": {"key": "charge_conjugation", "default": 1},
+        }
+        if self.dic.get("model", "default") == "cfit":
+            self.extra_var.update(
+                {"bg_value": {"default": 1}, "eff_value": {"default": 1}}
+            )
+        self.extra_var.update(self.dic.get("extra_var", {}))
         self.cached_data = None
         chain_map = self.decay_struct.get_chains_map()
         self.re_map = {}
@@ -72,6 +84,26 @@ class SimpleData:
                     self.re_map[v] = k
         self.scale_list = self.dic.get("scale_list", ["bg"])
         self.lazy_call = self.dic.get("lazy_call", False)
+        center_mass = self.dic.get("center_mass", False)
+        r_boost = self.dic.get("r_boost", True)
+        random_z = self.dic.get("random_z", True)
+        align_ref = self.dic.get("align_ref", None)
+        only_left_angle = self.dic.get("only_left_angle", False)
+        preprocessor_model = self.dic.get("preprocessor", "default")
+        no_p4 = self.dic.get("no_p4", False)
+        no_angle = self.dic.get("no_angle", False)
+        self.preprocessor = create_preprocessor(
+            decay_struct,
+            center_mass=center_mass,
+            r_boost=r_boost,
+            random_z=random_z,
+            align_ref=align_ref,
+            only_left_angle=only_left_angle,
+            root_config=self.root_config,
+            model=preprocessor_model,
+            no_p4=no_p4,
+            no_angle=no_angle,
+        )
 
     def get_data_file(self, idx):
         if idx in self.dic:
@@ -124,7 +156,9 @@ class SimpleData:
         weights = self.dic.get(idx + "_weight", None)
         weight_sign = self.get_weight_sign(idx)
         charge = self.dic.get(idx + "_charge", None)
-        ret = self.load_data(files, weights, weight_sign, charge)
+        ret = self.load_data(
+            files, weight_sign=weight_sign, weight=weights, charge=charge
+        )
         ret = self.process_scale(idx, ret)
         return ret
 
@@ -153,28 +187,15 @@ class SimpleData:
         p = load_dat_file(fnames, particles)
         return p
 
-    def cal_angle(self, p4, charge=None):
+    def cal_angle(self, p4, **kwargs):
         if isinstance(p4, (list, tuple)):
             p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
+        charge = kwargs.get("charge_conjugation", None)
         p4 = self.process_cp_trans(p4, charge)
         if self.lazy_call:
-            p4 = LazyCall(lambda x: x, p4)
-        center_mass = self.dic.get("center_mass", False)
-        r_boost = self.dic.get("r_boost", True)
-        random_z = self.dic.get("random_z", True)
-        align_ref = self.dic.get("align_ref", None)
-        only_left_angle = self.dic.get("only_left_angle", False)
-        data = cal_angle_from_momentum(
-            p4,
-            self.decay_struct,
-            center_mass=center_mass,
-            r_boost=r_boost,
-            random_z=random_z,
-            align_ref=align_ref,
-            only_left_angle=only_left_angle,
-        )
-        if charge is not None:
-            data["charge_conjugation"] = charge
+            data = LazyCall(self.preprocessor, {"p4": p4, "extra": kwargs})
+        else:
+            data = self.preprocessor({"p4": p4, "extra": kwargs})
         return data
 
     def process_cp_trans(self, p4, charges):
@@ -183,31 +204,34 @@ class SimpleData:
             p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
         return p4
 
-    def load_data(
-        self, files, weights=None, weights_sign=1, charge=None
-    ) -> dict:
+    def load_extra_var(self, n_data, **kwargs):
+        extra_var = {}
+        for k, v in self.extra_var.items():
+            value = kwargs.get(k, None)
+            if value is None:
+                value = v.get("default", 1)
+            if isinstance(value, (int, float)):
+                value = np.ones((n_data,)) * value
+            elif isinstance(value, (list, str)):
+                value = self.load_weight_file(value)
+                value = value[:n_data]
+            else:
+                raise NotImplemented
+            extra_var[v.get("key", k)] = value
+        return extra_var
+
+    def load_data(self, files, weight_sign=1, **kwargs) -> dict:
         # print(files, weights)
         if files is None:
             return None
         order = self.get_dat_order()
-        charges = None if charge is None else self.load_weight_file(charge)
         p4 = self.load_p4(files)
-        charges = None if charges is None else charges[: data_shape(p4)]
-        data = self.cal_angle(p4, charges)
-        if weights is None:
-            data["weight"] = np.array([1.0 * weights_sign] * data_shape(data))
-        elif isinstance(weights, float):
-            data["weight"] = np.array(
-                [weights * weights_sign] * data_shape(data)
-            )
-        elif isinstance(weights, str):  # weight files
-            weight = self.load_weight_file(weights)
-            data["weight"] = weight[: data_shape(data)] * weights_sign
-        else:
-            raise TypeError("weight format error: {}".format(type(weights)))
-
-        if charge is None:
-            data["charge_conjugation"] = tf.ones((data_shape(data),))
+        n_data = data_shape(p4)
+        extra_var = self.load_extra_var(n_data, **kwargs)
+        extra_var["weight"] = weight_sign * extra_var["weight"]
+        data = self.cal_angle(p4, **extra_var)
+        for k, v in extra_var.items():
+            data[k] = v
         return data
 
     def load_weight_file(self, weight_files):
@@ -376,49 +400,27 @@ class MultiData(SimpleData):
             return None
         if not isinstance(files[0], list):
             files = [files]
-        weights = self.dic.get(idx + "_weight", None)
-        if weights is None:
-            weights = [None] * len(files)
-        elif isinstance(weights, float):
-            weights = [weights] * len(files)
         weight_sign = self.get_weight_sign(idx)
-        charge = self.dic.get(idx + "_charge", None)
-        if charge is None:
-            charge = [None] * len(files)
-        elif not isinstance(charge, list):
-            charge = [charge]
+        kwargs = [{} for i in range(len(files))]
+        for k in self.extra_var:
+            tmp = self.dic.get(idx + "_" + k, None)
+            if tmp is None:
+                tmp = [None] * len(kwargs)
+            if isinstance(tmp, (float, int, str)):
+                tmp = [tmp] * len(kwargs)
+            if isinstance(tmp, list):
+                for i in range(len(kwargs)):
+                    kwargs[i][k] = tmp[i]
+            else:
+                raise NotImplementedError
         ret = [
-            self.load_data(i, j, weight_sign, k)
-            for i, j, k in zip(files, weights, charge)
+            self.load_data(i, weight_sign=weight_sign, **k)
+            for i, k in zip(files, kwargs)
         ]
         if self._Ngroup == 0:
             self._Ngroup = len(ret)
         elif idx != "phsp_noeff":
             assert self._Ngroup == len(ret), "not the same data group"
-        bg_value = self.dic.get(idx + "_bg_value", None)
-        if bg_value is not None:
-            if isinstance(bg_value, str):
-                bg_value = [bg_value]
-            for i, file_name in enumerate(bg_value):
-                ret[i]["bg_value"] = self.load_weight_file(file_name)
-        eff_value = self.dic.get(idx + "_eff_value", None)
-        if eff_value is not None:
-            if isinstance(eff_value, str):
-                eff_value = [eff_value]
-            for i, file_name in enumerate(eff_value):
-                ret[i]["eff_value"] = self.load_weight_file(file_name)
-        extra_var = self.dic.get("extra_var", None)
-        if extra_var:
-            for i in extra_var:
-                idx_var = self.dic.get(idx + "_" + i, None)
-                if idx_var is not None:
-                    for j, file_name in enumerate(idx_var):
-                        ret[j][i] = self.load_weight_file(file_name)
-                else:
-                    for j, k in enumerate(ret):
-                        ret[j][i] = extra_var[i]["default"] * np.ones(
-                            data_shape(k)
-                        )
         ret = self.process_scale(idx, ret)
         self.set_lazy_call(ret, idx)
         return ret

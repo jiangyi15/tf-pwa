@@ -94,6 +94,7 @@ class BaseParticle(object):
         self.mass = mass
         self.width = width
         self.disable = disable
+        self._kwargs = kwargs
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -179,6 +180,19 @@ class BaseParticle(object):
         chains = [DecayChain(i) for i in decay_chain]
         decaygroup = DecayGroup(chains)
         return decaygroup.resonances
+
+    def as_config(self):
+        ret = {}
+        ret[str(self)] = {
+            "J": self.J,
+            "P": self.P,
+            "C": self.C,
+            "mass": self.mass,
+            "width": self.width,
+            "spins": self.spins,
+            **self._kwargs,
+        }
+        return ret
 
 
 class ParticleList(UserList):
@@ -288,6 +302,7 @@ class BaseDecay(object):
             for i in outs:
                 i.add_creator(self)
         self.curve_style = curve_style
+        self._kwargs = kwargs
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -317,6 +332,19 @@ class BaseDecay(object):
         if not isinstance(other, BaseDecay):
             return False
         return self.get_id() < other.get_id()
+
+    def as_config(self):
+        ret = {}
+        ret[str(self.core)] = [str(i) for i in self.outs]
+        ret[str(self.core)] += [
+            {
+                "p_break": self.p_break,
+                "c_break": self.c_break,
+                "curve_style": self.curve_style,
+                **self._kwargs,
+            }
+        ]
+        return ret
 
 
 class Decay(BaseDecay):  # add useful methods to BaseDecay
@@ -923,6 +951,28 @@ class DecayGroup(object):
             if found:
                 return decay_chain
         raise ValueError("Not found such decay chain: {}".format(names))
+
+    def as_config(self):
+        config = {"particle": {}, "decay": {}}
+        config["particle"]["$top"] = self.top.as_config()
+        config["particle"]["$finals"] = {}
+        for i in self.outs:
+            config["particle"]["$finals"].update(i.as_config())
+        for i in self.resonances:
+            config["particle"].update(i.as_config())
+
+        def update_decay(dic):
+            for k, v in dic.items():
+                if k in config["decay"]:
+                    config["decay"][k].append(v)
+                else:
+                    config["decay"][k] = [v]
+
+        for i in self:
+            for j in i:
+                decay = j.as_config()
+                update_decay(decay)
+        return config
 
     def get_particle(self, name):
         """

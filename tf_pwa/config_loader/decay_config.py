@@ -55,6 +55,7 @@ class DecayConfig(BaseConfig):
     def __init__(self, dic, share_dict={}):
         self.config = copy.deepcopy(dic)
         self.decay_chain_config = dic.get("decay_chain", {})
+        self.data_config = dic.get("data", {})
         self.share_dict = share_dict
         self.particle_key_map = {
             "Par": "P",
@@ -68,7 +69,7 @@ class DecayConfig(BaseConfig):
             "bw_l": "bw_l",
             "running_width": "running_width",
         }
-        self.cut_list = self.config["data"].get("decay_chain_cut", ["ls_cut"])
+        self.cut_list = self.data_config.get("decay_chain_cut", ["ls_cut"])
         self.decay_key_map = {"model": "model"}
         self.dec = self.decay_item(self.config["decay"])
         (
@@ -87,15 +88,13 @@ class DecayConfig(BaseConfig):
                 self.decay_chain_config,
             )
         )
-        if self.config["data"].get("cp_trans", True):
+        if self.data_config.get("cp_trans", True):
             self.disable_allow_cc(self.full_decay)
         self.decay_struct = DecayGroup(
             self.get_decay_struct(self.dec, process_cut=False)
         )
-        identical_particles = self.config["data"].get(
-            "identical_particles", None
-        )
-        cp_particles = self.config["data"].get("cp_particles", None)
+        identical_particles = self.data_config.get("identical_particles", None)
+        cp_particles = self.data_config.get("cp_particles", None)
         if identical_particles is not None:
             self.decay_struct.identical_particles = identical_particles
             self.full_decay.identical_particles = identical_particles

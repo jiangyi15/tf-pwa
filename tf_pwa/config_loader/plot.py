@@ -540,13 +540,16 @@ def _cal_partial_wave(
                 tmp_idx = list(idx)
                 tmp_idx[-1] = "p"
                 p4 = batch_call_numpy(
-                    lambda x: data_index(x, tmp_idx), data, batch
+                    lambda x: data_index(x, tmp_idx, no_raise=True),
+                    data,
+                    batch,
                 )
-                p4 = np.transpose(p4)
-                data_dict[name + "_E"] = p4[0]
-                data_dict[name + "_PX"] = p4[1]
-                data_dict[name + "_PY"] = p4[2]
-                data_dict[name + "_PZ"] = p4[3]
+                if p4 is not None:
+                    p4 = np.transpose(p4)
+                    data_dict[name + "_E"] = p4[0]
+                    data_dict[name + "_PX"] = p4[1]
+                    data_dict[name + "_PY"] = p4[2]
+                    data_dict[name + "_PZ"] = p4[3]
             data_dict[name] = data_i  # data variable
 
             phsp_i = batch_call_numpy(

@@ -24,6 +24,7 @@ def test_particle():
     print(decaychain.sorted_table())
     print(decaygroup)
     print(a.get_resonances())
+    print(decaygroup.as_config())
 
 
 def test_ls():
