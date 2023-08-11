@@ -227,7 +227,10 @@ def test_fit(toy_config, fit_result):
         prefix="toy_data/figure", plot_pull=True, single_legend=True
     )
     toy_config.plot_partial_wave(
-        prefix="toy_data/figure", smooth=False, bin_scale=1
+        prefix="toy_data/figure/s_res",
+        smooth=False,
+        bin_scale=1,
+        res=["R_BC", ["R_BD", "R_CD"]],
     )
     toy_config.plot_partial_wave(prefix="toy_data/figure", color_first=False)
     toy_config.get_params_error(fit_result)

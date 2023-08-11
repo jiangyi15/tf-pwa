@@ -1579,6 +1579,8 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         return res_map
 
     def set_used_res(self, res, only=False):
+        if not isinstance(res, (list, tuple)):
+            res = [res]
         res_set = set()
         idx_chains = []
         for i in res:
@@ -1622,8 +1624,6 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                 self.chains_idx.append(i)
 
     def set_used_chains(self, used_chains):
-        if isinstance(used_chains, str):
-            used_chains = [used_chains]
         self.chains_idx = list(used_chains)
         if len(self.chains_idx) != len(self.chains):
             self.not_full = True
@@ -1635,7 +1635,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         o_used_chains = self.chains_idx
         weights = []
         for i in combine:
-            self.set_used_chains(i)
+            self.set_used_res(i)
             weight = self.sum_amp(data)
             weights.append(weight)
         self.set_used_chains(o_used_chains)

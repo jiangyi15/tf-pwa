@@ -45,6 +45,6 @@ plot:
   angle:
     R_BC/B:
       cos(beta):
-        display: "cos \\theta"
+        display: "cos $\\theta$"
       alpha:
-        display: "\\phi"
+        display: "$\\phi$"
