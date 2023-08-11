@@ -273,6 +273,9 @@ class ConfigLoader(BaseConfig):
         self.add_free_var_constraints(amp, constrains.get("free_var", []))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
+        self.add_gauss_constr_constraints(
+            amp, constrains.get("gauss_constr", {})
+        )
         for k, v in self.extra_constrains.items():
             v(amp, constrains.get(k, {}))
 
@@ -327,6 +330,10 @@ class ConfigLoader(BaseConfig):
         fix_decay = amp.decay_group.get_decay_chain(fix_total_idx)
         # fix which total factor
         fix_decay.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val, 0.0))
+
+    def add_gauss_constr_constraints(self, amp, dic=None):
+        dic = {} if dic is None else dic
+        self.gauss_constr_dic.update(dic)
 
     def free_for_extended(self, amp):
         constrains = self.config.get("constrains", {})
@@ -386,7 +393,7 @@ class ConfigLoader(BaseConfig):
                             full_name = variable_prefix + name
                             var0 = self.vm.get(full_name)
                             self.gauss_constr_dic[full_name] = (
-                                var0.value,
+                                float(var0),
                                 v,
                             )
                         else:

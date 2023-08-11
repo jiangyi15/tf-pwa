@@ -29,7 +29,16 @@ particle:
     C: { J: 1, P: -1, mass: 2.01028 }
     D: { J: 0, P: -1, mass: 0.13957 }
   R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, model: BWR2 }
-  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3, model: BW }
+  R_BD:
+    {
+      J: 1,
+      Par: 1,
+      m0: 2.43,
+      g0: 0.3,
+      model: BW,
+      float: mg,
+      gauss_constr: { "m": 0.01 },
+    }
   R_CD: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
 
 constrains:
@@ -39,6 +48,10 @@ constrains:
     - ["A->R_BC.DR_BC->B.C_total_0r", "A->R_BD.CR_BD->B.D_total_0r"]
   free_var:
     - "R_BC_mass"
+  fix_var:
+    "A->R_CD.BR_CD->C.D_total_0r": 0.33
+  gauss_constr:
+    R_BC_mass: [4.16, 0.02]
 
 plot:
   mass:
@@ -63,7 +76,7 @@ plot:
         costheta: [angle, R_BC, cos(beta)]
       xbins: 50
       ybins: 50
-      plot_figs: ["data", "sideband_hist", "fitted"]
+      plot_figs: ["data", "data_hist", "sideband_hist", "fitted"]
     angle2:
       x: a
       y: costheta
