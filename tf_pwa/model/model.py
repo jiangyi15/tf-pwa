@@ -12,6 +12,7 @@ from ..config import get_config
 from ..data import (
     EvalLazy,
     data_merge,
+    data_replace,
     data_shape,
     data_split,
     split_generator,
@@ -302,14 +303,17 @@ class BaseModel(object):
         self.vm = signal.vm
         self.resolution_size = resolution_size
 
+    def sum_resolution(self, w):
+        w = tf.reshape(w, (-1, self.resolution_size))
+        return tf.reduce_sum(w, axis=-1)
+
     def nll(self, data, mcdata):
         """Negative log-Likelihood"""
         weight = data.get("weight", tf.ones((data_shape(data),)))
         sw = tf.reduce_sum(weight)
         rw = tf.reshape(weight, (-1, self.resolution_size))
         amp_s2 = self.signal(data) * weight
-        amp_s2 = tf.reshape(amp_s2, (-1, self.resolution_size))
-        amp_s2 = tf.reduce_sum(amp_s2, axis=-1)
+        amp_s2 = self.sum_resolution(amp_s2)
         weight = tf.reduce_sum(rw, axis=-1)
         dom_weight = tf.where(weight == 0, 1.0, weight)
         ln_data = clip_log(amp_s2 / dom_weight)
@@ -560,6 +564,10 @@ class Model(object):
         self.vm = amp.vm
         self.resolution_size = self.model.resolution_size
 
+    def sum_resolution(self, w):
+        w = tf.reshape(w, (-1, self.resolution_size))
+        return tf.reduce_sum(w, axis=-1)
+
     def get_weight_data(self, data, weight=None, bg=None, alpha=True):
         """
         Blend data and background data together multiplied by their weights.
@@ -733,8 +741,8 @@ class Model(object):
             mc_weight = tf.convert_to_tensor(
                 [mc_weight] * data_shape(mcdata), dtype="float64"
             )
-        data_i = {**data, "weight": weight}
-        mcdata_i = {**mcdata, "weight": mc_weight}
+        data_i = data_replace(data, "weight", weight)
+        mcdata_i = data_replace(mcdata, "weight", mc_weight)
         return self.model.nll_grad_hessian(data_i, mcdata_i, batch=batch)
 
     def set_params(self, var):
@@ -1060,6 +1068,17 @@ class ConstrainModel(Model):
         return nll, g
 
 
+def _convert_batch(data, batch, cached_file=None, name=""):
+    from tf_pwa.data import LazyCall
+
+    if isinstance(data, LazyCall):
+        if cached_file is not None:
+            return data.as_dataset(batch, cached_file + name)
+        else:
+            return data.as_dataset(batch)
+    return list(split_generator(data, batch))
+
+
 class FCN(object):
     """
     This class implements methods to calculate the NLL as well as its derivatives for a general function.
@@ -1088,17 +1107,17 @@ class FCN(object):
         self.cached_nll = None
         if inmc is None:
             data, weight = self.model.get_weight_data(data, bg=bg)
-            print("Using Model_old")
+            print("Using Model")
         else:
             data, weight = self.model.get_weight_data(data, bg=bg, inmc=inmc)
-            print("Using Model_new")
+            print("Using Model with inmc")
         n_mcdata = data_shape(mcdata)
         self.alpha = tf.reduce_sum(weight) / tf.reduce_sum(weight * weight)
         self.weight = weight
         self.data = data
-        self.batch_data = list(split_generator(data, batch))
+        self.batch_data = self._convert_batch(data, batch)
         self.mcdata = mcdata
-        self.batch_mcdata = list(split_generator(mcdata, batch))
+        self.batch_mcdata = self._convert_batch(mcdata, batch)
         self.batch = batch
         if mcdata.get("weight", None) is not None:
             mc_weight = tf.convert_to_tensor(mcdata["weight"], dtype="float64")
@@ -1107,9 +1126,12 @@ class FCN(object):
             self.mc_weight = tf.convert_to_tensor(
                 [1 / n_mcdata] * n_mcdata, dtype="float64"
             )
-        self.batch_mc_weight = list(data_split(self.mc_weight, self.batch))
+        self.batch_mc_weight = self._convert_batch(self.mc_weight, self.batch)
         self.gauss_constr = GaussianConstr(self.vm, gauss_constr)
         self.cached_mc = {}
+
+    def _convert_batch(self, data, batch):
+        return _convert_batch(data, batch)
 
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)

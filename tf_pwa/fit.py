@@ -194,6 +194,7 @@ def fit_scipy(
     improve=False,
     maxiter=None,
     jac=True,
+    callback=None,
 ):
     """
 
@@ -243,6 +244,10 @@ def fit_scipy(
         for i, name in enumerate(args_name):
             print(args_name[i], gs[i], gs0[i])
 
+    callback_inner = lambda x, y: None
+    if callback is not None:
+        callback_inner = callback
+
     if method in ["BFGS", "CG", "Nelder-Mead", "test"]:
 
         def callback(x):
@@ -255,6 +260,7 @@ def fit_scipy(
             #    with open("fit_curve.json", "w") as f:
             #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
             #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
+            callback_inner(x, fcn)
             print(fcn.cached_nll)
 
         # bd = Bounds(bnds)

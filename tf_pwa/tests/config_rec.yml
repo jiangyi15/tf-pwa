@@ -1,16 +1,16 @@
 data:
   model: cfit
   bg_frac: 0.0909091
+  resolution_size: 1
   data_bg_value: "toy_data/data_bg_value.dat"
   phsp_bg_value: "toy_data/phsp_bg_value.dat"
-  data_eff_value: "toy_data/data_eff_value.dat"
-  phsp_eff_value: "toy_data/phsp_eff_value.dat"
+  data_rec_bg_value: "toy_data/data_bg_value.dat"
+  phsp_rec_bg_value: "toy_data/phsp_bg_value.dat"
   dat_order: [B, C, D]
-  center_mass: True
-  random_z: False
-  r_boost: False
   data: ["toy_data/data.dat"]
+  data_rec: ["toy_data/data.dat"]
   phsp: ["toy_data/PHSP.dat"]
+  phsp_rec: ["toy_data/PHSP.dat"]
 
 decay:
   A:

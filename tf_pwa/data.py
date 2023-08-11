@@ -69,6 +69,14 @@ except ImportError:  # python version < 3.7
     from collections import Iterable
 
 
+class HeavyCall:
+    def __init__(self, f):
+        self.f = f
+
+    def __call__(self, *args, **kwargs):
+        return self.f(*args, **kwargs)
+
+
 class LazyCall:
     def __init__(self, f, x, *args, **kwargs):
         self.f = f
@@ -76,28 +84,96 @@ class LazyCall:
         self.args = args
         self.kwargs = kwargs
         self.extra = {}
+        self.batch_size = None
+        self.cached_batch = {}
+        self.cached_file = None
+        self.name = ""
 
-    def batch(self, batch, axis):
-        for i, j in zip(
-            data_split(self.x, batch, axis=axis),
-            data_split(self.extra, batch, axis=axis),
-        ):
-            ret = LazyCall(self.f, i, *self.args, **self.kwargs)
-            for k, v in j.items():
-                ret[k] = v
-            yield ret
+    def batch(self, batch, axis=0):
+        return self.as_dataset(batch)
+
+    def __iter__(self):
+        assert self.batch_size is not None, ""
+        if isinstance(self.f, HeavyCall):
+            for i, j in zip(
+                self.cached_batch[self.batch_size],
+                split_generator(self.extra, self.batch_size),
+            ):
+                yield {**i, **j}
+        elif isinstance(self.x, LazyCall):
+            for i, j in zip(
+                self.x, split_generator(self.extra, self.batch_size)
+            ):
+                yield {**i, **j}
+        else:
+            for i, j in zip(
+                split_generator(self.x, self.batch_size),
+                split_generator(self.extra, self.batch_size),
+            ):
+                yield {**i, **j}
+
+    def as_dataset(self, batch=65000):
+        self.batch_size = batch
+        if isinstance(self.x, LazyCall):
+            self.x.as_dataset(batch)
+
+        if not isinstance(self.f, HeavyCall):
+            return self
+
+        if batch in self.cached_batch:
+            return self
+
+        def f(x):
+            ret = self.f(x, *self.args, **self.kwargs)
+            return ret
+
+        if isinstance(self.x, LazyCall):
+            real_x = self.x.eval()
+        else:
+            real_x = self.x
+
+        data = tf.data.Dataset.from_tensor_slices(real_x)
+        # data = data.batch(batch).cache().map(f)
+        if self.cached_file is not None:
+            from tf_pwa.utils import create_dir
+
+            cached_file = self.cached_file + self.name
+
+            cached_file += "_" + str(batch)
+            create_dir(cached_file)
+            data = data.batch(batch).map(f)
+            if self.cached_file == "":
+                data = data.cache()
+            else:
+                data = data.cache(cached_file)
+        else:
+            data = data.batch(batch).cache().map(f)
+        data = data.prefetch(tf.data.AUTOTUNE)
+
+        self.cached_batch[batch] = data
+        return self
+
+    def set_cached_file(self, cached_file, name):
+        if isinstance(self.x, LazyCall):
+            self.x.set_cached_file(cached_file, name)
+        self.cached_file = cached_file
+        self.name = name
 
     def merge(self, *other, axis=0):
         all_x = [self.x]
         all_extra = [self.extra]
         for i in other:
             all_x.append(i.x)
-            all_extra = [i.extra]
+            all_extra.append(i.extra)
         new_extra = data_merge(*all_extra, axis=axis)
         ret = LazyCall(
             self.f, data_merge(*all_x, axis=axis), *self.args, **self.kwargs
         )
         ret.extra = new_extra
+        ret.cached_file = self.cached_file
+        ret.name = self.name
+        for i in other:
+            ret.name += "_" + i.name
         return ret
 
     def __setitem__(self, index, value):
@@ -119,8 +195,10 @@ class LazyCall:
         return tf.ones(data_shape(self), dtype=get_config("dtype"))
 
     def copy(self):
-        ret = LazyCall(lambda x: x, self)
+        ret = LazyCall(self.f, self.x, *self.args, **self.kwargs)
         ret.extra = self.extra.copy()
+        ret.cached_file = self.cached_file
+        ret.name = self.name
         return ret
 
     def eval(self):
@@ -133,6 +211,12 @@ class LazyCall:
                 v = v.eval()
             ret[k] = v
         return ret
+
+    def __len__(self):
+        x = self.x
+        if isinstance(self.x, LazyCall):
+            x = x.eval()
+        return data_shape(x)
 
 
 class EvalLazy:
@@ -483,8 +567,17 @@ def flatten_dict_data(data, fun="{}/{}".format):
 
 def batch_call(function, data, batch=10000):
     ret = []
-    for i in data_split(data, batch):
-        ret.append(function(i))
+    if isinstance(data, LazyCall):
+        batches = data.as_dataset(batch)
+    else:
+        batches = data_split(data, batch)
+    for i in batches:
+        tmp = function(i)
+        if tmp is None:
+            return None
+        if isinstance(tmp, (int, float)):
+            tmp = tmp * np.ones((data_shape(i),))
+        ret.append(tmp)
     return data_merge(*ret)
 
 
@@ -498,7 +591,11 @@ def batch_sum(function, data, batch=10000):
     return tmp
 
 
-def data_index(data, key):
+def batch_call_numpy(function, data, batch=10000):
+    return data_to_numpy(batch_call(function, data, batch))
+
+
+def data_index(data, key, no_raise=False):
     """Indexing data for key or a list of keys."""
     if isinstance(data, LazyCall):
         data = data.eval()
@@ -512,12 +609,14 @@ def data_index(data, key):
         for k, v in data.items():
             if str(k) == str(i):
                 return v
+        if no_raise:
+            return None
         raise ValueError("{} is not found".format(i))
 
     if isinstance(key, (list, tuple)):
         keys = list(key)
         if len(keys) > 1:
-            return data_index(idx(data, keys[0]), keys[1:])
+            return data_index(idx(data, keys[0]), keys[1:], no_raise=no_raise)
         return idx(data, keys[0])
     return idx(data, key)
 
@@ -560,14 +659,18 @@ def check_nan(data, no_raise=False):
         if isinstance(dat, tuple):
             return tuple(
                 [
-                    data_struct(data_i, head + [i])
+                    _check_nan(data_i, head + [i])
                     for i, data_i in enumerate(dat)
                 ]
             )
         if np.any(tf.math.is_nan(dat)):
             if no_raise:
                 return False
-            raise ValueError("nan in data[{}]".format(head))
+            raise ValueError(
+                "nan in data[{}], idx:{}".format(
+                    head, tf.where(tf.math.is_nan(dat))
+                )
+            )
         return True
 
     return _check_nan(data, head_keys)

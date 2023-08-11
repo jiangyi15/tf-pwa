@@ -24,7 +24,7 @@ You can go to
 for more informations. Get the packages using
 
 ```
-git clone https://github.com/jiangyi15/tf-pwa
+git clone https://github.com/jiangyi15/tf-pwa.git
 ```
 
 The dependencies can be installed by `conda` or `pip`.

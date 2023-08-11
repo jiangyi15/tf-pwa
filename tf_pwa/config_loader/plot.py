@@ -10,6 +10,7 @@ from tf_pwa.adaptive_bins import AdaptiveBound
 from tf_pwa.adaptive_bins import cal_chi2 as cal_chi2_o
 from tf_pwa.data import (
     batch_call,
+    batch_call_numpy,
     data_index,
     data_merge,
     data_replace,
@@ -100,7 +101,7 @@ class LineStyleSet:
             yaml.dump(self.linestyle_table, f)
 
 
-def _get_cfit_bg(self, data, phsp):
+def _get_cfit_bg(self, data, phsp, batch=65000):
     model = self._get_model()
     bg_function = [i.bg for i in model]
     w_bkg = [i.w_bkg for i in model]
@@ -108,25 +109,21 @@ def _get_cfit_bg(self, data, phsp):
     for data_i, phsp_i, w, bg_f in zip(data, phsp, w_bkg, bg_function):
         ndata = np.sum(data_i.get_weight())
         nbg = ndata * w
-        w_bg = bg_f(phsp_i) * phsp_i.get_weight()
+        w_bg = batch_call_numpy(bg_f, phsp_i, batch) * phsp_i.get_weight()
         phsp_weight.append(-w_bg / np.sum(w_bg) * nbg)
     ret = [
         data_replace(phsp_i, "weight", w)
         for phsp_i, w in zip(phsp, phsp_weight)
     ]
     return ret
-    # return [
-    # type(phsp_i)({**phsp_i, "weight": w})
-    # for phsp_i, w in zip(phsp, phsp_weight)
-    # ]
 
 
-def _get_cfit_eff_phsp(self, phsp):
+def _get_cfit_eff_phsp(self, phsp, batch=65000):
     model = self._get_model()
     eff_function = [i.eff for i in model]
     phsp_weight = []
     for phsp_i, eff_f in zip(phsp, eff_function):
-        w_eff = eff_f(phsp_i) * phsp_i.get_weight()
+        w_eff = batch_call_numpy(eff_f, phsp_i, batch) * phsp_i.get_weight()
         phsp_weight.append(w_eff)
 
     ret = [
@@ -227,6 +224,8 @@ def plot_partial_wave(
     res=None,
     save_root=False,
     chains_id_method=None,
+    phsp_rec=None,
+    cut_function=lambda x: 1,
     **kwargs
 ):
     """
@@ -265,16 +264,20 @@ def plot_partial_wave(
     os.makedirs(path, exist_ok=True)
 
     if data is None:
-        data = self.get_data("data")
-        bg = self.get_data("bg")
+        data = self.get_data_rec("data")
+        bg = self.get_data_rec("bg")
         phsp = self.get_phsp_plot()
+        phsp_rec = self.get_phsp_plot("_rec")
+    phsp_rec = phsp if phsp_rec is None else phsp_rec
+    batch = kwargs.get("batch", 65000)
     if bg is None:
         if self.config["data"].get("model", "auto") == "cfit":
-            bg = _get_cfit_bg(self, data, phsp)
+            bg = _get_cfit_bg(self, data, phsp, batch)
         else:
             bg = [bg] * len(data)
     if self.config["data"].get("model", "auto") == "cfit":
-        phsp = _get_cfit_eff_phsp(self, phsp)
+        phsp = _get_cfit_eff_phsp(self, phsp, batch)
+        phsp_rec = _get_cfit_eff_phsp(self, phsp_rec, batch)
     amp = self.get_amplitude()
     self._Ngroup = len(data)
     ws_bkg = [
@@ -320,6 +323,8 @@ def plot_partial_wave(
             chain_property,
             save_root=save_root,
             res=res,
+            phsp_rec=phsp_rec[0],
+            cut_function=cut_function,
             **kwargs,
         )
         self._plot_partial_wave(
@@ -349,6 +354,8 @@ def plot_partial_wave(
                     plot_var_dic,
                     chain_property,
                     save_root=save_root,
+                    phsp_rec=phsp_rec[i],
+                    cut_function=cut_function,
                     **kwargs,
                 )
                 self._plot_partial_wave(
@@ -378,6 +385,8 @@ def plot_partial_wave(
                     chain_property,
                     save_root=save_root,
                     res=res,
+                    phsp_rec=phsp_rec[i],
+                    cut_function=cut_function,
                     **kwargs,
                 )
                 # self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
@@ -447,20 +456,32 @@ def _cal_partial_wave(
     res=None,
     batch=65000,
     ref_amp=None,
+    phsp_rec=None,
+    cut_function=lambda x: 1,
     **kwargs
 ):
     data_dict = {}
     phsp_dict = {}
     bg_dict = {}
+    phsp_rec = phsp if phsp_rec is None else phsp_rec
+
+    resolution_size_phsp = data_shape(phsp) // data_shape(phsp_rec)
+    sr = lambda w: np.sum(
+        np.reshape(data_to_numpy(w), (-1, resolution_size_phsp)), axis=-1
+    )
     with amp.temp_params(params):
-        weights_i = [amp(i) for i in data_split(phsp, batch)]
-        weight_phsp = data_merge(*weights_i)
+        weight_phsp = batch_call_numpy(
+            amp, phsp, batch
+        )  # (i) for i in data_split(phsp, batch)]
+        # weight_phsp = data_merge(*weights_i)
         phsp_origin_w = phsp.get("weight", 1.0) * phsp.get("eff_value", 1.0)
-        total_weight = weight_phsp * phsp_origin_w
+        total_weight = sr(weight_phsp * phsp_origin_w)
         if ref_amp is not None:
-            weights_i_ref = [ref_amp(i) for i in data_split(phsp, batch)]
-            weight_phsp_ref = data_merge(*weights_i_ref)
-            total_weight_ref = weight_phsp_ref * phsp_origin_w
+            # weights_i_ref = [ref_amp(i) for i in data_split(phsp, batch)]
+            weight_phsp_ref = batch_call_numpy(
+                ref_amp, phsp, batch
+            )  # data_merge(*weights_i_ref)
+            total_weight_ref = sr(weight_phsp_ref * phsp_origin_w)
         data_weight = data.get("weight", None)
         if data_weight is None:
             n_data = data_shape(data)
@@ -471,38 +492,32 @@ def _cal_partial_wave(
             if ref_amp is not None:
                 norm_frac_ref = n_data / np.sum(total_weight_ref)
         else:
-            if isinstance(w_bkg, float):
-                n_sig = n_data - w_bkg * data_shape(bg)
-            else:
-                n_sig = n_data + np.sum(w_bkg)
+            n_sig = n_data + np.sum(w_bkg)
             norm_frac = n_sig / np.sum(total_weight)
             if ref_amp is not None:
                 norm_frac_ref = n_sig / np.sum(total_weight_ref)
-        if res is None:
-            weights = amp.partial_weight(phsp)
-        else:
-            weights = []
-            used_res = amp.used_res
-            for i in res:
-                if not isinstance(i, list):
-                    i = [i]
-                amp.set_used_res(i)
-                weights.append(amp(phsp))
-            # print(weights, amp.decay_group.chains_idx)
-            amp.set_used_res(used_res)
-
-        data_weights = data.get("weight", np.ones((data_shape(data),)))
-        data_dict["data_weights"] = data_weights
+        weights = batch_call_numpy(
+            lambda x: amp.partial_weight(x, combine=res), phsp, batch
+        )
+        data_weights = (
+            data_weight  # data.get("weight", np.ones((data_shape(data),)))
+        )
+        data_dict["data_weights"] = (
+            batch_call_numpy(cut_function, data, batch) * data_weights
+        )
         phsp_weights = total_weight * norm_frac
-        phsp_dict["MC_total_fit"] = phsp_weights  # MC total weight
+        cut_phsp = batch_call_numpy(cut_function, phsp_rec, batch)
+        phsp_dict["MC_total_fit"] = cut_phsp * phsp_weights  # MC total weight
+
         if ref_amp is not None:
-            phsp_dict["MC_total_fit_ref"] = total_weight_ref * norm_frac_ref
+            phsp_dict["MC_total_fit_ref"] = (
+                cut_phsp * total_weight_ref * norm_frac_ref
+            )
         if bg is not None:
-            if isinstance(w_bkg, float):
-                bg_weight = [w_bkg] * data_shape(bg)
-            else:
-                bg_weight = -w_bkg
-            bg_dict["sideband_weights"] = bg_weight  # sideband weight
+            bg_weight = -w_bkg
+            bg_dict["sideband_weights"] = (
+                batch_call_numpy(cut_function, bg, batch) * bg_weight
+            )  # sideband weight
         for i, name_i, label, _ in chain_property:
             weight_i = (
                 weights[i]
@@ -511,30 +526,41 @@ def _cal_partial_wave(
                 * phsp.get("weight", 1.0)
                 * phsp.get("eff_value", 1.0)
             )
-            phsp_dict[
-                "MC_{0}_{1}_fit".format(i, name_i)
-            ] = weight_i  # MC partial weight
+            phsp_dict["MC_{0}_{1}_fit".format(i, name_i)] = cut_phsp * sr(
+                weight_i
+            )  # MC partial weight
         for name in plot_var_dic:
             idx = plot_var_dic[name]["idx"]
             trans = lambda x: np.reshape(plot_var_dic[name]["trans"](x), (-1,))
 
-            data_i = trans(data_index(data, idx))
+            data_i = batch_call_numpy(
+                lambda x: trans(data_index(x, idx)), data, batch
+            )
             if idx[-1] == "m":
                 tmp_idx = list(idx)
                 tmp_idx[-1] = "p"
-                p4 = data_index(data, tmp_idx)
-                p4 = np.transpose(p4)
-                data_dict[name + "_E"] = p4[0]
-                data_dict[name + "_PX"] = p4[1]
-                data_dict[name + "_PY"] = p4[2]
-                data_dict[name + "_PZ"] = p4[3]
+                p4 = batch_call_numpy(
+                    lambda x: data_index(x, tmp_idx, no_raise=True),
+                    data,
+                    batch,
+                )
+                if p4 is not None:
+                    p4 = np.transpose(p4)
+                    data_dict[name + "_E"] = p4[0]
+                    data_dict[name + "_PX"] = p4[1]
+                    data_dict[name + "_PY"] = p4[2]
+                    data_dict[name + "_PZ"] = p4[3]
             data_dict[name] = data_i  # data variable
 
-            phsp_i = trans(data_index(phsp, idx))
+            phsp_i = batch_call_numpy(
+                lambda x: trans(data_index(x, idx)), phsp_rec, batch
+            )
             phsp_dict[name + "_MC"] = phsp_i  # MC
 
             if bg is not None:
-                bg_i = trans(data_index(bg, idx))
+                bg_i = batch_call_numpy(
+                    lambda x: trans(data_index(x, idx)), bg, batch
+                )
                 bg_dict[name + "_sideband"] = bg_i  # sideband
     data_dict = data_to_numpy(data_dict)
     phsp_dict = data_to_numpy(phsp_dict)
@@ -715,7 +741,7 @@ def _plot_partial_wave(
             ax.set_title(display, fontsize="xx-large")
         else:
             ax.set_title(
-                "{}: -lnL= {:.5}".format(display, nll), fontsize="xx-large"
+                "{}: -lnL= {:.2f}".format(display, nll), fontsize="xx-large"
             )
         ax.set_xlabel(display + units)
         ywidth = np.mean(
@@ -863,6 +889,23 @@ def _2d_plot(
             plt.xlim(range1)
             plt.ylim(range2)
             plt.savefig(prefix + k + "_data")
+            plt.clf()
+            print("Finish plotting 2D data " + prefix + k)  # data
+        if "data_hist" in plot_figs:
+            plt.hist2d(
+                data_1,
+                data_2,
+                bins=100,
+                weights=data_dict["data_weights"],
+                cmin=1e-12,
+            )
+            plt.xlabel(name1)
+            plt.ylabel(name2)
+            plt.title(display, fontsize="xx-large")
+            plt.legend()
+            plt.xlim(range1)
+            plt.ylim(range2)
+            plt.savefig(prefix + k + "_data_hist")
             plt.clf()
             print("Finish plotting 2D data " + prefix + k)
         # sideband

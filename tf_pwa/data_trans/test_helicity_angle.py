@@ -121,6 +121,12 @@ def test_helicity_var(toy_config):
         toy_new.get_angle("(C, D)", "C")["alpha"],
     )
 
+    p_rec = ha.cal_angle(p_new)
+    p_rec = ha.find_variable(p_rec)
+    p_rec = ha.build_data(*p_rec)
+    for k in p_new:
+        np.allclose(p_rec[k], p_new[k])
+
 
 if __name__ == "__main__":
     test_gen_p()

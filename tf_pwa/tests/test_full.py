@@ -71,6 +71,13 @@ def toy_config(gen_toy):
     return config
 
 
+@pytest.fixture
+def toy_config_lazy(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_lazycall.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
 def test_build_angle_amplitude(toy_config):
     data = toy_config.get_data("data")
     dec = toy_config.get_amplitude().decay_group
@@ -138,6 +145,15 @@ def test_cfit(gen_toy):
     plotter.plot_var(amp)
 
 
+def test_precached(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_precached.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    fcn = config.get_fcn()
+    fcn({})
+    fcn.nll_grad({})
+    config.plot_partial_wave(prefix="toy_data/figure/s5")
+
+
 def test_cfit_cached(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_cfit_cached.yml")
     config.set_params(f"{this_dir}/gen_params.json")
@@ -178,6 +194,16 @@ def test_fit_lazy_call(gen_toy):
     config.plot_partial_wave(prefix="toy_data/figure/s2")
     config.get_plotter().save_all_frame(prefix="toy_data/figure/s3")
     config.cal_fitfractions()
+
+
+def test_cfit_resolution(gen_toy):
+    with open(f"{this_dir}/config_rec.yml") as f:
+        config_dic = yaml.full_load(f)
+    config = ConfigLoader(config_dic)
+    config.set_params(f"{this_dir}/exp_params.json")
+    fcn = config.get_fcn()
+    fcn.nll_grad()
+    config.plot_partial_wave(prefix="toy_data/figure/c3")
 
 
 def test_constrains(gen_toy):
@@ -255,6 +281,13 @@ def test_bacth_sum(toy_config, fit_result):
     frac_err = pt.get_error(frac)
     assert np.allclose(frac, [fit_frac[str(i)] for i in res])
     assert np.allclose(frac_err, [fit_frac_err[str(i)] for i in res])
+
+
+def test_lazycall(toy_config_lazy):
+    toy_config_lazy.fit(batch=100000)
+    toy_config_lazy.plot_partial_wave(
+        prefix="toy_data/figure_lazy", batch=100000
+    )
 
 
 def test_cal_chi2(toy_config, fit_result):

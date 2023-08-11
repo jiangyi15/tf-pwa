@@ -3,18 +3,20 @@ data:
   data: ["toy_data/data.dat"]
   bg: ["toy_data/bg.dat"]
   phsp: ["toy_data/PHSP.dat"]
-  bg_weight: 0.1
   random_z: False
   r_boost: False
-  align_ref: "center_mass"
+  bg_weight: 0.1
+  lazy_call: True
   use_tf_function: True
-  cached_int: True
-  cached_data: "toy_data/data.npy"
+  no_id_cached: True
+  jit_compile: True
+  only_left_angle: True
+  cached_lazy_call: toy_data/cached/
 
 decay:
   A:
-    - [R_BC, D, ls_list: [[0, 1], [2, 1]]]
-    - [R_BD, C, l_list: [0, 2]]
+    - [R_BC, D]
+    - [R_BD, C]
     - [R_CD, B]
   R_BC: [B, C]
   R_BD: [B, D]
@@ -27,8 +29,8 @@ particle:
     B: { J: 1, P: -1, mass: 2.00698 }
     C: { J: 1, P: -1, mass: 2.01028 }
     D: { J: 0, P: -1, mass: 0.13957 }
-  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, model: BWR2 }
-  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3, model: BW }
+  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, params: { mass_range: [4.0, 4.2] } }
+  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3 }
   R_CD: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
 
 constrains:
@@ -36,9 +38,13 @@ constrains:
   decay: null
 
 plot:
-  config:
-    yscale: log
   mass:
     R_BC: { display: "$M_{BC}$" }
     R_BD: { display: "$M_{BD}$" }
     R_CD: { display: "$M_{CD}$" }
+  angle:
+    R_BC/B:
+      cos(beta):
+        display: "cos \\theta"
+      alpha:
+        display: "\\phi"
