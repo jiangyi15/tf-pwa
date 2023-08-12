@@ -404,7 +404,7 @@ def fit_scipy(
             gs.append((nll0 - nll1) / 2e-5)
             print(args_name[i], gs[i], gs0[i])
     if standard_complex:
-        fcn.vm.std_polar_all()
+        fcn.vm.standard_complex()
     params = fcn.get_params()  # vm.get_all_dic()
     return FitResult(
         params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv

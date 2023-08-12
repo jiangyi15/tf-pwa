@@ -703,6 +703,25 @@ class VarsManager(object):
         for name in self.complex_vars:
             self.std_polar(name)
 
+    def standard_complex(self):
+        for k, v in self.complex_vars.items():
+            ## TODO complex with constrains
+            if isinstance(v, list):
+                continue
+            if not v:
+                continue
+            has_constrains = False
+            for i in self.same_list:
+                if k + "r" in i or k + "i" in i:
+                    has_constrains = True
+            if k + "r" in self.bnd_dic:
+                has_constrains = True
+            if k + "i" in self.bnd_dic:
+                has_constrains = True
+            if has_constrains:
+                continue
+            self.std_polar(k)
+
     def trans_params(self, polar):
         """
         Transform all complex variables into either polar coordinate or Cartesian coordinate.
