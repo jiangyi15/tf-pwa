@@ -918,6 +918,11 @@ class ConfigLoader(BaseConfig):
         amplitude.set_params(ret)
         return True
 
+    @contextlib.contextmanager
+    def mask_params(self, var):
+        with self.vm.mask_params(var):
+            yield
+
     def save_params(self, file_name):
         params = self.get_params()
         val = {k: float(v) for k, v in params.items()}

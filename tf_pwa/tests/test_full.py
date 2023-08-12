@@ -261,6 +261,26 @@ def test_fit(toy_config, fit_result):
         y = a - b
     xy_err2 = pt.get_error({"a": [x, y]})
 
+    # mask params for fit fraction
+    amp = toy_config.get_amplitude()
+    phsp = toy_config.get_phsp_noeff()
+    int_mc = amp.vm.batch_sum_var(amp, phsp)
+    ys = []
+    for i in toy_config.get_decay():
+        mask_params = {}
+        for j in toy_config.get_decay():
+            if i != j:
+                mask_params[str(j.total) + "_0r"] = 0
+        with toy_config.mask_params(mask_params):
+            ys.append(amp.vm.batch_sum_var(amp, phsp))
+        with amp.mask_params(mask_params):
+            pass
+
+    with toy_config.params_trans() as pt:
+        y = [i() for i in ys]
+        frac = [i / int_mc() for i in y]
+    pt.get_error(frac)
+
 
 def test_bacth_sum(toy_config, fit_result):
     toy_config.get_params_error(fit_result)

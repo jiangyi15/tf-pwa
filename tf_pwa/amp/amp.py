@@ -80,6 +80,11 @@ class AbsPDF:
         yield var
         self.set_params(params)
 
+    @contextlib.contextmanager
+    def mask_params(self, var):
+        with self.vm.mask_params(var):
+            yield
+
     @property
     def variables(self):
         return self.vm.variables
