@@ -195,6 +195,7 @@ def fit_scipy(
     maxiter=None,
     jac=True,
     callback=None,
+    standard_complex=True,
 ):
     """
 
@@ -221,7 +222,7 @@ def fit_scipy(
     if maxiter is None:
         maxiter = max(100 * len(x0), 2000)
     min_nll = 0.0
-    ndf = 0
+    ndf = fcn.vm.get_all_val(True)
     # maxiter = 0
     def v_g2(x0):
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
@@ -402,6 +403,8 @@ def fit_scipy(
             xn[i] += 1e-5
             gs.append((nll0 - nll1) / 2e-5)
             print(args_name[i], gs[i], gs0[i])
+    if standard_complex:
+        fcn.vm.standard_complex()
     params = fcn.get_params()  # vm.get_all_dic()
     return FitResult(
         params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv

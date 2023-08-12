@@ -879,15 +879,18 @@ def _2d_plot(
         data_2 = data_dict[var2]
         phsp_2 = phsp_dict[var2 + "_MC"]
 
-        # data
-        if "data" in plot_figs:
-            plt.scatter(data_1, data_2, s=1, alpha=0.8, label="data")
+        def plot_axis():
             plt.xlabel(name1)
             plt.ylabel(name2)
             plt.title(display, fontsize="xx-large")
-            plt.legend()
             plt.xlim(range1)
             plt.ylim(range2)
+
+        # data
+        if "data" in plot_figs:
+            plt.scatter(data_1, data_2, s=1, alpha=0.8, label="data")
+            plot_axis()
+            plt.legend()
             plt.savefig(prefix + k + "_data")
             plt.clf()
             print("Finish plotting 2D data " + prefix + k)  # data
@@ -899,12 +902,8 @@ def _2d_plot(
                 weights=data_dict["data_weights"],
                 cmin=1e-12,
             )
-            plt.xlabel(name1)
-            plt.ylabel(name2)
-            plt.title(display, fontsize="xx-large")
-            plt.legend()
-            plt.xlim(range1)
-            plt.ylim(range2)
+            plot_axis()
+            plt.colorbar()
             plt.savefig(prefix + k + "_data_hist")
             plt.clf()
             print("Finish plotting 2D data " + prefix + k)
@@ -916,12 +915,8 @@ def _2d_plot(
                 plt.scatter(
                     bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband"
                 )
-                plt.xlabel(name1)
-                plt.ylabel(name2)
-                plt.title(display, fontsize="xx-large")
+                plot_axis()
                 plt.legend()
-                plt.xlim(range1)
-                plt.ylim(range2)
                 plt.savefig(prefix + k + "_bkg")
                 plt.clf()
                 print("Finish plotting 2D sideband " + prefix + k)
@@ -933,12 +928,8 @@ def _2d_plot(
             plt.hist2d(
                 phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12
             )
-            plt.xlabel(name1)
-            plt.ylabel(name2)
-            plt.title(display, fontsize="xx-large")
+            plot_axis()
             plt.colorbar()
-            plt.xlim(range1)
-            plt.ylim(range2)
             plt.savefig(prefix + k + "_fitted")
             plt.clf()
             print("Finish plotting 2D fitted " + prefix + k)
@@ -1050,6 +1041,20 @@ def _2d_plot_v2(
             plt.savefig(prefix + k + "_data")
             plt.clf()
             print("Finish plotting 2D data " + prefix + k)
+        if "data_hist" in plot_figs:
+            plt.hist2d(
+                data_1,
+                data_2,
+                bins=[x_bins, y_bins],
+                weights=data_dict["data_weights"],
+                range=[x_range, y_range],
+                cmin=1e-12,
+            )
+            plot_axis()
+            plt.colorbar()
+            plt.savefig(prefix + k + "_data_hist")
+            plt.clf()
+            print("Finish plotting 2D data_hist " + prefix + k)
         # sideband
         if "sideband" in plot_figs:
             if bg_dict:
