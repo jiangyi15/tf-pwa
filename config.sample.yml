@@ -79,6 +79,7 @@ particle:
     A:
       J: 1 # spin, use 1/2 or 0.5 for half spin
       P: -1 # parity, alias: `Par`
+      mass: 4.6
       # spins: [-1, 1] # list of possible of spin-projected quantum numbers
       # polarization: "vector"  # possible polarization option
   ## final particles
@@ -86,12 +87,15 @@ particle:
     B:
       J: 1
       P: -1
+      mass: 2.1
     C:
       J: 1
       P: -1
+      mass: 1.8
     D:
       J: 0
       P: -1
+      mass: 0.1
   ## map for possible resonances in the same position
   ## each entry is a list of resonances id [option]
   ## include detailed parameters defined in `Resonances.yml`

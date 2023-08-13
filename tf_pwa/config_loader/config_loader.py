@@ -918,6 +918,11 @@ class ConfigLoader(BaseConfig):
         amplitude.set_params(ret)
         return True
 
+    @contextlib.contextmanager
+    def mask_params(self, var):
+        with self.vm.mask_params(var):
+            yield
+
     def save_params(self, file_name):
         params = self.get_params()
         val = {k: float(v) for k, v in params.items()}
@@ -928,6 +933,14 @@ class ConfigLoader(BaseConfig):
     def params_trans(self):
         with self.vm.error_trans(self.inv_he) as f:
             yield f
+
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        with self.vm.mask_params(params):
+            yield
+
+    def batch_sum_var(self, *args, **kwargs):
+        return self.vm.batch_sum_var(*args, **kwargs)
 
     def save_tensorflow_model(self, dir_name):
         class CustomModule(tf.Module):

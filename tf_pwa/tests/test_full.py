@@ -253,6 +253,57 @@ def test_fit(toy_config, fit_result):
         x = a + b
         y = a - b
     xy_err = pt.get_error_matrix([x, y])
+    with toy_config.params_trans() as pt:
+        a = pt["A->R_BC.D_g_ls_1r"]
+        with pt.mask_params({"A->R_BC.D_g_ls_1i": 0.0}):
+            b = pt["A->R_BC.D_g_ls_1i"]
+        x = a + b
+        y = a - b
+    xy_err2 = pt.get_error({"a": [x, y]})
+
+    # mask params for fit fraction
+    amp = toy_config.get_amplitude()
+    phsp = toy_config.get_phsp_noeff()
+    int_mc = amp.vm.batch_sum_var(amp, phsp)
+    ys = []
+    for i in toy_config.get_decay():
+        mask_params = {}
+        for j in toy_config.get_decay():
+            if i != j:
+                mask_params[str(j.total) + "_0r"] = 0
+        with toy_config.mask_params(mask_params):
+            ys.append(amp.vm.batch_sum_var(amp, phsp))
+        with amp.mask_params(mask_params):
+            pass
+
+    with toy_config.params_trans() as pt:
+        y = [i() for i in ys]
+        frac = [i / int_mc() for i in y]
+    pt.get_error(frac)
+
+
+def test_bacth_sum(toy_config, fit_result):
+    toy_config.get_params_error(fit_result)
+    res = list(range(len(list(toy_config.get_decay()))))
+    fit_frac, fit_frac_err = toy_config.cal_fitfractions(res=res)
+    amp = toy_config.get_amplitude()
+    phsp = toy_config.get_phsp_noeff()
+    int_mc = toy_config.batch_sum_var(amp, phsp, batch=5000)
+    ys = []
+    for i in toy_config.get_decay():
+        mask_params = {}
+        for j in toy_config.get_decay():
+            if i != j:
+                mask_params[str(j.total) + "_0r"] = 0
+        with toy_config.mask_params(mask_params):
+            ys.append(toy_config.batch_sum_var(amp, phsp))
+
+    with toy_config.params_trans() as pt:
+        y = [i() for i in ys]
+        frac = [i / int_mc() for i in y]
+    frac_err = pt.get_error(frac)
+    assert np.allclose(frac, [fit_frac[str(i)] for i in res])
+    assert np.allclose(frac_err, [fit_frac_err[str(i)] for i in res])
 
 
 def test_lazycall(toy_config_lazy):

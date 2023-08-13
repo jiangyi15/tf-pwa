@@ -581,6 +581,16 @@ def batch_call(function, data, batch=10000):
     return data_merge(*ret)
 
 
+def batch_sum(function, data, batch=10000):
+    ret = []
+    for i in data_split(data, batch):
+        ret.append(function(i))
+    tmp = ret[0]
+    for i in ret[1:]:
+        tmp = tmp + i
+    return tmp
+
+
 def batch_call_numpy(function, data, batch=10000):
     return data_to_numpy(batch_call(function, data, batch))
 

@@ -58,10 +58,12 @@ def combineVM(vm1, vm2, name="", same_list=None):
         vm.var_head[V] = [vm1.name + i for i in vm1.var_head[V]]  # vm.var_head
         V.name = vm1.name + V.name
         V.vm = vm
+        V.all_name_list = V.init_name_list()
     for V in vm2.var_head:
         vm.var_head[V] = [vm2.name + i for i in vm2.var_head[V]]
         V.name = vm2.name + V.name
         V.vm = vm
+        V.all_name_list = V.init_name_list()
 
     for i in same_list:
         if type(i) == str:
@@ -96,6 +98,7 @@ class VarsManager(object):
         self.trainable_vars = []  # [name,...]
         self.complex_vars = {}  # {name:polar(bool),...}
         self.same_list = []  # [[name1,name2],...]
+        self.mask_vars = {}
 
         self.bnd_dic = {}  # {name:(a,b),...}
 
@@ -474,7 +477,7 @@ class VarsManager(object):
         name_r_list = [name + "r" for name in name_list]
         self.set_same(name_r_list)
         for name in name_r_list:
-            self.complex_vars[name[:-1]] = name_r_list
+            self.complex_vars[name[:-1]] = True  # name_r_list
 
     def set_same(self, name_list, cplx=False):
         """
@@ -534,6 +537,12 @@ class VarsManager(object):
             return self.variables[name].numpy()  # tf.Variable
         else:
             return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
+
+    def read(self, name):
+        val = self.variables[name]
+        if name in self.mask_vars:
+            return tf.stop_gradient(tf.cast(self.mask_vars[name], val.dtype))
+        return self.variables[name]
 
     def set(self, name, value, val_in_fit=True):
         """
@@ -869,10 +878,32 @@ class VarsManager(object):
         hess_inv = dydx[:, None] * np.array(hess_inv) * dydx[None, :]
         return hess_inv
 
+    def batch_sum_var(self, fun, data, batch=65000):
+        from tf_pwa.data import batch_sum
+
+        var = self.trainable_variables
+        return batch_sum(
+            lambda x: SumVar.from_call(fun, var, x), data, batch=batch
+        )
+
     @contextlib.contextmanager
     def error_trans(self, err_matrix):
         with ParamsTrans(self, err_matrix).trans() as f:
             yield f
+
+    @contextlib.contextmanager
+    def temp_params(self, params):
+        old_params = {i: self.get(i) for i in params.keys()}
+        self.set_all(params)
+        yield
+        self.set_all(old_params)
+
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        old_mask = self.mask_vars
+        self.mask_vars = params
+        yield
+        self.mask_vars = old_mask
 
     def minimize(self, fcn, jac=True, method="BFGS", mini_kwargs={}):
         """
@@ -1150,6 +1181,7 @@ class Variable(object):
         else:
             self.real_var(**kwargs)
         self.bound = None
+        self.all_name_list = self.init_name_list()
 
     def real_var(self, value=None, range_=None, fix=False):
         """
@@ -1594,75 +1626,117 @@ class Variable(object):
 
         _shape_func(func, self.shape, "")
 
-    def __call__(self, charge=1):
-        var_list = np.ones(shape=self.shape).tolist()
+    def init_name_list(self):
+        all_name_list = []
         if self.shape:
 
             def func(name, idx, **kwargs):
-                tmp = var_list
-                idx_str = name.split("_")[-len(self.shape) :]
-                for i in idx_str[:-1]:
-                    tmp = tmp[int(i)]
-
+                nonlocal all_name_list
                 if self.cp_effect:
-                    if (name in self.vm.complex_vars) and self.vm.complex_vars[
-                        name
-                    ]:
-                        real = (
-                            self.vm.variables[name + "r"]
-                            + charge * self.vm.variables[name + "deltar"]
-                        )
-                        imag = (
-                            self.vm.variables[name + "i"]
-                            + charge * self.vm.variables[name + "deltai"]
-                        )
-                        tmp[int(idx_str[-1])] = tf.complex(real, imag)
+                    all_name_list += [
+                        name + "r",
+                        name + "deltar",
+                        name + "i",
+                        name + "deltai",
+                    ]
                 elif self.cplx:
-                    if (name in self.vm.complex_vars) and self.vm.complex_vars[
-                        name
-                    ]:
-                        real = self.vm.variables[name + "r"] * tf.cos(
-                            self.vm.variables[name + "i"]
-                        )
-                        imag = self.vm.variables[name + "r"] * tf.sin(
-                            self.vm.variables[name + "i"]
-                        )
-                        tmp[int(idx_str[-1])] = tf.complex(real, imag)
-                        # print("&&&&&pg",name)
-                    else:
-                        # print("$$$$$xg",name)
-                        tmp[int(idx_str[-1])] = tf.complex(
-                            self.vm.variables[name + "r"],
-                            self.vm.variables[name + "i"],
-                        )
-                    # print(tmp[int(idx_str[-1])])
+                    all_name_list += [name + "r", name + "i"]
                 else:
-                    tmp[int(idx_str[-1])] = self.vm.variables[name]
+                    all_name_list.append(name)
 
             _shape_func(func, self.shape, self.name)
+        else:
+            if self.cplx:
+                name = self.name
+                all_name_list += [name + "r", name + "i"]
+            else:
+                all_name_list.append(self.name)
+
+        return all_name_list
+
+    def __call__(self, charge=1):
+        var = [self.vm.read(i) for i in self.all_name_list]
+        if self.shape:
+            if self.cp_effect:
+                r = tf.stack(var[::4])
+                deltar = tf.stack(var[1::4])
+                i = tf.stack(var[2::4])
+                deltai = tf.stack(var[3::4])
+                cplx = []
+                for k in self.all_name_list[::4]:
+                    cond_i = self.vm.complex_vars.get(k[:-1], False)
+                    cplx.append(cond_i)
+                cond = tf.stack(cplx)
+                real = r + charge * deltar
+                imag = i + charge * deltai
+                ret_polar = tf.complex(
+                    real * tf.math.cos(imag), real * tf.math.sin(imag)
+                )
+                ret_rect = tf.complex(real, imag)
+                ret = tf.where(cond, ret_polar, ret_rect)
+            elif self.cplx:
+                r = tf.stack(var[::2])
+                i = tf.stack(var[1::2])
+                cplx = []
+                for k in self.all_name_list[::2]:
+                    cond_i = self.vm.complex_vars.get(k[:-1], False)
+                    cplx.append(cond_i)
+                cond = tf.stack(cplx)
+                ret_polar = tf.complex(r * tf.math.cos(i), r * tf.math.sin(i))
+                ret_rect = tf.complex(r, i)
+                ret = tf.where(cond, ret_polar, ret_rect)
+            else:
+                ret = tf.stack(var)
+
+            return tf.reshape(ret, self.shape)
         else:
             if self.cplx:
                 name = self.name
                 if (name in self.vm.complex_vars) and self.vm.complex_vars[
                     name
                 ]:
-                    real = self.vm.variables[name + "r"] * tf.cos(
-                        self.vm.variables[name + "i"]
-                    )
-                    imag = self.vm.variables[name + "r"] * tf.sin(
-                        self.vm.variables[name + "i"]
-                    )
+                    real = var[0] * tf.cos(var[1])
+                    imag = var[0] * tf.sin(var[1])
                     var_list = tf.complex(real, imag)
-                    # print("&&&pt",name)
                 else:
-                    # print("$$$xt",name)
-                    var_list = tf.complex(
-                        self.vm.variables[self.name + "r"],
-                        self.vm.variables[self.name + "i"],
-                    )
-                # print(var_list)
+                    var_list = tf.complex(var[0], var[1])
             else:
-                var_list = self.vm.variables[self.name]
+                var_list = var[0]
 
         # return tf.stack(var_list)
         return var_list
+
+
+class SumVar:
+    def __init__(self, value, grad, var):
+        self.var = var
+        self.value = tf.nest.map_structure(tf.stop_gradient, value)
+        self.grad = grad
+
+    def from_call(fun, var, *args, **kwargs):
+        with tf.GradientTape(persistent=True) as tape:
+            y = tf.nest.map_structure(tf.reduce_sum, fun(*args, **kwargs))
+        dy = tf.nest.map_structure(
+            lambda x: tf.stack(
+                tape.gradient(x, var, unconnected_gradients="zero")
+            ),
+            y,
+        )
+        del tape
+        return SumVar(y, dy, var)
+
+    def __call__(self):
+        var = tf.stack(self.var)
+        fun = lambda x, y: x + tf.reduce_sum(y * (var - tf.stop_gradient(var)))
+        return tf.nest.map_structure(fun, self.value, self.grad)
+
+    def __add__(self, others):
+        if not isinstance(others, SumVar):
+            return NotImplemented
+        value = tf.nest.map_structure(
+            lambda x, y: x + y, self.value, others.value
+        )
+        grad = tf.nest.map_structure(
+            lambda x, y: x + y, self.grad, others.grad
+        )
+        return SumVar(value, grad, self.var)
