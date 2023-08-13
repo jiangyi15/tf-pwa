@@ -60,6 +60,8 @@ constrains:
   decay: { fix_chain_idx: 0, fix_chain_val: 1 }
 
 plot:
+  config:
+    yscale: "log"
   mass:
     BC:
       display: "M(BC)"

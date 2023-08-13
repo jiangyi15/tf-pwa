@@ -499,9 +499,7 @@ def _cal_partial_wave(
         weights = batch_call_numpy(
             lambda x: amp.partial_weight(x, combine=res), phsp, batch
         )
-        data_weights = (
-            data_weight  # data.get("weight", np.ones((data_shape(data),)))
-        )
+        data_weights = data.get("weight", np.ones((data_shape(data),)))
         data_dict["data_weights"] = (
             batch_call_numpy(cut_function, data, batch) * data_weights
         )
