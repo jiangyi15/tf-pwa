@@ -5,11 +5,12 @@ import json
 import time
 from pprint import pprint
 
-# avoid using Xwindow
 import matplotlib
 
+# avoid using Xwindow
 matplotlib.use("agg")
 
+import numpy as np
 import tensorflow as tf
 
 # examples of custom particle model
@@ -146,6 +147,7 @@ def fit(
         except Exception as e:
             print(e)
 
+    # find the best result
     fit_result = fit_results.pop()
     for i in fit_results:
         if i.success:
@@ -159,6 +161,7 @@ def fit(
     # calculate parameters error
     if maxiter != 0:
         fit_error = config.get_params_error(fit_result, batch=13000)
+        np.save("error_matrix.npy", config.inv_he)
         fit_result.set_error(fit_error)
         fit_result.save_as("final_params.json")
         pprint(fit_error)

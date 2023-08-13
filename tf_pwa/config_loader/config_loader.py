@@ -813,10 +813,10 @@ class ConfigLoader(BaseConfig):
             res = sorted(
                 list(set([str(i) for i in amp.res]) - set(exclude_res))
             )
-        frac, err_frac = fit_fractions(
+        frac_and_err = fit_fractions(
             amp, mcdata, self.inv_he, params, batch, res, method=method
         )
-        return frac, err_frac
+        return frac_and_err
 
     def cal_signal_yields(self, params={}, mcdata=None, batch=25000):
         if hasattr(params, "params"):

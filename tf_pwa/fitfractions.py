@@ -95,7 +95,7 @@ class FitFractions:
 
         self.amp.set_used_res(cahced_res)
 
-    def get_frac_grad(self):
+    def get_frac_grad(self, sum_diag=True):
         n = len(self.res)
         int_mc = self.cached_int_total
         g_int_mc = self.cached_grad_total
@@ -125,12 +125,18 @@ class FitFractions:
                 )
                 # print(name,gij.tolist())
                 g_fit_frac[name] = gij
+        if sum_diag:
+            fit_frac["sum_diag"] = sum([fit_frac[str(i)] for i in self.res])
+            g_fit_frac["sum_diag"] = sum(
+                [g_fit_frac[str(i)] for i in self.res]
+            )
+        print(fit_frac)
         return fit_frac, g_fit_frac
 
-    def get_frac(self, error_matrix=None):
+    def get_frac(self, error_matrix=None, sum_diag=True):
         if error_matrix is None:
             error_matrix = self.error_matrix
-        fit_frac, g_fit_frac = self.get_frac_grad()
+        fit_frac, g_fit_frac = self.get_frac_grad(sum_diag=sum_diag)
         if error_matrix is None:
             return fit_frac, {}
         fit_frac_err = {}

@@ -11,7 +11,7 @@ from tf_pwa import set_random_seed
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import build_amp
-from tf_pwa.utils import tuple_table
+from tf_pwa.utils import save_frac_csv
 
 matplotlib.use("agg")
 
@@ -240,7 +240,8 @@ def test_fit(toy_config, fit_result):
     )
     fit_result.save_as("toy_data/final_params.json")
     fit_frac, frac_err = toy_config.cal_fitfractions()
-    tuple_table(fit_frac)
+    fit_frac, frac_err = toy_config.cal_fitfractions(method="new")
+    save_frac_csv("toy_data/fit_frac.csv", fit_frac)
 
     with toy_config.params_trans() as pt:
         a = pt["A->R_BC.D_g_ls_1r"]

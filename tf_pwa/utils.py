@@ -266,11 +266,14 @@ def check_positive_definite(m):
     return False
 
 
-def tuple_table(fit_frac):
+def tuple_table(fit_frac, ignore_items=["sum_diag"]):
     names = []
     for i in fit_frac:
         if isinstance(i, str):
             names.append(i)
+    for i in ignore_items:
+        if i in names:
+            names.remove(i)
     n_items = len(names)
     table = [[None] * (n_items + 1) for i in range(n_items + 1)]
 
@@ -278,6 +281,8 @@ def tuple_table(fit_frac):
         if isinstance(k, tuple):
             a, b = k
             table[names.index(a) + 1][names.index(b) + 1] = v
+        elif k in ignore_items:
+            continue
         else:
             a, b = k, k
             table[names.index(a) + 1][names.index(b) + 1] = v
@@ -287,6 +292,15 @@ def tuple_table(fit_frac):
         table[0][i + 1] = name
 
     return table
+
+
+def save_frac_csv(file_name, fit_frac):
+    import csv
+
+    table = tuple_table(fit_frac)
+    with open(file_name, "w") as f:
+        f_csv = csv.writer(f)
+        f_csv.writerows(table)
 
 
 def fit_normal(data, weights=None):
