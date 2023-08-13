@@ -77,9 +77,12 @@ The negative log-likelihood (NLL) value is
 
 $$ -\ln L = - \sum \ln P(m_j') + N \ln \int P(m_i') d \Phi \approx - \sum_{j} \ln \sum w_i' |A|(m_{ij}) + N \ln \int P(m_i') d \Phi + constant.$$
 
-The fit results looks like | | input | output |
-|-------------|--------------|---------------| | mass (MeV) | 1800 |
-$1789 \pm 14$ | | width(MeV) | 100 | $95 \pm 24$ |
+The fit results looks like
+
+|            | input | output        |
+| ---------- | ----- | ------------- |
+| mass (MeV) | 1800  | $1789 \pm 14$ |
+| width(MeV) | 100   | $95 \pm 24$   |
 
 # 6. plot_resolution.py
 
