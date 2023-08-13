@@ -42,7 +42,8 @@ def eval_nll(pipe, config, gpu=0):
 
 
 def main():
-    config_list = ["config.yml", "config.yml", "config.yml"]
+    # sample model, but different data
+    config_list = ["config_a.yml", "config_b.yml", "config_c.yml"]
     n_gpu = 1
     pipes = []
     process = []
