@@ -23,9 +23,12 @@ $$ \epsilon(m, m') = m \theta(m'-m_{min}) \theta(m_{max}-m') ,$$
 
 $\theta(x)$ is the step function.
 
-This is the shape of efficency. ![img](./assets/m_eff.png)
+This is the shape of efficency.
+
+![img](./assets/m_eff.png)
 
 This is the distribution with the detector effect.
+
 ![img](./assets/toy_params_m_BC.png)
 
 # 3. plot_function.py
@@ -45,7 +48,9 @@ $$ f_{truth}(m) = \int T(m, m') dm',$$
 
 $$ f_{rec}(m') = \int T(m, m') dm,$$
 
-![img](./assets/m_rec.png) and
+![img](./assets/m_rec.png)
+
+and
 
 $$ f_{delta}(\delta) = \int T(\frac{m_s - \delta}{2}, \frac{m_s + \delta}{2}) d m_s.$$
 
@@ -89,4 +94,6 @@ The fit results looks like
 Draw the histogram of fit results. Use "phsp" to calculate the weights and draw
 the variables in "phsp".
 
-This the distribution in fit results. ![img](./assets/m_BC.png)
+This the distribution in fit results.
+
+![img](./assets/m_BC.png)
