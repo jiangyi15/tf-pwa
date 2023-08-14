@@ -108,8 +108,7 @@ class AbsPDF:
         return ret
 
 
-@register_amp_model("default")
-class AmplitudeModel(AbsPDF):
+class BaseAmplitudeModel(AbsPDF):
     def __init__(self, decay_group, **kwargs):
         self.decay_group = decay_group
         super().__init__(**kwargs)
@@ -147,7 +146,16 @@ class AmplitudeModel(AbsPDF):
     def partial_weight(self, data, combine=None):
         if isinstance(data, LazyCall):
             data = data.eval()
-        return self.decay_group.partial_weight(data, combine)
+        if combine is None:
+            combine = [[i] for i in range(len(self.decay_group.chains))]
+        o_used_chains = self.decay_group.chains_idx
+        weights = []
+        for i in combine:
+            self.decay_group.set_used_chains(i)
+            weight = self.pdf(data)
+            weights.append(weight)
+        self.decay_group.set_used_chains(o_used_chains)
+        return weights
 
     def partial_weight_interference(self, data):
         return self.decay_group.partial_weight_interference(data)
@@ -163,8 +171,16 @@ class AmplitudeModel(AbsPDF):
         return ret
 
 
+@register_amp_model("default")
+class AmplitudeModel(BaseAmplitudeModel):
+    def partial_weight(self, data, combine=None):
+        if isinstance(data, LazyCall):
+            data = data.eval()
+        return self.decay_group.partial_weight(data, combine)
+
+
 @register_amp_model("cached_amp")
-class CachedAmpAmplitudeModel(AmplitudeModel):
+class CachedAmpAmplitudeModel(BaseAmplitudeModel):
     def partial_weight(self, data, combine=None):
         if isinstance(data, LazyCall):
             data = data.eval()
@@ -198,3 +214,16 @@ class CachedAmpAmplitudeModel(AmplitudeModel):
         amp = tf.reduce_sum(ret, axis=0)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+
+
+@register_amp_model("p4_directly")
+class CachedAmpAmplitudeModel(BaseAmplitudeModel):
+    def cal_angle(self, p4):
+        from tf_pwa.cal_angle import cal_angle_from_momentum
+
+        ret = cal_angle_from_momentum(p4, self.decay_group)
+        return ret
+
+    def pdf(self, data):
+        new_data = self.cal_angle(data["p4"])
+        return self.decay_group.sum_amp({**new_data, **data})

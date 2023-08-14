@@ -59,8 +59,6 @@ class BasePreProcessor(HeavyCall):
             if k in self.kwargs:
                 kwargs[k] = self.kwargs[k]
         ret = cal_angle_from_momentum(p4, self.decay_struct, **kwargs)
-        for k, v in x.get("extra", {}).items():
-            ret[k] = v
         return ret
 
 
@@ -94,3 +92,12 @@ class CachedAmpPreProcessor(BasePreProcessor):
         if strip_var:
             x = data_strip(x, strip_var)
         return x
+
+
+@register_preprocessor("p4_directly")
+class CachedAmpPreProcessor(BasePreProcessor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __call__(self, x):
+        return {"p4": x["p4"]}
