@@ -865,9 +865,10 @@ class HelicityDecay(AmpDecay):
         return m_dep
 
     def get_angle_g_ls(self):
-        gls = [complex(1.0, 0.0) for i in self.g_ls()]
+        gls = tf.ones_like(self.g_ls())
+        # [complex(1.0, 0.0) for i in range(len(self.g_ls()))]
         if self.ls_index is None:
-            return tf.stack(gls)
+            return gls  # tf.stack(gls)
         return tf.stack([gls[k] for k in self.ls_index])
 
     def get_angle_ls_amp(self, data, data_p, **kwargs):
