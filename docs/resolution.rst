@@ -37,7 +37,7 @@ To consider the resolution, we need to determinate :math:`S(x|y)`. Generally, we
 In PWA, we usually use the MC to do the normalization for signal probability density. We need to calulation the intergration of :math:`p'(y)` as
 
 .. math::
-   \int p'(y) dy = \int p'(x) \epsilon_{T} (x) \int R(y|x) dy dx = \int p(x) \epsilon_{T} (x) dx.
+   \int p'(y) dy = \int p(x) \epsilon_{T} (x) \int R(y|x) dy dx = \int p(x) \epsilon_{T} (x) dx.
 
 The final likilihood with considering resolution is
 
