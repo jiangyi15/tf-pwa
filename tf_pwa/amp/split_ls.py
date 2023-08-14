@@ -7,7 +7,7 @@ from tf_pwa.amp.core import (
     register_decay,
     register_particle,
 )
-from tf_pwa.breit_wigner import Bprime_q2
+from tf_pwa.breit_wigner import Bprime_q2, to_complex
 
 
 @register_decay("LS-decay")
@@ -178,6 +178,7 @@ class ParticleBWRLS(ParticleLS):
 
         ret = []
         for i in total_gamma:
+            i = to_complex(i)
             ret.append(tf.cast(i, dom.dtype) / dom)
 
         return ret

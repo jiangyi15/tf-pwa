@@ -18,7 +18,7 @@ from pprint import pprint
 import numpy as np
 import sympy as sym
 
-from tf_pwa.breit_wigner import BW, BWR, Bprime, Bprime_q2
+from tf_pwa.breit_wigner import BW, BWR, Bprime, Bprime_q2, to_complex
 from tf_pwa.cg import cg_coef
 from tf_pwa.config import get_config, regist_config, temp_config
 from tf_pwa.data import LazyCall, data_map, data_shape, split_generator
@@ -859,6 +859,7 @@ class HelicityDecay(AmpDecay):
                 data_p[self.core]["m"], q, q0, self.d
             )
             mag = g_ls
+            bf = to_complex(bf)
             m_dep = mag * tf.cast(bf, mag.dtype)
         else:
             m_dep = g_ls
