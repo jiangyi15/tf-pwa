@@ -15,6 +15,12 @@ from .tensorflow_wrapper import tf
 breit_wigner_dict = {}
 
 
+def to_complex(i):
+    if i.dtype in [tf.float32, tf.float64]:
+        return tf.complex(i, tf.zeros_like(i))
+    return i
+
+
 def regist_lineshape(name=None):
     """
     It will be used as a wrapper to define various Breit-Wigner functions
@@ -250,9 +256,7 @@ def Gamma2(m, gamma0, q2, q02, L, m0, d):
     q02 = tf.cast(q02, q2.dtype)
     _epsilon = 1e-15
     qq0 = q2 / q02
-    qq0 = tf.cast(qq0**L, tf.complex128) * tf.sqrt(
-        tf.cast(qq0, tf.complex128)
-    )
+    qq0 = to_complex(qq0**L) * tf.sqrt(to_complex(qq0))
     mm0 = tf.cast(m0, m.dtype) / m
     z0 = q02 * d**2
     z = q2 * d**2

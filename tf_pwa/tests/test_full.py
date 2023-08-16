@@ -154,6 +154,14 @@ def test_precached(gen_toy):
     config.plot_partial_wave(prefix="toy_data/figure/s5")
 
 
+def test_precached2(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_precached2.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    fcn = config.get_fcn()
+    fcn({})
+    fcn.nll_grad({})
+
+
 def test_cfit_cached(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_cfit_cached.yml")
     config.set_params(f"{this_dir}/gen_params.json")
