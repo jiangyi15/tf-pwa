@@ -225,6 +225,7 @@ class ConfigLoader(BaseConfig):
         no_id_cached = amp_config.get("no_id_cached", False)
         jit_compile = amp_config.get("jit_compile", False)
         amp_model = amp_config.get("amp_model", "default")
+        cached_shape_idx = amp_config.get("cached_shape_idx", None)
         decay_group = self.full_decay
         self.check_valid_jp(decay_group)
         if vm is None:
@@ -239,6 +240,7 @@ class ConfigLoader(BaseConfig):
             no_id_cached=no_id_cached,
             jit_compile=jit_compile,
             model=amp_model,
+            cached_shape_idx=cached_shape_idx,
         )
         self.add_constraints(amp)
         self.amps[vm] = amp

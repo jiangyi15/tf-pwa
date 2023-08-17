@@ -1264,6 +1264,18 @@ class Variable(object):
         """
         return tf.Variable(self()).numpy()
 
+    def params_one(self):
+        params = {}
+        for i in self.all_name_list:
+            if self.cplx or self.cp_effect:
+                if i.endswith("r"):
+                    params[i] = 1
+                else:
+                    params[i] = 0
+            else:
+                params[i] = 1
+        return params
+
     def set_value(self, value, index=None):
         if index is not None:
             assert len(index) == len(self.shape)
@@ -1457,6 +1469,24 @@ class Variable(object):
                 self.vm.set_fix(self.name, value)
         else:
             raise Exception("Only shape==() real var supports 'fixed' method.")
+
+    def is_fixed(self):
+        ret = True
+        check = lambda x: not (x in self.vm.trainable_vars)
+        if self.shape:
+            ret = False
+        else:
+            if self.cp_effect:
+                ret = ret and check(self.name + "r")
+                ret = ret and check(self.name + "i")
+                ret = ret and check(self.name + "deltar")
+                ret = ret and check(self.name + "deltai")
+            elif self.cplx:
+                ret = ret and check(self.name + "r")
+                ret = ret and check(self.name + "i")
+            else:
+                ret = ret and check(self.name)
+        return ret
 
     def freed(self):
         """

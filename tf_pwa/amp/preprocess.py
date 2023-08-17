@@ -1,5 +1,7 @@
 import warnings
 
+import tensorflow as tf
+
 from tf_pwa.cal_angle import cal_angle_from_momentum
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import HeavyCall, data_strip
@@ -72,18 +74,21 @@ def list_to_tuple(data):
 class CachedAmpPreProcessor(BasePreProcessor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.decay_group = self.root_config.get_amplitude().decay_group
+        self.amp = self.root_config.get_amplitude()
+        self.decay_group = self.amp.decay_group
         self.no_angle = self.kwargs.get("no_angle", False)
         self.no_p4 = self.kwargs.get("no_p4", False)
 
-    def __call__(self, x):
+    def build_cached(self, x):
         from tf_pwa.experimental.build_amp import build_angle_amp_matrix
 
         x = super().__call__(x)
         idx, c_amp = build_angle_amp_matrix(self.decay_group, x)
         x["cached_amp"] = list_to_tuple(c_amp)
         # print(x)
+        return x
 
+    def strip_data(self, x):
         strip_var = []
         if self.no_angle:
             strip_var += ["ang", "aligned_angle"]
@@ -91,6 +96,41 @@ class CachedAmpPreProcessor(BasePreProcessor):
             strip_var += ["p"]
         if strip_var:
             x = data_strip(x, strip_var)
+        return x
+
+    def __call__(self, x):
+        x = self.build_cached(x)
+        x = self.strip_data(x)
+        return x
+
+
+@register_preprocessor("cached_shape")
+class CachedShapePreProcessor(CachedAmpPreProcessor):
+    def build_cached(self, x):
+        from tf_pwa.experimental.build_amp import build_params_vector
+        from tf_pwa.experimental.opt_int import build_sum_amplitude
+
+        # old_chains_idx = self.decay_group.chains_idx
+        cached_shape_idx = self.amp.get_cached_shape_idx()
+        # used_chains_idx = [i for i in old_chains_idx if i not in cached_shape_idx]
+        # self.decay_group.set_used_chains(used_chains_idx)
+        x = super().build_cached(x)
+        # self.decay_group.set_used_chains(old_chains_idx)
+
+        old_cached_amp = list(x["cached_amp"])
+        dec = self.decay_group
+
+        used_chains = dec.chains_idx
+        dec.set_used_chains(cached_shape_idx)
+        with self.amp.temp_total_gls_one():
+            pv = build_params_vector(dec, x)
+        hij = []
+        for k, i in zip(cached_shape_idx, pv):
+            tmp = old_cached_amp[k]
+            a = tf.reshape(i, [-1, i.shape[1]] + [1] * (len(tmp[0].shape) - 1))
+            old_cached_amp[k] = a * tf.stack(tmp, axis=1)
+        dec.set_used_chains(used_chains)
+        x["cached_amp"] = list_to_tuple(old_cached_amp)
         return x
 
 

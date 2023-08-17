@@ -3,7 +3,7 @@ import warnings
 
 import tensorflow as tf
 
-from tf_pwa.amp.core import variable_scope
+from tf_pwa.amp.core import Variable, variable_scope
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import LazyCall, data_shape, split_generator
 
@@ -66,6 +66,7 @@ class AbsPDF:
             self.cached_fun = WrapFun(self.pdf, jit_compile=jit_compile)
         else:
             self.cached_fun = self.pdf
+        self.extra_kwargs = kwargs
 
     def get_params(self, trainable_only=False):
         return self.vm.get_all_dic(trainable_only)
@@ -170,6 +171,21 @@ class BaseAmplitudeModel(AbsPDF):
         ret = self.decay_group.sum_amp(data)
         return ret
 
+    @contextlib.contextmanager
+    def temp_total_gls_one(self):
+        mask_params = []
+        for i in self.decay_group:
+            if hasattr(i, "total") and isinstance(i.total, Variable):
+                mask_params.append(i.total)
+            for j in i:
+                if hasattr(j, "g_ls") and isinstance(j.g_ls, Variable):
+                    mask_params.append(j.g_ls)
+        tmp = {}
+        for i in mask_params:
+            tmp.update(i.params_one())
+        with self.mask_params(tmp):
+            yield
+
 
 @register_amp_model("default")
 class AmplitudeModel(BaseAmplitudeModel):
@@ -202,8 +218,71 @@ class CachedAmpAmplitudeModel(BaseAmplitudeModel):
         return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
 
 
+@register_amp_model("cached_shape")
+class CachedShapeAmplitudeModel(BaseAmplitudeModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cached_shape_idx = self.extra_kwargs.get("cached_shape_idx", None)
+
+    def get_cached_shape_idx(self):
+        if self.cached_shape_idx is not None:
+            return self.cached_shape_idx
+        ret = []
+        for idx, decay_chain in enumerate(self.decay_group):
+            for decay in decay_chain:
+                if not decay.core.is_fixed_shape():
+                    ret.append(idx)
+        ret2 = [i for i in self.decay_group.chains_idx if i not in ret]
+        self.cached_shape_idx = ret2
+        print("cached shape idx", ret2)
+        return ret2
+
+    def pdf(self, data):
+        from tf_pwa.experimental.build_amp import build_params_vector
+        from tf_pwa.experimental.opt_int import build_params_vector as bv2
+
+        n_data = data_shape(data)
+        cached_data = data["cached_amp"]
+
+        cached_shape_idx = self.get_cached_shape_idx()
+
+        old_chains_idx = self.decay_group.chains_idx
+        cached_shape_idx = self.get_cached_shape_idx()
+
+        ret = []
+        # amp parts without cached shape
+        used_chains_idx = [
+            i for i in old_chains_idx if i not in cached_shape_idx
+        ]
+        self.decay_group.set_used_chains(used_chains_idx)
+        pv = build_params_vector(self.decay_group, data)
+        partial_cached_data = [cached_data[i] for i in used_chains_idx]
+        self.decay_group.set_used_chains(old_chains_idx)
+        ret = []
+
+        for idx, (i, j) in enumerate(zip(pv, partial_cached_data)):
+            a = tf.reshape(i, [-1, i.shape[1]] + [1] * (len(j[0].shape) - 1))
+            ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
+
+        # amp parts with cached shape
+        cached_shape_idx2 = [
+            i for i in cached_shape_idx if i in old_chains_idx
+        ]
+        partial_cached_data2 = [cached_data[i] for i in cached_shape_idx2]
+        pv2 = bv2(self.decay_group, stack=False)
+        pv2 = [pv2[i] for i in cached_shape_idx2]
+        for idx, (i, j) in enumerate(zip(pv2, partial_cached_data2)):
+            a = tf.reshape(i, [-1, i.shape[0]] + [1] * (len(j[0].shape) - 1))
+            ret.append(tf.reduce_sum(a * j, axis=1))
+
+        # print(ret)
+        amp = tf.reduce_sum(ret, axis=0)
+        amp2s = tf.math.real(amp * tf.math.conj(amp))
+        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+
+
 @register_amp_model("p4_directly")
-class CachedAmpAmplitudeModel(BaseAmplitudeModel):
+class P4DirectlyAmplitudeModel(BaseAmplitudeModel):
     def cal_angle(self, p4):
         from tf_pwa.cal_angle import cal_angle_from_momentum
 

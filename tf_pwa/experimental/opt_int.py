@@ -20,7 +20,7 @@ def split_gls(dec_chain):
 def build_sum_amplitude(dg, dec_chain, data):
     cached = []
     for i, dc in split_gls(dec_chain):
-        amp = dg.get_amp(data)
+        amp = dg.get_amp3(data)
         int_mc = amp
         gls = dc.product_gls()
         cached.append(amp / gls)

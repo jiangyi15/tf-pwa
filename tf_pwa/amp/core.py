@@ -370,6 +370,13 @@ class Particle(BaseParticle, AmpBase):
             if not isinstance(self.width, Variable):
                 self.width = self.add_var("width", value=self.width, fix=True)
 
+    def is_fixed_shape(self):
+        for k, v in self.__dict__.items():
+            if isinstance(v, Variable):
+                if not v.is_fixed():
+                    return False
+        return True
+
     def get_amp(self, data, data_c, **kwargs):
         mass = self.get_mass()
         width = self.get_width()
@@ -539,6 +546,12 @@ def simple_resonance(name, fun=None, params=None):
                             self.params[i] = self.add_var(
                                 i, value=val, fix=True
                             )
+
+            def is_fixed_shape(self):
+                ret = super().is_fixed_shape()
+                for k, v in self.params.items():
+                    ret = ret and v.is_fixed()
+                return ret
 
             def __call__(self, m, **kwargs):
                 my_kwargs = {}
