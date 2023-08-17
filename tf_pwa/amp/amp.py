@@ -269,7 +269,7 @@ class CachedShapeAmplitudeModel(BaseAmplitudeModel):
             i for i in cached_shape_idx if i in old_chains_idx
         ]
         partial_cached_data2 = [cached_data[i] for i in cached_shape_idx2]
-        pv2 = bv2(self.decay_group, stack=False)
+        pv2 = bv2(self.decay_group, concat=False)
         pv2 = [pv2[i] for i in cached_shape_idx2]
         for idx, (i, j) in enumerate(zip(pv2, partial_cached_data2)):
             a = tf.reshape(i, [-1, i.shape[0]] + [1] * (len(j[0].shape) - 1))
