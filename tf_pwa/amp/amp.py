@@ -173,18 +173,17 @@ class BaseAmplitudeModel(AbsPDF):
 
     @contextlib.contextmanager
     def temp_total_gls_one(self):
-        mask_params = []
+        mask_part = []
         for i in self.decay_group:
-            if hasattr(i, "total") and isinstance(i.total, Variable):
-                mask_params.append(i.total)
+            mask_part.append(i)
             for j in i:
-                if hasattr(j, "g_ls") and isinstance(j.g_ls, Variable):
-                    mask_params.append(j.g_ls)
-        tmp = {}
-        for i in mask_params:
-            tmp.update(i.params_one())
-        with self.mask_params(tmp):
-            yield
+                mask_part.append(i)
+        old_mask = [getattr(i, "mask_fractor", False) for i in mask_part]
+        for i in mask_part:
+            i.mask_fractor = True
+        yield
+        for i, j in zip(mask_part, old_mask):
+            i.mask_fractor = j
 
 
 @register_amp_model("default")

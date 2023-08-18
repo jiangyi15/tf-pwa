@@ -1264,18 +1264,6 @@ class Variable(object):
         """
         return tf.Variable(self()).numpy()
 
-    def params_one(self):
-        params = {}
-        for i in self.all_name_list:
-            if self.cplx or self.cp_effect:
-                if i.endswith("r"):
-                    params[i] = 1
-                else:
-                    params[i] = 0
-            else:
-                params[i] = 1
-        return params
-
     def set_value(self, value, index=None):
         if index is not None:
             assert len(index) == len(self.shape)
