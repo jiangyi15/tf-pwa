@@ -370,6 +370,13 @@ class Particle(BaseParticle, AmpBase):
             if not isinstance(self.width, Variable):
                 self.width = self.add_var("width", value=self.width, fix=True)
 
+    def is_fixed_shape(self):
+        for k, v in self.__dict__.items():
+            if isinstance(v, Variable):
+                if not v.is_fixed():
+                    return False
+        return True
+
     def get_amp(self, data, data_c, **kwargs):
         mass = self.get_mass()
         width = self.get_width()
@@ -540,6 +547,12 @@ def simple_resonance(name, fun=None, params=None):
                                 i, value=val, fix=True
                             )
 
+            def is_fixed_shape(self):
+                ret = super().is_fixed_shape()
+                for k, v in self.params.items():
+                    ret = ret and v.is_fixed()
+                return ret
+
             def __call__(self, m, **kwargs):
                 my_kwargs = {}
                 for i in argspec.args:
@@ -646,6 +659,7 @@ class HelicityDecay(AmpDecay):
         if ls_list is not None:
             self.ls_list = tuple([tuple(i) for i in ls_list])
         self.params_polar = params_polar
+        self.mask_factor = False
 
     def check_valid_jp(self):
         if len(self.get_ls_list()) == 0:
@@ -822,9 +836,12 @@ class HelicityDecay(AmpDecay):
     def get_g_ls(self):
         gls = self.g_ls()
         if self.ls_index is None:
-            return tf.stack(gls)
-        # print(self, gls, self.ls_index)
-        return tf.stack([gls[k] for k in self.ls_index])
+            ret = tf.stack(gls)
+        else:
+            ret = tf.stack([gls[k] for k in self.ls_index])
+        if self.mask_factor:
+            return tf.ones_like(ret)
+        return ret
 
     def get_ls_amp_org(self, data, data_p, **kwargs):
         g_ls = self.get_g_ls()
@@ -1037,6 +1054,7 @@ class AmpDecayChain(BaseDecayChain, AmpBase):
         super(AmpDecayChain, self).__init__(*args, **kwargs)
         self.aligned = True
         self.need_amp_particle = True
+        self.mask_factor = False
 
 
 @register_decay_chain("default")
@@ -1062,6 +1080,8 @@ class DecayChain(AmpDecayChain):
         return [tuple([self.total] + a)]
 
     def get_amp_total(self, charge=1):
+        if self.mask_factor:
+            return tf.ones_like(tf.stack(self.total(charge)))
         return tf.stack(self.total(charge))
 
     def product_gls(self):

@@ -71,6 +71,9 @@ class ParticleLS(Particle):
     def get_ls_amp(self, m, ls, q2, q02, d=3):
         raise NotImplementedError
 
+    def is_fixed_shape(self):
+        return False
+
 
 @register_particle("BWR_LS")
 class ParticleBWRLS(ParticleLS):

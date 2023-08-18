@@ -1458,6 +1458,24 @@ class Variable(object):
         else:
             raise Exception("Only shape==() real var supports 'fixed' method.")
 
+    def is_fixed(self):
+        ret = True
+        check = lambda x: not (x in self.vm.trainable_vars)
+        if self.shape:
+            ret = False
+        else:
+            if self.cp_effect:
+                ret = ret and check(self.name + "r")
+                ret = ret and check(self.name + "i")
+                ret = ret and check(self.name + "deltar")
+                ret = ret and check(self.name + "deltai")
+            elif self.cplx:
+                ret = ret and check(self.name + "r")
+                ret = ret and check(self.name + "i")
+            else:
+                ret = ret and check(self.name)
+        return ret
+
     def freed(self):
         """
         Set free this Variable. Note only non-shape Variable supports this method.
