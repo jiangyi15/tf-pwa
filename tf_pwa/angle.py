@@ -70,15 +70,17 @@ class Vector3(tf.Tensor):
         """
         The angle from x-axis providing the x,y axis to define a 3-d coordinate.
 
-        x  ->  self
-        |      /
-        | ang /
-        |    /
-        |   /
-        |  /
-        | /
-        |/
-        -------- y
+        ::
+
+            x  ->  self
+            |      /
+            | ang /
+            |    /
+            |   /
+            |  /
+            | /
+            |/
+            -------- y
 
         :param x: A Vector3 instance as x-axis
         :param y: A Vector3 instance as y-axis. It should be perpendicular to the x-axis.
