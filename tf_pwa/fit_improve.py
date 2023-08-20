@@ -21,11 +21,12 @@ message_dict = {
 
 
 class Cached_FG:
-    def __init__(self, f_g):
+    def __init__(self, f_g, grad_scale=1.0):
         self.f_g = f_g
         self.cached_fun = 0
         self.cached_grad = 0
         self.ncall = 0
+        self.grad_scale = grad_scale
 
     def __call__(self, x):
         f = self.fun(x)
@@ -38,7 +39,7 @@ class Cached_FG:
                     new_x[i] -= 1e-6
                     f2, _ = self.f_g(new_x)
                     self.cached_grad[i] = (f1 - f2) / 2e-6
-        return f, self.cached_grad
+        return self.grad_scale * f, self.grad_scale * self.cached_grad
 
     def fun(self, x):
         f, g = self.f_g(x)
