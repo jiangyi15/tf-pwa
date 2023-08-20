@@ -700,7 +700,7 @@ class HelicityDecay(AmpDecay):
         return [(self.g_ls,)]
 
     def _get_particle_mass(self, p, data, from_data=False):
-        if from_data:
+        if from_data and p in data:
             return data[p]["m"]
         if p.mass is None:
             p.mass = tf.reduce_mean(data[p]["m"])
@@ -788,6 +788,15 @@ class HelicityDecay(AmpDecay):
                         )
                     )
         return ret
+
+    def build_simple_input(self):
+        data_p = {self.core: {"m": self.core.get_mass()}}
+        data = {}
+        zero = np.array(0.0)
+        for i in self.outs:
+            data_p[i] = {"m": i.get_mass()}
+            data[i] = {"ang": {"alpha": zero, "beta": zero, "gamma": zero}}
+        return {"data": data, "data_p": data_p}
 
     def get_helicity_amp(self, data, data_p, **kwargs):
         m_dep = self.get_ls_amp(data, data_p, **kwargs)
