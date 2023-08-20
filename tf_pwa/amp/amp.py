@@ -285,7 +285,19 @@ class P4DirectlyAmplitudeModel(BaseAmplitudeModel):
     def cal_angle(self, p4):
         from tf_pwa.cal_angle import cal_angle_from_momentum
 
-        ret = cal_angle_from_momentum(p4, self.decay_group)
+        extra_kwargs = self.extra_kwargs["all_config"]
+        kwargs = {}
+        for k in [
+            "center_mass",
+            "r_boost",
+            "random_z",
+            "align_ref",
+            "only_left_angle",
+        ]:
+            if k in extra_kwargs:
+                kwargs[k] = extra_kwargs[k]
+
+        ret = cal_angle_from_momentum(p4, self.decay_group, **kwargs)
         return ret
 
     def pdf(self, data):
