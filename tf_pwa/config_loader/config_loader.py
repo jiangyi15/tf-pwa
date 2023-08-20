@@ -667,6 +667,8 @@ class ConfigLoader(BaseConfig):
         jac=True,
         print_init_nll=True,
         callback=None,
+        grad_scale=1.0,
+        gtol=1e-3,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
@@ -701,6 +703,8 @@ class ConfigLoader(BaseConfig):
             maxiter=maxiter,
             jac=jac,
             callback=callback,
+            grad_scale=grad_scale,
+            gtol=gtol,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv

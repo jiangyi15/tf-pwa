@@ -196,6 +196,8 @@ def fit_scipy(
     jac=True,
     callback=None,
     standard_complex=True,
+    grad_scale=1.0,
+    gtol=1e-3,
 ):
     """
 
@@ -268,7 +270,7 @@ def fit_scipy(
         fcn.vm.set_bound(bounds_dict)
 
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
-        f_g = Cached_FG(f_g)
+        f_g = Cached_FG(f_g, grad_scale=grad_scale)
         # print(f_g)
         x0 = np.array(fcn.vm.get_all_val(True))
         # print(x0, fcn.vm.get_all_dic())
@@ -281,7 +283,7 @@ def fit_scipy(
                     method=method,
                     jac=True,
                     callback=callback,
-                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                    options={"disp": 1, "gtol": gtol, "maxiter": maxiter},
                 )
             except LargeNumberError:
                 return except_result(fcn, x0.shape[0])
@@ -293,7 +295,7 @@ def fit_scipy(
                     method=method,
                     jac=jac,
                     callback=callback,
-                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                    options={"disp": 1, "gtol": gtol, "maxiter": maxiter},
                 )
             except LargeNumberError:
                 return except_result(fcn, x0.shape[0])
@@ -305,7 +307,7 @@ def fit_scipy(
                     method=method,
                     jac=True,
                     callback=callback,
-                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                    options={"disp": 1, "gtol": gtol, "maxiter": maxiter},
                 )
             except LargeNumberError:
                 return except_result(fcn, x0.shape[0])
@@ -319,7 +321,7 @@ def fit_scipy(
                 method=method,
                 jac=True,
                 callback=callback,
-                options={"disp": 1, "gtol": 1e-2, "maxiter": maxiter},
+                options={"disp": 1, "gtol": gtol * 10, "maxiter": maxiter},
             )
             if hasattr(s, "hess_inv"):
                 edm = np.dot(np.dot(s.hess_inv, s.jac), s.jac)
@@ -339,7 +341,7 @@ def fit_scipy(
         ndf = s.x.shape[0]
         min_nll = s.fun
         success = s.success
-        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv, s.x)
+        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv / grad_scale, s.x)
         fcn.vm.remove_bound()
 
         xn = fcn.vm.get_all_val()
