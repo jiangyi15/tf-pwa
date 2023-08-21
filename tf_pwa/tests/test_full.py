@@ -90,7 +90,7 @@ def toy_config2(gen_toy, fit_result):
     config = MultiConfig(
         [f"{this_dir}/config_toy.yml", f"{this_dir}/config_toy2.yml"]
     )
-    config.set_params(f"{this_dir}/exp2_params.json")
+    config.set_params(f"{this_dir}/exp_params.json")
     return config
 
 
@@ -104,6 +104,7 @@ def toy_config3(gen_toy):
 @pytest.fixture
 def fit_result(toy_config):
     ret = toy_config.fit()
+    assert np.allclose(ret.min_nll, -204.9468493307786)
     return ret
 
 
@@ -204,7 +205,8 @@ def test_fit_lazy_call(gen_toy):
     config_dic["data"]["lazy_call"] = True
     config = ConfigLoader(config_dic)
     config.set_params(f"{this_dir}/exp_params.json")
-    config.fit(print_init_nll=False)
+    results = config.fit(print_init_nll=False)
+    assert np.allclose(results.min_nll, -204.9468493307786)
     fcn = config.get_fcn()
     fcn.nll_grad()
     config.plot_partial_wave(prefix="toy_data/figure/s2")
@@ -324,7 +326,8 @@ def test_bacth_sum(toy_config, fit_result):
 
 
 def test_lazycall(toy_config_lazy):
-    toy_config_lazy.fit(batch=100000)
+    results = toy_config_lazy.fit(batch=100000)
+    assert np.allclose(results.min_nll, -204.9468493307786)
     toy_config_lazy.plot_partial_wave(
         prefix="toy_data/figure_lazy", batch=100000
     )
@@ -339,13 +342,15 @@ def test_cal_signal_yields(toy_config, fit_result):
 
 
 def test_fit_combine(toy_config2):
-    toy_config2.fit()
+    results = toy_config2.fit()
+    print(results)
+    assert np.allclose(results.min_nll, -204.9468493307786 * 2)
     toy_config2.get_params_error()
     print(toy_config2.get_params())
 
 
 def test_mix_likelihood(toy_config3):
-    toy_config3.fit(maxiter=1)
+    results = toy_config3.fit(maxiter=1)
 
 
 def test_cp_particles():

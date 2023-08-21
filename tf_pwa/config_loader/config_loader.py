@@ -241,6 +241,7 @@ class ConfigLoader(BaseConfig):
             jit_compile=jit_compile,
             model=amp_model,
             cached_shape_idx=cached_shape_idx,
+            all_config=amp_config,
         )
         self.add_constraints(amp)
         self.amps[vm] = amp
