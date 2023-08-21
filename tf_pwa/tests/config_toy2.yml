@@ -27,8 +27,8 @@ particle:
     B: { J: 1, P: -1, mass: 2.00698 }
     C: { J: 1, P: -1, mass: 2.01028 }
     D: { J: 0, P: -1, mass: 0.13957 }
-  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, model: BWR2 }
-  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3, model: BW }
+  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1 }
+  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3 }
   R_CD: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
 
 constrains:
