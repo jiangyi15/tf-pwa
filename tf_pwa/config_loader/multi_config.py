@@ -183,63 +183,6 @@ class MultiConfig(object):
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
-        """# fit configure
-        bounds_dict = {}
-        args_name, x0, args, bnds = self.get_args_value(bounds_dict)
-
-        points = []
-        nlls = []
-        now = time.time()
-        maxiter = 1000
-        min_nll = 0.0
-        ndf = 0
-
-        if method in ["BFGS", "CG", "Nelder-Mead"]:
-            def callback(x):
-                if np.fabs(x).sum() > 1e7:
-                    x_p = dict(zip(args_name, x))
-                    raise Exception("x too large: {}".format(x_p))
-                points.append(self.vm.get_all_val())
-                nlls.append(float(fcn.cached_nll))
-                # if len(nlls) > maxiter:
-                #    with open("fit_curve.json", "w") as f:
-                #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
-                #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
-                print(fcn.cached_nll)
-
-            self.vm.set_bound(bounds_dict)
-            f_g = self.vm.trans_fcn_grad(fcn.nll_grad)
-            s = minimize(f_g, np.array(self.vm.get_all_val(True)), method=method,
-                         jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
-            xn = s.x  # self.vm.get_all_val()  # bd.get_y(s.x)
-            ndf = s.x.shape[0]
-            min_nll = s.fun
-            if hasattr(s, "hess_inv"):
-                self.inv_he = s.hess_inv
-            success = s.success
-        elif method in ["L-BFGS-B"]:
-            def callback(x):
-                if np.fabs(x).sum() > 1e7:
-                    x_p = dict(zip(args_name, x))
-                    raise Exception("x too large: {}".format(x_p))
-                points.append([float(i) for i in x])
-                nlls.append(float(fcn.cached_nll))
-
-            s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
-                         options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
-            xn = s.x
-            ndf = s.x.shape[0]
-            min_nll = s.fun
-            success = s.success
-        elif method in ["iminuit"]:
-            from .fit import fit_minuit
-            m = fit_minuit(fcn)
-            return m
-        else:
-            raise Exception("unknown method")
-        self.vm.set_all(xn)
-        params = self.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)"""
         return self.fit_params
 
     def reinit_params(self):
@@ -252,10 +195,11 @@ class MultiConfig(object):
             params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        fcn = self.get_fcn(datas, batch=batch)
+
         if using_cached and self.inv_he is not None:
             hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
         else:
+            fcn = self.get_fcn(datas, batch=batch)
             hesse_error, self.inv_he = cal_hesse_error(
                 fcn, params, check_posi_def=True, save_npy=True
             )

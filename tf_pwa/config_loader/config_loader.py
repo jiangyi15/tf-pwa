@@ -744,11 +744,12 @@ class ConfigLoader(BaseConfig):
             correct_params = []
             if method is None:
                 method = "correct"
-        if data is None:
-            data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
+        if not using_cached:
+            if data is None:
+                data, phsp, bg, inmc = self.get_all_data()
+            fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         if using_cached and self.inv_he is not None:
             hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
         elif method == "3-point":
