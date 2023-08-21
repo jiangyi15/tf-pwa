@@ -743,12 +743,12 @@ class HelicityDecay(AmpDecay):
         ret = get_relative_p2(m0, m1, m2)
         return ret
 
-    def get_cg_matrix(self):
+    def get_cg_matrix(self, out_sym=False):
         ls = self.get_ls_list()
-        return self._get_cg_matrix(ls)
+        return self._get_cg_matrix(ls, out_sym=out_sym)
 
     @functools.lru_cache()
-    def _get_cg_matrix(self, ls):  # CG factor inside H
+    def _get_cg_matrix(self, ls, out_sym=False):  # CG factor inside H
         """
         [(l,s),(lambda_b,lambda_c)]
 
@@ -765,6 +765,18 @@ class HelicityDecay(AmpDecay):
             self.outs[1].spins
         )  # _spin_int(2 * jb + 1), _spin_int(2 * jc + 1)
         ret = np.zeros(shape=(m, *n))
+        sqrt = np.sqrt
+        my_cg_coef = cg_coef
+        if out_sym:
+            from sympy.physics.quantum.cg import CG
+
+            sint = lambda x: sym.simplify(_spin_int(x * 2)) / 2
+            sqrt = lambda x: sym.sqrt(sint(x))
+
+            def my_cg_coef(a, b, c, d, e, f):
+                return CG(*list(map(sint, [a, c, b, d, e, f]))).doit()
+
+            ret = ret.tolist()
         for i, ls_i in enumerate(ls):
             l, s = ls_i
             for i1, lambda_b in enumerate(
@@ -774,11 +786,12 @@ class HelicityDecay(AmpDecay):
                     self.outs[1].spins
                 ):  # _spin_range(-jc, jc)):
                     ret[i][i1][i2] = (
-                        np.sqrt((2 * l + 1) / (2 * ja + 1))
-                        * cg_coef(
+                        sqrt(2 * l + 1)
+                        / sqrt(2 * ja + 1)
+                        * my_cg_coef(
                             jb, jc, lambda_b, -lambda_c, s, lambda_b - lambda_c
                         )
-                        * cg_coef(
+                        * my_cg_coef(
                             l,
                             s,
                             0,
@@ -789,7 +802,27 @@ class HelicityDecay(AmpDecay):
                     )
         return ret
 
-    def build_simple_input(self):
+    def build_ls2hel_eq(self):
+        cg_matrix = self.get_cg_matrix(out_sym=True)
+        gls = []
+        for l, s in self.get_ls_list():
+            gls.append(sym.Symbol("g_{}_{}".format(l, s)))
+        hel = []
+        eqs = []
+        for ib, lb in enumerate(self.outs[0].spins):
+            for ic, lc in enumerate(self.outs[1].spins):
+                tmp = sym.Symbol("H_{}_{}".format(lb, lc))
+                rhs = 0
+                for idx, gi in enumerate(gls):
+                    rhs = rhs + cg_matrix[idx][ib][ic] * gi
+                if rhs == 0:
+                    continue
+                eq = sym.Eq(tmp, sym.simplify(rhs))
+                hel.append(tmp)
+                eqs.append(eq)
+        return [gls, hel, eqs]
+
+    def build_simple_data(self):
         data_p = {self.core: {"m": self.core.get_mass()}}
         data = {}
         zero = np.array(0.0)

@@ -334,7 +334,8 @@ def test_decay_ls_amp():
     data_p = {a: {"m": ma}, c: {"m": mb}, d: {"m": mb}}
     dec1.get_ls_amp(data, data_p)
     dec1.get_ls_amp({**data, "|q|2": mb}, data_p)
-    dec1.get_ls_amp(**dec1.build_simple_input())
+    dec1.get_ls_amp(**dec1.build_simple_data())
+    dec1.build_ls2hel_eq()
 
 
 def test_polarization():
