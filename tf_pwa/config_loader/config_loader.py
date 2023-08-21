@@ -779,7 +779,7 @@ class ConfigLoader(BaseConfig):
         # print("correlation matrix:")
         # print(corr_coef_matrix(self.inv_he))
         print("hesse_error:", hesse_error)
-        err = dict(zip(fcn.vm.trainable_vars, hesse_error))
+        err = dict(zip(self.vm.trainable_vars, hesse_error))
         if hasattr(self, "fit_params"):
             self.fit_params.set_error(err)
         return err
