@@ -2,7 +2,7 @@ import warnings
 
 import tensorflow as tf
 
-from tf_pwa.cal_angle import cal_angle_from_momentum
+from tf_pwa.cal_angle import CalAngleData, cal_angle_from_momentum
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import HeavyCall, data_strip
 
@@ -82,11 +82,14 @@ class CachedAmpPreProcessor(BasePreProcessor):
     def build_cached(self, x):
         from tf_pwa.experimental.build_amp import build_angle_amp_matrix
 
-        x = super().__call__(x)
-        idx, c_amp = build_angle_amp_matrix(self.decay_group, x)
-        x["cached_amp"] = list_to_tuple(c_amp)
+        x2 = super().__call__(x)
+        for k, v in x["extra"].items():
+            x2[k] = v  # {**x2, **x["extra"]}
+        # print(x["c"])
+        idx, c_amp = build_angle_amp_matrix(self.decay_group, x2)
+        x2["cached_amp"] = list_to_tuple(c_amp)
         # print(x)
-        return x
+        return x2
 
     def strip_data(self, x):
         strip_var = []
@@ -99,8 +102,11 @@ class CachedAmpPreProcessor(BasePreProcessor):
         return x
 
     def __call__(self, x):
+        extra = x["extra"]
         x = self.build_cached(x)
         x = self.strip_data(x)
+        for k in extra:
+            del x[k]
         return x
 
 
@@ -108,7 +114,6 @@ class CachedAmpPreProcessor(BasePreProcessor):
 class CachedShapePreProcessor(CachedAmpPreProcessor):
     def build_cached(self, x):
         from tf_pwa.experimental.build_amp import build_params_vector
-        from tf_pwa.experimental.opt_int import build_sum_amplitude
 
         # old_chains_idx = self.decay_group.chains_idx
         cached_shape_idx = self.amp.get_cached_shape_idx()

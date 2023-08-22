@@ -177,13 +177,13 @@ class BaseAmplitudeModel(AbsPDF):
         for i in self.decay_group:
             mask_part.append(i)
             for j in i:
-                mask_part.append(i)
-        old_mask = [getattr(i, "mask_fractor", False) for i in mask_part]
+                mask_part.append(j)
+        old_mask = [getattr(i, "mask_factor", False) for i in mask_part]
         for i in mask_part:
-            i.mask_fractor = True
+            i.mask_factor = True
         yield
         for i, j in zip(mask_part, old_mask):
-            i.mask_fractor = j
+            i.mask_factor = j
 
 
 @register_amp_model("default")

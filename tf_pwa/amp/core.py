@@ -905,7 +905,6 @@ class HelicityDecay(AmpDecay):
 
     def get_ls_amp(self, data, data_p, **kwargs):
         g_ls = self.get_g_ls()
-        # print(g_ls)
         q0 = self.get_relative_momentum2(data_p, False)
         data["|q0|2"] = q0
         if "|q|2" in data:
