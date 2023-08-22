@@ -341,7 +341,7 @@ def fit_scipy(
         ndf = s.x.shape[0]
         min_nll = s.fun
         success = s.success
-        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv / grad_scale, s.x)
+        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv * grad_scale, s.x)
         fcn.vm.remove_bound()
 
         xn = fcn.vm.get_all_val()
