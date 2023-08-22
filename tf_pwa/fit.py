@@ -207,6 +207,7 @@ def fit_scipy(
     :param kwargs:
     :return:
     """
+    gtol *= grad_scale
     args_name = fcn.vm.trainable_vars
     x0 = []
     bnds = []
@@ -339,7 +340,7 @@ def fit_scipy(
 
         # fcn.vm.set_all(s.x, True)
         ndf = s.x.shape[0]
-        min_nll = s.fun
+        min_nll = s.fun / grad_scale
         success = s.success
         hess_inv = fcn.vm.trans_error_matrix(s.hess_inv * grad_scale, s.x)
         fcn.vm.remove_bound()
