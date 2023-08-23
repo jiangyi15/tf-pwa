@@ -47,7 +47,9 @@ def default_color_generator(color_first):
     if color_first:
         style = itertools.product(marker, linestyles, colors)
     else:
-        style = _reverse(itertools.product(marker, colors, linestyles), (0, 2, 1))
+        style = _reverse(
+            itertools.product(marker, colors, linestyles), (0, 2, 1)
+        )
     return style
 
 
@@ -109,7 +111,10 @@ def _get_cfit_bg(self, data, phsp, batch=65000):
         nbg = ndata * w
         w_bg = batch_call_numpy(bg_f, phsp_i, batch) * phsp_i.get_weight()
         phsp_weight.append(-w_bg / np.sum(w_bg) * nbg)
-    ret = [data_replace(phsp_i, "weight", w) for phsp_i, w in zip(phsp, phsp_weight)]
+    ret = [
+        data_replace(phsp_i, "weight", w)
+        for phsp_i, w in zip(phsp, phsp_weight)
+    ]
     return ret
 
 
@@ -121,7 +126,10 @@ def _get_cfit_eff_phsp(self, phsp, batch=65000):
         w_eff = batch_call_numpy(eff_f, phsp_i, batch) * phsp_i.get_weight()
         phsp_weight.append(w_eff)
 
-    ret = [data_replace(phsp_i, "weight", w) for phsp_i, w in zip(phsp, phsp_weight)]
+    ret = [
+        data_replace(phsp_i, "weight", w)
+        for phsp_i, w in zip(phsp, phsp_weight)
+    ]
     return ret
 
 
@@ -272,7 +280,9 @@ def plot_partial_wave(
         phsp_rec = _get_cfit_eff_phsp(self, phsp_rec, batch)
     amp = self.get_amplitude()
     self._Ngroup = len(data)
-    ws_bkg = [None if bg_i is None else bg_i.get("weight", None) for bg_i in bg]
+    ws_bkg = [
+        None if bg_i is None else bg_i.get("weight", None) for bg_i in bg
+    ]
     # ws_bkg, ws_inmc = self._get_bg_weight(data, bg)
     if chains_id_method is not None:
         self.chains_id_method = chains_id_method
@@ -499,7 +509,9 @@ def _cal_partial_wave(
         phsp_dict["MC_total_fit"] = cut_phsp * phsp_weights  # MC total weight
 
         if ref_amp is not None:
-            phsp_dict["MC_total_fit_ref"] = cut_phsp * total_weight_ref * norm_frac_ref
+            phsp_dict["MC_total_fit_ref"] = (
+                cut_phsp * total_weight_ref * norm_frac_ref
+            )
         if bg is not None:
             bg_weight = -w_bkg
             bg_dict["sideband_weights"] = (
@@ -520,7 +532,9 @@ def _cal_partial_wave(
             idx = plot_var_dic[name]["idx"]
             trans = lambda x: np.reshape(plot_var_dic[name]["trans"](x), (-1,))
 
-            data_i = batch_call_numpy(lambda x: trans(data_index(x, idx)), data, batch)
+            data_i = batch_call_numpy(
+                lambda x: trans(data_index(x, idx)), data, batch
+            )
             if idx[-1] == "m":
                 tmp_idx = list(idx)
                 tmp_idx[-1] = "p"
@@ -543,7 +557,9 @@ def _cal_partial_wave(
             phsp_dict[name + "_MC"] = phsp_i  # MC
 
             if bg is not None:
-                bg_i = batch_call_numpy(lambda x: trans(data_index(x, idx)), bg, batch)
+                bg_i = batch_call_numpy(
+                    lambda x: trans(data_index(x, idx)), bg, batch
+                )
                 bg_dict[name + "_sideband"] = bg_i  # sideband
     data_dict = data_to_numpy(data_dict)
     phsp_dict = data_to_numpy(phsp_dict)
@@ -631,7 +647,9 @@ def _plot_partial_wave(
         legends = []
         legends_label = []
 
-        le = data_hist.draw_error(ax, fmt=".", zorder=-2, label="data", color="black")
+        le = data_hist.draw_error(
+            ax, fmt=".", zorder=-2, label="data", color="black"
+        )
 
         legends.append(le)
         legends_label.append("data")
@@ -648,8 +666,12 @@ def _plot_partial_wave(
             )
 
         if bg_dict:
-            bg_hist = Hist1D.histogram(bg_i, weights=bg_weight, range=xrange, bins=bins)
-            le = bg_hist.draw_bar(ax, label="back ground", alpha=0.5, color="grey")
+            bg_hist = Hist1D.histogram(
+                bg_i, weights=bg_weight, range=xrange, bins=bins
+            )
+            le = bg_hist.draw_bar(
+                ax, label="back ground", alpha=0.5, color="grey"
+            )
             fitted_hist = fitted_hist + bg_hist
             if ref_amp is not None:
                 fitted_hist_ref = fitted_hist_ref + bg_hist
@@ -682,7 +704,9 @@ def _plot_partial_wave(
                     # marker, ls, color = line["marker"], line["linestyle"], line["color"]
                     le3 = hist_i.draw_kde(ax, **kwargs)
                 else:
-                    le3 = hist_i.draw_kde(ax, fmt=curve_style, label=label, linewidth=1)
+                    le3 = hist_i.draw_kde(
+                        ax, fmt=curve_style, label=label, linewidth=1
+                    )
             else:
                 if curve_style is None:
                     line = style.get_style(name_i)
@@ -758,9 +782,13 @@ def _plot_partial_wave(
         if nll is None:
             ax.set_title(display, fontsize="xx-large")
         else:
-            ax.set_title("{}: -lnL= {:.2f}".format(display, nll), fontsize="xx-large")
+            ax.set_title(
+                "{}: -lnL= {:.2f}".format(display, nll), fontsize="xx-large"
+            )
         ax.set_xlabel(display + units)
-        ywidth = np.mean(data_hist.bin_width)  # (max(data_x) - min(data_x)) / bins
+        ywidth = np.mean(
+            data_hist.bin_width
+        )  # (max(data_x) - min(data_x)) / bins
         ax.set_ylabel("Events/{:.3f}{}".format(ywidth, units))
         if plot_delta or plot_pull:
             plt.setp(ax.get_xticklabels(), visible=False)
@@ -928,7 +956,9 @@ def _2d_plot(
             if bg_dict:
                 bg_1 = bg_dict[var1 + "_sideband"]
                 bg_2 = bg_dict[var2 + "_sideband"]
-                plt.scatter(bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband")
+                plt.scatter(
+                    bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband"
+                )
                 plot_axis()
                 plt.legend()
                 plt.savefig(prefix + k + "_bkg")
@@ -939,7 +969,9 @@ def _2d_plot(
         # fit pdf
         if "fitted" in plot_figs:
             phsp_weights = phsp_dict["MC_total_fit"]
-            plt.hist2d(phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12)
+            plt.hist2d(
+                phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12
+            )
             plot_axis()
             plt.colorbar()
             plt.savefig(prefix + k + "_fitted")
@@ -1071,7 +1103,9 @@ def _2d_plot_v2(
             if bg_dict:
                 bg_1 = var_x_f(**get_var(bg_dict, "_sideband"))
                 bg_2 = var_y_f(**get_var(bg_dict, "_sideband"))
-                plt.scatter(bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband")
+                plt.scatter(
+                    bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband"
+                )
                 plot_axis()
                 plt.savefig(prefix + k + "_bkg")
                 plt.clf()
@@ -1136,7 +1170,9 @@ def hist_error(data, bins=50, xrange=None, weights=1.0, kind="poisson"):
     return data_x, data_y, data_err
 
 
-def hist_line(data, weights, bins, xrange=None, inter=1, kind="UnivariateSpline"):
+def hist_line(
+    data, weights, bins, xrange=None, inter=1, kind="UnivariateSpline"
+):
     """interpolate data from hostgram into a line
 
     >>> import numpy as np
@@ -1151,7 +1187,9 @@ def hist_line(data, weights, bins, xrange=None, inter=1, kind="UnivariateSpline"
     return interp_hist(x, y, num=num, kind=kind)
 
 
-def hist_line_step(data, weights, bins, xrange=None, inter=1, kind="quadratic"):
+def hist_line_step(
+    data, weights, bins, xrange=None, inter=1, kind="quadratic"
+):
     """
 
     >>> import numpy as np
@@ -1181,7 +1219,9 @@ def export_legend(ax, filename="legend.pdf", ncol=1):
     )
     fig = legend.figure
     fig.canvas.draw()
-    bbox = legend.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    bbox = legend.get_window_extent().transformed(
+        fig.dpi_scale_trans.inverted()
+    )
     fig.savefig(filename, dpi="figure", bbox_inches=bbox)
     plt.close(fig2)
     plt.close(fig)
