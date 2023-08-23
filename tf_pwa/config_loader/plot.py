@@ -297,12 +297,14 @@ def plot_partial_wave(
         has_legend = conf.get("legend", False)
         xrange = conf.get("range", None)
         bins = conf.get("bins", None)
+        legend_position = conf.get("legend_position", "left")
         units = conf.get("units", "")
         yscale = conf.get("yscale", "linear")
         plot_var_dic[name] = {
             "display": display,
             "upper_ylim": upper_ylim,
             "legend": has_legend,
+            "legend_position": legend_position,
             "idx": idx,
             "trans": trans,
             "range": xrange,
@@ -369,7 +371,6 @@ def plot_partial_wave(
                     **kwargs,
                 )
         else:
-
             for dt, mc, sb, w_bkg, i in zip(
                 data, phsp, bg, ws_bkg, range(self._Ngroup)
             ):
@@ -602,7 +603,6 @@ def _plot_partial_wave(
     ref_amp=None,
     **kwargs
 ):
-
     # cmap = plt.get_cmap("jet")
     # N = 10
     # colors = [cmap(float(i) / (N+1)) for i in range(1, N+1)]
@@ -622,6 +622,7 @@ def _plot_partial_wave(
         display = plot_var_dic[name]["display"]
         upper_ylim = plot_var_dic[name]["upper_ylim"]
         has_legend = plot_var_dic[name]["legend"]
+        legend_position = plot_var_dic[name]["legend_position"]
         bins = plot_var_dic[name]["bins"]
         units = plot_var_dic[name]["units"]
         xrange = plot_var_dic[name]["range"]
@@ -636,7 +637,10 @@ def _plot_partial_wave(
         )
         fig = plt.figure()
         if plot_delta or plot_pull:
-            ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
+            if legend_position == "outside":
+                ax = plt.subplot2grid((4, 6), (0, 0), rowspan=3, colspan=5)
+            else:
+                ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
         else:
             ax = fig.add_subplot(1, 1, 1)
 
@@ -728,13 +732,53 @@ def _plot_partial_wave(
         ax.set_xlim(xrange)
         ax.set_yscale(yscale)
         if has_legend:
-            leg = ax.legend(
-                legends,
-                legends_label,
-                frameon=False,
-                labelspacing=0.1,
-                borderpad=0.0,
-            )
+            if legend_position == "best" or "default":
+                leg = ax.legend(
+                    legends,
+                    legends_label,
+                    frameon=False,
+                    labelspacing=0.1,
+                    borderpad=0.0,
+                    loc="best",
+                )
+            elif legend_position == "left" or "upper left":
+                leg = ax.legend(
+                    legends,
+                    legends_label,
+                    frameon=False,
+                    labelspacing=0.1,
+                    borderpad=0.0,
+                    loc="upper left",
+                )
+            elif legend_position == "middle" or "upper center":
+                leg = ax.legend(
+                    legends,
+                    legends_label,
+                    frameon=False,
+                    labelspacing=0.1,
+                    borderpad=0.0,
+                    loc="upper center",
+                )
+            elif legend_position == "right" or "upper right":
+                leg = ax.legend(
+                    legends,
+                    legends_label,
+                    frameon=False,
+                    labelspacing=0.1,
+                    borderpad=0.0,
+                    loc="upper right",
+                )
+            elif legend_position == "outside":
+                leg = ax.legend(
+                    legends,
+                    legends_label,
+                    frameon=False,
+                    fontsize="small",
+                    labelspacing=0.1,
+                    borderpad=0.0,
+                    bbox_to_anchor=(1.02, 0.5),
+                    loc=6,
+                )
         if nll is None:
             ax.set_title(display, fontsize="xx-large")
         else:
@@ -748,7 +792,10 @@ def _plot_partial_wave(
         ax.set_ylabel("Events/{:.3f}{}".format(ywidth, units))
         if plot_delta or plot_pull:
             plt.setp(ax.get_xticklabels(), visible=False)
-            ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
+            if legend_position == "outside":
+                ax2 = plt.subplot2grid((4, 6), (3, 0), rowspan=1, colspan=5)
+            else:
+                ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
             # y_err = fit_y - data_y
             # if plot_pull:
             # _epsilon = 1e-10
@@ -856,7 +903,6 @@ def _2d_plot(
     color_first=True,
     **kwargs
 ):
-
     twodplot = self.config["plot"].get("2Dplot", {})
     for k, i in twodplot.items():
         if "&" not in k:
@@ -970,7 +1016,6 @@ def _2d_plot_v2(
     color_first=True,
     **kwargs
 ):
-
     twodplot = self.config["plot"].get("2Dplot", {})
     for k, v in twodplot.items():
         if "&" in k:
