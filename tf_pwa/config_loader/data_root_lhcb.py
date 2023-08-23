@@ -61,9 +61,9 @@ class RootData(MultiData):
     def get_data(self, idx):
         if uproot_version < 4:
             print("uproot < 4 is not support")
-            return None
+            return [None]
         if idx not in self.dic:
-            return None
+            return [None]
         p4 = self.get_p4(idx)
         n_data = [i.shape[0] for i in p4]
         p4 = [list(np.moveaxis(i, 1, 0)) for i in p4]
