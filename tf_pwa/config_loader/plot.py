@@ -685,6 +685,8 @@ def _plot_partial_wave(
 
         for i, name_i, label, curve_style in chain_property:
             weight_i = phsp_dict["MC_{0}_{1}_fit".format(i, name_i)]
+            if np.allclose(weight_i, 0):
+                continue
             hist_i = Hist1D.histogram(
                 phsp_i,
                 weights=weight_i,
