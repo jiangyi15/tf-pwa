@@ -135,7 +135,8 @@ plot:
   config:
     bins: 50
     legend_position: "default"
-    ## The position of legend, can be "default"="best", "left"="upper left", "right"="upper right", "middle"="upper center" and "outside", this option can also be set in each plot item.
+    ## The position of legend, can be "default"="best", "left"="upper left", "right"="upper right", "middle"="upper center" and "outside".
+    ## This option can also be set in each plot item.
   ## invariant mass
   mass:
     R_CD:
