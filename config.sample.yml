@@ -134,9 +134,8 @@ plot:
   ## plot configuration TODO
   config:
     bins: 50
-    legend_position: "default"
-    ## The position of legend, can be "default"="best", "left"="upper left", "right"="upper right", "middle"="upper center" and "outside".
-    ## This option can also be set in each plot item.
+    legend_outside: True
+    ## Make the legend outside the plot, default is False (inside)
   ## invariant mass
   mass:
     R_CD:
@@ -145,6 +144,7 @@ plot:
       display: "$M_{CD}$"
       # upper_ylim: 200
       # trans: x*x
+      legend_outside: False
     R_BD:
       display: "$M_{BD}$"
     R_BC:

@@ -33,16 +33,16 @@ constrains:
 
 plot:
   config:
-    legend_position: "outside"
+    legend_outside: True
   mass:
-    R_BC: { display: "$M_{BC}$", legend_position: "left" }
-    R_BD: { display: "$M_{BD}$", legend_position: "middle" }
-    R_CD: { display: "$M_{CD}$", legend_position: "right" }
+    R_BC: { display: "$M_{BC}$" }
+    R_BD: { display: "$M_{BD}$" }
+    R_CD: { display: "$M_{CD}$" }
   angle:
     R_BC/B:
       cos(beta):
         display: "cos $\\theta$"
         legend: True
-        legend_position: "default"
+        legend_outside: False
       alpha:
         display: "$\\phi$"
