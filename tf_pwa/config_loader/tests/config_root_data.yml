@@ -1,0 +1,44 @@
+data:
+  mode: "root_lhcb"
+  dat_order: [D1, D2, K] # same as particle in matrix
+  data: "toy_data/Data_{run}.root:DecayTree0"
+  data_var: "{particle}_{pi}"
+  data_weight: "(float((B_M < 5300)&(B_M > 5260))*1)" # cut and weight formula
+  unit_scale: 0.001 # scale for monmentum
+  data_charge: "B_Q" # formula for var
+  bg: "toy_data/Data_{run}.root:DecayTree0"
+  bg_var: "{particle}_{pi}"
+  bg_weight: "-(float(((B_M > 5320)|(B_M < 5250)))*select((0.35, 0.36)))"
+  bg_charge: "B_Q"
+  phsp: "toy_data/MC_{run}.root:DecayTree0"
+  matrix_order: ["run", "particle", ["pi", "pi2"]] # the last two are only used for p4
+  matrix: # matrix will generate a list of files (and variables for p4)
+    run: ["run1", "run2"]
+    particle: ["D1", "D2", "K"]
+    pi: ["E", "PX", "PY", "PZ"]
+    pi2: ["P_E", "P_X", "P_Y", "P_Z"]
+  phsp_var: "{particle}_TRUE{pi2}"
+  phsp_weight:
+    "cond(year, {{2011: 1.11, 2012: 2.08, 2015: 0.33, 2016: 1.67, 2017: 1.71,
+    2018: 2.19}}) * Effcorr"
+  phsp_charge: "B_Q"
+
+decay:
+  B:
+    - [D1D2, K, p_break: True]
+    - [D1K, D2]
+    - [D2K, D1]
+  D1D2: [D1, D2]
+  D1K: [D1, K]
+  D2K: [D2, K]
+
+particle:
+  $top: B
+  $finals: [D1, D2, K]
+  D1D2: { J: 1, P: -1, mass: 4.04, width: 0.05 }
+  D1K: []
+  D2K: []
+  B: { J: 0, P: -1, mass: 5.28 }
+  D1: { J: 0, P: -1, mass: 1.8 }
+  D2: { J: 0, P: -1, mass: 1.8 }
+  K: { J: 0, P: -1, mass: 0.5 }
