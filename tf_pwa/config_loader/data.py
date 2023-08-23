@@ -56,7 +56,9 @@ def register_data_mode(name=None, f=None):
 def load_data_mode(dic, decay_struct, default_mode="multi", config=None):
     if dic is None:
         dic = {}
-    mode = dic.get("mode", default_mode)
+    mode = dic.get("format", None)
+    if mode is None:
+        mode = dic.get("mode", default_mode)
     return get_config(DATA_MODE)[mode](dic, decay_struct, config=config)
 
 

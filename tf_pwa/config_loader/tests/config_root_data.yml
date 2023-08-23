@@ -1,5 +1,5 @@
 data:
-  mode: "root_lhcb"
+  format: "root_lhcb"
   dat_order: [D1, D2, K] # same as particle in matrix
   data: "toy_data/Data_{run}.root:DecayTree0"
   data_var: "{particle}_{pi}"
