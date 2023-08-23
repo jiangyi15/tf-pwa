@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from tf_pwa.config_loader.data import MultiData, register_data_mode
 from tf_pwa.data import data_mask
-from tf_pwa.root_io import uproot
+from tf_pwa.root_io import uproot, uproot_version
 
 
 def build_matrix(order, matrix):
@@ -59,6 +59,9 @@ class RootData(MultiData):
         return ret
 
     def get_data(self, idx):
+        if uproot_version < 4:
+            print("uproot < 4 is not support")
+            return None
         if idx not in self.dic:
             return None
         p4 = self.get_p4(idx)
