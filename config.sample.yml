@@ -5,7 +5,6 @@
 ## line starts with `##` is documnet.
 ## line starts with `#` is option.
 
-
 ## data entry is the data file name list used for fit
 data:
   ## 4-momentum order of final particles in dat files [option]
@@ -41,7 +40,6 @@ data:
   # cached_data: "data/all_data.npy"
   # data_charge: ["data/data4600_cc.dat"] # charge conjugation condition same as weight
   # cp_trans: True # when used charge conjugation as above, this do p -> -p for charge conjugation process.
-
 
 ## `decay` describe the decay structure, each node can be a list of particle name
 decay:
@@ -136,6 +134,8 @@ plot:
   ## plot configuration TODO
   config:
     bins: 50
+    legend_outside: True
+    ## Make the legend outside the plot, default is False (inside)
   ## invariant mass
   mass:
     R_CD:
@@ -144,6 +144,7 @@ plot:
       display: "$M_{CD}$"
       # upper_ylim: 200
       # trans: x*x
+      legend_outside: False
     R_BD:
       display: "$M_{BD}$"
     R_BC:

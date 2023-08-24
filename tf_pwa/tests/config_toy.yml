@@ -32,6 +32,8 @@ constrains:
   decay: null
 
 plot:
+  config:
+    legend_outside: True
   mass:
     R_BC: { display: "$M_{BC}$" }
     R_BD: { display: "$M_{BD}$" }
@@ -40,5 +42,7 @@ plot:
     R_BC/B:
       cos(beta):
         display: "cos $\\theta$"
+        legend: True
+        legend_outside: False
       alpha:
         display: "$\\phi$"

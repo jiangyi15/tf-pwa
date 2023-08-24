@@ -1121,6 +1121,10 @@ class PlotParams(dict):
             units = v.get("units", "GeV")
             bins = v.get("bins", self.defaults_config.get("bins", 50))
             legend = v.get("legend", self.defaults_config.get("legend", True))
+            legend_outside = v.get(
+                "legend_outside",
+                self.defaults_config.get("legend_outside", False),
+            )
             yscale = v.get(
                 "yscale", self.defaults_config.get("yscale", "linear")
             )
@@ -1134,6 +1138,7 @@ class PlotParams(dict):
                     "m",
                 ),
                 "legend": legend,
+                "legend_outside": legend_outside,
                 "range": xrange,
                 "bins": bins,
                 "trans": trans,
@@ -1187,6 +1192,10 @@ class PlotParams(dict):
                 legend = v.get(
                     "legend", self.defaults_config.get("legend", False)
                 )
+                legend_outside = v.get(
+                    "legend_outside",
+                    self.defaults_config.get("legend_outside", False),
+                )
                 yscale = v.get(
                     "yscale", self.defaults_config.get("yscale", "linear")
                 )
@@ -1213,6 +1222,7 @@ class PlotParams(dict):
                     "bins": bins,
                     "range": xrange,
                     "legend": legend,
+                    "legend_outside": legend_outside,
                     "yscale": yscale,
                 }
 
