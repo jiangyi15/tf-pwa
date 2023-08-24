@@ -4,6 +4,7 @@ from .config_loader import (
     PlotParams,
     validate_file_name,
 )
+from .data_root_lhcb import RootData
 from .extra import *
 from .multi_config import MultiConfig
 from .particle_function import ParticleFunction

@@ -56,7 +56,9 @@ def register_data_mode(name=None, f=None):
 def load_data_mode(dic, decay_struct, default_mode="multi", config=None):
     if dic is None:
         dic = {}
-    mode = dic.get("mode", default_mode)
+    mode = dic.get("format", None)
+    if mode is None:
+        mode = dic.get("mode", default_mode)
     return get_config(DATA_MODE)[mode](dic, decay_struct, config=config)
 
 
@@ -201,7 +203,11 @@ class SimpleData:
     def process_cp_trans(self, p4, charges):
         cp_trans = self.dic.get("cp_trans", True)
         if cp_trans and charges is not None:
-            p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
+            if self.lazy_call:
+                with tf.device("CPU"):
+                    p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
+            else:
+                p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
         return p4
 
     def load_extra_var(self, n_data, **kwargs):

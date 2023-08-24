@@ -148,18 +148,6 @@ class ConfigLoader(BaseConfig):
                 new_order.append(i)
         return new_order
 
-    def get_data_mode(self):
-        data_config = self.config.get("data", {})
-        data = data_config.get("data", "")
-        if isinstance(data, str):
-            mode = "single"
-        elif isinstance(data, list):
-            data_i = data[0]
-            if isinstance(data_i, str):
-                return "single"
-            elif isinstance(data_i, list):
-                return "multi"
-
     @functools.lru_cache()
     def get_data(self, idx):
         return self.data.get_data(idx)
