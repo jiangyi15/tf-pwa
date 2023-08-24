@@ -637,7 +637,7 @@ def _plot_partial_wave(
         )
         fig = plt.figure()
         if plot_delta or plot_pull:
-            if legend_outside:
+            if legend_outside and has_legend:
                 ax = plt.subplot2grid((4, 6), (0, 0), rowspan=3, colspan=5)
             else:
                 ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
@@ -766,7 +766,7 @@ def _plot_partial_wave(
         ax.set_ylabel("Events/{:.3f}{}".format(ywidth, units))
         if plot_delta or plot_pull:
             plt.setp(ax.get_xticklabels(), visible=False)
-            if legend_outside:
+            if legend_outside and has_legend:
                 ax2 = plt.subplot2grid((4, 6), (3, 0), rowspan=1, colspan=5)
             else:
                 ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
