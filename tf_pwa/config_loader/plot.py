@@ -1259,7 +1259,7 @@ def plot_adaptive_2dpull(
         im = mpl.cm.ScalarMappable(norm=normal, cmap=my_cmap)
         # ax.colorbar(im)
         ax.get_figure().colorbar(im)
-        ax.title(
+        ax.set_title(
             "$\\chi^2/Nbins={:.2f}/{}$".format(
                 np.sum(np.abs(pulls) ** 2), len(bound)
             )
