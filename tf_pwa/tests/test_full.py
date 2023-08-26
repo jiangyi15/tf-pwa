@@ -357,3 +357,14 @@ def test_cp_particles():
     config = ConfigLoader(f"{this_dir}/config_self_cp.yml")
     phsp = config.generate_phsp(100)
     config.get_amplitude()(phsp)
+
+
+def test_plot_2dpull(toy_config):
+    import matplotlib.pyplot as plt
+
+    toy_config.plot_adaptive_2dpull("m_R_BC**2", "m_R_CD**2")
+    with pytest.raises(AssertionError):
+        a, b = toy_config.get_dalitz_boundary("R_BC", "R_BC")
+    a, b = toy_config.get_dalitz_boundary("R_BC", "R_CD")
+    plt.plot(a, b, color="red")
+    plt.savefig("adptive_2d.png")

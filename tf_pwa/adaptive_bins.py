@@ -17,7 +17,8 @@ except ImportError:
 class AdaptiveBound(object):
     """adaptive bound cut for data value"""
 
-    def __init__(self, base_data, bins):
+    def __init__(self, base_data, bins, base_bound=None):
+        self._base_bound = base_bound
         if isinstance(bins, int):
             self._base_data = np.array([base_data])
             self.bins = [[bins]]
@@ -33,9 +34,10 @@ class AdaptiveBound(object):
     @functools.lru_cache()
     def get_bounds_data(self):
         """get split data bounds, and the data after splitting"""
-        base_bound = AdaptiveBound.base_bound(self._base_data)
+        if self._base_bound is None:
+            self._base_bound = AdaptiveBound.base_bound(self._base_data)
         bounds, datas = AdaptiveBound.loop_split_bound(
-            self._base_data, self.bins
+            self._base_data, self.bins, self._base_bound
         )
         return bounds, datas
 
