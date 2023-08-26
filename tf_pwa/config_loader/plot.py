@@ -1056,6 +1056,10 @@ def _2d_plot_v2(
         if "pull" in plot_figs:
             n = max(int(np.log(data_1.shape[0] / 50) / np.log(4)), 2)
             pull_binning = v.get("adaptive_binning", [[2, 2]] * n)
+            pull_scatter_style = v.get(
+                "pull_scatter_style", {"c": "black", "s": 1}
+            )
+            pull_cmap = v.get("pull_cmap", "jet")
             plot_function_2dpull(
                 data_dict,
                 phsp_dict,
@@ -1064,6 +1068,7 @@ def _2d_plot_v2(
                 var2=v["y"],
                 where=where,
                 binning=pull_binning,
+                scatter_style=pull_scatter_style,
             )
             plot_axis()
             plt.savefig(prefix + k + "_pull")
@@ -1132,6 +1137,7 @@ def plot_function_2dpull(
     cut_zero=True,
     plot_scatter=True,
     scatter_style={"s": 1, "c": "black"},
+    cmap="jet",
     **kwargs
 ):
     import matplotlib as mpl
@@ -1183,7 +1189,7 @@ def plot_function_2dpull(
 
     max_weight = max(np.max(np.abs(pulls)), 5)
 
-    my_cmap = plt.get_cmap("jet")
+    my_cmap = plt.get_cmap(cmap)
     if ax == plt:
         ax = plt.gca()  # fig, ax = plt.subplots()
     if plot_scatter:
