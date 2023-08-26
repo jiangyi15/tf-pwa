@@ -1151,10 +1151,10 @@ def get_dalitz(config, a, b):
             topb = i.core
         if pb == i.core:
             outs_b = i.outs
-    same_finals = [i for i in outs_a if i in db.outs]
+    same_finals = [i for i in outs_a if i in outs_b]
     p1 = [i for i in outs_a if i not in same_finals]
     p3 = [i for i in outs_b if i not in same_finals]
-    check = ((topa == topb),)
+    check = topa == topb
     check = check and len(same_finals) == 1
     check = check and len(p1) == 1
     check = check and len(p3) == 1
@@ -1184,7 +1184,14 @@ def get_dalitz_boundary(config, a, b, N=1000):
 
 @ConfigLoader.register_function()
 def plot_adaptive_2dpull(
-    config, var1, var2, binning=[[2, 2]] * 3, ax=plt, where={}, cut_zero=True
+    config,
+    var1,
+    var2,
+    binning=[[2, 2]] * 3,
+    ax=plt,
+    where={},
+    cut_zero=True,
+    **kwargs
 ):
     import matplotlib as mpl
     import matplotlib.colors as mcolors
@@ -1270,7 +1277,7 @@ def plot_adaptive_2dpull(
         ax.set_ylabel(var2)
 
     config.plot_partial_wave(
-        plot_function=plot_function_2dpull, combine_plot=True
+        plot_function=plot_function_2dpull, combine_plot=True, **kwargs
     )
 
 
