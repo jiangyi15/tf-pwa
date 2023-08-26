@@ -72,4 +72,4 @@ plot:
         costheta: [angle, R_BC, cos(beta)]
       xbins: 50
       ybins: 50
-      plot_figs: ["data", "sideband_hist", "fitted"]
+      plot_figs: ["data", "sideband_hist", "fitted", "pull"]

@@ -822,24 +822,6 @@ def _plot_partial_wave(
 
     style.save()
 
-    self._2d_plot(
-        data_dict,
-        phsp_dict,
-        bg_dict,
-        prefix,
-        plot_var_dic,
-        chain_property,
-        plot_delta=plot_delta,
-        plot_pull=plot_pull,
-        save_pdf=save_pdf,
-        bin_scale=bin_scale,
-        single_legend=single_legend,
-        format=format,
-        nll=nll,
-        smooth=smooth,
-        color_first=color_first,
-        **kwargs,
-    )
     self._2d_plot_v2(
         data_dict,
         phsp_dict,
@@ -858,102 +840,6 @@ def _plot_partial_wave(
         color_first=color_first,
         **kwargs,
     )
-
-
-@ConfigLoader.register_function()
-def _2d_plot(
-    self,
-    data_dict,
-    phsp_dict,
-    bg_dict,
-    prefix,
-    plot_var_dic,
-    chain_property,
-    plot_delta=False,
-    plot_pull=False,
-    save_pdf=False,
-    bin_scale=3,
-    single_legend=False,
-    format="png",
-    nll=None,
-    smooth=True,
-    color_first=True,
-    **kwargs
-):
-    twodplot = self.config["plot"].get("2Dplot", {})
-    for k, i in twodplot.items():
-        if "&" not in k:
-            continue
-        var1, var2 = k.split("&")
-        var1 = var1.rstrip()
-        var2 = var2.lstrip()
-        k = var1 + "_vs_" + var2
-        display = i.get("display", k)
-        plot_figs = i["plot_figs"]
-        name1, name2 = display.split("vs")
-        name1 = name1.rstrip()
-        name2 = name2.lstrip()
-        range1 = plot_var_dic[var1]["range"]
-        data_1 = data_dict[var1]
-        phsp_1 = phsp_dict[var1 + "_MC"]
-        range2 = plot_var_dic[var2]["range"]
-        data_2 = data_dict[var2]
-        phsp_2 = phsp_dict[var2 + "_MC"]
-
-        def plot_axis():
-            plt.xlabel(name1)
-            plt.ylabel(name2)
-            plt.title(display, fontsize="xx-large")
-            plt.xlim(range1)
-            plt.ylim(range2)
-
-        # data
-        if "data" in plot_figs:
-            plt.scatter(data_1, data_2, s=1, alpha=0.8, label="data")
-            plot_axis()
-            plt.legend()
-            plt.savefig(prefix + k + "_data")
-            plt.clf()
-            print("Finish plotting 2D data " + prefix + k)  # data
-        if "data_hist" in plot_figs:
-            plt.hist2d(
-                data_1,
-                data_2,
-                bins=100,
-                weights=data_dict["data_weights"],
-                cmin=1e-12,
-            )
-            plot_axis()
-            plt.colorbar()
-            plt.savefig(prefix + k + "_data_hist")
-            plt.clf()
-            print("Finish plotting 2D data " + prefix + k)
-        # sideband
-        if "sideband" in plot_figs:
-            if bg_dict:
-                bg_1 = bg_dict[var1 + "_sideband"]
-                bg_2 = bg_dict[var2 + "_sideband"]
-                plt.scatter(
-                    bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband"
-                )
-                plot_axis()
-                plt.legend()
-                plt.savefig(prefix + k + "_bkg")
-                plt.clf()
-                print("Finish plotting 2D sideband " + prefix + k)
-            else:
-                print("There's no bkg input")
-        # fit pdf
-        if "fitted" in plot_figs:
-            phsp_weights = phsp_dict["MC_total_fit"]
-            plt.hist2d(
-                phsp_1, phsp_2, bins=100, weights=phsp_weights, cmin=1e-12
-            )
-            plot_axis()
-            plt.colorbar()
-            plt.savefig(prefix + k + "_fitted")
-            plt.clf()
-            print("Finish plotting 2D fitted " + prefix + k)
 
 
 def _plot_var_name(name):
@@ -1019,6 +905,37 @@ def _2d_plot_v2(
     **kwargs
 ):
     twodplot = self.config["plot"].get("2Dplot", {})
+    new_plot = {}
+    for k, v in twodplot.items():
+        if "&" in k:
+            var1, var2 = k.split("&")
+            var1 = var1.rstrip()
+            var2 = var2.lstrip()
+            k = var1 + "_vs_" + var2
+            v["x"] = var1
+            v["y"] = var2
+            if (
+                "xrange" not in v
+                and var1 in plot_var_dic
+                and "range" in plot_var_dic[var1]
+            ):
+                v["xrange"] = plot_var_dic[var1]["range"]
+            if (
+                "yrange" not in v
+                and var2 in plot_var_dic
+                and "range" in plot_var_dic[var2]
+            ):
+                v["yrange"] = plot_var_dic[var2]["range"]
+            if "vs" in v.get("display", ""):
+                name1, name2 = v.get("display", "").split("vs")
+                name1 = name1.rstrip()
+                name2 = name2.lstrip()
+                if "xlabel" not in v:
+                    v["xlabel"] = name1
+                if "ylabel" not in v:
+                    v["ylabel"] = name2
+            new_plot[k] = v
+    twodplot.update(new_plot)
     for k, v in twodplot.items():
         if "&" in k:
             continue
@@ -1048,6 +965,7 @@ def _2d_plot_v2(
         y_bins = v.get("ybins", 100)
 
         display = v.get("display", k)
+        title = display
 
         plot_figs = v.get("plot_figs", ["data", "sidbanand", "fitted"])
         name1 = v.get("xlabel", str(var_x))
@@ -1056,7 +974,6 @@ def _2d_plot_v2(
         def plot_axis():
             plt.xlabel(name1)
             plt.ylabel(name2)
-            plt.title(display, fontsize="xx-large")
             plt.xlim(x_range)
             plt.ylim(y_range)
 
@@ -1064,6 +981,7 @@ def _2d_plot_v2(
         if "data" in plot_figs:
             plt.scatter(data_1, data_2, s=1, alpha=0.8, label="data")
             plot_axis()
+            plt.title(title, fontsize="xx-large")
             plt.savefig(prefix + k + "_data")
             plt.clf()
             print("Finish plotting 2D data " + prefix + k)
@@ -1077,6 +995,7 @@ def _2d_plot_v2(
                 cmin=1e-12,
             )
             plot_axis()
+            plt.title(title, fontsize="xx-large")
             plt.colorbar()
             plt.savefig(prefix + k + "_data_hist")
             plt.clf()
@@ -1090,6 +1009,7 @@ def _2d_plot_v2(
                     bg_1, bg_2, s=1, c="g", alpha=0.8, label="sideband"
                 )
                 plot_axis()
+                plt.title(title, fontsize="xx-large")
                 plt.savefig(prefix + k + "_bkg")
                 plt.clf()
                 print("Finish plotting 2D sideband " + prefix + k)
@@ -1109,6 +1029,7 @@ def _2d_plot_v2(
                     cmin=1e-12,
                 )
                 plot_axis()
+                plt.title(title, fontsize="xx-large")
                 plt.colorbar()
                 plt.savefig(prefix + k + "_bkg_hist")
                 plt.clf()
@@ -1127,10 +1048,27 @@ def _2d_plot_v2(
                 cmin=1e-12,
             )
             plot_axis()
+            plt.title(title, fontsize="xx-large")
             plt.colorbar()
             plt.savefig(prefix + k + "_fitted")
             plt.clf()
             print("Finish plotting 2D fitted " + prefix + k)
+        if "pull" in plot_figs:
+            n = max(int(np.log(data_1.shape[0] / 50) / np.log(4)), 2)
+            pull_binning = v.get("adaptive_binning", [[2, 2]] * n)
+            plot_function_2dpull(
+                data_dict,
+                phsp_dict,
+                bg_dict,
+                var1=v["x"],
+                var2=v["y"],
+                where=where,
+                binning=pull_binning,
+            )
+            plot_axis()
+            plt.savefig(prefix + k + "_pull")
+            plt.clf()
+            print("Finish plotting 2D pull " + prefix + k)
 
 
 @ConfigLoader.register_function()
@@ -1182,6 +1120,104 @@ def get_dalitz_boundary(config, a, b, N=1000):
     return s12, np.stack([s23_min, s23_max], axis=-1)
 
 
+def plot_function_2dpull(
+    data_dict,
+    phsp_dict,
+    bg_dict,
+    var1="x",
+    var2="y",
+    binning=[[2, 2]] * 3,
+    where={},
+    ax=plt,
+    cut_zero=True,
+    plot_scatter=True,
+    scatter_style={"s": 1, "c": "black"},
+    **kwargs
+):
+    import matplotlib as mpl
+    import matplotlib.colors as mcolors
+    import matplotlib.patches as mpathes
+
+    from tf_pwa.adaptive_bins import AdaptiveBound
+
+    if cut_zero:
+        cut = data_dict["data_weights"] != 0
+    else:
+        cut = np.ones(data_dict["data_weights"].shape, dtype=np.bool)
+    (var_x_f, var_y_f), get_var = build_read_var_function(
+        [var1, var2], where=where
+    )
+    x = var_x_f(**get_var(data_dict, ""))[cut]
+    y = var_y_f(**get_var(data_dict, ""))[cut]
+    w = data_dict["data_weights"][cut]
+    x_phsp = var_x_f(**get_var(phsp_dict, "_MC"))
+    y_phsp = var_y_f(**get_var(phsp_dict, "_MC"))
+    w_phsp = phsp_dict["MC_total_fit"]
+    data_cut = np.array([x, y])
+    phsp_cut = np.array([x_phsp, y_phsp])
+    base_bound = (
+        np.min(phsp_cut, axis=-1) - 1e-6,
+        np.max(phsp_cut, axis=-1) + 1e-6,
+    )
+    adapter = AdaptiveBound(data_cut, binning, base_bound)
+    phsps = adapter.split_data(np.array([x_phsp, y_phsp, w_phsp]))
+    datas = adapter.split_data(np.array([x, y, w]))
+    if bg_dict != {}:
+        x_bg = var_x_f(**get_var(bg_dict, "_sideband"))
+        y_bg = var_y_f(**get_var(bg_dict, "_sideband"))
+        w_bg = bg_dict["sideband_weights"]
+        bgs = adapter.split_data(np.array([x_bg, y_bg, w_bg]))
+    bound = adapter.get_bounds()
+    numbers = []
+    pulls = []
+    int_norm = 1
+    for i, bnd in enumerate(bound):
+        min_x, min_y = bnd[0]
+        max_x, max_y = bnd[1]
+        ndata = np.sum(datas[i][2])
+        nmc = np.sum(phsps[i][2])
+        if bg_dict != {}:
+            nmc += np.sum(bgs[i][2])
+        numbers.append((ndata, nmc))
+        pulls.append((ndata - nmc) / np.sqrt(nmc))
+
+    max_weight = max(np.max(np.abs(pulls)), 5)
+
+    my_cmap = plt.get_cmap("jet")
+    if ax == plt:
+        ax = plt.gca()  # fig, ax = plt.subplots()
+    if plot_scatter:
+        ax.scatter(x, y, **scatter_style)
+    for i, bnd in enumerate(bound):
+        min_x, min_y = bnd[0]
+        max_x, max_y = bnd[1]
+        # print(weights[i]) # max_weight)
+        rect = mpathes.Rectangle(
+            (min_x, min_y),
+            max_x - min_x,
+            max_y - min_y,
+            linewidth=1,
+            facecolor=my_cmap(pulls[i] / max_weight / 2 + 0.5),  # max_weight),
+            edgecolor="none",  # black",
+            zorder=-1,
+        )  # cmap(weights[i]/max_weight))
+        ax.add_patch(rect)
+
+    normal = mpl.colors.Normalize(vmin=-max_weight, vmax=max_weight)
+    im = mpl.cm.ScalarMappable(norm=normal, cmap=my_cmap)
+    # ax.colorbar(im)
+    ax.get_figure().colorbar(im)
+    ax.set_title(
+        "$\\chi^2/Nbins={:.2f}/{}$".format(
+            np.sum(np.abs(pulls) ** 2), len(bound)
+        )
+    )
+    ax.set_xlim([np.min(x_phsp), np.max(x_phsp)])
+    ax.set_ylim([np.min(y_phsp), np.max(y_phsp)])
+    ax.set_xlabel(var1)
+    ax.set_ylabel(var2)
+
+
 @ConfigLoader.register_function()
 def plot_adaptive_2dpull(
     config,
@@ -1191,93 +1227,26 @@ def plot_adaptive_2dpull(
     ax=plt,
     where={},
     cut_zero=True,
+    plot_scatter=True,
+    scatter_style={"s": 1, "c": "black"},
     **kwargs
 ):
-    import matplotlib as mpl
-    import matplotlib.colors as mcolors
-    import matplotlib.patches as mpathes
 
-    from tf_pwa.adaptive_bins import AdaptiveBound
+    pull_kwargs = {
+        "var1": var1,
+        "var2": var2,
+        "binning": binning,
+        "where": where,
+        "plot_scatter": plot_scatter,
+        "scatter_style": scatter_style,
+        "cut_zero": cut_zero,
+    }
 
-    def plot_function_2dpull(
-        data_dict, phsp_dict, bg_dict, plot_var_dic, **kwargs
-    ):
-        nonlocal ax
-        if cut_zero:
-            cut = data_dict["data_weights"] != 0
-        else:
-            cut = np.ones(data_dict["data_weights"].shape, dtype=np.bool)
-        (var_x_f, var_y_f), get_var = build_read_var_function(
-            [var1, var2], where=where
-        )
-        x = var_x_f(**get_var(data_dict, ""))[cut]
-        y = var_y_f(**get_var(data_dict, ""))[cut]
-        w = data_dict["data_weights"][cut]
-        x_phsp = var_x_f(**get_var(phsp_dict, "_MC"))
-        y_phsp = var_y_f(**get_var(phsp_dict, "_MC"))
-        w_phsp = phsp_dict["MC_total_fit"]
-        data_cut = np.array([x, y])
-        adapter = AdaptiveBound(data_cut, binning)
-        phsps = adapter.split_data(np.array([x_phsp, y_phsp, w_phsp]))
-        datas = adapter.split_data(np.array([x, y, w]))
-        if bg_dict != {}:
-            x_bg = var_x_f(**get_var(bg_dict, "_sideband"))
-            y_bg = var_y_f(**get_var(bg_dict, "_sideband"))
-            w_bg = bg_dict["sideband_weights"]
-            bgs = adapter.split_data(np.array([x_bg, y_bg, w_bg]))
-        bound = adapter.get_bounds()
-        numbers = []
-        pulls = []
-        int_norm = 1
-        for i, bnd in enumerate(bound):
-            min_x, min_y = bnd[0]
-            max_x, max_y = bnd[1]
-            ndata = np.sum(datas[i][2])
-            nmc = np.sum(phsps[i][2])
-            if bg_dict != {}:
-                nmc += np.sum(bgs[i][2])
-            numbers.append((ndata, nmc))
-            pulls.append((ndata - nmc) / np.sqrt(nmc))
-
-        max_weight = max(np.max(np.abs(pulls)), 5)
-
-        my_cmap = plt.get_cmap("jet")
-        if ax == plt:
-            ax = plt.gca()  # fig, ax = plt.subplots()
-        ax.scatter(x, y, s=1, c="black")
-        for i, bnd in enumerate(bound):
-            min_x, min_y = bnd[0]
-            max_x, max_y = bnd[1]
-            # print(weights[i]) # max_weight)
-            rect = mpathes.Rectangle(
-                (min_x, min_y),
-                max_x - min_x,
-                max_y - min_y,
-                linewidth=1,
-                facecolor=my_cmap(
-                    pulls[i] / max_weight / 2 + 0.5
-                ),  # max_weight),
-                edgecolor="none",  # black",
-                zorder=-1,
-            )  # cmap(weights[i]/max_weight))
-            ax.add_patch(rect)
-
-        normal = mpl.colors.Normalize(vmin=-max_weight, vmax=max_weight)
-        im = mpl.cm.ScalarMappable(norm=normal, cmap=my_cmap)
-        # ax.colorbar(im)
-        ax.get_figure().colorbar(im)
-        ax.set_title(
-            "$\\chi^2/Nbins={:.2f}/{}$".format(
-                np.sum(np.abs(pulls) ** 2), len(bound)
-            )
-        )
-        ax.set_xlim([np.min(x_phsp), np.max(x_phsp)])
-        ax.set_ylim([np.min(y_phsp), np.max(y_phsp)])
-        ax.set_xlabel(var1)
-        ax.set_ylabel(var2)
+    def my_plot_function_2dpull(*args, **kwargs):
+        plot_function_2dpull(*args, **pull_kwargs, **kwargs)
 
     config.plot_partial_wave(
-        plot_function=plot_function_2dpull, combine_plot=True, **kwargs
+        plot_function=my_plot_function_2dpull, combine_plot=True, **kwargs
     )
 
 
