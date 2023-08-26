@@ -17,6 +17,7 @@ from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.config_loader.decay_config import DecayConfig
 from tf_pwa.data import (
     LazyCall,
+    LazyFile,
     data_index,
     data_shape,
     data_split,
@@ -86,6 +87,10 @@ class SimpleData:
                     self.re_map[v] = k
         self.scale_list = self.dic.get("scale_list", ["bg"])
         self.lazy_call = self.dic.get("lazy_call", False)
+        self.lazy_file = self.dic.get("lazy_file", False)
+        self.cp_trans = self.dic.get("cp_trans", True)
+        if self.lazy_file and self.cp_trans:
+            warnings.warn("use lazy_file with cp_trans")
         center_mass = self.dic.get("center_mass", False)
         r_boost = self.dic.get("r_boost", True)
         random_z = self.dic.get("random_z", True)
@@ -186,7 +191,8 @@ class SimpleData:
 
     def load_p4(self, fnames):
         particles = self.get_dat_order()
-        p = load_dat_file(fnames, particles)
+        mmap_mode = "r" if self.lazy_file else None
+        p = load_dat_file(fnames, particles, mmap_mode=mmap_mode)
         return p
 
     def cal_angle(self, p4, **kwargs):
@@ -195,14 +201,18 @@ class SimpleData:
         charge = kwargs.get("charge_conjugation", None)
         p4 = self.process_cp_trans(p4, charge)
         if self.lazy_call:
-            data = LazyCall(self.preprocessor, {"p4": p4, "extra": kwargs})
+            if self.lazy_file:
+                data = LazyCall(
+                    self.preprocessor, LazyFile({"p4": p4, "extra": kwargs})
+                )
+            else:
+                data = LazyCall(self.preprocessor, {"p4": p4, "extra": kwargs})
         else:
             data = self.preprocessor({"p4": p4, "extra": kwargs})
         return data
 
     def process_cp_trans(self, p4, charges):
-        cp_trans = self.dic.get("cp_trans", True)
-        if cp_trans and charges is not None:
+        if self.cp_trans and charges is not None:
             if self.lazy_call:
                 with tf.device("CPU"):
                     p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
