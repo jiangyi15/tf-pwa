@@ -88,9 +88,7 @@ class SimpleData:
         self.scale_list = self.dic.get("scale_list", ["bg"])
         self.lazy_call = self.dic.get("lazy_call", False)
         self.lazy_file = self.dic.get("lazy_file", False)
-        self.cp_trans = self.dic.get("cp_trans", True)
-        if self.lazy_file and self.cp_trans:
-            warnings.warn("use lazy_file with cp_trans")
+        cp_trans = self.dic.get("cp_trans", True)
         center_mass = self.dic.get("center_mass", False)
         r_boost = self.dic.get("r_boost", True)
         random_z = self.dic.get("random_z", True)
@@ -110,6 +108,7 @@ class SimpleData:
             model=preprocessor_model,
             no_p4=no_p4,
             no_angle=no_angle,
+            cp_trans=cp_trans,
         )
 
     def get_data_file(self, idx):
@@ -182,7 +181,9 @@ class SimpleData:
         if isinstance(data, LazyCall):
             name = idx
             cached_file = self.dic.get("cached_lazy_call", None)
+            prefetch = self.dic.get("lazy_prefetch", -1)
             data.set_cached_file(cached_file, name)
+            data.prefetch = prefetch
 
     def get_n_data(self):
         data = self.get_data("data")
@@ -198,8 +199,8 @@ class SimpleData:
     def cal_angle(self, p4, **kwargs):
         if isinstance(p4, (list, tuple)):
             p4 = {k: v for k, v in zip(self.get_dat_order(), p4)}
-        charge = kwargs.get("charge_conjugation", None)
-        p4 = self.process_cp_trans(p4, charge)
+        # charge = kwargs.get("charge_conjugation", None)
+        # p4 = self.process_cp_trans(p4, charge)
         if self.lazy_call:
             if self.lazy_file:
                 data = LazyCall(
@@ -210,15 +211,6 @@ class SimpleData:
         else:
             data = self.preprocessor({"p4": p4, "extra": kwargs})
         return data
-
-    def process_cp_trans(self, p4, charges):
-        if self.cp_trans and charges is not None:
-            if self.lazy_call:
-                with tf.device("CPU"):
-                    p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
-            else:
-                p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
-        return p4
 
     def load_extra_var(self, n_data, **kwargs):
         extra_var = {}

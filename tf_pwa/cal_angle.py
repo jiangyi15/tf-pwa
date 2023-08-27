@@ -559,6 +559,8 @@ def add_relative_momentum(data: dict):
 
 
 def parity_trans(p, charges):
+    if charges is None:
+        return p
     charges = charges[: p.shape[0], None]
     return tf.where(charges > 0, p, LorentzVector.neg(p))
 

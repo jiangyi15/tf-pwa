@@ -88,6 +88,7 @@ class LazyCall:
         self.cached_batch = {}
         self.cached_file = None
         self.name = ""
+        self.prefetch = -1
 
     def batch(self, batch, axis=0):
         return self.as_dataset(batch)
@@ -107,13 +108,13 @@ class LazyCall:
             for i, j in zip(
                 self.x, split_generator(self.extra, self.batch_size)
             ):
-                yield {**self.f(i), **j}
+                yield {**self.f(i, *self.args, **self.kwargs), **j}
         else:
             for i, j in zip(
                 split_generator(self.x, self.batch_size),
                 split_generator(self.extra, self.batch_size),
             ):
-                yield {**self.f(i), **j}
+                yield {**self.f(i, *self.args, **self.kwargs), **j}
 
     def as_dataset(self, batch=65000):
         self.batch_size = batch
@@ -152,8 +153,12 @@ class LazyCall:
             else:
                 data = data.cache(cached_file)
         else:
-            data = data.cache().map(f)
-        data = data.prefetch(tf.data.AUTOTUNE)
+            data = data.map(f)
+
+        if self.prefetch > 0:
+            data = data.prefetch(tf.prefetch)
+        elif self.prefetch < 0:
+            data = data.prefetch(tf.data.AUTOTUNE)
 
         self.cached_batch[batch] = data
         return self
@@ -179,6 +184,7 @@ class LazyCall:
         ret.name = self.name
         for i in other:
             ret.name += "_" + i.name
+        ret.prefetch = self.prefetch
         return ret
 
     def __setitem__(self, index, value):
@@ -204,6 +210,7 @@ class LazyCall:
         ret.extra = self.extra.copy()
         ret.cached_file = self.cached_file
         ret.name = self.name
+        ret.prefetch = self.prefetch
         return ret
 
     def eval(self):

@@ -2,7 +2,11 @@ import warnings
 
 import tensorflow as tf
 
-from tf_pwa.cal_angle import CalAngleData, cal_angle_from_momentum
+from tf_pwa.cal_angle import (
+    CalAngleData,
+    cal_angle_from_momentum,
+    parity_trans,
+)
 from tf_pwa.config import create_config, get_config, regist_config, temp_config
 from tf_pwa.data import HeavyCall, data_strip
 
@@ -50,6 +54,9 @@ class BasePreProcessor(HeavyCall):
 
     def __call__(self, x):
         p4 = x["p4"]
+        if self.kwargs.get("cp_trans", False):
+            charges = x.get("extra", {}).get("charge_conjugation", None)
+            p4 = {k: parity_trans(v, charges) for k, v in p4.items()}
         kwargs = {}
         for k in [
             "center_mass",
