@@ -169,6 +169,9 @@ class LazyCall:
         self.cached_file = cached_file
         self.name = name
 
+    def create_new(self, f, x, *args, **kwargs):
+        return LazyCall(f, x, *args, **kwargs)
+
     def merge(self, *other, axis=0):
         all_x = [self.x]
         all_extra = [self.extra]
@@ -176,7 +179,7 @@ class LazyCall:
             all_x.append(i.x)
             all_extra.append(i.extra)
         new_extra = data_merge(*all_extra, axis=axis)
-        ret = LazyCall(
+        ret = self.create_new(
             self.f, data_merge(*all_x, axis=axis), *self.args, **self.kwargs
         )
         ret.extra = new_extra
@@ -206,7 +209,7 @@ class LazyCall:
         return tf.ones(data_shape(self), dtype=get_config("dtype"))
 
     def copy(self):
-        ret = LazyCall(self.f, self.x, *self.args, **self.kwargs)
+        ret = self.create_new(self.f, self.x, *self.args, **self.kwargs)
         ret.extra = self.extra.copy()
         ret.cached_file = self.cached_file
         ret.name = self.name
@@ -232,12 +235,17 @@ class LazyCall:
 
 
 class LazyFile(LazyCall):
-    def __init__(self, x):
+    def __init__(self, x, *args, **kwargs):
         self.x = x
-        self.batch_size = None
-        self.f = None
+        self.f = lambda x: x
+        self.args = args
+        self.kwargs = kwargs
         self.extra = {}
+        self.batch_size = None
         self.cached_batch = {}
+        self.cached_file = None
+        self.name = ""
+        self.prefetch = -1
 
     def as_dataset(self, batch=65000):
         if batch in self.cached_batch:
@@ -257,6 +265,12 @@ class LazyFile(LazyCall):
         self.batch_size = batch
         self.cached_batch[batch] = ret
         return self
+
+    def create_new(self, f, x, *args, **kwargs):
+        return LazyFile(x)
+
+    def eval(self):
+        return self.x
 
 
 class EvalLazy:
