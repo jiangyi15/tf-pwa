@@ -65,8 +65,22 @@ def gen_toy():
 
 
 @pytest.fixture
+def toy_npy(gen_toy):
+    for i in ["data", "bg", "PHSP"]:
+        data = np.loadtxt(f"toy_data/{i}.dat")
+        np.save(f"toy_data/{i}_npy.npy", data)
+
+
+@pytest.fixture
 def toy_config(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_toy.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
+@pytest.fixture
+def toy_config_npy(toy_npy):
+    config = ConfigLoader(f"{this_dir}/config_toy_npy.yml")
     config.set_params(f"{this_dir}/exp_params.json")
     return config
 
@@ -368,3 +382,8 @@ def test_plot_2dpull(toy_config):
     a, b = toy_config.get_dalitz_boundary("R_BC", "R_CD")
     plt.plot(a, b, color="red")
     plt.savefig("adptive_2d.png")
+
+
+def test_lazy_file(toy_config_npy):
+    fcn = toy_config_npy.get_fcn()
+    fcn.nll_grad()
