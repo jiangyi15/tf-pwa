@@ -156,7 +156,7 @@ class LazyCall:
             data = data.map(f)
 
         if self.prefetch > 0:
-            data = data.prefetch(tf.prefetch)
+            data = data.prefetch(self.prefetch)
         elif self.prefetch < 0:
             data = data.prefetch(tf.data.AUTOTUNE)
 

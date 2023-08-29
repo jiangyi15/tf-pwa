@@ -313,6 +313,9 @@ class DecayConfig(BaseConfig):
             assert len(top_tmp) == 1, "not only one top particle"
             top = list(top_tmp)[0]
         else:
+            if isinstance(top, list):
+                assert len(top) == 1, "only one initial supported"
+                top = top[0]
             if isinstance(top, str):
                 top = particle_set[top]
             elif isinstance(top, dict):

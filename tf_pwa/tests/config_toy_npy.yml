@@ -31,11 +31,10 @@ particle:
 
 constrains:
   particle: null
-  decay: null
+  decay:
+    decay_d: 3.0
 
 plot:
-  config:
-    legend_outside: True
   mass:
     R_BC: { display: "$M_{BC}$" }
     R_BD: { display: "$M_{BD}$" }
