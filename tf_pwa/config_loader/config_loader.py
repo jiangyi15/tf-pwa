@@ -368,7 +368,7 @@ class ConfigLoader(BaseConfig):
         res_dec = {}
         for d in amp.decay_group:
             for p_i in d.inner:
-                i = str(p_i)
+                i = p_i.name
                 res_dec[i] = d
                 prefix_map = {
                     "m0": "mass",
