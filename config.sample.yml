@@ -121,7 +121,10 @@ constrains:
   #   equal:
   #     mass: [[D1_2430p, D1_2430]]
   ## fix the first decay chain total to 1.0
-  decay: { fix_chain_idx: 0, fix_chain_val: 1 }
+  decay:
+    fix_chain_idx: 0
+    fix_chain_val: 1
+  #   decay_d: 3.0
   # fix_var:
   #   "A->Zc_4025.DZc_4025->B.C_total_0r": 1.0
   # var_range:
