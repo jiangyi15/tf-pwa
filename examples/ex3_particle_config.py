@@ -84,11 +84,11 @@ phsp = config.generate_phsp(10000)
 
 # %%
 # You can also fit the data fit to the data
-# The args can be omitted when writen in config.yml
+# We can omit the args when writen in config.yml
 #
 
 fit_result = config.fit([data], [phsp])
-# After the fit, you can get the uncetains as
+# After the fit, you can get the uncertaities as
 err = config.get_params_error(fit_result, [data], [phsp])
 
 # %%
@@ -105,12 +105,12 @@ for var in input_params:
 amp = config.get_amplitude()
 
 # %%
-# This is the total $|A|^2$
+# This is the total :math:`|A|^2`
 
 weight = amp(phsp)
 
 # %%
-# This is the $|A_i|^2$ for each decay chain
+# This is the :math:`|A_i|^2` for each decay chain
 
 partial_weight = amp.partial_weight(phsp)
 
