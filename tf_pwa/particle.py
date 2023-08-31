@@ -686,6 +686,9 @@ class DecayChain(object):
     def __hash__(self):
         return hash(self.get_id())
 
+    def __len__(self):
+        return len(self.chain)
+
     @simple_cache_fun
     def get_id(self):
         """return identity of the decay"""

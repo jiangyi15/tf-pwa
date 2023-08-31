@@ -322,6 +322,29 @@ class ConfigLoader(BaseConfig):
         # fix which total factor
         fix_decay.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val, 0.0))
 
+        decay_d = dic.get("decay_d", None)
+        if decay_d is not None:
+            if isinstance(decay_d, (float, int)):
+                decay_d = [decay_d] * len(amp.decay_group[0])
+            if isinstance(decay_d, (list, tuple)):
+                for i in amp.decay_group:
+                    for d, j in zip(decay_d, i):
+                        if hasattr(j.core, "d"):
+                            j.core.d = d
+                        if hasattr(j, "d"):
+                            j.d = d
+            elif isinstance(decay_d, dict):
+                for i in amp.decay_group:
+                    for d, j in zip(decay_d, i):
+                        if j.core.name in decay_d:
+                            d = decay_d.get(j.core.name)
+                            if hasattr(j.core, "d"):
+                                j.core.d = d
+                            if hasattr(j, "d"):
+                                j.d = d
+            else:
+                raise ValueError("decay_d should be list or dict")
+
     def add_gauss_constr_constraints(self, amp, dic=None):
         dic = {} if dic is None else dic
         self.gauss_constr_dic.update(dic)
@@ -345,7 +368,7 @@ class ConfigLoader(BaseConfig):
         res_dec = {}
         for d in amp.decay_group:
             for p_i in d.inner:
-                i = str(p_i)
+                i = p_i.name
                 res_dec[i] = d
                 prefix_map = {
                     "m0": "mass",

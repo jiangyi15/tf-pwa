@@ -35,7 +35,9 @@ particle:
 
 constrains:
   particle: null
-  decay: null
+  decay:
+    decay_d:
+      R_BC: 3.0
 
 plot:
   config:
