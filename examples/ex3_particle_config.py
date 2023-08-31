@@ -105,12 +105,12 @@ for var in input_params:
 amp = config.get_amplitude()
 
 # %%
-# This is the total |A|^2
+# This is the total $|A|^2$
 
 weight = amp(phsp)
 
 # %%
-# This is the |A_i|^2 for each decay chain
+# This is the $|A_i|^2$ for each decay chain
 
 partial_weight = amp.partial_weight(phsp)
 
