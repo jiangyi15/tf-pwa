@@ -151,6 +151,14 @@ cd docs && make html
 
 Then, the documents can be found in docs/\_build/html.
 
+## Other resources
+
+[面向 BESIII 用户的 TF-PWA 使用手册](https://note.ihep.ac.cn/s/xAr0zQXf8)
+
+[HADRON 2023](https://agenda.infn.it/event/33110/contributions/198135/)
+
+[PWA 12](https://indico.cern.ch/event/885396/timetable/#52-reach-on-the-partial-wave-a)
+
 ## Dependencies
 
 tensorflow or tensorflow-gpu >= 2.0.0
