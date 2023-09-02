@@ -52,7 +52,7 @@ def gauss_interp_function(m, m_min, m_max, i, N):
     from scipy.stats import norm
 
     prob_min = norm.cdf((delta_min - bias) / sigma)
-    prob_max = norm.cdf((delta_min - bias) / sigma)
+    prob_max = norm.cdf((delta_max - bias) / sigma)
     prob_interp = (
         np.linspace(1 / (2 * N), 1 - 1 / (2 * N), N)[i] * (prob_max - prob_min)
         + prob_min
@@ -62,7 +62,31 @@ def gauss_interp_function(m, m_min, m_max, i, N):
     # print(point)
     w = trans_function(m + delta, m) / norm.pdf(point)
     w = np.where(np.isnan(w), 0.0, w)
-    # / norm.pdf(point)
+    return m + delta, w
+
+
+def legendre_smear_function(m, m_min, m_max, i, N):
+    """generate mass of truth sample and weight"""
+    delta_min = m_min - m
+    delta_max = m_max - m
+    sigma = detector_config["sigma"]
+    bias = detector_config["bias"]
+    delta_min = np.max(
+        [delta_min, -5 * sigma * np.ones_like(delta_min) - bias], axis=0
+    )
+    delta_max = np.min(
+        [delta_max, 5 * sigma * np.ones_like(delta_max) - bias], axis=0
+    )
+    from numpy.polynomial.legendre import leggauss
+
+    point, weight = leggauss(N)
+    point, weight = point[i], weight[i]
+
+    delta = (point + 1) / 2 * (delta_max - delta_min) + delta_min
+
+    w = trans_function(m + delta, m) * weight
+
+    w = np.where(np.isnan(w), 0.0, w)
     return m + delta, w
 
 
@@ -102,6 +126,7 @@ def random_sample(config, decay_chain, toy, smear_method="linear"):
     smear_function = {
         "linear": linear_smear_function,
         "gauss_interp": gauss_interp_function,
+        "legendre": legendre_smear_function,
     }[smear_method]
 
     for i in range(config.resolution_size):
@@ -136,9 +161,7 @@ def main():
     ms, costheta, phi = ha.find_variable(toy)
     dat = ha.build_data(ms, costheta, phi)
 
-    p4, w = random_sample(
-        config, decay_chain, toy, smear_method="gauss_interp"
-    )
+    p4, w = random_sample(config, decay_chain, toy, smear_method="legendre")
 
     np.savetxt("data/data.dat", np.stack(p4).reshape((-1, 4)))
     np.savetxt("data/data_w.dat", np.transpose(w).reshape((-1,)))
