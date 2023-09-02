@@ -16,7 +16,7 @@ with open("detector.yml") as f:
     detector_config = yaml.safe_load(f)
 
 
-def smear_function(m, m_min, m_max, i, N):
+def linear_smear_function(m, m_min, m_max, i, N):
     """generate mass of truth sample and weight"""
     delta_min = m_min - m
     delta_max = m_max - m
@@ -33,6 +33,36 @@ def smear_function(m, m_min, m_max, i, N):
         + delta_min
     )
     w = trans_function(m + delta, m)
+    return m + delta, w
+
+
+def gauss_interp_function(m, m_min, m_max, i, N):
+    """generate mass of truth sample and weight"""
+    delta_min = m_min - m
+    delta_max = m_max - m
+    sigma = detector_config["sigma"]
+    bias = detector_config["bias"]
+    delta_min = np.max(
+        [delta_min, -5 * sigma * np.ones_like(delta_min) - bias], axis=0
+    )
+    delta_max = np.min(
+        [delta_max, 5 * sigma * np.ones_like(delta_max) - bias], axis=0
+    )
+
+    from scipy.stats import norm
+
+    prob_min = norm.cdf((delta_min - bias) / sigma)
+    prob_max = norm.cdf((delta_min - bias) / sigma)
+    prob_interp = (
+        np.linspace(1 / (2 * N), 1 - 1 / (2 * N), N)[i] * (prob_max - prob_min)
+        + prob_min
+    )
+    point = norm.ppf(prob_interp)
+    delta = point * sigma + bias
+    # print(point)
+    w = trans_function(m + delta, m) / norm.pdf(point)
+    w = np.where(np.isnan(w), 0.0, w)
+    # / norm.pdf(point)
     return m + delta, w
 
 
@@ -64,10 +94,15 @@ def smear(toy, decay_chain, name, function, idx, N):
     return ha, ha.build_data(ms, costheta, phi), w
 
 
-def random_sample(config, decay_chain, toy):
+def random_sample(config, decay_chain, toy, smear_method="linear"):
     """generate total truth sample and weight"""
     all_p4 = []
     ws = []
+
+    smear_function = {
+        "linear": linear_smear_function,
+        "gauss_interp": gauss_interp_function,
+    }[smear_method]
 
     for i in range(config.resolution_size):
         # decay_chain = [i for i in toy["decay"].keys() if "(p+, p-, pi+, pi-)" in str(i)][0] # config.get_decay(False).get_decay_chain("(B, C)")
@@ -83,7 +118,10 @@ def random_sample(config, decay_chain, toy):
         ]  # (particle, idx, mu)
         all_p4.append(np.stack(p4))  # (resolution, particle, idx, mu)
     ws = np.stack(ws)
-    ws = ws / np.sum(ws, axis=0)
+    sum_ws = np.sum(ws, axis=0)
+    ws = np.where(sum_ws[None, :] != 0, ws, 1e-6)
+    sum_ws = np.where(sum_ws == 0, 1.0, sum_ws)
+    ws = ws / sum_ws
     return np.stack(all_p4).transpose((2, 0, 1, 3)), ws
 
 
@@ -98,7 +136,9 @@ def main():
     ms, costheta, phi = ha.find_variable(toy)
     dat = ha.build_data(ms, costheta, phi)
 
-    p4, w = random_sample(config, decay_chain, toy)
+    p4, w = random_sample(
+        config, decay_chain, toy, smear_method="gauss_interp"
+    )
 
     np.savetxt("data/data.dat", np.stack(p4).reshape((-1, 4)))
     np.savetxt("data/data_w.dat", np.transpose(w).reshape((-1,)))
