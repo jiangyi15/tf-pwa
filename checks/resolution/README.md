@@ -44,6 +44,11 @@ $$ T(m, m') = \frac{1}{\sqrt{2\pi}\sigma}\exp(-\frac{(m'-m-\mu)^2}{2\sigma^2}) \
 $\rho(m)=pq$ is the phase space factor, $p$, $q$ is the breakup monmentum of
 $A\rightarrow (BC) + D$ and $(BC) \rightarrow B + C$.
 
+We need to define our own $T(m,m')$ as `trans_function` in `detector.py`. One
+way to do that is using binning to $m'$ and determinate the function $T(m,m')$
+in each bins. The normalise for $m'$ can is automatics. When we can ignore the
+effect of efficency, we can set $\epsilon(m,m')=1$.
+
 The projections of the truth and reconstucted value distrubution are
 
 $$ f_{truth}(m) = \int T(m, m') dm',$$
@@ -71,6 +76,15 @@ times) and calculate the weight with $w_i=T(m_i, m')$. Then we can get the
 normalised weights $w_i' = \frac{w_i}{\sum w_j}$.
 
 This sample (NxM events) is used in fit and plot fit reuslts.
+
+There different method to calculate the integration.
+
+The simple way is that we can use equidistant sampling method.
+$m_i= m_{min} + \frac{2i-1}{2N}(m_{max} - m_{min}), w_i = T(m_i, m')$.
+
+Also, we can use Gauss-Legendre quadrature.
+$m_i= \frac{m_{min}+m_{max}}{2} + x_i\frac{m_{max} - m_{min}}{2}, w_i = A_i T(m_i, m')$.
+$x_i, A_i$ is sample points and weights for Gauss-Legendre quadrature.
 
 # 5. ../../fit.py
 

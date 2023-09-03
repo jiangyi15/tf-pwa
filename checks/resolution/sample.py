@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import yaml
-from detector import trans_function
+from detector import log_trans_function, trans_function
 from scipy.stats import norm
 
 from tf_pwa.config_loader import ConfigLoader
@@ -15,7 +15,19 @@ from tf_pwa.data_trans.helicity_angle import (
 with open("detector.yml") as f:
     detector_config = yaml.safe_load(f)
 
+smear_function_table = {}
 
+
+def register_smear_function(name):
+    def _g(f):
+        global smear_function_table
+        smear_function_table[name] = f
+        return f
+
+    return _g
+
+
+@register_smear_function("linear")
 def linear_smear_function(m, m_min, m_max, i, N):
     """generate mass of truth sample and weight"""
     delta_min = m_min - m
@@ -36,6 +48,7 @@ def linear_smear_function(m, m_min, m_max, i, N):
     return m + delta, w
 
 
+@register_smear_function("gauss_interp")
 def gauss_interp_function(m, m_min, m_max, i, N):
     """generate mass of truth sample and weight"""
     delta_min = m_min - m
@@ -65,6 +78,7 @@ def gauss_interp_function(m, m_min, m_max, i, N):
     return m + delta, w
 
 
+@register_smear_function("legendre")
 def legendre_smear_function(m, m_min, m_max, i, N):
     """generate mass of truth sample and weight"""
     delta_min = m_min - m
@@ -86,6 +100,32 @@ def legendre_smear_function(m, m_min, m_max, i, N):
 
     w = trans_function(m + delta, m) * weight
 
+    w = np.where(np.isnan(w), 0.0, w)
+    return m + delta, w
+
+
+@register_smear_function("hermite")
+def hermite_smear_function(m, m_min, m_max, i, N):
+    """generate mass of truth sample and weight"""
+    delta_min = m_min - m
+    delta_max = m_max - m
+    sigma = detector_config["sigma"]
+    bias = detector_config["bias"]
+    from numpy.polynomial.hermite import hermgauss
+
+    point, weight = hermgauss(N)
+    point, weight = point[i], weight[i]
+
+    # int f(x) exp(-x^2) dx =[t=x/sqrt(2)]= sqrt(2) int f(sqrt(2)t) exp(-t^2/2)dt =
+    delta = point * sigma * np.sqrt(2) + bias
+
+    cut = (delta < delta_max) & (delta > delta_min)
+    delta = np.where(cut, delta, 0.0)
+
+    w, cut_eff = log_trans_function(m + delta, m)
+    w = cut_eff * np.exp(w + point**2) * weight
+
+    w = np.where(cut, w, 0.0)
     w = np.where(np.isnan(w), 0.0, w)
     return m + delta, w
 
@@ -118,21 +158,24 @@ def smear(toy, decay_chain, name, function, idx, N):
     return ha, ha.build_data(ms, costheta, phi), w
 
 
-def random_sample(config, decay_chain, toy, smear_method="linear"):
+def random_sample(
+    config, decay_chain, toy, particle="BC", smear_method="linear"
+):
     """generate total truth sample and weight"""
     all_p4 = []
     ws = []
 
-    smear_function = {
-        "linear": linear_smear_function,
-        "gauss_interp": gauss_interp_function,
-        "legendre": legendre_smear_function,
-    }[smear_method]
+    smear_function = smear_function_table[smear_method]
 
     for i in range(config.resolution_size):
         # decay_chain = [i for i in toy["decay"].keys() if "(p+, p-, pi+, pi-)" in str(i)][0] # config.get_decay(False).get_decay_chain("(B, C)")
         ha, toy_smear, w = smear(
-            toy, decay_chain, "BC", smear_function, i, config.resolution_size
+            toy,
+            decay_chain,
+            particle,
+            smear_function,
+            i,
+            config.resolution_size,
         )
         ws.append(w)
         # print(toy_smear)
@@ -151,9 +194,22 @@ def random_sample(config, decay_chain, toy, smear_method="linear"):
 
 
 def main():
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description="sampling for resolution")
+    parser.add_argument(
+        "--method",
+        default="legendre",
+        dest="method",
+        choices=smear_function_table.keys(),
+    )
+    parser.add_argument("--particle", default="BC", dest="particle")
+    results = parser.parse_args()
+
     config = ConfigLoader("config.yml")
 
-    decay_chain = config.get_decay(False).get_decay_chain("BC")
+    decay_chain = config.get_decay(False).get_decay_chain(results.particle)
 
     toy = config.get_data("data_rec")[0]
 
@@ -161,7 +217,9 @@ def main():
     ms, costheta, phi = ha.find_variable(toy)
     dat = ha.build_data(ms, costheta, phi)
 
-    p4, w = random_sample(config, decay_chain, toy, smear_method="legendre")
+    p4, w = random_sample(
+        config, decay_chain, toy, smear_method=results.method
+    )
 
     np.savetxt("data/data.dat", np.stack(p4).reshape((-1, 4)))
     np.savetxt("data/data_w.dat", np.transpose(w).reshape((-1,)))

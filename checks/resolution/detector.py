@@ -71,6 +71,11 @@ def gauss(delta, sigma):
     return np.exp(-(delta**2) / 2 / sigma**2)
 
 
+def log_gauss(delta, sigma):
+    """simple gauss function without normalisation"""
+    return -(delta**2) / 2 / sigma**2
+
+
 def trans_function(m1, m2):
     """
     transisation function
@@ -81,6 +86,19 @@ def trans_function(m1, m2):
     r1 = gauss(delta, sigma=detector_config["sigma"])
     eff = np.where((m2 > 0.2) & (m2 < 1.9), m1, 0.0) * phsp_factor(m1)
     return r1 * eff
+
+
+def log_trans_function(m1, m2):
+    """
+    log transisation function
+
+    """
+
+    delta = m2 - m1 - detector_config["bias"]
+    r1 = log_gauss(delta, sigma=detector_config["sigma"])
+    eff = np.where((m2 > 0.2) & (m2 < 1.9), m1, 0.0) * phsp_factor(m1)
+    cut = np.where(eff < 1e-6, 0.0, 1.0)
+    return r1 + np.log(np.where(cut == 0, 1, eff)), cut
 
 
 def rec_function(m2):
