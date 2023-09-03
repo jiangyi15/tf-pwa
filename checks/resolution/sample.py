@@ -208,21 +208,31 @@ def main():
     results = parser.parse_args()
 
     config = ConfigLoader("config.yml")
+    config.data.dic["negtive_idx"] = []  # remove negtive idx
 
     decay_chain = config.get_decay(False).get_decay_chain(results.particle)
 
-    toy = config.get_data("data_rec")[0]
+    for name in ["data_rec", "bg_rec"]:
+        data = config.get_data("deta_rec")
+        if data is None:
+            continue
+        for i, toy in enumerate(data):
+            # ha = HelicityAngle(decay_chain)
+            # ms, costheta, phi = ha.find_variable(toy)
+            # dat = ha.build_data(ms, costheta, phi)
 
-    ha = HelicityAngle(decay_chain)
-    ms, costheta, phi = ha.find_variable(toy)
-    dat = ha.build_data(ms, costheta, phi)
-
-    p4, w = random_sample(
-        config, decay_chain, toy, smear_method=results.method
-    )
-
-    np.savetxt("data/data.dat", np.stack(p4).reshape((-1, 4)))
-    np.savetxt("data/data_w.dat", np.transpose(w).reshape((-1,)))
+            p4, w = random_sample(
+                config, decay_chain, toy, smear_method=results.method
+            )
+            w = toy.get_weight() * w
+            save_name = config.data.dic["data"]
+            if isinstance(save_name, list):
+                save_name = save_name[i]
+            np.savetxt(save_name, np.stack(p4).reshape((-1, 4)))
+            save_name = config.data.dic["data_weight"]
+            if isinstance(save_name, list):
+                save_name = save_name[i]
+            np.savetxt(save_name, np.transpose(w).reshape((-1,)))
 
 
 if __name__ == "__main__":
