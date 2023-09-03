@@ -130,6 +130,34 @@ def hermite_smear_function(m, m_min, m_max, i, N):
     return m + delta, w
 
 
+@register_smear_function("random")
+def random_smear_function(m, m_min, m_max, i, N):
+    """generate mass of truth sample and weight"""
+    delta_min = m_min - m
+    delta_max = m_max - m
+    sigma = detector_config["sigma"]
+    bias = detector_config["bias"]
+
+    delta = np.random.normal(size=m.shape[0]) * sigma + bias
+    cut = (delta >= delta_max) | (delta <= delta_min)
+    max_iter = 10
+    while np.any(cut) and max_iter > 0:
+        point2 = np.random.normal(size=m.shape[0]) * sigma + bias
+        point = np.where(cut, point2, delta)
+        cut = (delta >= delta_max) | (delta <= delta_min)
+        max_iter -= 1
+
+    cut = (delta < delta_max) & (delta > delta_min)
+    delta = np.where(cut, delta, 0.0)
+
+    w, cut_eff = log_trans_function(m + delta, m)
+    w = cut_eff * np.exp(w + (delta - bias) ** 2 / sigma**2 / 2)
+
+    w = np.where(cut, w, 0.0)
+    w = np.where(np.isnan(w), 0.0, w)
+    return m + delta, w
+
+
 def smear(toy, decay_chain, name, function, idx, N):
     """generate full truth sample and weight"""
     ha = HelicityAngle(decay_chain)
@@ -204,7 +232,9 @@ def main():
         dest="method",
         choices=smear_function_table.keys(),
     )
-    parser.add_argument("--particle", default="BC", dest="particle")
+    parser.add_argument(
+        "--particle", default=detector_config["particle"], dest="particle"
+    )
     results = parser.parse_args()
 
     config = ConfigLoader("config.yml")
@@ -217,6 +247,8 @@ def main():
         if data is None:
             continue
         for i, toy in enumerate(data):
+            if toy is None:
+                continue
             # ha = HelicityAngle(decay_chain)
             # ms, costheta, phi = ha.find_variable(toy)
             # dat = ha.build_data(ms, costheta, phi)
