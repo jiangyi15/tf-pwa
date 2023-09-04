@@ -71,7 +71,7 @@ def gauss_interp_function(m, m_min, m_max, i, N):
         + prob_min
     )
     point = norm.ppf(prob_interp)
-    delta = point * sigma + bias
+    delta = point * sigma - bias
     # print(point)
     w = trans_function(m + delta, m) / norm.pdf(point)
     w = np.where(np.isnan(w), 0.0, w)
@@ -117,7 +117,7 @@ def hermite_smear_function(m, m_min, m_max, i, N):
     point, weight = point[i], weight[i]
 
     # int f(x) exp(-x^2) dx =[t=x/sqrt(2)]= sqrt(2) int f(sqrt(2)t) exp(-t^2/2)dt =
-    delta = point * sigma * np.sqrt(2) + bias
+    delta = point * sigma * np.sqrt(2) - bias
 
     cut = (delta < delta_max) & (delta > delta_min)
     delta = np.where(cut, delta, 0.0)
@@ -139,14 +139,14 @@ def hermite_smear_function(m, m_min, m_max, i, N):
     bias = detector_config["bias"]
     from hermite_truncation import gauss_point
 
-    scale_delta_min = (delta_min - bias) / sigma / np.sqrt(2)
-    scale_delta_max = (delta_max - bias) / sigma / np.sqrt(2)
+    scale_delta_min = (delta_min + bias) / sigma / np.sqrt(2)
+    scale_delta_max = (delta_max + bias) / sigma / np.sqrt(2)
 
     point, weight = gauss_point(N, scale_delta_min, scale_delta_max)
     point, weight = point[:, i], weight[:, i]
 
     # int f(x) exp(-x^2) dx =[t=x/sqrt(2)]= sqrt(2) int f(sqrt(2)t) exp(-t^2/2)dt =
-    delta = point * sigma * np.sqrt(2) + bias
+    delta = point * sigma * np.sqrt(2) - bias
 
     cut = (delta < delta_max) & (delta > delta_min)
     delta = np.where(cut, delta, 0.0)
@@ -167,11 +167,11 @@ def random_smear_function(m, m_min, m_max, i, N):
     sigma = detector_config["sigma"]
     bias = detector_config["bias"]
 
-    delta = np.random.normal(size=m.shape[0]) * sigma + bias
+    delta = np.random.normal(size=m.shape[0]) * sigma - bias
     cut = (delta >= delta_max) | (delta <= delta_min)
     max_iter = 10
     while np.any(cut) and max_iter > 0:
-        point2 = np.random.normal(size=m.shape[0]) * sigma + bias
+        point2 = np.random.normal(size=m.shape[0]) * sigma - bias
         point = np.where(cut, point2, delta)
         cut = (delta >= delta_max) | (delta <= delta_min)
         max_iter -= 1
@@ -180,7 +180,7 @@ def random_smear_function(m, m_min, m_max, i, N):
     delta = np.where(cut, delta, 0.0)
 
     w, cut_eff = log_trans_function(m + delta, m)
-    w = cut_eff * np.exp(w + (delta - bias) ** 2 / sigma**2 / 2)
+    w = cut_eff * np.exp(w + (delta + bias) ** 2 / sigma**2 / 2)
 
     w = np.where(cut, w, 0.0)
     w = np.where(np.isnan(w), 0.0, w)
