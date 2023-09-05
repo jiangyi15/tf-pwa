@@ -43,17 +43,18 @@ def main():
     plt.plot(x, bw(x - detector_config["bias"]), label="origin")
     plt.plot(x, smear_function(x, N=N, method="legendre"), label="legendre")
     plt.plot(x, smear_function(x, N=N, method="linear"), label="linear")
-    plt.plot(x, smear_function(x, N=N, method="hermite"), label="hermite")
+    # plt.plot(x, smear_function(x, N=N, method="hermite"), label="hermite")
     plt.plot(x, smear_function(x, N=N, method="hermite2"), label="hermite2")
     plt.plot(
         x, smear_function(x, N=N, method="gauss_interp"), label="gauss_interp"
     )
+    plt.plot(x, smear_function(x, N=N, method="spline"), label="spline")
     plt.plot(
         x, smear_function(x, N=1000, method="linear"), label="ref", ls="--"
     )
     plt.legend()
     plt.xlabel("mass")
-    plt.savefig("bw_with_resolution.png")
+    plt.savefig("bw_with_resolution.png", dpi=300)
 
 
 if __name__ == "__main__":

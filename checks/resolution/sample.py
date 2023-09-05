@@ -187,6 +187,41 @@ def random_smear_function(m, m_min, m_max, i, N):
     return m + delta, w
 
 
+@register_smear_function("spline")
+def random_smear_function(m, m_min, m_max, i, N):
+    """generate mass of truth sample and weight"""
+    delta_min = m_min - m
+    delta_max = m_max - m
+    sigma = detector_config["sigma"]
+    bias = detector_config["bias"]
+    delta_min = np.max(
+        [delta_min, -5 * sigma * np.ones_like(delta_min) - bias], axis=0
+    )
+    delta_max = np.min(
+        [delta_max, 5 * sigma * np.ones_like(delta_max) - bias], axis=0
+    )
+
+    from tf_pwa.amp.interpolation import spline_xi_matrix
+
+    # xi = np.concatenate([[0],np.linspace(1/(N+2), 1-1/(N+2), N), [1]])
+    xi = np.linspace(0, 1, N + 1)
+    h = spline_xi_matrix(xi)
+    power = np.linspace(1, 4, 4)
+    xi_power = (xi[:, None] ** power) / power
+    dx = xi_power[1:] - xi_power[:-1]
+    w = np.sum(h * dx[..., None], axis=0)
+    weight = np.sum(w, axis=0)
+
+    point = xi[i + 1]
+    weight = weight[i + 1]
+
+    delta = point * (delta_max - delta_min) + delta_min
+
+    w = trans_function(m + delta, m) * weight
+    w = np.where(np.isnan(w), 0.0, w)
+    return m + delta, w
+
+
 def smear(toy, decay_chain, name, function, idx, N):
     """generate full truth sample and weight"""
     ha = HelicityAngle(decay_chain)
