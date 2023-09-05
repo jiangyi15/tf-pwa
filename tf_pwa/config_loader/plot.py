@@ -645,7 +645,10 @@ def _plot_partial_wave(
             else:
                 ax = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
         else:
-            ax = fig.add_subplot(1, 1, 1)
+            if legend_outside and has_legend:
+                ax = plt.subplot2grid((4, 6), (0, 0), rowspan=4, colspan=5)
+            else:
+                ax = fig.add_subplot(1, 1, 1)
 
         legends = []
         legends_label = []
@@ -1237,7 +1240,6 @@ def plot_adaptive_2dpull(
     scatter_style={"s": 1, "c": "black"},
     **kwargs
 ):
-
     pull_kwargs = {
         "var1": var1,
         "var2": var2,

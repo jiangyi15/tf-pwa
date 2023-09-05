@@ -256,6 +256,13 @@ def test_constrains(gen_toy):
 def test_fit(toy_config, fit_result):
     toy_config.plot_partial_wave(prefix="toy_data/figure", save_root=True)
     toy_config.plot_partial_wave(
+        prefix="toy_data/figure/no_pull", plot_pull=False
+    )
+    toy_config.plot_partial_wave(
+        prefix="toy_data/figure/has_pull", plot_pull=True
+    )
+    toy_config.plot_partial_wave(prefix="toy_data/figure", save_root=True)
+    toy_config.plot_partial_wave(
         prefix="toy_data/figure", plot_pull=True, single_legend=True
     )
     toy_config.plot_partial_wave(
