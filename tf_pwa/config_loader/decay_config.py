@@ -91,7 +91,9 @@ class DecayConfig(BaseConfig):
         if self.data_config.get("cp_trans", True):
             self.disable_allow_cc(self.full_decay)
         self.decay_struct = DecayGroup(
-            self.get_decay_struct(self.dec, process_cut=False)
+            self.get_decay_struct(
+                self.dec, {}, self.particle_property, process_cut=False
+            )
         )
         identical_particles = self.data_config.get("identical_particles", None)
         cp_particles = self.data_config.get("cp_particles", None)
