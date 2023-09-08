@@ -422,6 +422,9 @@ class Particle(BaseParticle, AmpBase):
             return self.width()
         return self.width
 
+    def get_factor(self):
+        return None
+
     def get_sympy_var(self):
         return sym.var("m m0 g0 m1 m2")
 
@@ -699,6 +702,9 @@ class HelicityDecay(AmpDecay):
     def get_factor_variable(self):
         return [(self.g_ls,)]
 
+    def get_factor(self):
+        return self.get_g_ls()
+
     def _get_particle_mass(self, p, data, from_data=False):
         if from_data and p in data:
             return data[p]["m"]
@@ -875,6 +881,36 @@ class HelicityDecay(AmpDecay):
         )
         return ret
 
+    def get_factor_angle_helicity_amp(self, data, data_p, **kwargs):
+        m_dep = self.get_angle_ls_amp(data, data_p, **kwargs)  # (n,l)
+        cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
+        n_ls = len(self.get_ls_list())
+        m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
+        cg_trans = tf.reshape(
+            cg_trans, (n_ls, len(self.outs[0].spins), len(self.outs[1].spins))
+        )
+        # H = tf.reduce_sum(m_dep * cg_trans, axis=1)
+        H = m_dep * cg_trans  # (n, n_ls, h1, h2)
+        # print(n_ls, cg_trans, self, m_dep.shape) # )data_p)
+        if self.allow_cc:
+            all_data = kwargs.get("all_data", {})
+            charge = all_data.get("charge_conjugation", None)
+            if charge is not None:
+                H = tf.where(
+                    charge[..., None, None] > 0, H, H[..., ::-1, ::-1]
+                )
+        ret = tf.reshape(
+            H,
+            (
+                -1,
+                H.shape[-3],
+                1,
+                len(self.outs[0].spins),
+                len(self.outs[1].spins),
+            ),
+        )
+        return ret
+
     def get_g_ls(self):
         gls = self.g_ls()
         if self.ls_index is None:
@@ -1042,6 +1078,22 @@ class HelicityDecay(AmpDecay):
                     ret = tf.reduce_sum(ret, axis=j + 2)
         return ret
 
+    def get_factor_angle_amp(self, data, data_p, **kwargs):
+        a = self.core
+        b = self.outs[0]
+        c = self.outs[1]
+        ang = data[b]["ang"]
+        D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
+        H = self.get_factor_angle_helicity_amp(data, data_p, **kwargs)
+        H = tf.cast(H, dtype=D_conj.dtype)
+        D_conj = tf.reshape(D_conj, (-1, 1, *D_conj.shape[1:]))
+        ret = H * tf.stop_gradient(D_conj)
+        # print(self, H, D_conj)
+        # exit()
+        if self.aligned:
+            raise NotImplemented
+        return ret
+
     def get_m_dep(self, data, data_p, **kwargs):
         return self.get_ls_amp(data, data_p, **kwargs)
 
@@ -1119,6 +1171,18 @@ class DecayChain(AmpDecayChain):
             if tmp:
                 a.append(tmp)
         return [tuple([self.total] + a)]
+
+    def get_factor(self):
+        decay_factor = [i.get_factor() for i in self]
+        particle_factor = [i.get_factor() for i in self.inner]
+        all_factor = particle_factor + decay_factor
+        all_factor = [i for i in all_factor if i is not None]
+        all_factor = all_factor
+        ret = self.get_amp_total()
+        for i in all_factor:
+            ret = tf.expand_dims(ret, axis=-1) * tf.cast(i, ret.dtype)
+        ret = tf.reshape(ret, (-1,))
+        return ret
 
     def get_amp_total(self, charge=1):
         if self.mask_factor:
@@ -1224,6 +1288,51 @@ class DecayChain(AmpDecayChain):
         idx_s = "{}->{}".format(idx, final_indices)
         # ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
         # print(idx_s)#, amp_d)
+        ret = tf.einsum(idx_s, *amp_d)
+        # print(self, ret[0])
+        # exit()
+        # ret = einsum(idx_s, *amp_d)
+        return ret
+
+    def get_factor_angle_amp(
+        self, data_c, data_p, all_data=None, base_map=None
+    ):
+        base_map = self.get_base_map(base_map)
+        iter_idx = ["..."]
+        amp_d = []
+        indices = []
+        next_map = "zyxwvutsr"
+        used_idx = ""
+        final_indices = self.amp_index(base_map)
+        for i in self:
+            tmp_idx = i.amp_index(base_map)
+            tmp_idx = [next_map[0], *tmp_idx]
+            indices.append(tmp_idx)
+            used_idx += next_map[0]
+            amp_d.append(
+                i.get_factor_angle_amp(data_c[i], data_p, all_data=all_data)
+            )
+            next_map = next_map[1:]
+        final_indices = "".join(iter_idx + list(used_idx) + final_indices)
+
+        if self.aligned:
+            for i in self:
+                for j in i.outs:
+                    if j.J != 0 and "aligned_angle" in data_c[i][j]:
+                        ang = data_c[i][j]["aligned_angle"]
+                        dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
+                        amp_d.append(tf.stop_gradient(dt))
+                        idx = [base_map[j], base_map[j].upper()]
+                        indices.append(idx)
+                        final_indices = final_indices.replace(*idx)
+        idxs = []
+        for i in indices:
+            tmp = "".join(iter_idx + i)
+            idxs.append(tmp)
+        idx = ",".join(idxs)
+        idx_s = "{}->{}".format(idx, final_indices)
+        # ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
+        print(idx_s)  # , amp_d)
         ret = tf.einsum(idx_s, *amp_d)
         # print(self, ret[0])
         # exit()
@@ -1367,6 +1476,12 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             ret += i.get_factor_variable()
         return ret
 
+    def get_factor(self):
+        ret = []
+        for i in self:
+            ret += i.get_factor()
+        return ret
+
     def get_amp(self, data):
         """
         calculate the amplitude as complex number
@@ -1460,6 +1575,37 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             data_c = rename_data_dict(data_decay_i, maps)
             data_p = rename_data_dict(data_particle, maps)
             amp = decay_chain.get_angle_amp(
+                data_c, data_p, base_map=base_map, all_data=data
+            )
+            ret.append(amp)
+        # ret = tf.reduce_sum(ret, axis=0)
+        return amp
+
+    def get_factor_angle_amp(self, data):
+        data_particle = data["particle"]
+        data_decay = data["decay"]
+
+        used_chains = tuple([self.chains[i] for i in self.chains_idx])
+        chain_maps = self.get_chains_map(used_chains)
+        base_map = self.get_base_map()
+        ret = []
+        for decay_chain in used_chains:
+            for chains in chain_maps:
+                if str(decay_chain) in [str(i) for i in chains]:
+                    maps = chains[decay_chain]
+                    break
+            chain_topo = decay_chain.standard_topology()
+            found = False
+            for i in data_decay.keys():
+                if i == chain_topo:
+                    data_decay_i = data_decay[i]
+                    found = True
+                    break
+            if not found:
+                raise KeyError("not found {}".format(chain_topo))
+            data_c = rename_data_dict(data_decay_i, maps)
+            data_p = rename_data_dict(data_particle, maps)
+            amp = decay_chain.get_factor_angle_amp(
                 data_c, data_p, base_map=base_map, all_data=data
             )
             ret.append(amp)

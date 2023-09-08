@@ -510,21 +510,41 @@ class HelicityDecayNP(HelicityDecay):
         self.H = self.add_var("H", is_complex=True, shape=(len(a), len(b)))
         self.fix_unused_h()
 
-    def fix_unused_h(self):
+    def get_zero_index(self):
         a = self.outs[0].spins
         b = self.outs[1].spins
-        min_idx = None
         fix_index = []
-        for idx_i, i in enumerate(a):
-            for idx_j, j in enumerate(b):
+        free_index = []
+        for idx_i, i in zip(range(self.H.shape[-2]), a):
+            for idx_j, j in zip(range(self.H.shape[-1]), b):
                 if abs(i - j) > self.core.J:
                     fix_index.append((idx_i, idx_j))
-                elif min_idx is None:
-                    min_idx = idx_i, idx_j
+                else:
+                    free_index.append((idx_i, idx_j))
+        return fix_index, free_index
+
+    def fix_unused_h(self):
+        fix_index, free_idx = self.get_zero_index()
         self.H.set_fix_idx(fix_index, 0.0)
-        self.H.set_fix_idx([min_idx], 1.0)
+        self.H.set_fix_idx([free_idx[0]], 1.0)
+
+    def get_H_zero_mask(self):
+        fix_index, free_idx = self.get_zero_index()
+
+    def get_factor(self):
+        _, free_index = self.get_zero_index()
+        H = self.H()
+        return tf.gather_nd(H, free_index)
 
     def get_helicity_amp(self, data, data_p, **kwargs):
+        if self.mask_factor:
+            H = tf.stack(self.H())
+            free_idx = self.get_zero_index()
+            return tf.scatter_nd(
+                indices=free_idx,
+                updates=tf.ones(len(free_idx), dtype=H.dtype),
+                shape=H.shape,
+            )
         return tf.stack(self.H())
 
 
