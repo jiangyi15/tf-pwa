@@ -1,0 +1,26 @@
+data:
+  dat_order: [B, C, D]
+  amp_model: base_factor
+
+decay:
+  A: [BC, D, model: helicity_full]
+  BC: [B, C]
+
+particle:
+  $top:
+    A: { J: 1, P: -1, mass: 5.3 }
+  $finals:
+    B: { J: 0, P: -1, mass: 0.1 }
+    C: { J: 0, P: -1, mass: 0.1 }
+    D: { J: 0, P: -1, mass: 0.1 }
+  BC: [BC1, BC2]
+  BC1:
+    J: 1
+    P: -1
+    mass: 1.0
+    width: 0.2
+  BC2:
+    J: 1
+    P: -1
+    mass: 2.0
+    width: 0.2

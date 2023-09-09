@@ -1,6 +1,7 @@
 import contextlib
 import warnings
 
+import numpy as np
 import tensorflow as tf
 
 from tf_pwa.amp.core import Variable, variable_scope
@@ -275,6 +276,32 @@ class CachedShapeAmplitudeModel(BaseAmplitudeModel):
             ret.append(tf.reduce_sum(a * j, axis=1))
 
         # print(ret)
+        amp = tf.reduce_sum(ret, axis=0)
+        amp2s = tf.math.real(amp * tf.math.conj(amp))
+        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+
+
+@register_amp_model("base_factor")
+class FactorAmplitudeModel(BaseAmplitudeModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def pdf(self, data):
+        m_dep = self.decay_group.get_m_dep(data)
+        angle_amp = self.decay_group.get_factor_angle_amp(data)
+        ret = []
+        for a, b in zip(m_dep, angle_amp):
+            tmp = b
+            for i in a:
+                total_size = np.prod(tmp.shape[1:])
+                if len(i.shape) == 1:
+                    i = tf.expand_dims(i, axis=-1)
+                tmp = tf.reshape(
+                    tmp, (-1, i.shape[-1], total_size // i.shape[-1])
+                )
+                tmp = tmp * tf.expand_dims(i, axis=-1)
+                tmp = tf.reduce_sum(tmp, axis=-2)
+            ret.append(tmp)
         amp = tf.reduce_sum(ret, axis=0)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))

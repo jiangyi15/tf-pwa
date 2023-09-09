@@ -393,3 +393,10 @@ def test_plot_2dpull(toy_config):
 def test_lazy_file(toy_config_npy):
     fcn = toy_config_npy.get_fcn()
     fcn.nll_grad()
+
+
+def test_factor_hel():
+    config = ConfigLoader(f"{this_dir}/config_hel.yml")
+    phsp = config.generate_phsp(10)
+    amp = config.get_amplitude()
+    amp(phsp)

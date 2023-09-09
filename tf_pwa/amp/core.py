@@ -881,7 +881,7 @@ class HelicityDecay(AmpDecay):
         )
         return ret
 
-    def get_factor_angle_helicity_amp(self, data, data_p, **kwargs):
+    def get_factor_H(self, data, data_p, **kwargs):  # -> (n, n_ls, h1, h2)
         m_dep = self.get_angle_ls_amp(data, data_p, **kwargs)  # (n,l)
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
         n_ls = len(self.get_ls_list())
@@ -891,7 +891,10 @@ class HelicityDecay(AmpDecay):
         )
         # H = tf.reduce_sum(m_dep * cg_trans, axis=1)
         H = m_dep * cg_trans  # (n, n_ls, h1, h2)
-        # print(n_ls, cg_trans, self, m_dep.shape) # )data_p)
+        return H
+
+    def get_factor_angle_helicity_amp(self, data, data_p, **kwargs):
+        H = self.get_factor_H(data, data_p, **kwargs)
         if self.allow_cc:
             all_data = kwargs.get("all_data", {})
             charge = all_data.get("charge_conjugation", None)
@@ -1097,6 +1100,9 @@ class HelicityDecay(AmpDecay):
     def get_m_dep(self, data, data_p, **kwargs):
         return self.get_ls_amp(data, data_p, **kwargs)
 
+    def get_factor_m_dep(self, data, data_p, **kwargs):
+        return self.get_ls_amp(data, data_p, **kwargs)
+
     def get_ls_list(self):
         """get possible ls for decay, with l_list filter possible l"""
         ls_list = super(HelicityDecay, self).get_ls_list()
@@ -1172,16 +1178,15 @@ class DecayChain(AmpDecayChain):
                 a.append(tmp)
         return [tuple([self.total] + a)]
 
-    def get_factor(self):
+    def get_factor(self):  # (total, decay1, decay2, ...)
         decay_factor = [i.get_factor() for i in self]
         particle_factor = [i.get_factor() for i in self.inner]
-        all_factor = particle_factor + decay_factor
+        all_factor = decay_factor + particle_factor
         all_factor = [i for i in all_factor if i is not None]
         all_factor = all_factor
         ret = self.get_amp_total()
         for i in all_factor:
             ret = tf.expand_dims(ret, axis=-1) * tf.cast(i, ret.dtype)
-        ret = tf.reshape(ret, (-1,))
         return ret
 
     def get_amp_total(self, charge=1):
@@ -1332,7 +1337,7 @@ class DecayChain(AmpDecayChain):
         idx = ",".join(idxs)
         idx_s = "{}->{}".format(idx, final_indices)
         # ret = amp * tf.reshape(rs, [-1] + [1] * len(self.amp_shape()))
-        print(idx_s)  # , amp_d)
+        # print(idx_s)  # , amp_d)
         ret = tf.einsum(idx_s, *amp_d)
         # print(self, ret[0])
         # exit()
@@ -1479,7 +1484,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
     def get_factor(self):
         ret = []
         for i in self:
-            ret += i.get_factor()
+            ret.append(i.get_factor())
         return ret
 
     def get_amp(self, data):
@@ -1610,7 +1615,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             )
             ret.append(amp)
         # ret = tf.reduce_sum(ret, axis=0)
-        return amp
+        return ret
 
     @functools.lru_cache()
     def get_swap_factor(self, key):

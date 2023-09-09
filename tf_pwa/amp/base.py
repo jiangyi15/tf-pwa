@@ -536,16 +536,28 @@ class HelicityDecayNP(HelicityDecay):
         H = self.H()
         return tf.gather_nd(H, free_index)
 
-    def get_helicity_amp(self, data, data_p, **kwargs):
+    def get_helicity_amp(self, data=None, data_p=None, **kwargs):
         if self.mask_factor:
             H = tf.stack(self.H())
-            free_idx = self.get_zero_index()
+            _, free_idx = self.get_zero_index()
             return tf.scatter_nd(
                 indices=free_idx,
                 updates=tf.ones(len(free_idx), dtype=H.dtype),
                 shape=H.shape,
             )
         return tf.stack(self.H())
+
+    def get_ls_amp(self, data, data_p, **kwargs):
+        return tf.reshape(self.get_factor(), (1, -1))
+
+    def get_factor_H(self, data=None, data_p=None, **kwargs):
+        _, free_idx = self.get_zero_index()
+        H = self.get_helicity_amp()
+        value = tf.gather_nd(H, free_idx)
+        new_idx = [(i, *j) for i, j in enumerate(free_idx)]
+        return tf.scatter_nd(
+            indices=new_idx, updates=value, shape=(len(free_idx), *H.shape)
+        )
 
 
 @regist_decay("helicity_full-bf")
