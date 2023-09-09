@@ -400,3 +400,4 @@ def test_factor_hel():
     phsp = config.generate_phsp(10)
     amp = config.get_amplitude()
     amp(phsp)
+    amp.decay_group.get_factor()

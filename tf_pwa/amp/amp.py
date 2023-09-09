@@ -288,7 +288,10 @@ class FactorAmplitudeModel(BaseAmplitudeModel):
 
     def pdf(self, data):
         m_dep = self.decay_group.get_m_dep(data)
-        angle_amp = self.decay_group.get_factor_angle_amp(data)
+        if "cached_angle" in data:
+            angle_amp = data["cached_angle"]
+        else:
+            angle_amp = self.decay_group.get_factor_angle_amp(data)
         ret = []
         for a, b in zip(m_dep, angle_amp):
             tmp = b

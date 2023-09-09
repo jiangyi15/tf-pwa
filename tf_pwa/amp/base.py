@@ -536,7 +536,7 @@ class HelicityDecayNP(HelicityDecay):
         H = self.H()
         return tf.gather_nd(H, free_index)
 
-    def get_helicity_amp(self, data=None, data_p=None, **kwargs):
+    def get_H(self):
         if self.mask_factor:
             H = tf.stack(self.H())
             _, free_idx = self.get_zero_index()
@@ -546,6 +546,9 @@ class HelicityDecayNP(HelicityDecay):
                 shape=H.shape,
             )
         return tf.stack(self.H())
+
+    def get_helicity_amp(self, data=None, data_p=None, **kwargs):
+        return self.get_H()
 
     def get_ls_amp(self, data, data_p, **kwargs):
         return tf.reshape(self.get_factor(), (1, -1))
@@ -566,7 +569,7 @@ class HelicityDecayNPbf(HelicityDecayNP):
         self.d = 3.0
         super().init_params()
 
-    def get_helicity_amp(self, data, data_p, **kwargs):
+    def get_H_barrier_factor(self, data, data_p, **kwargs):
         q0 = self.get_relative_momentum(data_p, False)
         data["|q0|"] = q0
         if "|q|" in data:
@@ -575,9 +578,18 @@ class HelicityDecayNPbf(HelicityDecayNP):
             q = self.get_relative_momentum(data_p, True)
             data["|q|"] = q
         bf = barrier_factor([min(self.get_l_list())], q, q0, self.d)
-        H = tf.stack(self.H())
+        return bf
+
+    def get_helicity_amp(self, data, data_p, **kwargs):
+        H = self.get_H()
+        bf = self.get_H_barrier_factor(data, data_p, **kwargs)
         bf = tf.cast(tf.reshape(bf, (-1, 1, 1)), H.dtype)
         return H * bf
+
+    def get_ls_amp(self, data, data_p, **kwargs):
+        bf = self.get_H_barrier_factor(data, data_p, **kwargs)
+        f = tf.reshape(self.get_factor(), (1, -1))
+        return f * tf.expand_dims(tf.cast(bf, f.dtype), axis=-1)
 
 
 def get_parity_term(j1, p1, j2, p2, j3, p3):
@@ -616,7 +628,7 @@ class HelicityDecayP(HelicityDecayNP):
     def get_helicity_amp(self, data, data_p, **kwargs):
         n_b = len(self.outs[0].spins)
         n_c = len(self.outs[1].spins)
-        H_part = tf.stack(self.H())
+        H_part = self.get_H()
         if self.part_H == 0:
             H = tf.concat(
                 [
