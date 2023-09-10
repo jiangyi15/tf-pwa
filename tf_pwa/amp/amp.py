@@ -286,7 +286,7 @@ class FactorAmplitudeModel(BaseAmplitudeModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def pdf(self, data):
+    def get_amp_list(self, data):
         m_dep = self.decay_group.get_m_dep(data)
         if "cached_angle" in data:
             angle_amp = data["cached_angle"]
@@ -305,6 +305,10 @@ class FactorAmplitudeModel(BaseAmplitudeModel):
                 tmp = tmp * tf.expand_dims(i, axis=-1)
                 tmp = tf.reduce_sum(tmp, axis=-2)
             ret.append(tmp)
+        return ret
+
+    def pdf(self, data):
+        ret = self.get_amp_list(data)
         amp = tf.reduce_sum(ret, axis=0)
         amp2s = tf.math.real(amp * tf.math.conj(amp))
         return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))

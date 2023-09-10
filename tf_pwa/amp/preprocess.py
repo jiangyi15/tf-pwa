@@ -164,24 +164,6 @@ class CachedAnglePreProcessor(BasePreProcessor):
         # print(x)
         return x2
 
-    def strip_data(self, x):
-        strip_var = []
-        if self.no_angle:
-            strip_var += ["ang", "aligned_angle"]
-        if self.no_p4:
-            strip_var += ["p"]
-        if strip_var:
-            x = data_strip(x, strip_var)
-        return x
-
-    def __call__(self, x):
-        extra = x["extra"]
-        x = self.build_cached(x)
-        x = self.strip_data(x)
-        for k in extra:
-            del x[k]
-        return x
-
 
 @register_preprocessor("p4_directly")
 class CachedAmpPreProcessor(BasePreProcessor):
