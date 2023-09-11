@@ -146,6 +146,25 @@ class CachedShapePreProcessor(CachedAmpPreProcessor):
         return x
 
 
+@register_preprocessor("cached_angle")
+class CachedAnglePreProcessor(BasePreProcessor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.amp = self.root_config.get_amplitude()
+        self.decay_group = self.amp.decay_group
+        self.no_angle = self.kwargs.get("no_angle", False)
+        self.no_p4 = self.kwargs.get("no_p4", False)
+
+    def build_cached(self, x):
+        x2 = super().__call__(x)
+        for k, v in x["extra"].items():
+            x2[k] = v  # {**x2, **x["extra"]}
+        c_amp = self.decay_group.get_factor_angle_amp(x2)
+        x2["cached_angle"] = list_to_tuple(c_amp)
+        # print(x)
+        return x2
+
+
 @register_preprocessor("p4_directly")
 class CachedAmpPreProcessor(BasePreProcessor):
     def __init__(self, *args, **kwargs):

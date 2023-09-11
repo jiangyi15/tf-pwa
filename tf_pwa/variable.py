@@ -1494,31 +1494,16 @@ class Variable(object):
         else:
             raise Exception("Only shape==() var supports 'freed' method.")
 
-    def set_fix_idx(self, fix_idx=None, fix_vals=None, free_idx=None):
-        """
-        :param fix_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is fixed. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[1,2]``, then Variable()[i][j][1] and Variable()[i][j][2] will be the fixed value.
-        :param fix_vals: Float or length-2 float list for complex variable. The fixed value.
-        :param free_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is set free. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[0]``, then Variable()[i][j][0] will be set free.
-        """
-        if not self.shape:
-            raise Exception(
-                "Only shape!=() var supports 'set_fix_idx' method to fix or free variables."
-            )
-        if free_idx is None:
-            free_idx = []
-        else:
-            free_idx = free_idx % self.shape[-1]
+    def _set_fix_idx(self, fix_idx=None, fix_vals=None, unfix=False):
         if fix_idx is None:
             fix_idx = []
         else:
-            fix_idx = fix_idx % self.shape[-1]
-
-        if not hasattr(fix_idx, "__len__"):
-            fix_idx = [fix_idx]
-        fix_idx_str = ["_" + str(i) for i in fix_idx]
-        if not hasattr(free_idx, "__len__"):
-            free_idx = [free_idx]
-        free_idx_str = ["_" + str(i) for i in free_idx]
+            fix_idx = np.array(fix_idx)
+            if len(fix_idx.shape) <= 1:
+                fix_idx = np.reshape(fix_idx, (-1, 1))
+            shape_mod = [self.shape[-i - 1] for i in range(fix_idx.shape[-1])]
+            fix_idx = fix_idx % shape_mod
+        fix_idx_str = ["_" + "_".join(str(j) for j in i) for i in fix_idx]
 
         if self.cp_effect:
             print(
@@ -1541,19 +1526,22 @@ class Variable(object):
                 for ss in fix_idx_str:
                     if name.endswith(ss):
                         # print("set_fix_idx set name+r ", name)
-                        self.vm.set_fix(name + "r", value=fix_vals[0])
-                        self.vm.set_fix(name + "i", value=fix_vals[1])
+                        self.vm.set_fix(
+                            name + "r", value=fix_vals[0], unfix=unfix
+                        )
+                        self.vm.set_fix(
+                            name + "i", value=fix_vals[1], unfix=unfix
+                        )
                         if len(fix_vals) > 2:
-                            self.vm.set_fix(name + "deltar", value=fix_vals[2])
-                            self.vm.set_fix(name + "deltai", value=fix_vals[3])
-                for ss in free_idx_str:
-                    if name.endswith(ss):
-                        self.vm.set_fix(name + "r", unfix=True)
-                        self.vm.set_fix(name + "i", unfix=True)
-                        self.vm.set_fix(name + "deltar", unfix=True)
-                        self.vm.set_fix(name + "deltai", unfix=True)
+                            self.vm.set_fix(
+                                name + "deltar", value=fix_vals[2], unfix=unfix
+                            )
+                            self.vm.set_fix(
+                                name + "deltai", value=fix_vals[3], unfix=unfix
+                            )
 
             _shape_func(func, self.shape, self.name)
+
         elif self.cplx:
             if fix_vals is None:
                 fix_vals = [None, None]
@@ -1563,12 +1551,12 @@ class Variable(object):
             def func(name, idx):
                 for ss in fix_idx_str:
                     if name.endswith(ss):
-                        self.vm.set_fix(name + "r", value=fix_vals[0])
-                        self.vm.set_fix(name + "i", value=fix_vals[1])
-                for ss in free_idx_str:
-                    if name.endswith(ss):
-                        self.vm.set_fix(name + "r", unfix=True)
-                        self.vm.set_fix(name + "i", unfix=True)
+                        self.vm.set_fix(
+                            name + "r", value=fix_vals[0], unfix=unfix
+                        )
+                        self.vm.set_fix(
+                            name + "i", value=fix_vals[1], unfix=unfix
+                        )
 
             _shape_func(func, self.shape, self.name)
         else:
@@ -1576,12 +1564,22 @@ class Variable(object):
             def func(name, idx):
                 for ss in fix_idx_str:
                     if name.endswith(ss):
-                        self.vm.set_fix(name, value=fix_vals)
-                for ss in free_idx_str:
-                    if name.endswith(ss):
-                        self.vm.set_fix(name, unfix=True)
+                        self.vm.set_fix(name, value=fix_vals, unfix=unfix)
 
             _shape_func(func, self.shape, self.name)
+
+    def set_fix_idx(self, fix_idx=None, fix_vals=None, free_idx=None):
+        """
+        :param fix_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is fixed. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[1,2]``, then Variable()[i][j][1] and Variable()[i][j][2] will be the fixed value.
+        :param fix_vals: Float or length-2 float list for complex variable. The fixed value.
+        :param free_idx: Interger or list of integers. Which complex component in the innermost layer of the variable is set free. E.g. If ``self.shape==[2,3,4]`` and ``fix_idx==[0]``, then Variable()[i][j][0] will be set free.
+        """
+        if not self.shape:
+            raise Exception(
+                "Only shape!=() var supports 'set_fix_idx' method to fix or free variables."
+            )
+        self._set_fix_idx(fix_idx, fix_vals)
+        self._set_fix_idx(free_idx, unfix=True)
 
     def set_bound(self, bound, func=None, overwrite=False):
         """
