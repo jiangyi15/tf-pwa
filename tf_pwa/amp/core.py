@@ -353,10 +353,13 @@ class Particle(BaseParticle, AmpBase):
 
     """
 
-    def __init__(self, *args, running_width=True, bw_l=None, **kwargs):
+    def __init__(
+        self, *args, running_width=True, bw_l=None, width_norm=False, **kwargs
+    ):
         super(Particle, self).__init__(*args, **kwargs)
         self.running_width = running_width
         self.bw_l = bw_l
+        self.width_norm = width_norm
 
     def init_params(self):
         self.d = 3.0
@@ -393,6 +396,9 @@ class Particle(BaseParticle, AmpBase):
             ret = BWR(data["m"], mass, width, q, q0, self.bw_l, self.d)
             # ret = tf.where(q0 > 0, ret, tf.zeros_like(ret))
             # ret = tf.where(q > 0, ret, tf.zeros_like(ret))
+        if self.width_norm:
+            c_width = tf.complex(width, tf.zeros_like(width))
+            return tf.cast(c_width, ret.dtype) * ret
         return ret
 
     def __call__(self, m):
@@ -644,6 +650,7 @@ class HelicityDecay(AmpDecay):
         barrier_factor_norm=False,
         params_polar=None,
         below_threshold=False,
+        force_min_l=False,
         **kwargs
     ):
         super(HelicityDecay, self).__init__(*args, **kwargs)
@@ -653,6 +660,7 @@ class HelicityDecay(AmpDecay):
         self.has_bprime = has_bprime
         self.aligned = aligned
         self.allow_cc = allow_cc
+        self.force_min_l = force_min_l
         self.single_gls = False
         self.ls_index = None
         self.total_ls = None
@@ -977,6 +985,8 @@ class HelicityDecay(AmpDecay):
         ls = self.get_l_list()
         ret = []
         for l in ls:
+            if self.force_min_l:
+                l = min(ls)
             if self.has_bprime:
                 tmp = q**l * tf.cast(Bprime(l, q, q0, d), dtype=q.dtype)
             else:
@@ -991,6 +1001,8 @@ class HelicityDecay(AmpDecay):
         ls = self.get_l_list()
         ret = []
         for l in ls:
+            if self.force_min_l:
+                l = min(ls)
             if self.has_bprime:
                 bp = Bprime_q2(l, q2, q02, d)
                 tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
