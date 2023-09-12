@@ -960,23 +960,23 @@ class ConfigLoader(BaseConfig):
 
     def attach_fix_params_error(self, params: dict, V_b=None) -> np.ndarray:
         """
-        In the fit results
+        The minimal condition
 
         .. math::
             -\\frac{\\partial\\ln L(a,b)}{\\partial a} = 0,
 
-        We can threat it as a implect function of :math:`a(b)`. the gradients
+        can be treated as a implect function :math:`a(b)`. The gradients is
 
         .. math::
             \\frac{\\partial a }{\\partial b} = - (\\frac{\\partial^2 \ln L(a,b)}{\\partial a \\partial a })^{-1}
-            \\frac{\\partial \ln L(a,b)}{\\partial a\\partial b }
+            \\frac{\\partial \ln L(a,b)}{\\partial a\\partial b }.
 
-        The uncertanties from b with error matrix :math:`V_b` for a is
+        The uncertanties from b with error matrix :math:`V_b` can propagate to a as
 
         .. math::
             V_a = \\frac{\\partial a }{\\partial b} V_b \\frac{\\partial a }{\\partial b}
 
-        This result will be added to the config.inv_he
+        This matrix will be added to the config.inv_he.
 
         """
         fcn = self.get_fcn()
@@ -986,14 +986,15 @@ class ConfigLoader(BaseConfig):
         all_params = list(fcn.vm.trainable_vars)
         old_params = [i for i in all_params if i not in new_params]
         _, _, hess = fcn.nll_grad_hessian()
+        hess = data_to_numpy(hess)
         for i in new_params:
             fcn.vm.set_fix(i)
 
         idx_a = np.array([all_params.index(i) for i in old_params])
         idx_b = np.array([all_params.index(i) for i in new_params])
 
-        hess_aa = hess[idx_a, idx_a]
-        hess_ab = hess[idx_a, idx_b]
+        hess_aa = hess[idx_a][:, idx_a]
+        hess_ab = hess[idx_a][:, idx_b]
 
         hess_aa = np.stack(hess_aa)
         hess_ab = np.stack(hess_ab)
