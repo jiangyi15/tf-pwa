@@ -1010,7 +1010,7 @@ class ConfigLoader(BaseConfig):
             old_V = self.inv_he
         new_V = old_V + V
         self.inv_he = new_V
-        return self.inv_he
+        return V
 
     def batch_sum_var(self, *args, **kwargs):
         return self.vm.batch_sum_var(*args, **kwargs)
