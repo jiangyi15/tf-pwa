@@ -958,6 +958,60 @@ class ConfigLoader(BaseConfig):
         with self.vm.mask_params(params):
             yield
 
+    def attach_fix_params_error(self, params: dict, V_b=None) -> np.ndarray:
+        """
+        In the fit results
+
+        .. math::
+            -\\frac{\\partial\\ln L(a,b)}{\\partial a} = 0,
+
+        We can threat it as a implect function of :math:`a(b)`. the gradients
+
+        .. math::
+            \\frac{\\partial a }{\\partial b} = - (\\frac{\\partial^2 \ln L(a,b)}{\\partial a \\partial a })^{-1}
+            \\frac{\\partial \ln L(a,b)}{\\partial a\\partial b }
+
+        The uncertanties from b with error matrix :math:`V_b` for a is
+
+        .. math::
+            V_a = \\frac{\\partial a }{\\partial b} V_b \\frac{\\partial a }{\\partial b}
+
+        This result will be added to the config.inv_he
+
+        """
+        fcn = self.get_fcn()
+        new_params = list(params)
+        for i in new_params:
+            fcn.vm.set_fix(i, unfix=True)
+        all_params = list(fcn.vm.trainable_vars)
+        old_params = [i for i in all_params if i not in new_params]
+        _, _, hess = fcn.nll_grad_hessian()
+        for i in new_params:
+            fcn.vm.set_fix(i)
+
+        idx_a = np.array([all_params.index(i) for i in old_params])
+        idx_b = np.array([all_params.index(i) for i in new_params])
+
+        hess_aa = hess[idx_a, idx_a]
+        hess_ab = hess[idx_a, idx_b]
+
+        hess_aa = np.stack(hess_aa)
+        hess_ab = np.stack(hess_ab)
+        grad = np.dot(np.linalg.inv(hess_aa), hess_ab)
+
+        if V_b is None:
+            V_b = np.diag(list(params.values())) ** 2
+
+        V = np.dot(np.dot(grad, V_b), grad.T)
+
+        if self.inv_he is None:
+            old_V = 0.0
+        else:
+            old_V = self.inv_he
+        new_V = old_V + V
+        self.inv_he = new_V
+        return self.inv_he
+
     def batch_sum_var(self, *args, **kwargs):
         return self.vm.batch_sum_var(*args, **kwargs)
 
