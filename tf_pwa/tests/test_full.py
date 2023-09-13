@@ -320,6 +320,8 @@ def test_fit(toy_config, fit_result):
         frac = [i / int_mc() for i in y]
     pt.get_error(frac)
 
+    toy_config.attach_fix_params_error({"R_BC_mass": 0.01})
+
 
 def test_bacth_sum(toy_config, fit_result):
     toy_config.get_params_error(fit_result)

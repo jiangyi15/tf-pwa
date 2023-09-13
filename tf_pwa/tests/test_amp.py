@@ -194,8 +194,10 @@ def test_linear_npy():
     )
 
 
-def simple_run(name):
-    a = get_particle(name, J=1, P=-1, model=name, mass=3.6, width=0.01)
+def simple_run(name, **kwargs):
+    a = get_particle(
+        name, J=1, P=-1, model=name, mass=3.6, width=0.01, **kwargs
+    )
     b = [get_particle(i, J=0, P=-1) for i in "ac"]
     get_decay(a, b)
     a.init_params()
@@ -254,6 +256,7 @@ def test_one():
     simple_run("exp")
     simple_run("exp_com")
     simple_run("BWR_normal")
+    simple_run("BWR", width_norm=True)
 
 
 def test_model2():
@@ -265,6 +268,7 @@ def test_model2():
 
 def test_model3():
     simple_run3("gls-bf", below_threshold=True)
+    simple_run3("gls-bf", force_min_l=True)
 
 
 def test_model_new():
