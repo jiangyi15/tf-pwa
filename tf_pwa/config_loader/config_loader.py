@@ -264,6 +264,7 @@ class ConfigLoader(BaseConfig):
         self.add_free_var_constraints(amp, constrains.get("free_var", []))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
+        self.add_pre_trans_constraints(amp, constrains.get("pre_trans", None))
         self.add_gauss_constr_constraints(
             amp, constrains.get("gauss_constr", {})
         )
@@ -311,6 +312,16 @@ class ConfigLoader(BaseConfig):
         for k in dic:
             print("same value:", k)
             amp.vm.set_same(k)
+
+    def add_pre_trans_constraints(self, amp, dic=None):
+        if dic is None:
+            return
+        from tf_pwa.transform import create_trans
+
+        for k, v in dic.items():
+            print("transform:", k, v)
+            trans = create_trans(v)
+            amp.vm.pre_trans[k] = trans
 
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:

@@ -34,6 +34,11 @@ particle:
 constrains:
   particle: null
   decay: null
+  pre_trans:
+    "R_BC_mass":
+      model: linear
+      k: 1.0
+      b: 0.0
 
 plot:
   config:

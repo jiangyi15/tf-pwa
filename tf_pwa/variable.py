@@ -99,6 +99,7 @@ class VarsManager(object):
         self.complex_vars = {}  # {name:polar(bool),...}
         self.same_list = []  # [[name1,name2],...]
         self.mask_vars = {}
+        self.pre_trans = {}
 
         self.bnd_dic = {}  # {name:(a,b),...}
 
@@ -534,15 +535,21 @@ class VarsManager(object):
         if name not in self.variables:
             raise Exception("{} not found".format(name))
         if not val_in_fit or name not in self.bnd_dic:
-            return self.variables[name].numpy()  # tf.Variable
+            value = self.variables[name]
+            if name in self.pre_trans:
+                value = self.pre_trans[name](value)
+            return value.numpy()  # tf.Variable
         else:
             return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
 
     def read(self, name):
         val = self.variables[name]
         if name in self.mask_vars:
-            return tf.stop_gradient(tf.cast(self.mask_vars[name], val.dtype))
-        return self.variables[name]
+            val = tf.stop_gradient(tf.cast(self.mask_vars[name], val.dtype))
+        if name in self.pre_trans:
+            trans = self.pre_trans[name]
+            val = trans(val)
+        return val
 
     def set(self, name, value, val_in_fit=True):
         """
@@ -554,6 +561,9 @@ class VarsManager(object):
         if val_in_fit and name in self.bnd_dic:
             value = self.bnd_dic[name].get_x2y(value)
         if name in self.variables:
+            if name in self.pre_trans:
+                trans = self.pre_trans[name]
+                value = trans.inverse(value)
             self.variables[name].assign(value)
         else:
             warnings.warn("{} not found".format(name))
