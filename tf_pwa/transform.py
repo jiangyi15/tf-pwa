@@ -17,20 +17,19 @@ class BaseTransform:
 
 
 def create_trans(item: dict) -> BaseTransform:
-    cls = get_trans(item.get("model", "default"))
+    model = item.pop("model", "default")
+    cls = get_trans(model)
     obj = cls(**item)
+    obj._model_name = model
     return obj
 
 
 @register_trans("default")
 @register_trans("linear")
 class LinearTrans(BaseTransform):
-    def __init__(
-        self, k: float = 1.0, b: float = 0.0, model: str = "", **kwargs
-    ):
+    def __init__(self, k: float = 1.0, b: float = 0.0, **kwargs):
         self.k = k
         self.b = b
-        self.model = model
 
     def call(self, x: T) -> T:
         return self.k * x + self.b

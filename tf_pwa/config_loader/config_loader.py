@@ -265,6 +265,9 @@ class ConfigLoader(BaseConfig):
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
         self.add_pre_trans_constraints(amp, constrains.get("pre_trans", None))
+        self.add_from_trans_constraints(
+            amp, constrains.get("from_trans", None)
+        )
         self.add_gauss_constr_constraints(
             amp, constrains.get("gauss_constr", {})
         )
@@ -322,6 +325,19 @@ class ConfigLoader(BaseConfig):
             print("transform:", k, v)
             trans = create_trans(v)
             amp.vm.pre_trans[k] = trans
+
+    def add_from_trans_constraints(self, amp, dic=None):
+        if dic is None:
+            return
+        var_equal = []
+        pre_trans = {}
+        for k, v in dic.items():
+            x = v.pop("x", None)
+            if x is not None:
+                var_equal.append([k, x])
+            pre_trans[k] = v
+        self.add_pre_trans_constraints(amp, pre_trans)
+        self.add_var_equal_constraints(amp, var_equal)
 
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:
