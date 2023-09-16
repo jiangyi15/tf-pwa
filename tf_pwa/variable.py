@@ -537,7 +537,7 @@ class VarsManager(object):
         if not val_in_fit or name not in self.bnd_dic:
             value = self.variables[name]
             if name in self.pre_trans:
-                value = self.pre_trans[name](value)
+                value = self.pre_trans[name](self.variables)
             return value.numpy()  # tf.Variable
         else:
             return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
@@ -548,7 +548,7 @@ class VarsManager(object):
             val = tf.stop_gradient(tf.cast(self.mask_vars[name], val.dtype))
         if name in self.pre_trans:
             trans = self.pre_trans[name]
-            val = trans(val)
+            val = trans(self.variables)
         return val
 
     def set(self, name, value, val_in_fit=True):
@@ -564,7 +564,8 @@ class VarsManager(object):
             if name in self.pre_trans:
                 trans = self.pre_trans[name]
                 value = trans.inverse(value)
-            self.variables[name].assign(value)
+            if value is not None:
+                self.variables[name].assign(value)
         else:
             warnings.warn("{} not found".format(name))
 

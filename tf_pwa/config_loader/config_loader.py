@@ -323,6 +323,7 @@ class ConfigLoader(BaseConfig):
 
         for k, v in dic.items():
             print("transform:", k, v)
+            v["x"] = v.get("x", k)
             trans = create_trans(v)
             amp.vm.pre_trans[k] = trans
 
@@ -334,7 +335,15 @@ class ConfigLoader(BaseConfig):
         for k, v in dic.items():
             x = v.pop("x", None)
             if x is not None:
-                var_equal.append([k, x])
+                if isinstance(x, list):
+                    var_equal.append([k, x[0]])
+                elif isinstance(x, str):
+                    var_equal.append([k, x])
+                else:
+                    raise TypeError("x should be str or list")
+            else:
+                x = k
+            v["x"] = x
             pre_trans[k] = v
         self.add_pre_trans_constraints(amp, pre_trans)
         self.add_var_equal_constraints(amp, var_equal)
