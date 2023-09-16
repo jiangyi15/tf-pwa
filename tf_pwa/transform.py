@@ -37,7 +37,7 @@ def create_trans(item: dict) -> BaseTransform:
 @register_trans("linear")
 class LinearTrans(BaseTransform):
     def __init__(
-        self, x: (list | str), k: float = 1.0, b: float = 0.0, **kwargs
+        self, x: "list | str", k: float = 1.0, b: float = 0.0, **kwargs
     ):
         self.x = x
         self.k = k

@@ -643,13 +643,13 @@ class VarsManager(object):
         dic = {}
         if trainable_only:
             for i in self.trainable_vars:
-                val = self.variables[i].numpy()
+                val = self.read(i).numpy()
                 # if i in self.bnd_dic:
                 #     val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
         else:
             for i in self.variables:
-                val = self.variables[i].numpy()
+                val = self.read(i).numpy()
                 # if i in self.bnd_dic:
                 #    val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
