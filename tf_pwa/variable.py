@@ -511,8 +511,8 @@ class VarsManager(object):
                     self.trainable_vars.remove(name)
                 else:
                     # if one is untrainable, the others will all be untrainable
-                    var = self.variables.get(name, None)
-                    if var is not None:
+                    var2 = self.variables.get(name, None)
+                    if var2 is not None:
                         if name_list[0] in self.trainable_vars:
                             self.trainable_vars.remove(name_list[0])
             for name in name_list:
