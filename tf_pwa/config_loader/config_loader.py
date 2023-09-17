@@ -335,18 +335,18 @@ class ConfigLoader(BaseConfig):
         for k, v in dic.items():
             x = v.pop("x", None)
             if x is not None:
-                if isinstance(x, list):
-                    var_equal.append([k, x[0]])
-                elif isinstance(x, str):
-                    var_equal.append([k, x])
+                if isinstance(x, list) and k != x[0]:
+                    var_equal.append([x[0], k])
+                elif isinstance(x, str) and x != k:
+                    var_equal.append([x, k])
                 else:
                     raise TypeError("x should be str or list")
             else:
                 x = k
             v["x"] = x
             pre_trans[k] = v
-        self.add_pre_trans_constraints(amp, pre_trans)
-        self.add_var_equal_constraints(amp, var_equal)
+        ConfigLoader.add_pre_trans_constraints(self, amp, pre_trans)
+        ConfigLoader.add_var_equal_constraints(self, amp, var_equal)
 
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:

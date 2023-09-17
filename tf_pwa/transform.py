@@ -6,6 +6,9 @@ T = "Tensor"
 
 
 class BaseTransform:
+    def __init__(self, x: "list | str", **kwargs):
+        self.x = x
+
     def __call__(self, dic: dict) -> T:
         x = self.read(dic)
         return self.call(x)
@@ -39,7 +42,7 @@ class LinearTrans(BaseTransform):
     def __init__(
         self, x: "list | str", k: float = 1.0, b: float = 0.0, **kwargs
     ):
-        self.x = x
+        super().__init__(x)
         self.k = k
         self.b = b
 
