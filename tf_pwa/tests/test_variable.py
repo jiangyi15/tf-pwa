@@ -161,10 +161,10 @@ def test_transform():
         tmp.vm = vm
         Variable("a", value=1.0)
         Variable("b", value=1.0)
-        Variable("c", value=1.0)
         ConfigLoader.add_from_trans_constraints(
             None, tmp, {"a": {"x": ["c", "b"], "model": "__test1"}}
         )
+    vm.set("c", 1.0)
     assert np.allclose(vm.get("a"), 2.0)
     vm.set("a", 1.0)
     assert vm.get_all_dic(False) == {"a": 2.0, "b": 1.0, "c": 1.0}
