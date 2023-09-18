@@ -99,6 +99,7 @@ class VarsManager(object):
         self.complex_vars = {}  # {name:polar(bool),...}
         self.same_list = []  # [[name1,name2],...]
         self.mask_vars = {}
+        self.pre_trans = {}
 
         self.bnd_dic = {}  # {name:(a,b),...}
 
@@ -510,8 +511,8 @@ class VarsManager(object):
                     self.trainable_vars.remove(name)
                 else:
                     # if one is untrainable, the others will all be untrainable
-                    var = self.variables.get(name, None)
-                    if var is not None:
+                    var2 = self.variables.get(name, None)
+                    if var2 is not None:
                         if name_list[0] in self.trainable_vars:
                             self.trainable_vars.remove(name_list[0])
             for name in name_list:
@@ -534,15 +535,21 @@ class VarsManager(object):
         if name not in self.variables:
             raise Exception("{} not found".format(name))
         if not val_in_fit or name not in self.bnd_dic:
-            return self.variables[name].numpy()  # tf.Variable
+            value = self.variables[name]
+            if name in self.pre_trans:
+                value = self.pre_trans[name](self.variables)
+            return value.numpy()  # tf.Variable
         else:
             return self.bnd_dic[name].get_y2x(self.variables[name].numpy())
 
     def read(self, name):
         val = self.variables[name]
         if name in self.mask_vars:
-            return tf.stop_gradient(tf.cast(self.mask_vars[name], val.dtype))
-        return self.variables[name]
+            val = tf.stop_gradient(tf.cast(self.mask_vars[name], val.dtype))
+        if name in self.pre_trans:
+            trans = self.pre_trans[name]
+            val = trans(self.variables)
+        return val
 
     def set(self, name, value, val_in_fit=True):
         """
@@ -554,7 +561,11 @@ class VarsManager(object):
         if val_in_fit and name in self.bnd_dic:
             value = self.bnd_dic[name].get_x2y(value)
         if name in self.variables:
-            self.variables[name].assign(value)
+            if name in self.pre_trans:
+                trans = self.pre_trans[name]
+                value = trans.inverse(value)
+            if value is not None:
+                self.variables[name].assign(value)
         else:
             warnings.warn("{} not found".format(name))
 
@@ -632,13 +643,13 @@ class VarsManager(object):
         dic = {}
         if trainable_only:
             for i in self.trainable_vars:
-                val = self.variables[i].numpy()
+                val = self.read(i).numpy()
                 # if i in self.bnd_dic:
                 #     val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
         else:
             for i in self.variables:
-                val = self.variables[i].numpy()
+                val = self.read(i).numpy()
                 # if i in self.bnd_dic:
                 #    val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val

@@ -142,3 +142,30 @@ def test_rename():
         vm.rename_var("d", "c", True)
         assert vm.get("cr") == 2
         assert vm.get("ci") == 3
+
+
+def test_transform():
+    from tf_pwa.config_loader import ConfigLoader
+    from tf_pwa.transform import BaseTransform, register_trans
+
+    @register_trans("__test1")
+    class Atrans(BaseTransform):
+        def call(self, x):
+            return x[0] + x[1]
+
+    class Tmp:
+        pass
+
+    tmp = Tmp()
+    with variable_scope() as vm:
+        tmp.vm = vm
+        Variable("a", value=1.0)
+        Variable("b", value=1.0)
+        ConfigLoader.add_from_trans_constraints(
+            None, tmp, {"a": {"x": ["c", "b"], "model": "__test1"}}
+        )
+    vm.set("c", 1.0)
+    assert np.allclose(vm.get("a"), 2.0)
+    vm.set("a", 1.0)
+    assert vm.get_all_dic(False) == {"a": 2.0, "b": 1.0, "c": 1.0}
+    print(vm.get_all_dic(True))

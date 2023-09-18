@@ -264,6 +264,10 @@ class ConfigLoader(BaseConfig):
         self.add_free_var_constraints(amp, constrains.get("free_var", []))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
+        self.add_pre_trans_constraints(amp, constrains.get("pre_trans", None))
+        self.add_from_trans_constraints(
+            amp, constrains.get("from_trans", None)
+        )
         self.add_gauss_constr_constraints(
             amp, constrains.get("gauss_constr", {})
         )
@@ -311,6 +315,44 @@ class ConfigLoader(BaseConfig):
         for k in dic:
             print("same value:", k)
             amp.vm.set_same(k)
+
+    def add_pre_trans_constraints(self, amp, dic=None):
+        if dic is None:
+            return
+        from tf_pwa.transform import create_trans
+
+        for k, v in dic.items():
+            print("transform:", k, v)
+            v["x"] = v.get("x", k)
+            trans = create_trans(v)
+            amp.vm.pre_trans[k] = trans
+
+    def add_from_trans_constraints(self, amp, dic=None):
+        if dic is None:
+            return
+        var_equal = []
+        pre_trans = {}
+        new_var = []
+        for k, v in dic.items():
+            x = v.pop("x", None)
+            if x is not None:
+                if isinstance(x, list) and k != x[0]:
+                    new_var += x
+                    var_equal.append([x[0], k])
+                elif isinstance(x, str) and x != k:
+                    new_var.append(x)
+                    var_equal.append([x, k])
+                else:
+                    raise TypeError("x should be str or list")
+            else:
+                x = k
+            v["x"] = x
+            pre_trans[k] = v
+        for i in new_var:
+            if i not in amp.vm.variables:
+                amp.vm.add_real_var(i)
+        ConfigLoader.add_var_equal_constraints(self, amp, var_equal)
+        ConfigLoader.add_pre_trans_constraints(self, amp, pre_trans)
 
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:

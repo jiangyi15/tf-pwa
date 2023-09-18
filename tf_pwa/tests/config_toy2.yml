@@ -34,6 +34,12 @@ particle:
 constrains:
   particle: null
   decay: null
+  from_trans:
+    "R_BD_mass":
+      x: R_CD_mass
+      model: linear
+      k: 1.0
+      b: 0.01
 
 plot:
   config:
