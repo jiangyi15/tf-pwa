@@ -585,8 +585,14 @@ class ConfigLoader(BaseConfig):
                 model.append(ModelCachedAmp(amp, wb))
         else:
             for wb in w_bkg:
+                extended = self.config["data"].get("extended", False)
                 model.append(
-                    Model(amp, wb, resolution_size=self.resolution_size)
+                    Model(
+                        amp,
+                        wb,
+                        resolution_size=self.resolution_size,
+                        extended=extended,
+                    )
                 )
         return model
 
