@@ -584,8 +584,10 @@ class ConfigLoader(BaseConfig):
             for wb in w_bkg:
                 model.append(ModelCachedAmp(amp, wb))
         else:
+            extended = self.config["data"].get("extended", False)
+            if extended:
+                self.free_for_extended(amp)
             for wb in w_bkg:
-                extended = self.config["data"].get("extended", False)
                 model.append(
                     Model(
                         amp,
