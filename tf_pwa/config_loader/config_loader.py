@@ -893,7 +893,7 @@ class ConfigLoader(BaseConfig):
         if mcdata is None:
             mcdata = self.get_data("phsp")
 
-        extended = self.dic["data"].get("extended", False)
+        extended = self.config["data"].get("extended", False)
         amp = self.get_amplitude()
         fracs = [
             fit_fractions(amp, i, self.inv_he, params, batch) for i in mcdata
