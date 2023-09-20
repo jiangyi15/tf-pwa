@@ -204,6 +204,7 @@ def test_extended(toy_config_extended):
     fcn = toy_config_extended.get_fcn()
     fcn({})
     fcn.nll_grad()
+    toy_config_extended.cal_signal_yields()
 
 
 def test_cfit_extended(gen_toy):
