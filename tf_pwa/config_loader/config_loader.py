@@ -584,9 +584,17 @@ class ConfigLoader(BaseConfig):
             for wb in w_bkg:
                 model.append(ModelCachedAmp(amp, wb))
         else:
+            extended = self.config["data"].get("extended", False)
+            if extended:
+                self.free_for_extended(amp)
             for wb in w_bkg:
                 model.append(
-                    Model(amp, wb, resolution_size=self.resolution_size)
+                    Model(
+                        amp,
+                        wb,
+                        resolution_size=self.resolution_size,
+                        extended=extended,
+                    )
                 )
         return model
 
@@ -884,6 +892,8 @@ class ConfigLoader(BaseConfig):
             params = getattr(params, "params")
         if mcdata is None:
             mcdata = self.get_data("phsp")
+
+        extended = self.config["data"].get("extended", False)
         amp = self.get_amplitude()
         fracs = [
             fit_fractions(amp, i, self.inv_he, params, batch) for i in mcdata
@@ -909,6 +919,8 @@ class ConfigLoader(BaseConfig):
         for frac_e, N_e in zip(fracs, N_total):
             frac, frac_err = frac_e
             N, N_err = N_e
+            if extended:
+                N_err = 0.0
             N_sig = {}
             for i in frac:
                 N_sig[i] = (

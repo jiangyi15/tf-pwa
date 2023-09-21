@@ -297,11 +297,20 @@ class BaseModel(object):
     :param signal: Signal Model
     """
 
-    def __init__(self, signal, resolution_size=1):
+    def __init__(self, signal, resolution_size=1, extended=False):
         self.signal = EvalLazy(signal)
         self.Amp = signal
         self.vm = signal.vm
         self.resolution_size = resolution_size
+        self.extended = extended
+        if extended:
+            self.int_f = lambda x: x
+            self.int_g = lambda x: 1
+            self.int_h = lambda x: 0
+        else:
+            self.int_f = tf.math.log
+            self.int_g = lambda x: 1 / x
+            self.int_h = lambda x: -1 / x**2
 
     def sum_resolution(self, w):
         w = tf.reshape(w, (-1, self.resolution_size))
@@ -323,7 +332,7 @@ class BaseModel(object):
         ) / tf.reduce_sum(mc_weight)
         alpha = sw / tf.reduce_sum(weight**2)
         return -alpha * (
-            tf.reduce_sum(weight * ln_data) - sw * tf.math.log(int_mc)
+            tf.reduce_sum(weight * ln_data) - sw * self.int_f(int_mc)
         )
 
     def sum_nll_grad_bacth(self, data):
@@ -346,8 +355,8 @@ class BaseModel(object):
             self.signal.trainable_variables,
             weight=mc_weight,
         )
-        return tf.math.log(int_mc) * ndata, [
-            ndata / int_mc * i for i in g_int_mc
+        return self.int_f(int_mc) * ndata, [
+            ndata * self.int_g(int_mc) * i for i in g_int_mc
         ]
 
     def nll_grad(self, data, mcdata, batch=65000):
@@ -380,9 +389,12 @@ class BaseModel(object):
         sw = tf.cast(tf.reduce_sum(weight), ln_data.dtype)
 
         g = list(
-            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+            map(
+                lambda x: -x[0] + sw * x[1] * self.int_g(int_mc),
+                zip(g_ln_data, g_int_mc),
+            )
         )
-        nll = -ln_data + sw * tf.math.log(int_mc)
+        nll = -ln_data + sw * self.int_f(int_mc)
         return nll, g
 
     @property
@@ -425,9 +437,12 @@ class BaseModel(object):
         sw = tf.cast(sw, ln_data.dtype)
 
         g = list(
-            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+            map(
+                lambda x: -x[0] + sw * x[1] * self.int_g(int_mc),
+                zip(g_ln_data, g_int_mc),
+            )
         )
-        nll = -ln_data + sw * tf.math.log(int_mc)
+        nll = -ln_data + sw * self.int_f(int_mc)
         return nll, g
 
     def grad_hessp_batch(self, p, data, mcdata, weight, mc_weight):
@@ -477,13 +492,16 @@ class BaseModel(object):
         sw = tf.cast(sw, ln_data.dtype)
 
         g = list(
-            map(lambda x: -x[0] + sw * x[1] / int_mc, zip(g_ln_data, g_int_mc))
+            map(
+                lambda x: -x[0] + sw * x[1] * self.int_g(int_mc),
+                zip(g_ln_data, g_int_mc),
+            )
         )
 
         g_int_mc = np.array(g_int_mc)
         hessp2 = sw * (
-            hessp_int_mc / int_mc
-            - g_int_mc * np.dot(p, g_int_mc) / int_mc**2
+            hessp_int_mc * self.int_g(int_mc)
+            + g_int_mc * np.dot(p, g_int_mc) * self.int_h(int_mc)
         )
         # print("hessp2", hessp2)
         # print("ret", g, hessp2 - hessp_ln_data)
@@ -525,13 +543,17 @@ class BaseModel(object):
         )
 
         n_var = len(g_ln_data)
-        nll = -ln_data + sw * tf.math.log(int_mc)
-        g = -g_ln_data + sw * g_int_mc / int_mc
+        nll = -ln_data + sw * self.int_f(int_mc)
+        g = -g_ln_data + sw * g_int_mc * self.int_g(int_mc)
 
-        g_int_mc = g_int_mc / int_mc
-        g_outer = tf.reshape(g_int_mc, (-1, 1)) * tf.reshape(g_int_mc, (1, -1))
+        g_int_mc = g_int_mc
+        g_outer = (
+            tf.reshape(g_int_mc, (-1, 1))
+            * tf.reshape(g_int_mc, (1, -1))
+            * self.int_h(int_mc)
+        )
 
-        h = -h_ln_data - sw * g_outer + sw / int_mc * h_int_mc
+        h = -h_ln_data + sw * g_outer + sw * h_int_mc * self.int_g(int_mc)
         # print("nll: ", nll)
         return nll, g, h
 
@@ -557,8 +579,10 @@ class Model(object):
     :param w_bkg: Real number. The weight of background.
     """
 
-    def __init__(self, amp, w_bkg=1.0, resolution_size=1):
-        self.model = BaseModel(amp, resolution_size=resolution_size)
+    def __init__(self, amp, w_bkg=1.0, resolution_size=1, extended=False):
+        self.model = BaseModel(
+            amp, resolution_size=resolution_size, extended=extended
+        )
         self.Amp = amp
         self.w_bkg = w_bkg
         self.vm = amp.vm

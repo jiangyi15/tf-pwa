@@ -79,6 +79,13 @@ def toy_config(gen_toy):
 
 
 @pytest.fixture
+def toy_config_extended(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_extended.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
+@pytest.fixture
 def toy_config_npy(toy_npy):
     config = ConfigLoader(f"{this_dir}/config_toy_npy.yml")
     config.set_params(f"{this_dir}/exp_params.json")
@@ -191,6 +198,13 @@ def test_cfit_cached(gen_toy):
     fcn = config.get_fcn()
     fcn({})
     fcn.nll_grad({})
+
+
+def test_extended(toy_config_extended):
+    fcn = toy_config_extended.get_fcn()
+    fcn({})
+    fcn.nll_grad()
+    toy_config_extended.cal_signal_yields()
 
 
 def test_cfit_extended(gen_toy):
