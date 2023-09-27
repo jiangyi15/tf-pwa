@@ -713,6 +713,23 @@ class HelicityDecay(AmpDecay):
     def get_factor(self):
         return self.get_g_ls()
 
+    def mask_factor_vars(self):
+        return self.g_ls.factor_names()
+
+    def factor_iter_names(self, deep=1, extra=[]):
+        if deep == 0:
+            yield {}
+        if len(extra) > 0:
+            for j in extra[0].factor_iter_names(deep, extra=extra[1:]):
+                all_var = self.mask_factor_vars()
+                for i in all_var:
+                    a = {k: 0.0 for k in all_var if k != i}
+                    yield {**a, **j}
+        else:
+            all_var = self.mask_factor_vars()
+            for i in self.mask_factor_vars():
+                yield {k: 0.0 for k in all_var if k != i}
+
     def _get_particle_mass(self, p, data, from_data=False):
         if from_data and p in data:
             return data[p]["m"]
@@ -1201,6 +1218,17 @@ class DecayChain(AmpDecayChain):
             ret = tf.expand_dims(ret, axis=-1) * tf.cast(i, ret.dtype)
         return ret
 
+    def factor_iteration(self, deep=1):
+        if deep == 0:
+            yield {}
+        else:
+            all_decay = list(self)
+            for j in all_decay[0].factor_iter_names(
+                deep=deep, extra=all_decay[1:]
+            ):
+                with self.total.vm.mask_params(j):
+                    yield j
+
     def get_amp_total(self, charge=1):
         if self.mask_factor:
             return tf.ones_like(tf.stack(self.total(charge)))
@@ -1498,6 +1526,17 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         for i in self:
             ret.append(i.get_factor())
         return ret
+
+    def factor_iteration(self, deep=2):
+        if deep == 0:
+            yield None
+        else:
+            old_chains_idx = self.chains_idx
+            for i in old_chains_idx:
+                self.set_used_chains([i])
+                for j in self.chains[i].factor_iteration(deep=deep - 1):
+                    yield self.chains[i], j
+            self.chains_idx = old_chains_idx
 
     def get_amp(self, data):
         """

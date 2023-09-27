@@ -334,6 +334,9 @@ def test_fit(toy_config, fit_result):
         frac = [i / int_mc() for i in y]
     pt.get_error(frac)
 
+    for i in amp.factor_iteration():
+        pass
+
     toy_config.attach_fix_params_error({"R_BC_mass": 0.01})
 
 
