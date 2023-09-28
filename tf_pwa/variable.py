@@ -1681,6 +1681,11 @@ class Variable(object):
 
         return all_name_list
 
+    def factor_names(self):
+        if self.cplx:
+            return [i for i in self.all_name_list if i.endswith("r")]
+        return self.all_name_list
+
     def __call__(self, charge=1):
         var = [self.vm.read(i) for i in self.all_name_list]
         if self.shape:

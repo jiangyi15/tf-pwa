@@ -172,6 +172,10 @@ class BaseAmplitudeModel(AbsPDF):
         ret = self.decay_group.sum_amp(data)
         return ret
 
+    def factor_iteration(self, deep=2):
+        for i in self.decay_group.factor_iteration(deep):
+            yield i
+
     @contextlib.contextmanager
     def temp_total_gls_one(self):
         mask_part = []
