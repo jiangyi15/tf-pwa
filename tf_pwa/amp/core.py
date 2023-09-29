@@ -1775,6 +1775,26 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         sum_A = tf.reduce_sum(amp2s, idx)
         return sum_A
 
+    def sum_with_polarization(self, amp):
+        if self.polarization != "none":
+            # (i, la, lb lc ld ...)
+            amp = tf.reshape(amp, (amp.shape[0], amp.shape[1], -1))
+            na, nl = amp.shape[1], amp.shape[2]
+            rho = self.get_density_matrix()
+            amp = tf.reshape(amp, (-1, na, 1, nl))
+            # (i, la, lb lc ld ...)
+            amp_c = tf.reshape(tf.math.conj(amp), (-1, na, nl))
+            sum_A = (
+                tf.reduce_sum(amp * tf.reshape(rho, (na, na, 1)), axis=1)
+                * amp_c
+            )
+            return tf.reduce_sum(tf.math.real(sum_A), axis=[1, 2])
+        else:
+            amp2s = tf.math.real(amp * tf.math.conj(amp))
+            idx = list(range(1, len(amp2s.shape)))
+            sum_A = tf.reduce_sum(amp2s, idx)
+            return sum_A
+
     def sum_amp_polarization(self, data):
         """
         sum amplitude suqare with density _get_cg_matrix
@@ -1785,19 +1805,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         """
 
         amp = self.get_amp3(data)
-        amp = tf.reshape(
-            amp, (amp.shape[0], amp.shape[1], -1)
-        )  # (i, la, lb lc ld ...)
-        na, nl = amp.shape[1], amp.shape[2]
-        rho = self.get_density_matrix()
-        amp = tf.reshape(amp, (-1, na, 1, nl))
-        amp_c = tf.reshape(
-            tf.math.conj(amp), (-1, na, nl)
-        )  # (i, la, lb lc ld ...)
-        sum_A = (
-            tf.reduce_sum(amp * tf.reshape(rho, (na, na, 1)), axis=1) * amp_c
-        )
-        return tf.reduce_sum(tf.math.real(sum_A), axis=[1, 2])
+        return self.sum_with_polarization(amp)
 
     def get_density_matrix(self):
         if self.polarization == "vector":

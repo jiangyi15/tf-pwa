@@ -218,8 +218,7 @@ class CachedAmpAmplitudeModel(BaseAmplitudeModel):
             ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
         # print(ret)
         amp = tf.reduce_sum(ret, axis=0)
-        amp2s = tf.math.real(amp * tf.math.conj(amp))
-        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+        return self.decay_group.sum_with_polarization(amp)
 
 
 @register_amp_model("cached_shape")
@@ -281,8 +280,7 @@ class CachedShapeAmplitudeModel(BaseAmplitudeModel):
 
         # print(ret)
         amp = tf.reduce_sum(ret, axis=0)
-        amp2s = tf.math.real(amp * tf.math.conj(amp))
-        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+        return self.decay_group.sum_with_polarization(amp)
 
 
 @register_amp_model("base_factor")
@@ -314,8 +312,7 @@ class FactorAmplitudeModel(BaseAmplitudeModel):
     def pdf(self, data):
         ret = self.get_amp_list(data)
         amp = tf.reduce_sum(ret, axis=0)
-        amp2s = tf.math.real(amp * tf.math.conj(amp))
-        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+        return self.decay_group.sum_with_polarization(amp)
 
 
 @register_amp_model("p4_directly")
