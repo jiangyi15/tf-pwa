@@ -1778,7 +1778,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
     def sum_with_polarization(self, amp):
         if self.polarization != "none":
             # (i, la, lb lc ld ...)
-            amp = tf.reshape(amp, (amp.shape[0], amp.shape[1], -1))
+            amp = tf.reshape(amp, (amp.shape[0], len(self.top.spins), -1))
             na, nl = amp.shape[1], amp.shape[2]
             rho = self.get_density_matrix()
             amp = tf.reshape(amp, (-1, na, 1, nl))
