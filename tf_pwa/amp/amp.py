@@ -325,7 +325,12 @@ class FactorAmplitudeModel(BaseAmplitudeModel):
                     i = tf.expand_dims(i, axis=-1)
                 tmp = tf.reshape(
                     tmp,
-                    (-1, head_size, i.shape[-1], total_size // i.shape[-1]),
+                    (
+                        -1,
+                        head_size,
+                        i.shape[-1],
+                        total_size // i.shape[-1] // head_size,
+                    ),
                 )
                 head_size *= i.shape[-1]
                 tmp = tmp * tf.expand_dims(tf.expand_dims(i, axis=-1), axis=1)
