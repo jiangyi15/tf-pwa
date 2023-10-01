@@ -1514,6 +1514,10 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                     self.top.add_var("polarization_py"),
                     self.top.add_var("polarization_pz"),
                 ]
+            if self.top.J == 1:
+                self.polarization_vector = self.top.add_var(
+                    "polarization_p", shape=(8,)
+                )
 
     def get_factor_variable(self):
         ret = []
@@ -1808,7 +1812,7 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         return self.sum_with_polarization(amp)
 
     def get_density_matrix(self):
-        if self.polarization == "vector":
+        if self.polarization == "vector" and self.top.J == 0.5:
             px, py, pz = [i() for i in self.polarization_vector]
             zeros = tf.zeros_like(px)
             ones = tf.ones_like(px)
@@ -1819,6 +1823,31 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             ret = 0.5 * tf.stack([[rho00, rho01], [rho10, rho11]])
             # print(ret)
             return ret
+        elif self.polarization == "vector" and self.top.J == 1:
+            p = tf.stack(self.polarization_vector())
+            p = tf.complex(p, tf.zeros_like(p))
+            gi = np.array(
+                [
+                    [
+                        [0, 0, 1, 0, 0, 0, 0, 1 / np.sqrt(3)],
+                        [1, -1j, 0, 0, 0, 0, 0, 0],
+                        [0, 0, 0, 1, -1j, 0, 0, 0],
+                    ],
+                    [
+                        [1, 1j, 0, 0, 0, 0, 0, 0],
+                        [0, 0, -1, 0, 0, 0, 0, 1 / np.sqrt(3)],
+                        [0, 0, 0, 0, 0, 1, -1j, 0],
+                    ],
+                    [
+                        [0, 0, 0, 1, 1j, 0, 0, 0],
+                        [0, 0, 0, 0, 1, 1j, 0, 0],
+                        [0, 0, 0, 0, 0, 0, 0, -2 / np.sqrt(3)],
+                    ],
+                ]
+            )
+            m = gi * p
+            E = np.eye(3) + 0j
+            return E + tf.reduce_sum(m, axis=-1)
         raise NotImplementedError
 
     # @simple_cache_fun
