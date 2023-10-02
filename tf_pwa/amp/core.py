@@ -1514,6 +1514,10 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                     self.top.add_var("polarization_py"),
                     self.top.add_var("polarization_pz"),
                 ]
+            if self.top.J == 1:
+                self.polarization_vector = self.top.add_var(
+                    "polarization_p", shape=(8,)
+                )
 
     def get_factor_variable(self):
         ret = []
@@ -1775,6 +1779,26 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         sum_A = tf.reduce_sum(amp2s, idx)
         return sum_A
 
+    def sum_with_polarization(self, amp):
+        if self.polarization != "none":
+            # (i, la, lb lc ld ...)
+            amp = tf.reshape(amp, (amp.shape[0], len(self.top.spins), -1))
+            na, nl = amp.shape[1], amp.shape[2]
+            rho = self.get_density_matrix()
+            amp = tf.reshape(amp, (-1, na, 1, nl))
+            # (i, la, lb lc ld ...)
+            amp_c = tf.reshape(tf.math.conj(amp), (-1, na, nl))
+            sum_A = (
+                tf.reduce_sum(amp * tf.reshape(rho, (na, na, 1)), axis=1)
+                * amp_c
+            )
+            return tf.reduce_sum(tf.math.real(sum_A), axis=[1, 2])
+        else:
+            amp2s = tf.math.real(amp * tf.math.conj(amp))
+            idx = list(range(1, len(amp2s.shape)))
+            sum_A = tf.reduce_sum(amp2s, idx)
+            return sum_A
+
     def sum_amp_polarization(self, data):
         """
         sum amplitude suqare with density _get_cg_matrix
@@ -1785,22 +1809,10 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         """
 
         amp = self.get_amp3(data)
-        amp = tf.reshape(
-            amp, (amp.shape[0], amp.shape[1], -1)
-        )  # (i, la, lb lc ld ...)
-        na, nl = amp.shape[1], amp.shape[2]
-        rho = self.get_density_matrix()
-        amp = tf.reshape(amp, (-1, na, 1, nl))
-        amp_c = tf.reshape(
-            tf.math.conj(amp), (-1, na, nl)
-        )  # (i, la, lb lc ld ...)
-        sum_A = (
-            tf.reduce_sum(amp * tf.reshape(rho, (na, na, 1)), axis=1) * amp_c
-        )
-        return tf.reduce_sum(tf.math.real(sum_A), axis=[1, 2])
+        return self.sum_with_polarization(amp)
 
     def get_density_matrix(self):
-        if self.polarization == "vector":
+        if self.polarization == "vector" and self.top.J == 0.5:
             px, py, pz = [i() for i in self.polarization_vector]
             zeros = tf.zeros_like(px)
             ones = tf.ones_like(px)
@@ -1811,6 +1823,31 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             ret = 0.5 * tf.stack([[rho00, rho01], [rho10, rho11]])
             # print(ret)
             return ret
+        elif self.polarization == "vector" and self.top.J == 1:
+            p = tf.stack(self.polarization_vector())
+            p = tf.complex(p, tf.zeros_like(p))
+            gi = np.array(
+                [
+                    [
+                        [0, 0, 1, 0, 0, 0, 0, 1 / np.sqrt(3)],
+                        [1, -1j, 0, 0, 0, 0, 0, 0],
+                        [0, 0, 0, 1, -1j, 0, 0, 0],
+                    ],
+                    [
+                        [1, 1j, 0, 0, 0, 0, 0, 0],
+                        [0, 0, -1, 0, 0, 0, 0, 1 / np.sqrt(3)],
+                        [0, 0, 0, 0, 0, 1, -1j, 0],
+                    ],
+                    [
+                        [0, 0, 0, 1, 1j, 0, 0, 0],
+                        [0, 0, 0, 0, 0, 1, 1j, 0],
+                        [0, 0, 0, 0, 0, 0, 0, -2 / np.sqrt(3)],
+                    ],
+                ]
+            )
+            m = gi * p
+            E = np.eye(3) + 0j
+            return E + tf.reduce_sum(m, axis=-1)
         raise NotImplementedError
 
     # @simple_cache_fun

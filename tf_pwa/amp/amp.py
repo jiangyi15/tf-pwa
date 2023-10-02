@@ -218,8 +218,7 @@ class CachedAmpAmplitudeModel(BaseAmplitudeModel):
             ret.append(tf.reduce_sum(a * tf.stack(j, axis=1), axis=1))
         # print(ret)
         amp = tf.reduce_sum(ret, axis=0)
-        amp2s = tf.math.real(amp * tf.math.conj(amp))
-        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+        return self.decay_group.sum_with_polarization(amp)
 
 
 @register_amp_model("cached_shape")
@@ -281,8 +280,7 @@ class CachedShapeAmplitudeModel(BaseAmplitudeModel):
 
         # print(ret)
         amp = tf.reduce_sum(ret, axis=0)
-        amp2s = tf.math.real(amp * tf.math.conj(amp))
-        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+        return self.decay_group.sum_with_polarization(amp)
 
 
 @register_amp_model("base_factor")
@@ -311,11 +309,38 @@ class FactorAmplitudeModel(BaseAmplitudeModel):
             ret.append(tmp)
         return ret
 
+    def get_amp_list_part(self, data):
+        m_dep = self.decay_group.get_m_dep(data)
+        if "cached_angle" in data:
+            angle_amp = data["cached_angle"]
+        else:
+            angle_amp = self.decay_group.get_factor_angle_amp(data)
+        ret = []
+        for a, b in zip(m_dep, angle_amp):
+            tmp = b
+            head_size = 1
+            for i in a:
+                total_size = np.prod(tmp.shape[1:])
+                if len(i.shape) == 1:
+                    i = tf.expand_dims(i, axis=-1)
+                tmp = tf.reshape(
+                    tmp,
+                    (
+                        -1,
+                        head_size,
+                        i.shape[-1],
+                        total_size // i.shape[-1] // head_size,
+                    ),
+                )
+                head_size *= i.shape[-1]
+                tmp = tmp * tf.expand_dims(tf.expand_dims(i, axis=-1), axis=1)
+            ret.append(tmp)
+        return ret
+
     def pdf(self, data):
         ret = self.get_amp_list(data)
         amp = tf.reduce_sum(ret, axis=0)
-        amp2s = tf.math.real(amp * tf.math.conj(amp))
-        return tf.reduce_sum(amp2s, list(range(1, len(amp2s.shape))))
+        return self.decay_group.sum_with_polarization(amp)
 
 
 @register_amp_model("p4_directly")
