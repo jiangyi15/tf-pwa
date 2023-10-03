@@ -94,3 +94,8 @@ def test_batch_call():
 
     ret, _ = batch_call(f, data, batch=1)
     assert np.allclose(ret, np.array([3.0, 4.0]))
+
+
+def test_check_nan():
+    data = {"a": np.array([1.0, 2.0]), "b": [np.array([1.0 + 2j, 2])]}
+    check_nan(data)
