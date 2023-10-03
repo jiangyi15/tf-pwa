@@ -723,14 +723,7 @@ def check_nan(data, no_raise=False):
                     for i, data_i in enumerate(dat)
                 ]
             )
-        if dat.dtype in [
-            tf.complex128,
-            tf.complex64,
-            np.complex128,
-            np.complex64,
-        ]:
-            dat = tf.math.real(dat) + tf.math.imag(dat)
-        if np.any(tf.math.is_nan(dat)):
+        if np.any(tf.math.is_nan(tf.abs(dat))):
             if no_raise:
                 return False
             raise ValueError(
