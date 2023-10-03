@@ -728,7 +728,7 @@ def check_nan(data, no_raise=False):
                 return False
             raise ValueError(
                 "nan in data[{}], idx:{}".format(
-                    head, tf.where(tf.math.is_nan(dat))
+                    head, tf.where(tf.math.is_nan(tf.abs(dat)))
                 )
             )
         return True
