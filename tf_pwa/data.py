@@ -723,12 +723,12 @@ def check_nan(data, no_raise=False):
                     for i, data_i in enumerate(dat)
                 ]
             )
-        if np.any(tf.math.is_nan(dat)):
+        if np.any(tf.math.is_nan(tf.abs(dat))):
             if no_raise:
                 return False
             raise ValueError(
                 "nan in data[{}], idx:{}".format(
-                    head, tf.where(tf.math.is_nan(dat))
+                    head, tf.where(tf.math.is_nan(tf.abs(dat)))
                 )
             )
         return True
