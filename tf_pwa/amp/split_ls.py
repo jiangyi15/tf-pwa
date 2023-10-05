@@ -7,7 +7,7 @@ from tf_pwa.amp.core import (
     register_decay,
     register_particle,
 )
-from tf_pwa.breit_wigner import Bprime_q2, to_complex
+from tf_pwa.breit_wigner import BWR2, Bprime_q2, to_complex
 
 
 @register_decay("LS-decay")
@@ -203,3 +203,40 @@ class ParticleBWRLS(ParticleLS):
             b = b * m / m0
         dom = tf.complex(a, -b)
         return dom, total_gamma
+
+
+@register_particle("BWR_LS2")
+class ParticleBWRLS2(ParticleLS):
+    """
+
+    Breit Wigner with split ls running width, each one use their own l,
+
+    .. math::
+        R_i (m) = \\frac{1}{m_0^2 - m^2 - im_0 \\Gamma_0 \\frac{\\rho}{\\rho_0} (g_i^2)}
+
+    , :math:`\\rho = 2q/m`, the partial width factor is
+
+    .. math::
+        g_i = \\gamma_i \\frac{q^l}{q_0^l} B_{l_i}'(q,q_0,d)
+
+    """
+
+    def __call__(self, m, l=0):
+        m0 = self.get_mass()
+        m1 = self.decay[0].outs[0].get_mass()
+        m2 = self.decay[0].outs[1].get_mass()
+        ls = [(l, 0)]
+        q2 = get_relative_p2(m, m1, m2)
+        q02 = get_relative_p2(m0, m1, m2)
+        return self.get_ls_amp(m, ls, q2, q02)
+
+    def get_ls_amp(self, m, ls, q2, q02, d=3.0):
+        m0 = self.get_mass()
+        g0 = self.get_width()
+
+        d = self.decay[0].d if self.decay else 3.0
+
+        ret = []
+        for l, s in ls:
+            ret.append(BWR2(m, m0, g0, q2, q02, l, d))
+        return ret
