@@ -437,7 +437,7 @@ class ParticleExp(Particle):
 
 
 @regist_particle("exp_com")
-class ParticleExp(Particle):
+class ParticleExpCom(Particle):
     """
     .. math::
         R(m) = e^{-(a+ib) m^2}
