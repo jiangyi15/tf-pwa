@@ -31,6 +31,14 @@ class ParticleFlatte(Particle):
     \\frac{i\\sqrt{|(m^2-(m_{i,1}+m_{i,2})^2)(m^2-(m_{i,1}-m_{i,2})^2)|}}{2m} & (m^2-(m_{i,1}+m_{i,2})^2)(m^2-(m_{i,1}-m_{i,2})^2) < 0 \\\\
     \\end{cases}
 
+.. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> plot_particle_model("Flatte", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
+
+
 Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1}, m_{i,2}`.
 
     """
@@ -119,7 +127,14 @@ class ParticleFlatte2(ParticleFlatte):
 
 Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1}, m_{i,2}`.
 
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> plot_particle_model("FlatteC", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
+
     """
 
     def __init__(self, *args, im_sign=-1, **kwargs):
-        super().__init__(self, *args, im_sign=im_sign, **kwargs)
+        super().__init__(*args, im_sign=im_sign, **kwargs)
