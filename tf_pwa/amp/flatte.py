@@ -22,7 +22,7 @@ class ParticleFlatte(Particle):
 
 .. math::
 
-    R(m) = \\frac{1}{m_0^2 - m^2 + m_0 (\\sum_{i}  g_i \\frac{q_i}{m})}
+    R(m) = \\frac{1}{m_0^2 - m^2 + i m_0 (\\sum_{i}  g_i \\frac{q_i}{m})}
 
 .. math::
 
@@ -37,6 +37,8 @@ class ParticleFlatte(Particle):
         >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
         >>> plot_particle_model("Flatte", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
+        >>> plot_particle_model("Flatte", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": -0.3,"R_BC_g_1": -0.2})
+        >>> plt.legend(["$g_i$", "$-g_i$"])
 
 
 Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1}, m_{i,2}`.
@@ -100,11 +102,11 @@ Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1
             # print(pi)
             m_rho_i = pi * tf.complex(zeros, self.g_value[i]() * m_c)
             rhos.append(m_rho_i)
-        rho = sum(rhos)
+        rho = self.im_sign * sum(rhos)
         re = delta_s + tf.math.real(rho)
         im = tf.math.imag(rho)
         d = re * re + im * im
-        ret = tf.complex(re / d, -self.im_sign * im / d)
+        ret = tf.complex(re / d, -im / d)
         return ret
 
 
@@ -116,7 +118,7 @@ class ParticleFlatte2(ParticleFlatte):
 
 .. math::
 
-    R(m) = \\frac{1}{m_0^2 - m^2 - m_0 (\\sum_{i}  g_i \\frac{q_i}{m})}
+    R(m) = \\frac{1}{m_0^2 - m^2 - i m_0 (\\sum_{i}  g_i \\frac{q_i}{m})}
 
 .. math::
 
