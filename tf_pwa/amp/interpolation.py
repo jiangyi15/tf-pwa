@@ -433,7 +433,36 @@ class HistParticle(InterpolationParticle):
 
 @register_particle("hist_idx")
 class InterpHistIdx(HistParticle):
-    """Interpolation for each bins as constant"""
+    """Interpolation for each bins as constant
+
+    use
+
+    .. code::
+
+        min_m: 0.19
+        max_m: 0.91
+        interp_N: 8
+        with_bound: True
+
+    for mass range [0.19, 0.91] and 7 bins
+
+    The first and last are fixed to zero unless set :code:`with_bound: True`.
+
+    This is an example of :math:`k\exp (i k)` for point k.
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> params = {}
+        >>> for i in range(7):
+        ...     params[f"R_BC_point_{i}r"] = i
+        ...     params[f"R_BC_point_{i}i"] = i
+        ...
+        >>> axis = plot_particle_model("hist_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8}, params)
+
+    """
 
     def interp(self, m):
         _, p_r, p_i = self.get_point_values()
@@ -446,7 +475,36 @@ class InterpHistIdx(HistParticle):
 
 @register_particle("spline_c_idx")
 class Interp1DSplineIdx(InterpolationParticle):
-    """Spline function in index way"""
+    """Spline function in index way.
+
+    use
+
+    .. code::
+
+        min_m: 0.19
+        max_m: 0.91
+        interp_N: 8
+        with_bound: True
+
+    for mass range [0.19, 0.91] and 8 interpolation points
+
+    The first and last are fixed to zero unless set :code:`with_bound: True`.
+
+    This is an example of :math:`k\exp (i k)` for point k.
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> params = {}
+        >>> for i in range(8):
+        ...     params[f"R_BC_point_{i}r"] = i
+        ...     params[f"R_BC_point_{i}i"] = i
+        ...
+        >>> axis = plot_particle_model("spline_c_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params)
+
+    """
 
     def __init__(self, *args, **kwargs):
         self.bc_type = "not-a-knot"
