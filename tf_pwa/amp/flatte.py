@@ -36,9 +36,9 @@ class ParticleFlatte(Particle):
         >>> import matplotlib.pyplot as plt
         >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
-        >>> plot_particle_model("Flatte", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
-        >>> plot_particle_model("Flatte", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": -0.3,"R_BC_g_1": -0.2})
-        >>> plt.legend(["$g_i$", "$-g_i$"])
+        >>> _ = plot_particle_model("Flatte", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
+        >>> _ = plot_particle_model("Flatte", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": -0.3,"R_BC_g_1": -0.2})
+        >>> _ = plt.legend(["$g_i$", "$-g_i$"])
 
 
 Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1}, m_{i,2}`.
@@ -134,7 +134,7 @@ Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1
         >>> import matplotlib.pyplot as plt
         >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
-        >>> plot_particle_model("FlatteC", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
+        >>> _ = plot_particle_model("FlatteC", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
 
     """
 

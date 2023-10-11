@@ -98,7 +98,7 @@ class KmatrixSingleChannelParticle(Particle):
         >>> axis = plot_particle_model("KMatrixSingleChannel", {"mass_list": [0.5, 0.6], "width_list": [0.03, 0.05], "mass": 0.5},
         ...  {"R_BC_beta1r": 1.,"R_BC_beta2r": 1.0, "R_BC_beta1i": 0.,"R_BC_beta2i": 0.0}, axis=axis)
         ...
-        >>> axis[3].legend([" $\\\\beta_1=1$ ", " $\\\\beta_2=1$ ", " $\\\\beta_1=\\\\beta_2=1$ "], fontsize=8)
+        >>> _ = axis[3].legend([" $\\\\beta_1=1$ ", " $\\\\beta_2=1$ ", " $\\\\beta_1=\\\\beta_2=1$ "], fontsize=8)
 
     """
 
