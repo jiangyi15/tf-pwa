@@ -372,7 +372,7 @@ def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
     config.set_params({"A->R_BC.DR_BC->B.C_total_0i": 0.0})
     config.set_params(plot_params)
     f = config.get_particle_function("R_BC")
-    m = np.linspace(0.2, 0.9, 2000)
+    m = np.linspace(0.2, 0.9 - 1e-12, 2000)
     a = f(m).numpy()
     if axis is None:
         ax3 = plt.subplot(2, 2, 3, label="argon")

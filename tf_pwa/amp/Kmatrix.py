@@ -82,10 +82,30 @@ class KmatrixSingleChannelParticle(Particle):
     .. math::
         R(m) = (1-iK)^{-1} P
 
+    requird :code:`mass_list: [pole1, pole2]` and :code:`width_list: [width1, width2]`.
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("KMatrixSingleChannel", {"mass_list": [0.5, 0.6], "width_list": [0.03, 0.05], "mass": 0.5, "m1": 0.1, "m2": 0.1},
+        ...  {"R_BC_beta1r": 1.,"R_BC_beta2r": 0.0, "R_BC_beta1i": 0.,"R_BC_beta2i": 0.0})
+        ...
+        >>> axis = plot_particle_model("KMatrixSingleChannel", {"mass_list": [0.5, 0.6], "width_list": [0.03, 0.05], "mass": 0.5, "m1": 0.1, "m2": 0.1},
+        ...  {"R_BC_beta1r": 0.,"R_BC_beta2r": 1.0, "R_BC_beta1i": 0.,"R_BC_beta2i": 0.0}, axis=axis)
+        ...
+        >>> axis = plot_particle_model("KMatrixSingleChannel", {"mass_list": [0.5, 0.6], "width_list": [0.03, 0.05], "mass": 0.5},
+        ...  {"R_BC_beta1r": 1.,"R_BC_beta2r": 1.0, "R_BC_beta1i": 0.,"R_BC_beta2i": 0.0}, axis=axis)
+        ...
+        >>> _ = axis[3].legend([" $\\\\beta_1=1$ ", " $\\\\beta_2=1$ ", " $\\\\beta_1=\\\\beta_2=1$ "], fontsize=8)
+
     """
 
     def __init__(self, *args, **kwargs):
         self.d = 3
+        self.m1 = None
+        self.m2 = None
         super().__init__(*args, **kwargs)
         self.n_pole = len(self.mass_list)
 
@@ -98,6 +118,10 @@ class KmatrixSingleChannelParticle(Particle):
         if self.bw_l is None:
             decay = self.decay[0]
             self.bw_l = min(decay.get_l_list())
+        if self.m1 is None:
+            self.m1 = float(self.decay[0].outs[0].get_mass())
+        if self.m2 is None:
+            self.m2 = float(self.decay[0].outs[1].get_mass())
 
         self.symbol = sym.together(
             KMatrix_single(self.n_pole, self.m1, self.m2, self.bw_l, self.d)
@@ -142,6 +166,7 @@ class KmatrixSingleChannelParticle(Particle):
             params[f"alpha{i}"] = beta_r[i]
             params[f"beta{i}"] = beta_i[i]
             params[f"p0{i}"] = get_relative_p2(mi[i], self.m1, self.m2)
+
         ret_r, ret_i = self.function(**params)
         return tf.complex(ret_r, ret_i)
 
