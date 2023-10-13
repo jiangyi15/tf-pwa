@@ -68,3 +68,25 @@ def test_constrains():
 
     amp = config.get_amplitude()
     config.add_free_var_constraints(amp)
+
+
+def test_decay_cut():
+    def null_cut(decay_chain):
+        return True, ""
+
+    from tf_pwa.config_loader.decay_config import DecayConfig
+
+    DecayConfig.decay_chain_cut_list["null"] = null_cut
+
+    with write_temp_file(resonancs_str) as f:
+        cs = config_str.format(file_name=f)
+        cs.replace(
+            "data:",
+            """data:
+    decay_chain_cut: ["null", "mass_cut"]""",
+        )
+        print(cs)
+        with write_temp_file(cs) as g:
+            config = ConfigLoader(g)
+
+    amp = config.get_amplitude()

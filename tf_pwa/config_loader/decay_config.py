@@ -274,8 +274,8 @@ class DecayConfig(BaseConfig):
                     flag = flag and new_flag
                     if not flag:
                         print(
-                            "remove decay",
-                            j,
+                            "remove decay chain",
+                            decay_chain,
                             "by",
                             name,
                             "\n\tbecause of",
