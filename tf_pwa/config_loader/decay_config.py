@@ -36,7 +36,7 @@ def decay_cut_mass(decay):
         if decay.core.mass is None or any(
             [j.mass is None for j in decay.outs]
         ):
-            continue
+            True, ""
         # print(i, i.core.mass, [j.mass for j in i.outs])
         if decay.core.mass < sum([j.mass for j in decay.outs]):
             return (
@@ -289,7 +289,7 @@ class DecayConfig(BaseConfig):
                         if i in j.creators:
                             j.creators.remove(i)
             if flag:
-                ret.append(i)
+                ret.append(decay_chain)
         return ret
 
     def get_decay_struct(
