@@ -24,32 +24,33 @@ def set_min_max(dic, name, name_min, name_max):
         )
 
 
-def decay_chain_cut_ls(decay):
-    for i in decay:
-        if isinstance(i, HelicityDecay):
-            if len(i.get_ls_list()) == 0:
-                return False, f"{i} ls not aviable {i.get_ls_list()}"
+def decay_cut_ls(decay):
+    if isinstance(decay, HelicityDecay):
+        if len(decay.get_ls_list()) == 0:
+            return False, f"{decay} ls not aviable {decay.get_ls_list()}"
     return True, ""
 
 
-def decay_chain_cut_mass(decay):
-    for i in decay:
-        if isinstance(i, HelicityDecay):
-            if i.core.mass is None or any([j.mass is None for j in i.outs]):
-                continue
-            # print(i, i.core.mass, [j.mass for j in i.outs])
-            if i.core.mass < sum([j.mass for j in i.outs]):
-                return (
-                    False,
-                    f"{i} mass break {i.core.mass} < {[j.mass for j in i.outs]}",
-                )
+def decay_cut_mass(decay):
+    if isinstance(decay, HelicityDecay):
+        if decay.core.mass is None or any(
+            [j.mass is None for j in decay.outs]
+        ):
+            continue
+        # print(i, i.core.mass, [j.mass for j in i.outs])
+        if decay.core.mass < sum([j.mass for j in decay.outs]):
+            return (
+                False,
+                f"{decay} mass break {decay.core.mass} < {[j.mass for j in decay.outs]}",
+            )
     return True, ""
 
 
 class DecayConfig(BaseConfig):
-    decay_chain_cut_list = {
-        "ls_cut": decay_chain_cut_ls,
-        "mass_cut": decay_chain_cut_mass,
+    decay_chain_cut_list = {}
+    decay_cut_list = {
+        "ls_cut": decay_cut_ls,
+        "mass_cut": decay_cut_mass,
     }
 
     def __init__(self, dic, share_dict={}):
@@ -70,6 +71,7 @@ class DecayConfig(BaseConfig):
             "running_width": "running_width",
         }
         self.cut_list = self.data_config.get("decay_chain_cut", ["ls_cut"])
+        self.decay_cut_list = self.data_config.get("decay_cut", self.cut_list)
         self.decay_key_map = {"model": "model"}
         self.dec = self.decay_item(self.config["decay"])
         (
@@ -240,6 +242,8 @@ class DecayConfig(BaseConfig):
         for i in decays:
             flag = True
             for name in self.cut_list:
+                if name not in DecayConfig.decay_chain_cut_list:
+                    continue
                 f = DecayConfig.decay_chain_cut_list[name]
                 new_flag, msg = f(i)
                 flag = flag and new_flag
@@ -253,6 +257,37 @@ class DecayConfig(BaseConfig):
                         msg,
                     )
                     break
+            if flag:
+                ret.append(i)
+        return ret
+
+    def decay_cut(self, decays):
+        ret = []
+        for decay_chain in decays:
+            flag = True
+            for i in decay_chain:
+                for name in self.cut_list:
+                    if name not in DecayConfig.decay_cut_list:
+                        continue
+                    f = DecayConfig.decay_cut_list[name]
+                    new_flag, msg = f(i)
+                    flag = flag and new_flag
+                    if not flag:
+                        print(
+                            "remove decay",
+                            j,
+                            "by",
+                            name,
+                            "\n\tbecause of",
+                            msg,
+                        )
+                        break
+                if not flag:
+                    if i in i.core.decay:
+                        i.core.decay.remove(i)
+                    for j in i.outs:
+                        if i in j.creators:
+                            j.creators.remove(i)
             if flag:
                 ret.append(i)
         return ret
@@ -378,6 +413,7 @@ class DecayConfig(BaseConfig):
                 dec_c = get_decay_chain(all_dec, **all_params)
                 ret.append(dec_c)
         if process_cut:
+            ret = self.decay_cut(ret)
             ret = self.decay_chain_cut(ret)
         if len(ret) == 0:
             raise RuntimeError("not decay chain aviable, check you config.yml")
