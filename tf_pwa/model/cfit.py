@@ -3,7 +3,13 @@ import numpy as np
 from ..config import create_config
 from ..data import EvalLazy, data_shape, split_generator
 from ..tensorflow_wrapper import tf
-from .model import Model, clip_log, sum_gradient, sum_hessian
+from .model import (
+    Model,
+    clip_log,
+    register_nll_model,
+    sum_gradient,
+    sum_hessian,
+)
 from .opt_int import build_amp, sum_gradient_data2
 
 set_function, get_function, register_function = create_config()
@@ -19,6 +25,7 @@ def f_eff(data):
     return data.get("eff_value", tf.ones((data_shape(data),), dtype="float64"))
 
 
+@register_nll_model("cfit")
 class Model_cfit(Model):
     def __init__(
         self, amp, w_bkg=0.001, bg_f=None, eff_f=None, resolution_size=1
@@ -203,6 +210,7 @@ class Model_cfit(Model):
         return -ll, g, -h
 
 
+@register_nll_model("cfit_cached")
 class Model_cfit_cached(Model_cfit):
     def __init__(self, amp, w_bkg=0.001, bg_f=None, eff_f=None):
         super().__init__(amp, w_bkg, bg_f, eff_f)
@@ -263,6 +271,7 @@ class Model_cfit_cached(Model_cfit):
         return -ll, g
 
 
+@register_nll_model("cfit_extended")
 class ModelCfitExtended(Model):
     def __init__(self, amp, w_bkg=0.001, bg_f=None, eff_f=None):
         super().__init__(amp, w_bkg)

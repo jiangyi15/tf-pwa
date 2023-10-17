@@ -8,6 +8,7 @@ from .model import (
     Model,
     _loop_generator,
     clip_log,
+    register_nll_model,
     split_generator,
     sum_hessian,
 )
@@ -124,6 +125,7 @@ def sum_grad_hessp_data2(
     return nll, g, h
 
 
+@register_nll_model("cached_int")
 class ModelCachedInt(Model):
     """
     This class implements methods to calculate NLL as well as its derivatives for an amplitude model with Cached Int.
@@ -294,6 +296,7 @@ class ModelCachedInt(Model):
         return nll, g, h
 
 
+@register_nll_model("cached_amp")
 class ModelCachedAmp(Model):
     """
     This class implements methods to calculate NLL as well as its derivatives for an amplitude model with Cached Int.

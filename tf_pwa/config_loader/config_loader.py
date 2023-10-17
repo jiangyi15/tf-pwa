@@ -583,6 +583,12 @@ class ConfigLoader(BaseConfig):
         elif self.config["data"].get("cached_amp", False):
             for wb in w_bkg:
                 model.append(ModelCachedAmp(amp, wb))
+        elif model_name not in ["auto", "default"]:
+            from tf_pwa.model.model import get_nll_model
+
+            NewModel = get_nll_model(model_name)
+            for wb in w_bkg:
+                model.append(NewModel(amp, wb))
         else:
             extended = self.config["data"].get("extended", False)
             if extended:
