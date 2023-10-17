@@ -433,4 +433,3 @@ def test_simple_model(toy_config):
     fcn = config.get_fcn()
     print(fcn())
     print(fcn.nll_grad())
-    assert False
