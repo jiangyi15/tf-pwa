@@ -430,6 +430,7 @@ def test_simple_model(toy_config):
         dic = yaml.full_load(f)
     dic["data"]["model"] = "simple"
     config = ConfigLoader(dic)
-    fcn = config.get_fcn()
+    fcn = config.get_fcn(batch=600)
     print(fcn())
     print(fcn.nll_grad())
+    print(fcn.nll_grad_hessian(batch=600))

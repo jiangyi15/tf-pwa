@@ -1740,10 +1740,11 @@ class Variable(object):
 
 
 class SumVar:
-    def __init__(self, value, grad, var):
+    def __init__(self, value, grad, var, hess=None):
         self.var = var
         self.value = tf.nest.map_structure(tf.stop_gradient, value)
         self.grad = grad
+        self.hess = hess
 
     def from_call(fun, var, *args, **kwargs):
         with tf.GradientTape(persistent=True) as tape:
@@ -1759,8 +1760,22 @@ class SumVar:
 
     def __call__(self):
         var = tf.stack(self.var)
-        fun = lambda x, y: x + tf.reduce_sum(y * (var - tf.stop_gradient(var)))
-        return tf.nest.map_structure(fun, self.value, self.grad)
+        if self.hess is None:
+            fun = lambda x, y: x + tf.reduce_sum(
+                y * (var - tf.stop_gradient(var))
+            )
+            return tf.nest.map_structure(fun, self.value, self.grad)
+        else:
+
+            def fun(x, y, z):
+                delta = var - tf.stop_gradient(var)
+                tmp = x + tf.reduce_sum(y * delta)
+                tmp = tmp + tf.reduce_sum(
+                    tf.reduce_sum(self.hess * delta, axis=-1) * delta
+                )
+                return tmp
+
+            return tf.nest.map_structure(fun, self.value, self.grad, self.hess)
 
     def __add__(self, others):
         if not isinstance(others, SumVar):
@@ -1771,4 +1786,9 @@ class SumVar:
         grad = tf.nest.map_structure(
             lambda x, y: x + y, self.grad, others.grad
         )
-        return SumVar(value, grad, self.var)
+        hess = None
+        if self.hess is not None and others.hess is not None:
+            hess = tf.nest.map_structure(
+                lambda x, y: x + y, self.hess, others.hess
+            )
+        return SumVar(value, grad, self.var, hess=hess)
