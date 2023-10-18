@@ -27,7 +27,7 @@ class BaseCustomModel(Model):
     def eval_normal_factors(self, mcdata, weight=None):
         return []
 
-    def eval_nll_part(self, data, weight=None, norm=None):
+    def eval_nll_part(self, data, weight=None, norm=None, idx=0):
         raise NotImplementedError("")
 
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
@@ -103,18 +103,20 @@ class BaseCustomModel(Model):
         ret = 0.0
         ret_grad = 0.0
         ret_hess = 0.0
-        print(weight)
-        for i, j in zip(
-            split_generator(data, batch_size=batch),
-            split_generator(weight, batch_size=batch),
+        for idx, (i, j) in enumerate(
+            zip(
+                split_generator(data, batch_size=batch),
+                split_generator(weight, batch_size=batch),
+            )
         ):
             with tf.GradientTape(persistent=True) as tape0:
                 with tf.GradientTape() as tape:
-                    print(j)
                     if int_mc is None:
-                        a = self.eval_nll_part(i, j, None)
+                        a = self.eval_nll_part(i, j, None, idx=idx)
                     else:
-                        a = self.eval_nll_part(i, j, [k() for k in int_mc])
+                        a = self.eval_nll_part(
+                            i, j, [k() for k in int_mc], idx=idx
+                        )
                 grads = tape.gradient(a, all_var, unconnected_gradients="zero")
             hess = [
                 tape0.gradient(gi, all_var, unconnected_gradients="zero")
@@ -133,4 +135,6 @@ class SimpleNllModel(BaseCustomModel):
         return [tf.reduce_sum(self.Amp(mcdata) * weight)]
 
     def eval_nll_part(self, data, weight, norm):
-        return -tf.reduce_sum(weight * tf.math.log(self.Amp(data) / norm[0]))
+        nll = -tf.reduce_sum(weight * tf.math.log(self.Amp(data)))
+        nll_norm = tf.reduce_sum(weight) * tf.math.log(norm[0])
+        return nll + nll_norm
