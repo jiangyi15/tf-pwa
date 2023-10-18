@@ -51,12 +51,14 @@ class BaseCustomModel(Model):
                 int_mc = [a + b for a, b in zip(int_mc, tmp)]
         ret = 0.0
         ret_grad = 0.0
-        for i, j in zip(data, weight):
+        for idx, (i, j) in enumerate(zip(data, weight)):
             with tf.GradientTape() as tape:
                 if int_mc is None:
                     a = self.eval_nll_part(i, j, None)
                 else:
-                    a = self.eval_nll_part(i, j, [k() for k in int_mc])
+                    a = self.eval_nll_part(
+                        i, j, [k() for k in int_mc], idx=idx
+                    )
             grads = tape.gradient(a, all_var, unconnected_gradients="zero")
             ret = ret + a
             ret_grad = ret_grad + tf.stack(grads)
@@ -134,7 +136,7 @@ class SimpleNllModel(BaseCustomModel):
     def eval_normal_factors(self, mcdata, weight):
         return [tf.reduce_sum(self.Amp(mcdata) * weight)]
 
-    def eval_nll_part(self, data, weight, norm):
+    def eval_nll_part(self, data, weight, norm, idx):
         nll = -tf.reduce_sum(weight * tf.math.log(self.Amp(data)))
         nll_norm = tf.reduce_sum(weight) * tf.math.log(norm[0])
         return nll + nll_norm
