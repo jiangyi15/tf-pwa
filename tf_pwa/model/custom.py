@@ -21,7 +21,7 @@ class BaseCustomModel(Model):
         mc_weight=1.0,
     ):
         int_mc = self.eval_normal_factors(mcdata, mc_weight)
-        nll = self.eval_nll_part(data, weight, int_mc)
+        nll = self.eval_nll_part(data, weight, int_mc, idx=0)
         return nll
 
     def eval_normal_factors(self, mcdata, weight=None):
@@ -54,7 +54,7 @@ class BaseCustomModel(Model):
         for idx, (i, j) in enumerate(zip(data, weight)):
             with tf.GradientTape() as tape:
                 if int_mc is None:
-                    a = self.eval_nll_part(i, j, None)
+                    a = self.eval_nll_part(i, j, None, idx=idx)
                 else:
                     a = self.eval_nll_part(
                         i, j, [k() for k in int_mc], idx=idx
@@ -136,7 +136,7 @@ class SimpleNllModel(BaseCustomModel):
     def eval_normal_factors(self, mcdata, weight):
         return [tf.reduce_sum(self.Amp(mcdata) * weight)]
 
-    def eval_nll_part(self, data, weight, norm, idx):
+    def eval_nll_part(self, data, weight, norm, idx=0):
         nll = -tf.reduce_sum(weight * tf.math.log(self.Amp(data)))
         nll_norm = tf.reduce_sum(weight) * tf.math.log(norm[0])
         return nll + nll_norm
