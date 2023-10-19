@@ -10,6 +10,27 @@ Custom nll model
 """
 
 
+def deep_stack(dic, deep=1):
+    if isinstance(dic, dict):
+        return {k: v for k, v in dic.items()}
+    elif isinstance(dic, list):
+        flag = True
+        tmp = dic
+        for i in range(deep):
+            if len(tmp) > 0 and isinstance(tmp, list):
+                tmp = tmp[0]
+            else:
+                flag = False
+                break
+        if flag and isinstance(tmp, tf.Tensor):
+            return tf.stack(dic)
+        else:
+            return [deep_stack(i, deep) for i in dic]
+    elif isinstance(dic, tuple):
+        return tuple([deep_stack(i, deep) for i in dic])
+    return dic
+
+
 class BaseCustomModel(Model):
     def nll(
         self,
@@ -37,11 +58,13 @@ class BaseCustomModel(Model):
         for i, j in zip(mcdata, mc_weight):
             with tf.GradientTape(persistent=True) as tape:
                 a = self.eval_normal_factors(i, j)
-            grads = [
-                tape.gradient(ai, all_var, unconnected_gradients="zero")
-                for ai in a
-            ]
-            tmp = SumVar(a, [tf.stack(i) for i in grads], all_var)
+            grads = tf.nest.map_structure(
+                lambda x: tf.stack(
+                    tape.gradient(x, all_var, unconnected_gradients="zero")
+                ),
+                a,
+            )
+            tmp = SumVar(a, grads, all_var)
             if int_mc is None:
                 int_mc = tmp
             else:
@@ -72,24 +95,21 @@ class BaseCustomModel(Model):
             with tf.GradientTape(persistent=True) as tape0:
                 with tf.GradientTape(persistent=True) as tape:
                     a = self.eval_normal_factors(i, j)
-                grads = [
-                    tape.gradient(ai, all_var, unconnected_gradients="zero")
-                    for ai in a
-                ]
+                grads = tf.nest.map_structure(
+                    lambda x: tape.gradient(
+                        x, all_var, unconnected_gradients="zero"
+                    ),
+                    a,
+                )
                 del tape
-            hess = []
-            for gi in grads:
-                tmp = []
-                for gij in gi:
-                    tmp.append(
-                        tape0.gradient(
-                            gij, all_var, unconnected_gradients="zero"
-                        )
-                    )
-                hess.append(tmp)
+            hess = tf.nest.map_structure(
+                lambda x: tf.stack(
+                    tape0.gradient(x, all_var, unconnected_gradients="zero")
+                ),
+                grads,
+            )
             del tape0
-            hess = [tf.stack(i) for i in hess]
-            tmp = SumVar(a, [tf.stack(i) for i in grads], all_var, hess=hess)
+            tmp = SumVar(a, deep_stack(grads), all_var, hess=deep_stack(hess))
             if int_mc is None:
                 int_mc = tmp
             else:
