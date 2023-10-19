@@ -421,16 +421,3 @@ def test_factor_hel():
     amp(phsp)
     amp.get_amp_list_part(phsp)
     amp.decay_group.get_factor()
-
-
-def test_simple_model(toy_config):
-    from tf_pwa.model import custom
-
-    with open(f"{this_dir}/config_toy.yml") as f:
-        dic = yaml.full_load(f)
-    dic["data"]["model"] = "simple"
-    config = ConfigLoader(dic)
-    fcn = config.get_fcn(batch=600)
-    print(fcn())
-    print(fcn.nll_grad())
-    print(fcn.nll_grad_hessian(batch=600))

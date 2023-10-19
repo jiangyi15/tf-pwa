@@ -586,6 +586,10 @@ class ConfigLoader(BaseConfig):
         elif model_name not in ["auto", "default"]:
             from tf_pwa.model.model import get_nll_model
 
+            extended = self.config["data"].get("extended", False)
+            if extended:
+                self.free_for_extended(amp)
+
             NewModel = get_nll_model(model_name)
             nll_params = self.config.get("nll_model", {})
             for wb in w_bkg:

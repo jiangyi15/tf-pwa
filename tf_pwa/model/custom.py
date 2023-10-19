@@ -41,14 +41,11 @@ class BaseCustomModel(Model):
                 tape.gradient(ai, all_var, unconnected_gradients="zero")
                 for ai in a
             ]
-            del tape
-            tmp = [
-                SumVar(ai, tf.stack(gi), all_var) for ai, gi in zip(a, grads)
-            ]
+            tmp = SumVar(a, [tf.stack(i) for i in grads], all_var)
             if int_mc is None:
                 int_mc = tmp
             else:
-                int_mc = [a + b for a, b in zip(int_mc, tmp)]
+                int_mc = int_mc + tmp
         ret = 0.0
         ret_grad = 0.0
         for idx, (i, j) in enumerate(zip(data, weight)):
@@ -56,9 +53,7 @@ class BaseCustomModel(Model):
                 if int_mc is None:
                     a = self.eval_nll_part(i, j, None, idx=idx)
                 else:
-                    a = self.eval_nll_part(
-                        i, j, [k() for k in int_mc], idx=idx
-                    )
+                    a = self.eval_nll_part(i, j, int_mc(), idx=idx)
             grads = tape.gradient(a, all_var, unconnected_gradients="zero")
             ret = ret + a
             ret_grad = ret_grad + tf.stack(grads)
@@ -94,14 +89,11 @@ class BaseCustomModel(Model):
                 hess.append(tmp)
             del tape0
             hess = [tf.stack(i) for i in hess]
-            tmp = [
-                SumVar(ai, tf.stack(gi), all_var, hess=hi)
-                for ai, gi, hi in zip(a, grads, hess)
-            ]
+            tmp = SumVar(a, [tf.stack(i) for i in grads], all_var, hess=hess)
             if int_mc is None:
                 int_mc = tmp
             else:
-                int_mc = [a + b for a, b in zip(int_mc, tmp)]
+                int_mc = int_mc + tmp
         ret = 0.0
         ret_grad = 0.0
         ret_hess = 0.0
@@ -116,9 +108,7 @@ class BaseCustomModel(Model):
                     if int_mc is None:
                         a = self.eval_nll_part(i, j, None, idx=idx)
                     else:
-                        a = self.eval_nll_part(
-                            i, j, [k() for k in int_mc], idx=idx
-                        )
+                        a = self.eval_nll_part(i, j, int_mc(), idx=idx)
                 grads = tape.gradient(a, all_var, unconnected_gradients="zero")
             hess = [
                 tape0.gradient(gi, all_var, unconnected_gradients="zero")
@@ -140,3 +130,14 @@ class SimpleNllModel(BaseCustomModel):
         nll = -tf.reduce_sum(weight * tf.math.log(self.Amp(data)))
         nll_norm = tf.reduce_sum(weight) * tf.math.log(norm[0])
         return nll + nll_norm
+
+
+@register_nll_model("simple_chi2")
+class SimpleChi2Model(BaseCustomModel):
+    """
+    fit amp = weight directly. Required set extended = True.
+    """
+
+    def eval_nll_part(self, data, weight, norm, idx=0):
+        nll = 0.5 * tf.reduce_sum((weight - self.Amp(data)) ** 2)
+        return nll
