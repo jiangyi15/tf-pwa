@@ -1739,6 +1739,27 @@ class Variable(object):
         return var_list
 
 
+def deep_stack(dic, deep=1):
+    if isinstance(dic, dict):
+        return {k: v for k, v in dic.items()}
+    elif isinstance(dic, list):
+        flag = True
+        tmp = dic
+        for i in range(deep):
+            if len(tmp) > 0 and isinstance(tmp, list):
+                tmp = tmp[0]
+            else:
+                flag = False
+                break
+        if flag and isinstance(tmp, tf.Tensor):
+            return tf.stack(dic)
+        else:
+            return [deep_stack(i, deep) for i in dic]
+    elif isinstance(dic, tuple):
+        return tuple([deep_stack(i, deep) for i in dic])
+    return dic
+
+
 class SumVar:
     def __init__(self, value, grad, var, hess=None):
         self.var = var
@@ -1757,6 +1778,24 @@ class SumVar:
         )
         del tape
         return SumVar(y, dy, var)
+
+    def from_call_with_hess(fun, var, *args, **kwargs):
+        with tf.GradientTape(persistent=True) as tape0:
+            with tf.GradientTape(persistent=True) as tape:
+                y = tf.nest.map_structure(tf.reduce_sum, fun(*args, **kwargs))
+            dy = tf.nest.map_structure(
+                lambda x: tape.gradient(x, var, unconnected_gradients="zero"),
+                y,
+            )
+            del tape
+        ddy = tf.nest.map_structure(
+            lambda x: tf.stack(
+                tape0.gradient(x, var, unconnected_gradients="zero")
+            ),
+            dy,
+        )
+        del tape0
+        return SumVar(y, deep_stack(dy), var, hess=deep_stack(ddy))
 
     def __call__(self):
         var = tf.stack(self.var)
