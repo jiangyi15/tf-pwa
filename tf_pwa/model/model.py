@@ -8,7 +8,7 @@ from itertools import repeat as _loop_generator
 
 import numpy as np
 
-from ..config import get_config
+from ..config import create_config, get_config
 from ..data import (
     EvalLazy,
     data_merge,
@@ -33,6 +33,9 @@ def _resolution_shape(x):
     if shape:
         return shape[-1]
     return 1
+
+
+set_nll_model, get_nll_model, register_nll_model = create_config()
 
 
 def _batch_sum(f, data_i, weight_i, trans, resolution_size, args, kwargs):
@@ -570,6 +573,7 @@ class BaseModel(object):
         return self.Amp.get_params(trainable_only)
 
 
+@register_nll_model("default")
 class Model(object):
     """
     This class implements methods to calculate NLL as well as its derivatives for an amplitude model. It may include
@@ -730,7 +734,7 @@ class Model(object):
     # @tf.function
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
         """
-        ``self.nll_grad()`` is replaced by this one???
+        batch version of ``self.nll_grad()``
 
         .. math::
           - \\frac{\\partial \\ln L}{\\partial \\theta_k } =
@@ -782,6 +786,7 @@ class Model(object):
         return self.Amp.get_params(trainable_only)
 
 
+@register_nll_model("inject_mc")
 class Model_new(Model):
     """
     This class implements methods to calculate NLL as well as its derivatives for an amplitude model. It may include

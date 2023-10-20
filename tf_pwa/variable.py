@@ -1739,11 +1739,33 @@ class Variable(object):
         return var_list
 
 
+def deep_stack(dic, deep=1):
+    if isinstance(dic, dict):
+        return {k: v for k, v in dic.items()}
+    elif isinstance(dic, list):
+        flag = True
+        tmp = dic
+        for i in range(deep):
+            if len(tmp) > 0 and isinstance(tmp, list):
+                tmp = tmp[0]
+            else:
+                flag = False
+                break
+        if flag and isinstance(tmp, tf.Tensor):
+            return tf.stack(dic)
+        else:
+            return [deep_stack(i, deep) for i in dic]
+    elif isinstance(dic, tuple):
+        return tuple([deep_stack(i, deep) for i in dic])
+    return dic
+
+
 class SumVar:
-    def __init__(self, value, grad, var):
+    def __init__(self, value, grad, var, hess=None):
         self.var = var
         self.value = tf.nest.map_structure(tf.stop_gradient, value)
         self.grad = grad
+        self.hess = hess
 
     def from_call(fun, var, *args, **kwargs):
         with tf.GradientTape(persistent=True) as tape:
@@ -1757,10 +1779,42 @@ class SumVar:
         del tape
         return SumVar(y, dy, var)
 
+    def from_call_with_hess(fun, var, *args, **kwargs):
+        with tf.GradientTape(persistent=True) as tape0:
+            with tf.GradientTape(persistent=True) as tape:
+                y = tf.nest.map_structure(tf.reduce_sum, fun(*args, **kwargs))
+            dy = tf.nest.map_structure(
+                lambda x: tape.gradient(x, var, unconnected_gradients="zero"),
+                y,
+            )
+            del tape
+        ddy = tf.nest.map_structure(
+            lambda x: tf.stack(
+                tape0.gradient(x, var, unconnected_gradients="zero")
+            ),
+            dy,
+        )
+        del tape0
+        return SumVar(y, deep_stack(dy), var, hess=deep_stack(ddy))
+
     def __call__(self):
         var = tf.stack(self.var)
-        fun = lambda x, y: x + tf.reduce_sum(y * (var - tf.stop_gradient(var)))
-        return tf.nest.map_structure(fun, self.value, self.grad)
+        if self.hess is None:
+            fun = lambda x, y: x + tf.reduce_sum(
+                y * (var - tf.stop_gradient(var))
+            )
+            return tf.nest.map_structure(fun, self.value, self.grad)
+        else:
+
+            def fun(x, y, z):
+                delta = var - tf.stop_gradient(var)
+                tmp = x + tf.reduce_sum(y * delta)
+                tmp = tmp + tf.reduce_sum(
+                    tf.reduce_sum(self.hess * delta, axis=-1) * delta
+                )
+                return tmp
+
+            return tf.nest.map_structure(fun, self.value, self.grad, self.hess)
 
     def __add__(self, others):
         if not isinstance(others, SumVar):
@@ -1771,4 +1825,9 @@ class SumVar:
         grad = tf.nest.map_structure(
             lambda x, y: x + y, self.grad, others.grad
         )
-        return SumVar(value, grad, self.var)
+        hess = None
+        if self.hess is not None and others.hess is not None:
+            hess = tf.nest.map_structure(
+                lambda x, y: x + y, self.hess, others.hess
+            )
+        return SumVar(value, grad, self.var, hess=hess)
