@@ -689,7 +689,7 @@ def sppchip_coeffs(xi, y, matrix=None, eps=1e-12):
     cond2 = delta[:-1] * delta[1:] <= 0
     delta_wrap = tf.where(cond1, tf.ones_like(delta), delta)
     d = (w1 + w2) / (w1 / delta_wrap[:-1] + w2 / delta_wrap[1:])
-    d = tf.where(cond2 & cond1[1:] & cond1[:-1], tf.zeros_like(d), d)
+    d = tf.where(cond2 | cond1[1:] | cond1[:-1], tf.zeros_like(d), d)
 
     def cond(p, q):
         d_tmp = ((2 * h[p] + h[q]) * delta[p] - h[p] * delta[q]) / (
