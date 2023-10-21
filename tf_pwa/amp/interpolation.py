@@ -60,8 +60,12 @@ class InterpolationParticle(Particle):
 
     def get_point_values(self):
         p = self.point_value()
-        v_r = [0.0] + [tf.math.real(i) for i in p] + [0.0]
-        v_i = [0.0] + [tf.math.imag(i) for i in p] + [0.0]
+        if self.with_bound:
+            v_r = [tf.math.real(i) for i in p]
+            v_i = [tf.math.imag(i) for i in p]
+        else:
+            v_r = [0.0] + [tf.math.real(i) for i in p] + [0.0]
+            v_i = [0.0] + [tf.math.imag(i) for i in p] + [0.0]
         return self.points, v_r, v_i
 
     def get_bin_index(self, m):
@@ -591,3 +595,120 @@ def get_matrix_interp1d3_v2(x, xi):
     h = tf.stack([poly_i(i) for i in range(1, N)], axis=-1)
     b = tf.zeros_like(x)
     return h, b
+
+
+@register_particle("sppchip")
+class InterpSPPCHIP(InterpolationParticle):
+    """
+    Shape-Preserving Piecewise Cubic Hermite Interpolation Polynomial.
+    It is monotonic in each interval.
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> params = {}
+        >>> for i in range(8):
+        ...     params[f"R_BC_point_{i}r"] = i
+        ...     params[f"R_BC_point_{i}i"] = i
+        ...
+        >>> axis = plot_particle_model("sppchip", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params)
+
+    """
+
+    def init_params(self):
+        super().init_params()
+        self.x_matrix = create_sppchip_matrix(self.points)
+
+    def interp(self, m):
+        p, p_r, p_i = self.get_point_values()
+        idx = self.get_bin_index(m)
+        ret_r = sppchip(m, p, p_r, idx, self.x_matrix)
+        ret_i = sppchip(m, p, p_i, idx, self.x_matrix)
+        return tf.complex(ret_r, ret_i)
+
+
+def create_sppchip_matrix(points):
+    """
+    matrix to solve f(xi),f(xi+1),f'(xi),f'(xi+1)
+
+    """
+    x = np.array(points)
+    a = x[:-1]
+    b = x[1:]
+    one = np.ones_like(a)
+    zero = np.zeros_like(a)
+    matrix = [
+        [one, a, a**2, a**3],
+        [one, b, b**2, b**3],
+        [zero, one, 2 * a, 3 * a**2],
+        [zero, one, 2 * b, 3 * b**2],
+    ]
+    matrix = np.stack(matrix)
+    return np.linalg.inv(np.transpose(matrix, (2, 0, 1)))
+
+
+def sppchip(m, xi, y, idx=None, matrix=None):
+    """
+    Shape-Preserving Piecewise Cubic Hermite Interpolation Polynomial.
+    It is monotonic in each interval.
+
+    >>> from scipy.interpolate import pchip_interpolate
+    >>> x_observed = np.linspace(0.0, 10.0, 11)
+    >>> y_observed = np.sin(x_observed)
+    >>> x = np.linspace(min(x_observed), max(x_observed)-1e-12, num=100)
+    >>> y = pchip_interpolate(x_observed, y_observed, x)
+    >>> assert np.allclose(y, sppchip(x, x_observed, y_observed).numpy())
+
+    """
+    y = tf.stack(y)
+    if idx is None:
+        idx = tf.raw_ops.Bucketize(input=m, boundaries=list(xi)) - 1
+    xi = tf.cast(tf.stack(xi), y.dtype)
+    coeffs = sppchip_coeffs(xi, y, matrix)
+    ai, bi, ci, di = tf.unstack(coeffs, axis=-1)
+    a, b, c, d = (
+        tf.gather(ai, idx),
+        tf.gather(bi, idx),
+        tf.gather(ci, idx),
+        tf.gather(di, idx),
+    )
+    ret = a + m * (b + m * (c + d * m))
+    return ret
+
+
+def sppchip_coeffs(xi, y, matrix=None):
+    if matrix is None:
+        matrix = create_sppchip_matrix(xi)
+    h = xi[1:] - xi[:-1]
+    delta = (y[1:] - y[:-1]) / h
+    w1 = 2 * h[1:] + h[:-1]
+    w2 = h[1:] + 2 * h[:-1]
+    d = (w1 + w2) / (w1 / delta[:-1] + w2 / delta[1:])
+    d = tf.where(delta[:-1] * delta[1:] < 0, tf.zeros_like(d), d)
+
+    def cond(p, q):
+        d_tmp = ((2 * h[p] + h[q]) * delta[p] - h[p] * delta[q]) / (
+            h[p] + h[q]
+        )
+        d_tmp = tf.where(
+            d_tmp * delta[p] < 0,
+            tf.zeros_like(d_tmp),
+            tf.where(
+                (delta[p] * delta[q] < 0)
+                & (tf.abs(d_tmp) > 3 * tf.abs(delta[p])),
+                2 * delta[p],
+                d_tmp,
+            ),
+        )
+        return d_tmp
+
+    d1 = cond(0, 1)
+    dn = cond(-1, -2)
+    d = tf.concat([[d1], d, [dn]], axis=0)
+
+    v = tf.stack([y[:-1], y[1:], d[:-1], d[1:]], axis=-1)
+
+    coeffs = tf.linalg.matvec(matrix, v)
+    return coeffs
