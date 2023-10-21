@@ -678,15 +678,18 @@ def sppchip(m, xi, y, idx=None, matrix=None):
     return ret
 
 
-def sppchip_coeffs(xi, y, matrix=None):
+def sppchip_coeffs(xi, y, matrix=None, eps=1e-12):
     if matrix is None:
         matrix = create_sppchip_matrix(xi)
     h = xi[1:] - xi[:-1]
     delta = (y[1:] - y[:-1]) / h
     w1 = 2 * h[1:] + h[:-1]
     w2 = h[1:] + 2 * h[:-1]
-    d = (w1 + w2) / (w1 / delta[:-1] + w2 / delta[1:])
-    d = tf.where(delta[:-1] * delta[1:] < 0, tf.zeros_like(d), d)
+    cond1 = tf.abs(delta) < eps
+    cond2 = delta[:-1] * delta[1:] <= 0
+    delta_wrap = tf.where(cond1, tf.ones_like(delta), delta)
+    d = (w1 + w2) / (w1 / delta_wrap[:-1] + w2 / delta_wrap[1:])
+    d = tf.where(cond2 & cond1[1:] & cond1[:-1], tf.zeros_like(d), d)
 
     def cond(p, q):
         d_tmp = ((2 * h[p] + h[q]) * delta[p] - h[p] * delta[q]) / (
