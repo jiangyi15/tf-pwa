@@ -341,7 +341,9 @@ def fit_normal(data, weights=None):
     return np.array([mu, sigma]), np.array([mu_error, sigma_error])
 
 
-def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
+def plot_particle_model(
+    model_name, params={}, plot_params={}, axis=None, special_points=None
+):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -374,6 +376,9 @@ def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
     f = config.get_particle_function("R_BC")
     m = np.linspace(0.2, 0.9 - 1e-12, 2000)
     a = f(m).numpy()
+    if special_points is not None:
+        special_points = np.array(special_points)
+        at = f(special_points).numpy()
     if axis is None:
         ax3 = plt.subplot(2, 2, 3, label="argon")
         ax2 = plt.subplot(2, 2, 2, label="prob")
@@ -382,16 +387,24 @@ def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
     else:
         ax0, ax1, ax2, ax3 = axis
     ax3.plot(np.real(a), np.imag(a))
+    if special_points is not None:
+        ax3.scatter(np.real(at), np.imag(at))
     ax3.set_xlabel("Re$A$")
     ax3.set_ylabel("Im$A$")
     ax2.plot(m, np.abs(a) ** 2, label=model_name)
+    if special_points is not None:
+        ax2.scatter(special_points, np.abs(at) ** 2)
     ax2.set_ylabel("$|A|^2$")
     ax2.set_ylim((0, None))
     ax2.axvline(x=0.2, linestyle="--")
     ax2.yaxis.set_label_position("right")
     ax2.yaxis.tick_right()
     ax1.plot(np.real(a), m)
+    if special_points is not None:
+        ax1.scatter(np.real(at), special_points)
     ax1.set_ylabel("mass")
     ax0.plot(m, np.imag(a))
+    if special_points is not None:
+        ax0.scatter(special_points, np.imag(at))
     ax0.set_xlabel("mass")
     return [ax0, ax1, ax2, ax3]

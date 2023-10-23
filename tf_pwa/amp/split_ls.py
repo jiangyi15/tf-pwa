@@ -240,3 +240,64 @@ class ParticleBWRLS2(ParticleLS):
         for l, s in ls:
             ret.append(BWR2(m, m0, g0, q2, q02, l, d))
         return ret
+
+
+@register_particle("MultiBWR")
+class ParticleMultiBWR(ParticleLS):
+    """
+
+    Combine Multi BWR into one
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("MultiBWR", {"mass_list": [0.4, 0.6], "width_list":[0.03, 0.04]},
+        ... {"R_BC_coeff_0_0r": 0.03, "R_BC_coeff_0_0i": 0.0, "R_BC_coeff_0_1r": 0.04, "R_BC_coeff_0_1i": 0.0})
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs["same_ratio"] = kwargs.get("same_ratio", True)
+        kwargs["same_phase"] = kwargs.get("same_phase", True)
+        super().__init__(*args, **kwargs)
+
+    def init_params(self):
+        if getattr(self, "ls_list", None) is None:
+            self.ls_list = self.decay[0].get_ls_list()
+        self.all_mass = self.add_var("com_mass", shape=(len(self.mass_list),))
+        self.all_mass.set_value(self.mass_list)
+        self.all_width = self.add_var(
+            "com_width", shape=(len(self.width_list),)
+        )
+        self.all_width.set_value(self.width_list)
+        self.coeff = self.add_var(
+            "coeff",
+            shape=(len(self.ls_list), len(self.mass_list)),
+            is_complex=True,
+        )
+
+    def mass(self):
+        return self.all_mass()[0]
+
+    def get_barrier_factor(self, ls, q2, q02, d):
+        return [
+            tf.sqrt(q2 / q02) ** i[0] * Bprime_q2(i[0], q2, q02, d) for i in ls
+        ]
+
+    def get_ls_amp(self, m, ls, q2, q02, d=3.0):
+        coeff = self.coeff()
+        all_mass = self.all_mass()
+        all_width = self.all_width()
+        l = min([i[0] for i in ls])
+        dom = []
+        for m0, g0 in zip(all_mass, all_width):
+            dom.append(BWR2(m, m0, g0, q2, q02, l, d))
+        dom = tf.stack(dom, axis=-1)
+        ret = []
+        bf = self.get_barrier_factor(ls, q2, q02, d)
+        for c, (l, s), bfi in zip(coeff, ls, bf):
+            tmp = tf.reduce_sum(dom * tf.stack(c), axis=-1)
+            ret.append(tmp * tf.cast(bfi, tmp.dtype))
+        return ret
