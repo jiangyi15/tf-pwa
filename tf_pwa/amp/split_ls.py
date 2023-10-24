@@ -246,7 +246,7 @@ class ParticleBWRLS2(ParticleLS):
 class ParticleMultiBWR(ParticleLS):
     """
 
-    Combine Multi BWR into one
+    Combine Multi BWR into one particle
 
     .. plot::
 
@@ -287,6 +287,9 @@ class ParticleMultiBWR(ParticleLS):
             tf.sqrt(q2 / q02) ** i[0] * Bprime_q2(i[0], q2, q02, d) for i in ls
         ]
 
+    def dom_fun(self, m, m0, g0, q2, q02, l, d):
+        return BWR2(m, m0, g0, q2, q02, l, d)
+
     def get_ls_amp(self, m, ls, q2, q02, d=3.0):
         coeff = self.coeff()
         all_mass = self.all_mass()
@@ -302,3 +305,15 @@ class ParticleMultiBWR(ParticleLS):
             tmp = tf.reduce_sum(dom * tf.stack(c), axis=-1)
             ret.append(tmp * tf.cast(bfi, tmp.dtype))
         return ret
+
+
+@register_particle("MultiBW")
+class ParticleMultiBW(ParticleMultiBWR):
+    """
+    Combine Multi BW into one particle
+    """
+
+    def dom_fun(self, m, m0, g0, q2, q02, l, d):
+        from tf_pwa.breit_wigner import BW
+
+        return BW(m, m0, g0)
