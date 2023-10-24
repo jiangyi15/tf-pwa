@@ -277,6 +277,7 @@ class ParticleMultiBWR(ParticleLS):
             shape=(len(self.ls_list), len(self.mass_list)),
             is_complex=True,
         )
+        self.coeff.set_fix_idx([[0, 0]], [1.0, 0.0])
 
     def mass(self):
         return self.all_mass()[0]

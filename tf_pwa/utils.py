@@ -341,12 +341,7 @@ def fit_normal(data, weights=None):
     return np.array([mu, sigma]), np.array([mu_error, sigma_error])
 
 
-def plot_particle_model(
-    model_name, params={}, plot_params={}, axis=None, special_points=None
-):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
+def create_test_config(model_name, params={}, plot_params={}):
     from tf_pwa.config_loader import ConfigLoader
 
     config_dic = {
@@ -373,6 +368,16 @@ def plot_particle_model(
     config.set_params({"A->R_BC.DR_BC->B.C_total_0r": 1.0})
     config.set_params({"A->R_BC.DR_BC->B.C_total_0i": 0.0})
     config.set_params(plot_params)
+    return config
+
+
+def plot_particle_model(
+    model_name, params={}, plot_params={}, axis=None, special_points=None
+):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    config = create_test_config(model_name, params, plot_params)
     f = config.get_particle_function("R_BC")
     m = np.linspace(0.2, 0.9 - 1e-12, 2000)
     a = f(m).numpy()

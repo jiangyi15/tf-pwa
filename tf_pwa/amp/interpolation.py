@@ -464,7 +464,7 @@ class InterpHistIdx(HistParticle):
         ...     params[f"R_BC_point_{i}r"] = i
         ...     params[f"R_BC_point_{i}i"] = i
         ...
-        >>> axis = plot_particle_model("hist_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8}, params, special_points=np.linspace(0.19, 0.91, 8)[1:-1])
+        >>> axis = plot_particle_model("hist_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8}, params)
 
     """
 
