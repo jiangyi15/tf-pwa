@@ -506,7 +506,7 @@ class Interp1DSplineIdx(InterpolationParticle):
         ...     params[f"R_BC_point_{i}r"] = i
         ...     params[f"R_BC_point_{i}i"] = i
         ...
-        >>> axis = plot_particle_model("spline_c_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params)
+        >>> axis = plot_particle_model("spline_c_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params, special_points=np.linspace(0.19, 0.91, 8)[1:-1])
 
     """
 
@@ -613,7 +613,7 @@ class InterpSPPCHIP(InterpolationParticle):
         ...     params[f"R_BC_point_{i}r"] = i
         ...     params[f"R_BC_point_{i}i"] = i
         ...
-        >>> axis = plot_particle_model("sppchip", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params)
+        >>> axis = plot_particle_model("sppchip", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params, special_points=np.linspace(0.19, 0.91, 8)[1:-1])
 
     """
 
