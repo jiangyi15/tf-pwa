@@ -985,6 +985,8 @@ class ConfigLoader(BaseConfig):
             except Exception as e:
                 print(e)
                 return False
+        else:
+            neglect_params = []
         if hasattr(params, "params"):
             params = params.params
         if isinstance(params, dict):
