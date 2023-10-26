@@ -511,6 +511,7 @@ class FitResult(object):
         self.ndf = int(ndf)
         self.success = success
         self.hess_inv = hess_inv
+        self.extra = {}
 
     def save_as(self, file_name, save_hess=False):
         s = {
@@ -520,6 +521,7 @@ class FitResult(object):
                 "success": self.success,
                 "NLL": self.min_nll,
                 "Ndf": self.ndf,
+                **self.extra,
             },
         }
         if save_hess and self.hess_inv is not None:
