@@ -1,6 +1,7 @@
 import yaml
 
 from tf_pwa.tests.test_full import ConfigLoader, gen_toy, this_dir
+from tf_pwa.weight_smear import get_weight_smear
 
 
 def test_poisson(gen_toy):
@@ -25,3 +26,8 @@ def test_gamma(gen_toy):
     dic["data"]["data_weight_smear"] = {"name": "Gamma"}
     config = ConfigLoader(dic)
     data = config.get_data("data")[0]
+
+
+def test_get_weight_smear():
+    get_weight_smear("Gamma")
+    get_weight_smear({"name": "Gamma"})
