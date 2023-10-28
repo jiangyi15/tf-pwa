@@ -739,6 +739,9 @@ class HelicityDecay(AmpDecay):
             return data[p]["m"]
         if p.mass is None:
             p.mass = tf.reduce_mean(data[p]["m"])
+            warnings.warn(
+                "no mass for particle {}, set it to {}".format(p, p.mass)
+            )
         return p.get_mass()
 
     def get_relative_momentum(self, data, from_data=False):
