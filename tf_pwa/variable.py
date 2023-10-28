@@ -1809,7 +1809,7 @@ class SumVar:
             def fun(x, y, z):
                 delta = var - tf.stop_gradient(var)
                 tmp = x + tf.reduce_sum(y * delta)
-                tmp = tmp + tf.reduce_sum(
+                tmp = tmp + 0.5 * tf.reduce_sum(
                     tf.reduce_sum(self.hess * delta, axis=-1) * delta
                 )
                 return tmp

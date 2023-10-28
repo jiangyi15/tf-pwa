@@ -26,6 +26,7 @@ from tf_pwa.data import (
     load_data,
     save_data,
 )
+from tf_pwa.weight_smear import get_weight_smear
 
 DATA_MODE = "data_mode"
 regist_config(DATA_MODE, {})
@@ -228,7 +229,9 @@ class SimpleData:
             extra_var[v.get("key", k)] = value
         return extra_var
 
-    def load_data(self, files, weight_sign=1, **kwargs) -> dict:
+    def load_data(
+        self, files, weight_sign=1, weight_smear=None, **kwargs
+    ) -> dict:
         # print(files, weights)
         if files is None:
             return None
@@ -237,6 +240,11 @@ class SimpleData:
         n_data = data_shape(p4)
         extra_var = self.load_extra_var(n_data, **kwargs)
         extra_var["weight"] = weight_sign * extra_var["weight"]
+        if weight_smear is not None:
+            smear_function = get_weight_smear(weight_smear.pop("name"))
+            extra_var["weight"] = smear_function(
+                extra_var["weight"], **weight_smear
+            )
         data = self.cal_angle(p4, **extra_var)
         for k, v in extra_var.items():
             data[k] = v
@@ -421,8 +429,9 @@ class MultiData(SimpleData):
                     kwargs[i][k] = tmp[i]
             else:
                 raise NotImplementedError
+        smear = self.dic.get(idx + "_weight_smear", None)
         ret = [
-            self.load_data(i, weight_sign=weight_sign, **k)
+            self.load_data(i, weight_sign=weight_sign, weight_smear=smear, **k)
             for i, k in zip(files, kwargs)
         ]
         if self._Ngroup == 0:
