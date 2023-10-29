@@ -2,8 +2,9 @@ import numpy as np
 import tensorflow as tf
 
 from tf_pwa.data import data_shape, split_generator
-from tf_pwa.model import Model, register_nll_model
 from tf_pwa.variable import SumVar
+
+from .model import Model, register_nll_model
 
 """
 Custom nll model
