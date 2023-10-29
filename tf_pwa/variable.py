@@ -76,6 +76,7 @@ def combineVM(vm1, vm2, name="", same_list=None):
 
 
 regist_config("polar", True)
+regist_config("multigpu", False)
 
 
 class VarsManager(object):
@@ -90,10 +91,17 @@ class VarsManager(object):
     Besides, all trainable variables' names will be stored in a list **self.trainable_vars**.
     """
 
-    def __init__(self, name="", dtype=tf.float64):
+    def __init__(self, name="", dtype=tf.float64, multi_gpu=None):
         self.name = name
         self.dtype = dtype
         self.polar = get_config("polar")
+        self.multigpu = (
+            get_config("multigpu") if multi_gpu is None else multi_gpu
+        )
+        if self.multigpu:
+            self.strategy = tf.distribute.MirroredStrategy()
+        else:
+            self.strategy = None
         self.variables = {}  # {name:tf.Variable,...}
         self.trainable_vars = []  # [name,...]
         self.complex_vars = {}  # {name:polar(bool),...}
@@ -119,6 +127,13 @@ class VarsManager(object):
         :param range_: Length-2 array. It's useless if **value** is given. Otherwise the initial value is set to be a uniform random number between **range_[0]** and **range_[0]**.
         :param trainable: Boolean. If it's **True**, the variable is trainable while fitting.
         """
+        if self.multigpu:
+            with self.strategy.scope():
+                self._add_real_var(name, value, range_, trainable)
+        else:
+            self._add_real_var(name, value, range_, trainable)
+
+    def _add_real_var(self, name, value=None, range_=None, trainable=True):
         if name in self.variables:  # not a new var
             if name in self.trainable_vars:
                 self.trainable_vars.remove(name)

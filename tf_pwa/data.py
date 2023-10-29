@@ -400,6 +400,7 @@ def _data_split(dat, batch_size, axis=0):
         raise Exception("unsupported axis: {}".format(axis))
 
 
+@tf.autograph.experimental.do_not_convert
 def data_generator(data, fun=_data_split, args=(), kwargs=None, MAX_ITER=1000):
     """Data generator: call ``fun`` to each ``data`` as a generator. The extra arguments will be passed to ``fun``."""
     kwargs = kwargs if kwargs is not None else {}
