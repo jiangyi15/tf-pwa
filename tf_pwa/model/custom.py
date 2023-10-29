@@ -53,7 +53,9 @@ class BaseCustomModel(Model):
         if self.Amp.vm.strategy is not None:
             return self._fast_int_mc_grad_multi(data)
         else:
-            return self.value_and_grad(self.eval_normal_factors)(data)
+            return self.value_and_grad(self.eval_normal_factors)(
+                data[0], data[1]
+            )
 
     def _fast_nll_part_grad(self, data, int_mc=None, idx=0):
         if int_mc is None:
