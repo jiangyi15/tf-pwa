@@ -61,7 +61,7 @@ class BaseCustomModel(Model):
         if int_mc is None:
             all_var = self.Amp.trainable_variables
             n_var = len(all_var)
-            int_mc = SumVar(0.0, np.zeros((n_var,)), all_var)
+            int_mc = SumVar(1.0, np.zeros((n_var,)), all_var)
         if self.Amp.vm.strategy is not None:
             return self._fast_nll_part_grad_multi(
                 data, int_mc.value, int_mc.grad, idx
