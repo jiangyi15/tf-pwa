@@ -30,6 +30,8 @@ def set_gpu_mem_growth():
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
+        except ValueError as e:
+            print(e)
 
 
 if "TF_PWA_GPU_FULL_MEM" in os.environ:

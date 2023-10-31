@@ -50,9 +50,16 @@ from .decay_config import DecayConfig
 
 
 class MultiConfig(object):
-    def __init__(self, file_names, vm=None, total_same=False, share_dict={}):
+    def __init__(
+        self,
+        file_names,
+        vm=None,
+        total_same=False,
+        share_dict={},
+        multi_gpu=False,
+    ):
         if vm is None:
-            self.vm = VarsManager()
+            self.vm = VarsManager(multi_gpu=multi_gpu)
             # print(self.vm)
         else:
             self.vm = vm

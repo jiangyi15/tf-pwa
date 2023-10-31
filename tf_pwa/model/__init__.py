@@ -1,3 +1,4 @@
+from .custom import BaseCustomModel
 from .model import (
     FCN,
     CombineFCN,

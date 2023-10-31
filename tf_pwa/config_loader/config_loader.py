@@ -67,6 +67,7 @@ class ConfigLoader(BaseConfig):
             share_dict = {}
         super().__init__(file_name, share_dict)
         self.config["data"] = self.config.get("data", {})
+        self.multi_gpu = self.config["data"].get("multi_gpu", False)
         self.share_dict = share_dict
         self.decay_config = DecayConfig(self.config, share_dict)
         self.dec = self.decay_config.dec
@@ -78,7 +79,7 @@ class ConfigLoader(BaseConfig):
         self.full_decay = self.decay_config.full_decay
         self.decay_struct = self.decay_config.decay_struct
         if vm is None:
-            vm = VarsManager()
+            vm = VarsManager(multi_gpu=self.multi_gpu)
         self.vm = vm
         self.amps = {}
         self.cached_data = None

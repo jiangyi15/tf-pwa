@@ -1,9 +1,10 @@
 import numpy as np
 import tensorflow as tf
 
-from tf_pwa.data import split_generator
-from tf_pwa.model import Model, register_nll_model
+from tf_pwa.data import data_shape, split_generator
 from tf_pwa.variable import SumVar
+
+from .model import Model, register_nll_model
 
 """
 Custom nll model
@@ -11,6 +12,24 @@ Custom nll model
 
 
 class BaseCustomModel(Model):
+    def value_and_grad(self, fun):
+        all_var = self.Amp.trainable_variables
+        n_var = len(all_var)
+
+        def _fun(*args, **kwargs):
+            with tf.GradientTape(persistent=True) as tape:
+                y = fun(*args, **kwargs)
+            dy = tf.nest.map_structure(
+                lambda x: tf.stack(
+                    tape.gradient(x, all_var, unconnected_gradients="zero")
+                ),
+                y,
+            )
+            del tape
+            return y, dy
+
+        return _fun
+
     def nll(
         self,
         data,
@@ -30,14 +49,82 @@ class BaseCustomModel(Model):
     def eval_nll_part(self, data, weight=None, norm=None, idx=0):
         raise NotImplementedError("")
 
+    def _fast_int_mc_grad(self, data):
+        if self.Amp.vm.strategy is not None:
+            return self._fast_int_mc_grad_multi(data)
+        else:
+            return self.value_and_grad(self.eval_normal_factors)(
+                data[0], data[1]
+            )
+
+    def _fast_nll_part_grad(self, data, int_mc=None, idx=0):
+        if int_mc is None:
+            all_var = self.Amp.trainable_variables
+            n_var = len(all_var)
+            int_mc = SumVar([np.array(1.0)], [np.zeros((n_var,))], all_var)
+        if self.Amp.vm.strategy is not None:
+            return self._fast_nll_part_grad_multi(
+                data, int_mc.value, int_mc.grad, idx
+            )
+        else:
+            return self.value_and_grad(
+                lambda: self.eval_nll_part(data[0], data[1], int_mc(), idx)
+            )()
+
+    @tf.function
+    def _fast_int_mc_grad_multi(self, ia):
+        strategy = self.Amp.vm.strategy
+        n_p = strategy.num_replicas_in_sync
+        ia = list(
+            split_generator(ia, batch_size=(data_shape(ia) + n_p - 1) // n_p)
+        )
+
+        def _tmp_fun(ctx):
+            return ia[ctx.replica_id_in_sync_group]
+
+        i = strategy.experimental_distribute_values_from_function(_tmp_fun)
+        a, b = i
+        vm = self.Amp.vm
+        per_replica_losses = vm.strategy.run(
+            self.value_and_grad(self.eval_normal_factors), args=(a, b)
+        )
+        tmp = vm.strategy.reduce(
+            tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None
+        )
+        return tmp
+
+    @tf.function
+    def _fast_nll_part_grad_multi(self, ia, int_mc_x, int_mc_g, idx):
+        strategy = self.Amp.vm.strategy
+        n_p = strategy.num_replicas_in_sync
+        ia = list(
+            split_generator(ia, batch_size=(data_shape(ia) + n_p - 1) // n_p)
+        )
+
+        def _tmp_fun(ctx):
+            return ia[ctx.replica_id_in_sync_group]
+
+        ab = strategy.experimental_distribute_values_from_function(_tmp_fun)
+        int_mc = SumVar(int_mc_x, int_mc_g, self.Amp.trainable_variables)
+        vm = self.Amp.vm
+        per_replica_losses = vm.strategy.run(
+            self.value_and_grad(
+                lambda i: self.eval_nll_part(i[0], i[1], int_mc(), idx)
+            ),
+            args=(ab,),
+        )
+        tmp = vm.strategy.reduce(
+            tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None
+        )
+        return tmp
+
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
         all_var = self.Amp.trainable_variables
         n_var = len(all_var)
         int_mc = None  # SumVar(0., np.zeros((n_var,)), all_var)
         for i, j in zip(mcdata, mc_weight):
-            tmp = SumVar.from_call(
-                lambda: self.eval_normal_factors(i, j), all_var
-            )
+            a, grad = self._fast_int_mc_grad((i, j))
+            tmp = SumVar(a, grad, all_var)
             if int_mc is None:
                 int_mc = tmp
             else:
@@ -45,12 +132,7 @@ class BaseCustomModel(Model):
         ret = 0.0
         ret_grad = 0.0
         for idx, (i, j) in enumerate(zip(data, weight)):
-            with tf.GradientTape() as tape:
-                if int_mc is None:
-                    a = self.eval_nll_part(i, j, None, idx=idx)
-                else:
-                    a = self.eval_nll_part(i, j, int_mc(), idx=idx)
-            grads = tape.gradient(a, all_var, unconnected_gradients="zero")
+            a, grads = self._fast_nll_part_grad((i, j), int_mc, idx)
             ret = ret + a
             ret_grad = ret_grad + tf.stack(grads)
         return ret, ret_grad
