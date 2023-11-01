@@ -2,11 +2,142 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.7...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.2.0...HEAD)
+
+## [v0.2.0](https://github.com/jiangyi15/tf-pwa/tree/v0.2.0) (2023-11-01)
+
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.7...v0.2.0)
+
+**Better support for large data**
+
+[#88](https://github.com/jiangyi15/tf-pwa/pull/88)[#94](https://github.com/jiangyi15/tf-pwa/pull/94)[#95](https://github.com/jiangyi15/tf-pwa/pull/95)[#100](https://github.com/jiangyi15/tf-pwa/pull/100)[#105](https://github.com/jiangyi15/tf-pwa/pull/105)[#110](https://github.com/jiangyi15/tf-pwa/pull/110)[#114](https://github.com/jiangyi15/tf-pwa/pull/114)[#115](https://github.com/jiangyi15/tf-pwa/pull/115)
+
+- Preprocessor and Amp Model. Support different way of amplitude calculation
+  and caching.
+
+|              | preprocessor                      | amp_model                      |
+| ------------ | --------------------------------- | ------------------------------ |
+| default      | p4 -> m + angle                   | $a_i f_i(m) D_i(angle)$        |
+| cached_amp   | p4 -> m + angle + $D_i$           | $a_i f_i(m) D_i$               |
+| cached_shape | p4 -> m + angle + $f_i D_i + D_j$ | $a_i f_i D_i + a_j f_j(m) D_j$ |
+| p4_directly  | p4                                | $a_i f_i(m(p4))D_i(angle(p4))$ |
+
+$a_i$ is the fit parameters. $f_i(m)$ is the mass dependent parts. $D_i(angle)$
+is the angle parts.
+
+- Use Tensorflow Dataset for `lazy_call: True`. More options for caching.
+  Support caching in CPU and Disk(File).
+
+Requirement of memory (units: $10^7 \times 16\approx 1.2$GB）
+
+| data          | size                                              |
+| ------------- | ------------------------------------------------- |
+| p4            | 4 N(event) N(particles)                           |
+| m             | N(event) N(particles)                             |
+| angle         | N(event) N(topo chains)(9 N(final particles)-6)   |
+| $f_iD_i, D_i$ | N(event) N(helicity combination) N(partial waves) |
+
+**Better support AD**
+
+- AD for solving pole. [#83](https://github.com/jiangyi15/tf-pwa/pull/83)
+
+- AD when changing parameters value.
+  [#91](https://github.com/jiangyi15/tf-pwa/pull/91)
+
+- Systematic uncertanties for fixed value.
+  [#111](https://github.com/jiangyi15/tf-pwa/pull/111)
+
+**<font color=red>Numeric</font>**
+
+- Exchange helicity of identical particles when $J\neq0$.
+  [#85](https://github.com/jiangyi15/tf-pwa/pull/85)
+
+- Fixed some error when m=0 in generating PHSP sample.
+  [#123](https://github.com/jiangyi15/tf-pwa/pull/123)
+
+**<font color=green>Validation</font>**
+
+Chains fraction in 3-body and 4-body:
+[#82](https://github.com/jiangyi15/tf-pwa/pull/82)
+
+**Added**
+
+- More models.
+
+  - kmatrix simple: [#80](https://github.com/jiangyi15/tf-pwa/pull/80)
+  - sppchip: [#121](https://github.com/jiangyi15/tf-pwa/pull/121)
+  - Multi BW: [#122](https://github.com/jiangyi15/tf-pwa/pull/122)
+
+- Support constrains of variables via transform `from_trans`.
+  [#112](https://github.com/jiangyi15/tf-pwa/pull/112)
+
+- Some useful scripts.
+
+  - 3d angle: [#96](https://github.com/jiangyi15/tf-pwa/pull/96)
+  - Check interf: [#99](https://github.com/jiangyi15/tf-pwa/pull/99)
+  - Check nan: [#116](https://github.com/jiangyi15/tf-pwa/pull/116)
+
+- More options for input data.
+
+  - extra_var: [#87](https://github.com/jiangyi15/tf-pwa/pull/87)
+  - Root files: [#101](https://github.com/jiangyi15/tf-pwa/pull/101)
+  - weight_smear: [#124](https://github.com/jiangyi15/tf-pwa/pull/124)
+
+- Experimental Multi GPU support.
+
+  - Multi data sample: [#93](https://github.com/jiangyi15/tf-pwa/pull/93)
+  - Batching: [#126](https://github.com/jiangyi15/tf-pwa/pull/126)
+
+- Better support for resolutions.
+  [#81](https://github.com/jiangyi15/tf-pwa/pull/81)
+  [#87](https://github.com/jiangyi15/tf-pwa/pull/87)
+  [#92](https://github.com/jiangyi15/tf-pwa/pull/92)
+  [#108](https://github.com/jiangyi15/tf-pwa/pull/108)
+
+- More plot options.
+
+  - ref_amp: [#84](https://github.com/jiangyi15/tf-pwa/pull/84)
+  - legend_outside: [#102](https://github.com/jiangyi15/tf-pwa/pull/102)
+    [#103](https://github.com/jiangyi15/tf-pwa/pull/103)
+    [#109](https://github.com/jiangyi15/tf-pwa/pull/109)
+  - 2d pull: [#104](https://github.com/jiangyi15/tf-pwa/pull/104)
+
+- Print as roofit. [#77](https://github.com/jiangyi15/tf-pwa/pull/77)
+
+- `grad_scale` for fit. [#97](https://github.com/jiangyi15/tf-pwa/pull/97)
+
+- Symbolic formula for LS to Helicity.
+  [#98](https://github.com/jiangyi15/tf-pwa/pull/98)
+
+- config for d in barrier factor.
+  [#106](https://github.com/jiangyi15/tf-pwa/pull/106)
+
+- Extended likelihood for base nll model.
+  [#113](https://github.com/jiangyi15/tf-pwa/pull/113)
+
+- Support custom NLL model.
+  [#120](https://github.com/jiangyi15/tf-pwa/pull/120)
+
+**Changed**
+
+- Fixed res in plot_partial_wave.
+  [#90](https://github.com/jiangyi15/tf-pwa/pull/90)
+
+- Avoid same name in one decay chain.
+  [#106](https://github.com/jiangyi15/tf-pwa/pull/106)
+
+- Remove decay together when in Particle.decays.
+  [#119](https://github.com/jiangyi15/tf-pwa/pull/119)
+
+- Update of document. [#78](https://github.com/jiangyi15/tf-pwa/pull/78)
+  [#107](https://github.com/jiangyi15/tf-pwa/pull/107)
+  [#117](https://github.com/jiangyi15/tf-pwa/pull/117)
+  [#118](https://github.com/jiangyi15/tf-pwa/pull/118)
+  [#125](https://github.com/jiangyi15/tf-pwa/pull/125)
 
 ## [v0.1.7](https://github.com/jiangyi15/tf-pwa/tree/v0.1.7) (2022-07-06)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.6...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.1.6...v0.1.7)
 
 **<font color=red>Numeric</font>**
 
