@@ -43,7 +43,7 @@ When using conda, you don't need to install CUDA for TensorFlow specially.
 You can install a tensorflow gpu version in anaconda as
 
 ```
-conda install tensorflow-gpu=2.2
+conda install tensorflow[build="gpu*"]=2.8
 ```
 
 and then install the rest dependences
