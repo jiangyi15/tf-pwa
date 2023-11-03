@@ -193,7 +193,9 @@ class SimpleNllModel(BaseCustomModel):
 
 
 @register_nll_model("simple_cfit")
-class SimpleNllModel(BaseCustomModel):
+class SimpleCFitModel(BaseCustomModel):
+    required_params = ["bg_frac"]
+
     def eval_normal_factors(self, mcdata, weight):
         amp = self.Amp(mcdata) * weight * mcdata.get("eff_value", 1.0)
         a = tf.reduce_sum(amp)
@@ -203,7 +205,7 @@ class SimpleNllModel(BaseCustomModel):
         return [a, b]
 
     def eval_nll_part(self, data, weight, norm, idx=0):
-        bg_frac = self.w_bkg
+        bg_frac = self.bg_frac
         pdf = (1 - bg_frac) * self.Amp(data) / norm[0] + bg_frac * data.get(
             "bg_value", 1.0
         ) / norm[1]

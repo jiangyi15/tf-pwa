@@ -590,11 +590,27 @@ class ConfigLoader(BaseConfig):
             extended = self.config["data"].get("extended", False)
             if extended:
                 self.free_for_extended(amp)
-
             NewModel = get_nll_model(model_name)
+            nll_params = copy.copy(self.config.get("nll_model", {}))
+            params = {}
+            for i in getattr(NewModel, "required_params", []):
+                if i in self.config["data"]:
+                    params[i] = self.config["data"][i]
+                elif i in nll_params:
+                    params[i] = nll_params.pop(i)
+                else:
+                    raise IndexError(
+                        "not found required params {} for nll model".format(i)
+                    )
             nll_params = self.config.get("nll_model", {})
-            for wb in w_bkg:
-                model.append(NewModel(amp, wb, **nll_params))
+            for idx, wb in enumerate(w_bkg):
+                new_params = {k: v for k, v in nll_params.items()}
+                for k, v in params.items():
+                    if isinstance(i, list):
+                        new_params[k] = v[idx]
+                    else:
+                        new_params[k] = v
+                model.append(NewModel(amp, w_bkg=wb, **new_params))
         else:
             extended = self.config["data"].get("extended", False)
             if extended:
