@@ -192,6 +192,25 @@ class SimpleNllModel(BaseCustomModel):
         return nll + nll_norm
 
 
+@register_nll_model("simple_cfit")
+class SimpleNllModel(BaseCustomModel):
+    def eval_normal_factors(self, mcdata, weight):
+        amp = self.Amp(mcdata) * weight * mcdata.get("eff_value", 1.0)
+        a = tf.reduce_sum(amp)
+
+        bg = weight * mcdata.get("bg_value", 1.0)
+        b = tf.reduce_sum(bg)
+        return [a, b]
+
+    def eval_nll_part(self, data, weight, norm, idx=0):
+        bg_frac = self.w_bkg
+        pdf = (1 - bg_frac) * self.Amp(data) / norm[0] + bg_frac * data.get(
+            "bg_value", 1.0
+        ) / norm[1]
+        nll = -tf.reduce_sum(weight * tf.math.log(pdf))
+        return nll
+
+
 @register_nll_model("simple_chi2")
 class SimpleChi2Model(BaseCustomModel):
     """

@@ -30,3 +30,15 @@ def test_simplechi2_model(gen_toy, toy_config):
     print(fcn())
     print(fcn.nll_grad())
     print(fcn.nll_grad_hessian(batch=600))
+
+
+def test_simplecfit_model(gen_toy, toy_config):
+    with open(f"{this_dir}/config_cfit.yml") as f:
+        dic = yaml.full_load(f)
+    dic["data"]["model"] = "simple_cfit"
+    dic["data"]["bg_weight"] = dic["data"]["bg_frac"]
+    config = ConfigLoader(dic)
+    fcn = config.get_fcn(batch=600)
+    print(fcn())
+    print(fcn.nll_grad())
+    print(fcn.nll_grad_hessian(batch=600))
