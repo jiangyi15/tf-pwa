@@ -1921,6 +1921,13 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             self.set_used_chains(used_decay)
         self.add_used_chains(idx_chains)
 
+    @contextlib.contextmanager
+    def temp_used_res(self, res):
+        old_idx = self.chains_idx
+        self.set_used_res(res)
+        yield
+        self.chains_idx = old_idx
+
     def add_used_chains(self, used_chains):
         for i in used_chains:
             assert isinstance(i, int), "not index of chains"
