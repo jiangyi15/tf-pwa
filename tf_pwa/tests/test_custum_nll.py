@@ -53,3 +53,15 @@ def test_constr_frac_model(gen_toy, toy_config):
     print(fcn())
     print(fcn.nll_grad())
     print(fcn.nll_grad_hessian(batch=600))
+
+
+def test_cift_constr_frac_model(gen_toy, toy_config):
+    with open(f"{this_dir}/config_cfit.yml") as f:
+        dic = yaml.full_load(f)
+    dic["data"]["model"] = "cfit_constr_frac"
+    dic["nll_model"] = {"constr_frac": {"R_BC": {"value": 0.1, "sigma": 0.01}}}
+    config = ConfigLoader(dic)
+    fcn = config.get_fcn(batch=600)
+    print(fcn())
+    print(fcn.nll_grad())
+    print(fcn.nll_grad_hessian(batch=600))

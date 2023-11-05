@@ -206,9 +206,9 @@ class SimpleCFitModel(BaseCustomModel):
 
     def eval_nll_part(self, data, weight, norm, idx=0):
         bg_frac = self.bg_frac
-        pdf = (1 - bg_frac) * self.Amp(data) / norm[0] + bg_frac * data.get(
-            "bg_value", 1.0
-        ) / norm[1]
+        pdf = (1 - bg_frac) * self.Amp(data) * data.get(
+            "err_value", 1.0
+        ) / norm[0] + bg_frac * data.get("bg_value", 1.0) / norm[1]
         nll = -tf.reduce_sum(weight * tf.math.log(pdf))
         return nll
 
@@ -248,6 +248,48 @@ class SimpleNllFracModel(BaseCustomModel):
         nll = -tf.reduce_sum(weight * tf.math.log(self.Amp(data)))
         nll_norm = tf.reduce_sum(weight) * tf.math.log(norm[0])
         ret = nll + nll_norm
+        if idx == 0:
+            for i, (k, v) in enumerate(self.constr_frac.items()):
+                value = v["value"]
+                sigma = v["sigma"]
+                ret = (
+                    ret + 0.5 * ((norm[i + 1] / norm[0] - value) / sigma) ** 2
+                )
+        return ret
+
+
+@register_nll_model("cfit_constr_frac")
+class SimpleNllFracModel(BaseCustomModel):
+    required_params = [
+        "constr_frac",
+        "bg_frac",
+    ]  # {name: {"res":[name], mask_params: {}, "value": 0.1, "sigma": 0.01}}
+
+    def eval_normal_factors(self, mcdata, weight):
+        int_mc = tf.reduce_sum(
+            self.Amp(mcdata) * mcdata.get("eff_value", 1.0) * weight
+        )
+        ret = [int_mc]
+        if self.constr_frac is None:
+            self.constr_frac = {}
+        for k, v in self.constr_frac.items():
+            res = v.get("res", k)
+            mask_params = v.get("mask_params", {})
+            with self.Amp.temp_used_res(res):
+                with self.Amp.mask_params(mask_params):
+                    int_i = tf.reduce_sum(self.Amp(mcdata) * weight)
+            ret.append(int_i)
+        bg = weight * mcdata.get("bg_value", 1.0)
+        b = tf.reduce_sum(bg)
+        ret.append(b)
+        return ret
+
+    def eval_nll_part(self, data, weight, norm, idx=0):
+        bg_frac = self.bg_frac
+        pdf = (1 - bg_frac) * self.Amp(data) * data.get(
+            "eff_value", 1.0
+        ) / norm[0] + bg_frac * data.get("bg_value", 1.0) / norm[-1]
+        ret = -tf.reduce_sum(weight * tf.math.log(pdf))
         if idx == 0:
             for i, (k, v) in enumerate(self.constr_frac.items()):
                 value = v["value"]
