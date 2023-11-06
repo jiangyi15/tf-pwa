@@ -583,7 +583,11 @@ class Model(object):
     :param w_bkg: Real number. The weight of background.
     """
 
-    def __init__(self, amp, w_bkg=1.0, resolution_size=1, extended=False):
+    def __init__(
+        self, amp, w_bkg=1.0, resolution_size=1, extended=False, **kwargs
+    ):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
         self.model = BaseModel(
             amp, resolution_size=resolution_size, extended=extended
         )

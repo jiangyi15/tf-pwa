@@ -192,6 +192,27 @@ class SimpleNllModel(BaseCustomModel):
         return nll + nll_norm
 
 
+@register_nll_model("simple_cfit")
+class SimpleCFitModel(BaseCustomModel):
+    required_params = ["bg_frac"]
+
+    def eval_normal_factors(self, mcdata, weight):
+        amp = self.Amp(mcdata) * weight * mcdata.get("eff_value", 1.0)
+        a = tf.reduce_sum(amp)
+
+        bg = weight * mcdata.get("bg_value", 1.0)
+        b = tf.reduce_sum(bg)
+        return [a, b]
+
+    def eval_nll_part(self, data, weight, norm, idx=0):
+        bg_frac = self.bg_frac
+        pdf = (1 - bg_frac) * self.Amp(data) * data.get(
+            "err_value", 1.0
+        ) / norm[0] + bg_frac * data.get("bg_value", 1.0) / norm[1]
+        nll = -tf.reduce_sum(weight * tf.math.log(pdf))
+        return nll
+
+
 @register_nll_model("simple_chi2")
 class SimpleChi2Model(BaseCustomModel):
     """
@@ -201,3 +222,79 @@ class SimpleChi2Model(BaseCustomModel):
     def eval_nll_part(self, data, weight, norm, idx=0):
         nll = 0.5 * tf.reduce_sum((weight - self.Amp(data)) ** 2)
         return nll
+
+
+@register_nll_model("constr_frac")
+class SimpleNllFracModel(BaseCustomModel):
+    required_params = [
+        "constr_frac"
+    ]  # {name: {"res":[name], mask_params: {}, "value": 0.1, "sigma": 0.01}}
+
+    def eval_normal_factors(self, mcdata, weight):
+        int_mc = tf.reduce_sum(self.Amp(mcdata) * weight)
+        ret = [int_mc]
+        if self.constr_frac is None:
+            self.constr_frac = {}
+        for k, v in self.constr_frac.items():
+            res = v.get("res", k)
+            mask_params = v.get("mask_params", {})
+            with self.Amp.temp_used_res(res):
+                with self.Amp.mask_params(mask_params):
+                    int_i = tf.reduce_sum(self.Amp(mcdata) * weight)
+            ret.append(int_i)
+        return ret
+
+    def eval_nll_part(self, data, weight, norm, idx=0):
+        nll = -tf.reduce_sum(weight * tf.math.log(self.Amp(data)))
+        nll_norm = tf.reduce_sum(weight) * tf.math.log(norm[0])
+        ret = nll + nll_norm
+        if idx == 0:
+            for i, (k, v) in enumerate(self.constr_frac.items()):
+                value = v["value"]
+                sigma = v["sigma"]
+                ret = (
+                    ret + 0.5 * ((norm[i + 1] / norm[0] - value) / sigma) ** 2
+                )
+        return ret
+
+
+@register_nll_model("cfit_constr_frac")
+class SimpleNllFracModel(BaseCustomModel):
+    required_params = [
+        "constr_frac",
+        "bg_frac",
+    ]  # {name: {"res":[name], mask_params: {}, "value": 0.1, "sigma": 0.01}}
+
+    def eval_normal_factors(self, mcdata, weight):
+        int_mc = tf.reduce_sum(
+            self.Amp(mcdata) * mcdata.get("eff_value", 1.0) * weight
+        )
+        ret = [int_mc]
+        if self.constr_frac is None:
+            self.constr_frac = {}
+        for k, v in self.constr_frac.items():
+            res = v.get("res", k)
+            mask_params = v.get("mask_params", {})
+            with self.Amp.temp_used_res(res):
+                with self.Amp.mask_params(mask_params):
+                    int_i = tf.reduce_sum(self.Amp(mcdata) * weight)
+            ret.append(int_i)
+        bg = weight * mcdata.get("bg_value", 1.0)
+        b = tf.reduce_sum(bg)
+        ret.append(b)
+        return ret
+
+    def eval_nll_part(self, data, weight, norm, idx=0):
+        bg_frac = self.bg_frac
+        pdf = (1 - bg_frac) * self.Amp(data) * data.get(
+            "eff_value", 1.0
+        ) / norm[0] + bg_frac * data.get("bg_value", 1.0) / norm[-1]
+        ret = -tf.reduce_sum(weight * tf.math.log(pdf))
+        if idx == 0:
+            for i, (k, v) in enumerate(self.constr_frac.items()):
+                value = v["value"]
+                sigma = v["sigma"]
+                ret = (
+                    ret + 0.5 * ((norm[i + 1] / norm[0] - value) / sigma) ** 2
+                )
+        return ret
