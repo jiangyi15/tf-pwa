@@ -248,6 +248,11 @@ def _add_var(self, names, is_complex=False, shape=(), **kwargs):
 class AmpBase(object):
     """Base class for amplitude"""
 
+    def get_params_head(self):
+        if getattr(self, "params_head", None) is None:
+            self.params_head = str(self)
+        return self.params_head
+
     def add_var(self, names, is_complex=False, shape=(), **kwargs):
         """
         default add_var method
@@ -263,7 +268,7 @@ class AmpBase(object):
         return getattr(self, "_variables_map", {}).get(name)
 
     def get_variable_name(self, name=""):
-        return get_name(self, name)
+        return get_name(self.get_params_head(), name)
 
     def amp_shape(self):
         raise NotImplementedError
@@ -358,12 +363,19 @@ class Particle(BaseParticle, AmpBase):
     """
 
     def __init__(
-        self, *args, running_width=True, bw_l=None, width_norm=False, **kwargs
+        self,
+        *args,
+        running_width=True,
+        bw_l=None,
+        width_norm=False,
+        params_head=None,
+        **kwargs
     ):
         super(Particle, self).__init__(*args, **kwargs)
         self.running_width = running_width
         self.bw_l = bw_l
         self.width_norm = width_norm
+        self.params_head = None
 
     def init_params(self):
         self.d = 3.0
@@ -591,6 +603,13 @@ def simple_resonance(name, fun=None, params=None):
 class AmpDecay(Decay, AmpBase):
     """base class for decay with amplitude"""
 
+    def get_params_head(self):
+        if getattr(self, "params_head", None) is None:
+            core = self.core.get_params_head()
+            outs = [i.get_params_head() for i in self.outs]
+            self.params_head = "{}->{}".format(core, "+".join(outs))
+        return self.params_head
+
     def amp_shape(self):
         ret = [len(self.core.spins)]
         for i in self.outs:
@@ -655,6 +674,7 @@ class HelicityDecay(AmpDecay):
         params_polar=None,
         below_threshold=False,
         force_min_l=False,
+        params_head=None,
         **kwargs
     ):
         super(HelicityDecay, self).__init__(*args, **kwargs)
@@ -675,6 +695,14 @@ class HelicityDecay(AmpDecay):
             self.ls_list = tuple([tuple(i) for i in ls_list])
         self.params_polar = params_polar
         self.mask_factor = False
+        self.params_head = params_head
+
+    def get_params_head(self):
+        if self.params_head is None:
+            core = self.core.get_params_head()
+            outs = [i.get_params_head() for i in self.outs]
+            self.params_head = "{}->{}".format(core, "+".join(outs))
+        return self.params_head
 
     def check_valid_jp(self):
         if len(self.get_ls_list()) == 0:
@@ -1190,6 +1218,13 @@ class AmpDecayChain(BaseDecayChain, AmpBase):
         self.aligned = True
         self.need_amp_particle = True
         self.mask_factor = False
+
+    def get_params_head(self):
+        if getattr(self, "params_head", None) is None:
+            self.params_head = (
+                "[" + ", ".join([i.get_params_head() for i in self]) + "]"
+            )
+        return self.params_head
 
 
 @register_decay_chain("default")
