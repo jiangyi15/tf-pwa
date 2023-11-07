@@ -20,6 +20,18 @@ def test_simple_model(gen_toy, toy_config):
     config.get_params_error()
 
 
+def test_simple_clip_model(gen_toy, toy_config):
+    with open(f"{this_dir}/config_toy.yml") as f:
+        dic = yaml.full_load(f)
+    dic["data"]["model"] = "simple_clip"
+    config = ConfigLoader(dic)
+    config.set_params(f"{this_dir}/exp_params.json")
+    fcn = config.get_fcn(batch=600)
+    print(fcn())
+    print(fcn.nll_grad())
+    print(fcn.nll_grad_hessian(batch=600))
+
+
 def test_simplechi2_model(gen_toy, toy_config):
     with open(f"{this_dir}/config_toy.yml") as f:
         dic = yaml.full_load(f)

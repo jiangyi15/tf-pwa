@@ -192,6 +192,16 @@ class SimpleNllModel(BaseCustomModel):
         return nll + nll_norm
 
 
+@register_nll_model("simple_clip")
+class SimpleClipNllModel(SimpleNllModel):
+    def eval_nll_part(self, data, weight, norm, idx=0):
+        from .model import clip_log
+
+        nll = -tf.reduce_sum(weight * clip_log(self.Amp(data)))
+        nll_norm = tf.reduce_sum(weight) * clip_log(norm[0])
+        return nll + nll_norm
+
+
 @register_nll_model("simple_cfit")
 class SimpleCFitModel(BaseCustomModel):
     required_params = ["bg_frac"]
