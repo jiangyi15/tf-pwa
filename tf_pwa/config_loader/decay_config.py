@@ -288,6 +288,7 @@ class DecayConfig(BaseConfig):
                     for j in i.outs:
                         if i in j.creators:
                             j.creators.remove(i)
+                    break
             if flag:
                 ret.append(decay_chain)
         return ret
