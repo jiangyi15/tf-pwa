@@ -606,7 +606,7 @@ class ConfigLoader(BaseConfig):
             for idx, wb in enumerate(w_bkg):
                 new_params = {k: v for k, v in nll_params.items()}
                 for k, v in params.items():
-                    if isinstance(i, list):
+                    if isinstance(v, list):
                         new_params[k] = v[idx]
                     else:
                         new_params[k] = v
