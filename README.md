@@ -143,7 +143,7 @@ python setup.py build_sphinx
 
 Then, the documents can be found in build/sphinx/index.html.
 
-Documents cna also build with `Makefile` in `docs` as
+Documents can also build with `Makefile` in `docs` as
 
 ```
 cd docs && make html
