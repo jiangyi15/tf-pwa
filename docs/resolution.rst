@@ -55,7 +55,7 @@ For the first part, we can generate some :math:`x` (:math:`M` times) for every :
 In addition we can insert some importance information for the summation as
 
 .. math::
-    \int p(x) R(x|y) dx \approx \frac{1}{\sum w_i} \sum_{x\sim \frac{R(x|y)}{w_i(x)}} w_i p(x).
+    \int p(x) R(x|y) \mathrm{d} x \approx \frac{1}{\sum w_i} \sum_{x\sim \frac{R(x|y)}{w_i(x)}} w_i p(x).
 
 We need to keep the normalization. For example, we can use Gauss-Hermite quadrature.
 
