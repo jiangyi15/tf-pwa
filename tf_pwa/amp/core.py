@@ -675,6 +675,7 @@ class HelicityDecay(AmpDecay):
         below_threshold=False,
         force_min_l=False,
         params_head=None,
+        no_q0=False,
         **kwargs
     ):
         super(HelicityDecay, self).__init__(*args, **kwargs)
@@ -696,6 +697,7 @@ class HelicityDecay(AmpDecay):
         self.params_polar = params_polar
         self.mask_factor = False
         self.params_head = params_head
+        self.no_q0 = no_q0
 
     def get_params_head(self):
         if self.params_head is None:
@@ -1051,6 +1053,8 @@ class HelicityDecay(AmpDecay):
 
     def get_barrier_factor2(self, mass, q2, q02, d):
         ls = self.get_l_list()
+        if self.no_q0:
+            q02 = tf.ones_like(q02)
         ret = []
         for l in ls:
             if self.force_min_l:
