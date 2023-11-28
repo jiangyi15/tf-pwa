@@ -42,7 +42,7 @@ In PWA, we usually use the MC to do the normalization for signal probability den
 The final negative log-likelihood with considering resolution is
 
 .. math::
-    - \ln L = -\sum \ln \frac{p'(y)}{\int p'(y) dy} = -\sum \ln \frac{\int p(x) R(x|y) \mathrm{d} x}{ \int p(x) \epsilon_{T} (x) \mathrm{d} x } - \sum \ln \epsilon_{R}(y).
+    - \ln L = -\sum \ln \frac{p'(y)}{\int p'(y) \mathrm{d}y} = -\sum \ln \frac{\int p(x) R(x|y) \mathrm{d} x}{ \int p(x) \epsilon_{T} (x) \mathrm{d} x } - \sum \ln \epsilon_{R}(y).
 
 The last part is a constant, we can ignore it in fit. In the numerical form, it can be written as
 
