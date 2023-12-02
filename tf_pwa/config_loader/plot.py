@@ -606,6 +606,7 @@ def _plot_partial_wave(
     ref_amp=None,
     add_chi2=True,
     dpi=300,
+    force_legend_labels=None,
     **kwargs
 ):
     # cmap = plt.get_cmap("jet")
@@ -755,6 +756,8 @@ def _plot_partial_wave(
                 ax.set_ylim((0, upper_ylim))
         ax.set_xlim(xrange)
         ax.set_yscale(yscale)
+        if force_legend_labels:
+            legends_label = force_legend_labels
         if has_legend:
             if legend_outside:
                 leg = ax.legend(
