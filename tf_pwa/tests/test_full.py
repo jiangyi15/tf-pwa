@@ -272,7 +272,7 @@ def test_fit(toy_config, fit_result):
         prefix="toy_data/figure/no_pull", plot_pull=False
     )
     toy_config.plot_partial_wave(
-        prefix="toy_data/figure/has_pull", plot_pull=True
+        prefix="toy_data/figure/has_pull", plot_pull=True, add_chi2=True
     )
     toy_config.plot_partial_wave(prefix="toy_data/figure", save_root=True)
     toy_config.plot_partial_wave(

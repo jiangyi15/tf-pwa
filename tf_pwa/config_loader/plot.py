@@ -195,6 +195,8 @@ def get_chain_property_v2(self, idx, display):
 
 def create_chain_property(self, res):
     chain_property = []
+    pro = self.particle_property
+    res2str = lambda x: pro.get(str(x), {}).get("display", str(x))
     if res is None:
         for i in range(len(self.full_decay.chains)):
             name_i, curve_style = self.get_chain_property(i, False)
@@ -205,9 +207,11 @@ def create_chain_property(self, res):
             if not isinstance(name, list):
                 name = [name]
             if len(name) == 1:
-                display = str(name[0])
+                display = res2str(name[0])
             else:
-                display = "{ " + ",\n  ".join([str(i) for i in name]) + " }"
+                display = (
+                    "{ " + ",\n  ".join([res2str(i) for i in name]) + " }"
+                )
             name_i = "_".join([str(i) for i in name])
             chain_property.append([i, name_i, display, None])
     return chain_property
@@ -604,6 +608,9 @@ def _plot_partial_wave(
     linestyle_file=None,
     color_first=True,
     ref_amp=None,
+    add_chi2=False,
+    dpi=300,
+    force_legend_labels=None,
     **kwargs
 ):
     # cmap = plt.get_cmap("jet")
@@ -635,8 +642,12 @@ def _plot_partial_wave(
         # data_x, data_y, data_err = hist_error(
         # data_i, bins=bins, weights=data_weights, xrange=xrange
         # )
+        data_cut = data_weights != 0
         data_hist = Hist1D.histogram(
-            data_i, weights=data_weights, range=xrange, bins=bins
+            data_i[data_cut],
+            weights=data_weights[data_cut],
+            range=xrange,
+            bins=bins,
         )
         fig = plt.figure()
         if plot_delta or plot_pull:
@@ -652,10 +663,12 @@ def _plot_partial_wave(
 
         legends = []
         legends_label = []
+        has_negative = False
 
         le = data_hist.draw_error(
             ax, fmt=".", zorder=-2, label="data", color="black"
         )
+        has_negative = has_negative and np.any(data_hist.count < 0)
 
         legends.append(le)
         legends_label.append("data")
@@ -673,11 +686,16 @@ def _plot_partial_wave(
 
         if bg_dict:
             bg_hist = Hist1D.histogram(
-                bg_i, weights=bg_weight, range=xrange, bins=bins
+                bg_i,
+                weights=bg_weight,
+                range=xrange,
+                bins=bins,
+                mask_error=1,
             )
             le = bg_hist.draw_bar(
                 ax, label="back ground", alpha=0.5, color="grey"
             )
+            has_negative = has_negative and np.any(bg_hist.count < 0)
             fitted_hist = fitted_hist + bg_hist
             if ref_amp is not None:
                 fitted_hist_ref = fitted_hist_ref + bg_hist
@@ -687,9 +705,11 @@ def _plot_partial_wave(
             le2 = fitted_hist_ref.draw(
                 ax, label="reference fit", color="red", linewidth=2
             )
+            has_negative = has_negative and np.any(fitted_hist_ref.count < 0)
             legends.append(le2[0])
             legends_label.append("reference fit")
         le2 = fitted_hist.draw(ax, label="total fit", color="black")
+        has_negative = has_negative and np.any(fitted_hist.count < 0)
         legends.append(le2[0])
         legends_label.append("total fit")
 
@@ -731,14 +751,21 @@ def _plot_partial_wave(
                         label=label,
                         linewidth=1,
                     )
+
+            has_negative = has_negative and np.any(hist_i.count < 0)
             legends.append(le3[0])
             legends_label.append(label)
         if yscale == "log":
             ax.set_ylim((0.1, upper_ylim))
         else:
-            ax.set_ylim((0, upper_ylim))
+            if has_negative:
+                ax.set_ylim((None, upper_ylim))
+            else:
+                ax.set_ylim((0, upper_ylim))
         ax.set_xlim(xrange)
         ax.set_yscale(yscale)
+        if force_legend_labels:
+            legends_label = force_legend_labels
         if has_legend:
             if legend_outside:
                 leg = ax.legend(
@@ -770,12 +797,23 @@ def _plot_partial_wave(
             data_hist.bin_width
         )  # (max(data_x) - min(data_x)) / bins
         ax.set_ylabel("Events/{:.3f}{}".format(ywidth, units))
+        diff_hist = data_hist - fitted_hist
+        print(
+            name,
+            data_hist.count,
+            data_hist.error,
+            np.sum(np.where(data_hist.count != 0)),
+            np.sum(np.where(data_hist.error == np.inf)),
+        )
+        chi2_ax = ax
         if plot_delta or plot_pull:
             plt.setp(ax.get_xticklabels(), visible=False)
             if legend_outside and has_legend:
                 ax2 = plt.subplot2grid((4, 6), (3, 0), rowspan=1, colspan=5)
             else:
                 ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
+            chi2_ax = ax2
+
             # y_err = fit_y - data_y
             # if plot_pull:
             # _epsilon = 1e-10
@@ -785,7 +823,7 @@ def _plot_partial_wave(
             # y_err[fit_err < _epsilon] = 0.0
             # ax2.bar(data_x, y_err, color="k", alpha=0.7, width=ywidth)
             if plot_pull:
-                (data_hist - fitted_hist).draw_pull()
+                diff_hist.draw_pull()
                 ax2.axhline(y=0, color="r", linewidth=0.5)
                 ax2.axhline(
                     y=3,
@@ -802,7 +840,6 @@ def _plot_partial_wave(
                 ax2.set_ylabel("pull")
                 ax2.set_ylim((-5, 5))
             else:
-                diff_hist = data_hist - fitted_hist
                 diff_hist.draw_bar(color="grey")
                 ax2.set_ylabel("$\\Delta$Events")
                 y_err = diff_hist.count
@@ -811,13 +848,25 @@ def _plot_partial_wave(
             ax2.set_xlabel(display + units)
             if xrange is not None:
                 ax2.set_xlim(xrange)
+
+        if add_chi2:
+            chi2_ax.text(
+                0,
+                1,
+                "$\\chi^2/Nbins={:.2f}/{:}$".format(
+                    diff_hist.chi2(), diff_hist.ndf()
+                ),
+                ha="left",
+                va="top",
+                transform=chi2_ax.transAxes,
+            )
         # ax.set_yscale("log")
         # ax.set_ylim([0.1, 1e3])
-        fig.savefig(prefix + name + "." + format, dpi=300)
+        fig.savefig(prefix + name + "." + format, dpi=dpi)
         if single_legend:
             export_legend(ax, prefix + "legend.{}".format(format))
         if save_pdf:
-            fig.savefig(prefix + name + ".pdf", dpi=300)
+            fig.savefig(prefix + name + ".pdf", dpi=dpi)
             if single_legend:
                 export_legend(ax, prefix + "legend.pdf")
         print("Finish plotting " + prefix + name)
@@ -982,7 +1031,8 @@ def _2d_plot_v2(
 
         # data
         if "data" in plot_figs:
-            plt.scatter(data_1, data_2, s=1, alpha=0.8, label="data")
+            cut = data_dict["data_weights"] != 0
+            plt.scatter(data_1[cut], data_2[cut], s=1, alpha=0.8, label="data")
             plot_axis()
             plt.title(title, fontsize="xx-large")
             plt.savefig(prefix + k + "_data")
