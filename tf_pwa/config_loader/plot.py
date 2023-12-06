@@ -195,6 +195,8 @@ def get_chain_property_v2(self, idx, display):
 
 def create_chain_property(self, res):
     chain_property = []
+    pro = self.particle_property
+    res2str = lambda x: pro.get(str(x), {}).get("display", str(x))
     if res is None:
         for i in range(len(self.full_decay.chains)):
             name_i, curve_style = self.get_chain_property(i, False)
@@ -205,9 +207,11 @@ def create_chain_property(self, res):
             if not isinstance(name, list):
                 name = [name]
             if len(name) == 1:
-                display = str(name[0])
+                display = res2str(name[0])
             else:
-                display = "{ " + ",\n  ".join([str(i) for i in name]) + " }"
+                display = (
+                    "{ " + ",\n  ".join([res2str(i) for i in name]) + " }"
+                )
             name_i = "_".join([str(i) for i in name])
             chain_property.append([i, name_i, display, None])
     return chain_property
@@ -604,7 +608,7 @@ def _plot_partial_wave(
     linestyle_file=None,
     color_first=True,
     ref_amp=None,
-    add_chi2=True,
+    add_chi2=False,
     dpi=300,
     force_legend_labels=None,
     **kwargs
@@ -638,8 +642,12 @@ def _plot_partial_wave(
         # data_x, data_y, data_err = hist_error(
         # data_i, bins=bins, weights=data_weights, xrange=xrange
         # )
+        data_cut = data_weights != 0
         data_hist = Hist1D.histogram(
-            data_i, weights=data_weights, range=xrange, bins=bins
+            data_i[data_cut],
+            weights=data_weights[data_cut],
+            range=xrange,
+            bins=bins,
         )
         fig = plt.figure()
         if plot_delta or plot_pull:
@@ -806,7 +814,7 @@ def _plot_partial_wave(
                 ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
             if add_chi2:
                 t = ax2.text(
-                    1,
+                    0,
                     1,
                     "$\\chi^2/Nbins={:.2f}/{:}$".format(
                         diff_hist.chi2(), diff_hist.ndf()
