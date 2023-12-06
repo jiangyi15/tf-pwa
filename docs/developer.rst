@@ -41,7 +41,10 @@ You can check if pre-commit is working well by running
 It may take some time to install required package.
 
 .. note::
-   For developer using using editor with formatter, you should be careful for the options.
+   If there are some `GLIBC_XXX` errors at this step, you can try to install `node.js`.
+
+.. note::
+   For developer using editor with formatter, you should be careful for the options.
 
 The following are all commands needed
 
