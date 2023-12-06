@@ -173,7 +173,7 @@ The plot use parameters :math:`m_0=0.7, m_{0,1}=m_{0,2}=0.1, m_{1,1}=m_{1,2}=0.3
         >>> import matplotlib.pyplot as plt
         >>> plt.clf()
         >>> from tf_pwa.utils import plot_particle_model
-        >>> _ = plot_particle_model("FlatteGen", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "l_list": [0, 0], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
+        >>> _ = plot_particle_model("FlatteGen", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
         >>> _ = plot_particle_model("FlatteGen", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "l_list": [0, 1], "mass": 0.7, "has_bprime": False}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
         >>> _ = plot_particle_model("FlatteGen", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "l_list": [0, 1], "mass": 0.7, "cut_phsp": True}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
         >>> _ = plot_particle_model("FlatteGen", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "l_list": [0, 1], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
