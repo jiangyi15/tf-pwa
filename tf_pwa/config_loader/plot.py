@@ -805,24 +805,15 @@ def _plot_partial_wave(
             np.sum(np.where(data_hist.count != 0)),
             np.sum(np.where(data_hist.error == np.inf)),
         )
-
+        chi2_ax = ax
         if plot_delta or plot_pull:
             plt.setp(ax.get_xticklabels(), visible=False)
             if legend_outside and has_legend:
                 ax2 = plt.subplot2grid((4, 6), (3, 0), rowspan=1, colspan=5)
             else:
                 ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
-            if add_chi2:
-                t = ax2.text(
-                    0,
-                    1,
-                    "$\\chi^2/Nbins={:.2f}/{:}$".format(
-                        diff_hist.chi2(), diff_hist.ndf()
-                    ),
-                    ha="right",
-                    va="top",
-                    transform=ax2.transAxes,
-                )
+            chi2_ax = ax2
+
             # y_err = fit_y - data_y
             # if plot_pull:
             # _epsilon = 1e-10
@@ -857,6 +848,18 @@ def _plot_partial_wave(
             ax2.set_xlabel(display + units)
             if xrange is not None:
                 ax2.set_xlim(xrange)
+
+        if add_chi2:
+            chi2_ax.text(
+                0,
+                1,
+                "$\\chi^2/Nbins={:.2f}/{:}$".format(
+                    diff_hist.chi2(), diff_hist.ndf()
+                ),
+                ha="left",
+                va="top",
+                transform=chi2_ax.transAxes,
+            )
         # ax.set_yscale("log")
         # ax.set_ylim([0.1, 1e3])
         fig.savefig(prefix + name + "." + format, dpi=dpi)
