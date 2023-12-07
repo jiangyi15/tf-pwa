@@ -31,8 +31,10 @@ from tf_pwa.applications import (
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.data import (
     data_index,
+    data_merge,
     data_shape,
     data_split,
+    data_to_numpy,
     load_data,
     save_data,
 )
@@ -262,3 +264,27 @@ class MultiConfig(object):
         val = {k: float(v) for k, v in params.items()}
         with open(file_name, "w") as f:
             json.dump(val, f, indent=2)
+
+    def plot_partial_wave(self, params=None, prefix="figure/all", **kwargs):
+        all_data = []
+        extra = None
+        for config_i in self.configs:
+            for data, extra in config_i._get_plot_partial_wave_input(
+                params=params, **kwargs
+            ):
+                all_data.append(data)
+
+        data_dict = data_to_numpy(data_merge(*[i[0] for i in all_data]))
+        phsp_dict = data_to_numpy(data_merge(*[i[1] for i in all_data]))
+        bg_dict = data_to_numpy(data_merge(*[i[2] for i in all_data]))
+        _, plot_var_dic, chain_property, nll = extra
+        self.configs[-1]._plot_partial_wave(
+            data_dict,
+            phsp_dict,
+            bg_dict,
+            prefix,
+            plot_var_dic,
+            chain_property,
+            nll=nll,
+            **kwargs,
+        )

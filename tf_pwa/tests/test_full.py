@@ -386,6 +386,7 @@ def test_fit_combine(toy_config2):
     assert np.allclose(results.min_nll, -204.9468493307786 * 2)
     toy_config2.get_params_error()
     print(toy_config2.get_params())
+    toy_config2.plot_partial_wave(results)
 
 
 def test_mix_likelihood(toy_config3):
