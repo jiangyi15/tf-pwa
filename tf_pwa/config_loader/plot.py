@@ -863,13 +863,6 @@ def _plot_partial_wave(
         )  # (max(data_x) - min(data_x)) / bins
         ax.set_ylabel("Events/{:.3f}{}".format(ywidth, units))
         diff_hist = data_hist - fitted_hist
-        print(
-            name,
-            data_hist.count,
-            data_hist.error,
-            np.sum(np.where(data_hist.count != 0)),
-            np.sum(np.where(data_hist.error == np.inf)),
-        )
         chi2_ax = ax
         if plot_delta or plot_pull:
             plt.setp(ax.get_xticklabels(), visible=False)

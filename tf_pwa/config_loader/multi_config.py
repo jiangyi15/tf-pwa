@@ -266,6 +266,10 @@ class MultiConfig(object):
             json.dump(val, f, indent=2)
 
     def plot_partial_wave(self, params=None, prefix="figure/all", **kwargs):
+
+        path = os.path.dirname(prefix)
+        os.makedirs(path, exist_ok=True)
+
         all_data = []
         extra = None
         for config_i in self.configs:
@@ -275,8 +279,24 @@ class MultiConfig(object):
                 all_data.append(data)
 
         data_dict = data_to_numpy(data_merge(*[i[0] for i in all_data]))
-        phsp_dict = data_to_numpy(data_merge(*[i[1] for i in all_data]))
         bg_dict = data_to_numpy(data_merge(*[i[2] for i in all_data]))
+
+        all_keys = list(all_data[-1][1].keys())
+        for i in all_data[:-1]:
+            phsp = i[1]
+            weights_keys = [j for j in phsp.keys() if j.endswith("_fit")]
+            tail_keys = [k[k[4:].index("_") + 4 :] for k in weights_keys]
+            for k in all_keys:
+                if k in phsp or not k.endswith("_fit"):
+                    continue
+                weights_keys = [j for j in phsp.keys() if j.endswith("_fit")]
+                idx_key = k[k[4:].index("_") + 4 :]
+                if idx_key in tail_keys:
+                    print(k, weights_keys[tail_keys.index(idx_key)])
+                    phsp[k] = phsp[weights_keys[tail_keys.index(idx_key)]]
+                else:
+                    phsp[k] = np.zeros_like(phsp["MC_total_fit"])
+        phsp_dict = data_to_numpy(data_merge(*[i[1] for i in all_data]))
         _, plot_var_dic, chain_property, nll = extra
         self.configs[-1]._plot_partial_wave(
             data_dict,
