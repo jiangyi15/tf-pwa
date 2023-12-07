@@ -292,7 +292,6 @@ class MultiConfig(object):
                 weights_keys = [j for j in phsp.keys() if j.endswith("_fit")]
                 idx_key = k[k[4:].index("_") + 4 :]
                 if idx_key in tail_keys:
-                    print(k, weights_keys[tail_keys.index(idx_key)])
                     phsp[k] = phsp[weights_keys[tail_keys.index(idx_key)]]
                 else:
                     phsp[k] = np.zeros_like(phsp["MC_total_fit"])
