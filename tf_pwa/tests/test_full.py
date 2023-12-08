@@ -389,7 +389,7 @@ def test_fit_combine(toy_config2):
     toy_config2.plot_partial_wave(results)
 
 
-def test_fit_combine(gen_toy):
+def test_plot_combine(gen_toy):
     config = MultiConfig(
         [f"{this_dir}/config_plot2.yml", f"{this_dir}/config_toy.yml"],
         total_same=True,
