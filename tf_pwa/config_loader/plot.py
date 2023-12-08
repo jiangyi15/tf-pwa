@@ -686,6 +686,8 @@ def _plot_partial_wave(
         bg_weight = bg_dict["sideband_weights"]
     phsp_weights = phsp_dict["MC_total_fit"]
     for name in plot_var_dic:
+        if not name in data_dict:
+            continue
         data_i = data_dict[name]
         phsp_i = phsp_dict[name + "_MC"]
         if bg_dict:

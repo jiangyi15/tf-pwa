@@ -282,7 +282,7 @@ class MultiConfig(object):
         bg_dict = data_to_numpy(data_merge(*[i[2] for i in all_data]))
 
         all_keys = list(all_data[-1][1].keys())
-        for i in all_data[:-1]:
+        for idx, i in enumerate(all_data[:-1]):
             phsp = i[1]
             weights_keys = [j for j in phsp.keys() if j.endswith("_fit")]
             tail_keys = [k[k[4:].index("_") + 4 :] for k in weights_keys]
@@ -292,8 +292,13 @@ class MultiConfig(object):
                 weights_keys = [j for j in phsp.keys() if j.endswith("_fit")]
                 idx_key = k[k[4:].index("_") + 4 :]
                 if idx_key in tail_keys:
-                    phsp[k] = phsp[weights_keys[tail_keys.index(idx_key)]]
+                    new_name = weights_keys[tail_keys.index(idx_key)]
+                    print(
+                        "com_plot: use", new_name, "for", k, "for sample", idx
+                    )
+                    phsp[k] = phsp[new_name]
                 else:
+                    print("com_plot: set", k, "to 0 for sample", idx)
                     phsp[k] = np.zeros_like(phsp["MC_total_fit"])
         phsp_dict = data_to_numpy(data_merge(*[i[1] for i in all_data]))
         _, plot_var_dic, chain_property, nll = extra
