@@ -1,0 +1,38 @@
+data:
+  dat_order: [B, C, D]
+  data: ["toy_data/data.dat"]
+  bg: ["toy_data/bg.dat"]
+  phsp: ["toy_data/PHSP.dat"]
+  random_z: False
+  r_boost: False
+  bg_weight: 0.1
+
+decay:
+  A:
+    - [R_BC, D]
+    - [R_BD, C]
+    - [R_CD2, B]
+  R_BC: [B, C]
+  R_BD: [B, D]
+  R_CD2: [C, D]
+
+particle:
+  $top:
+    A: { J: 1, P: -1, spins: [-1, 1], mass: 4.6 }
+  $finals:
+    B: { J: 1, P: -1, mass: 2.00698 }
+    C: { J: 1, P: -1, mass: 2.01028 }
+    D: { J: 0, P: -1, mass: 0.13957 }
+  R_BC: []
+  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3 }
+  R_CD2: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
+
+constrains:
+  particle: null
+  decay: null
+
+plot:
+  mass:
+    R_BC: { display: "$M_{BC}$" }
+    R_BD: { display: "$M_{BD}$" }
+    R_CD2: { display: "$M_{CD}$" }
