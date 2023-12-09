@@ -386,6 +386,16 @@ def test_fit_combine(toy_config2):
     assert np.allclose(results.min_nll, -204.9468493307786 * 2)
     toy_config2.get_params_error()
     print(toy_config2.get_params())
+    toy_config2.plot_partial_wave(results)
+
+
+def test_plot_combine(gen_toy):
+    config = MultiConfig(
+        [f"{this_dir}/config_plot2.yml", f"{this_dir}/config_toy.yml"],
+        total_same=True,
+    )
+    config.set_params(f"{this_dir}/exp_params.json")
+    config.plot_partial_wave(prefix="toy_data/com_plot/")
 
 
 def test_mix_likelihood(toy_config3):
