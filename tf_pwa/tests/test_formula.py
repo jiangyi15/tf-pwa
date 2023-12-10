@@ -83,4 +83,24 @@ def test_grad():
         b = tf.math.real(a)
         c = tf.math.imag(a)
     pm.get_grad(b, keep=True)
-    pm.get_grad(c, keep=True)
+    pm.get_grad(c)
+
+
+def test_grad2():
+    p = simple_decay("BWR")
+    p.mass.freed()
+    with p.mass.vm.error_trans(None) as pm:
+        b, c = p.solve_pole(init=3.6 - 0.005j, return_complex=False)
+    pm.get_grad(b, keep=True)
+    pm.get_grad(c)
+
+
+def test_flatte_pole():
+    p = simple_decay("FlatteC", mass_list=[[0.1, 0.1], [0.3, 0.3]])
+    p.mass.freed()
+    p.mass.vm.set("FlatteC_g_0", 0.3)
+    p.mass.vm.set("FlatteC_g_1", 0.4)
+    with p.mass.vm.error_trans(None) as pm:
+        b, c = p.solve_pole(init=3.6 - 0.05j, return_complex=False, sheet=1)
+    pm.get_grad(b, keep=True)
+    pm.get_grad(c)

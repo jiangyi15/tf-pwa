@@ -459,21 +459,26 @@ class Particle(BaseParticle, AmpBase):
         m1, m2 = self.get_subdecay_mass()
         return mass, width, m1, m2
 
-    def solve_pole(self):
+    def solve_pole(self, init=None, sheet=0, return_complex=True):
         mass = self.get_mass()
         width = self.get_width()
-        if width is None:
-            raise NotImplemented
+
+        if init is None:
+            init_pole = float(mass) - sym.I * float(width) / 2
+        else:
+            init_pole = float(np.real(init)) - sym.I * float(np.imag(init))
+
         from tf_pwa.formula import create_complex_root_sympy_tfop
 
         var = self.get_sympy_var()
-        f = self.get_sympy_dom(*var)
-        g = create_complex_root_sympy_tfop(
-            f, var[1:], var[0], float(mass) - sym.I * float(width) / 2
-        )
-        return g(*self.get_num_var())
+        f = self.get_sympy_dom(*var, sheet=sheet)
+        g = create_complex_root_sympy_tfop(f, var[1:], var[0], init_pole)
+        ret = g(*self.get_num_var())
+        if not return_complex:
+            ret = tf.math.real(ret), tf.math.imag(ret)
+        return ret
 
-    def get_sympy_dom(self, m, m0, g0, m1=None, m2=None):
+    def get_sympy_dom(self, m, m0, g0, m1=None, m2=None, sheet=0):
         if self.get_width() is None:
             raise NotImplemented
         from tf_pwa.formula import BW_dom, BWR_dom
@@ -1001,7 +1006,7 @@ class HelicityDecay(AmpDecay):
             mag = g_ls
             m_dep = mag * tf.cast(bf, mag.dtype)
         else:
-            m_dep = g_ls
+            m_dep = tf.reshape(g_ls, (1, -1))
         return m_dep
 
     def get_ls_amp(self, data, data_p, **kwargs):
@@ -1021,7 +1026,7 @@ class HelicityDecay(AmpDecay):
             bf = to_complex(bf)
             m_dep = mag * tf.cast(bf, mag.dtype)
         else:
-            m_dep = g_ls
+            m_dep = tf.reshape(g_ls, (1, -1))
         return m_dep
 
     def get_angle_g_ls(self):

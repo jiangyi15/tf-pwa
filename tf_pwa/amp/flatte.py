@@ -14,6 +14,16 @@ def cal_monentum(m, ma, mb):
     return tf.where(p2 > 0, p_p, p_m)
 
 
+def cal_monentum_sympy(m, ma, mb):
+    import sympy
+
+    mabp = ma + mb
+    mabm = ma - mb
+    s = m * m
+    p2 = (s - mabp * mabp) * (s - mabm * mabm)
+    return sympy.sqrt(p2) / 2 / m
+
+
 @register_particle("Flatte")
 class ParticleFlatte(Particle):
     """
@@ -108,6 +118,37 @@ Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1
         d = re * re + im * im
         ret = tf.complex(re / d, -im / d)
         return ret
+
+    def get_sympy_var(self):
+        import sympy as sym
+
+        gi = [sym.var(f"g_{i}") for i, _ in enumerate(self.mass_list)]
+        return *sym.var("m m0"), *gi
+
+    def get_num_var(self):
+        mass = self.get_mass()
+        gi = [self.g_value[i]() for i, _ in enumerate(self.mass_list)]
+        return mass, *gi
+
+    def get_sympy_dom(self, m, m0, *gi, sheet=0):
+        import sympy as sym
+
+        mass = m0
+        delta_s = mass * mass - m * m
+        m_c = mass / m
+        rhos = []
+        for i, mab in enumerate(self.mass_list):
+            ma, mb = mab
+            pi = cal_monentum_sympy(m, ma, mb)
+            if sheet & 1 == 0:
+                pi = -pi
+            sheet = sheet >> 1
+            # print(pi)
+            m_rho_i = pi * sym.I * gi[i] * m_c
+            rhos.append(m_rho_i)
+        rho = self.im_sign * sum(rhos)
+        re = delta_s + rho
+        return re
 
 
 @register_particle("FlatteC")
