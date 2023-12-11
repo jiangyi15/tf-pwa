@@ -136,7 +136,7 @@ Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1
     def get_num_var(self):
         mass = self.get_mass()
         gi = [self.g_value[i]() for i, _ in enumerate(self.mass_list)]
-        return mass, *gi
+        return (mass, *gi)
 
     def get_sympy_dom(self, m, m0, *gi, sheet=0):
         import sympy as sym
