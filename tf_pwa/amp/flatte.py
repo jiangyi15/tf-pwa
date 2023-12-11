@@ -272,7 +272,7 @@ The plot use parameters :math:`m_0=0.7, m_{0,1}=m_{0,2}=0.1, m_{1,1}=m_{1,2}=0.3
     def get_num_var(self):
         mass = self.get_mass()
         gi = self.get_coeff()
-        return mass, *gi
+        return (mass, *gi)
 
     def get_amp(self, *args, **kwargs):
         m = args[0]["m"]
