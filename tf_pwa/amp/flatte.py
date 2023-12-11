@@ -228,11 +228,9 @@ The plot use parameters :math:`m_0=0.7, m_{0,1}=m_{0,2}=0.1, m_{1,1}=m_{1,2}=0.3
         >>> _ = plot_particle_model("FlatteGen", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "l_list": [0, 1], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
         >>> _ = plt.legend(["all l=0", "has_bprime=False", "cut_phsp=True", "normal"])
 
-
   `no_m0=True` to set :math:`i m_0 => i` in the width part.
 
-  `no_q0=True` to remove :math:`\\frac{m_0}{|q_{i0}|}=0` and set others :math:`q_{i0}=1`.
-
+  `no_q0=True` to remove :math:`\\frac{m_0}{|q_{i0}|}` and set others :math:`q_{i0}=1`.
 
     .. plot::
 

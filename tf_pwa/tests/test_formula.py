@@ -127,22 +127,13 @@ def test_flatte2_pole():
     flatte2_pole_temp(has_bprime=True)
 
 
-def flatte2_pole_temp(**kwargs):
+def test_flatte2_width():
     p = simple_decay(
-        "Flatte2", mass_list=[[0.1, 0.1], [0.3, 0.3]], l_list=[0, 1], **kwargs
+        "Flatte2", mass_list=[[0.1, 0.1], [0.3, 0.3]], g_0=0.3, float=["g_0"]
     )
     p.mass.freed()
     p.mass.vm.set("Flatte2_g_0", 0.3)
     p.mass.vm.set("Flatte2_g_1", 0.4)
-    with p.mass.vm.error_trans(None) as pm:
-        b, c = p.solve_pole(init=3.6 - 0.05j, return_complex=False, sheet=1)
-    ga = pm.get_grad(b, keep=True)
-    gc = pm.get_grad(c)
-
-
-def test_flatte2_width():
-    p = simple_decay(
-        "Flatte2", mass_list=[[0.1, 0.1], [0.3, 0.3]], l_list=[0, 1]
-    )
+    p.solve_pole()
     width = p.get_width()
     width = p.get_width(np.array([3.6]))

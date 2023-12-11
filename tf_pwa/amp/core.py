@@ -663,6 +663,8 @@ class HelicityDecay(AmpDecay):
 
     (5). `l_list=[l1, l2]` and `ls_list=[[l1, s1], [l2, s2]]` options give the list of all possible LS used in the decay.
 
+    (6). `no_q0=True` will set the :math:`q_0=1`.
+
     """
 
     def __init__(
