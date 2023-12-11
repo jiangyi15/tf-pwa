@@ -131,7 +131,7 @@ Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1
         import sympy as sym
 
         gi = [sym.var(f"g_{i}") for i, _ in enumerate(self.mass_list)]
-        return *sym.var("m m0"), *gi
+        return (*sym.var("m m0"), *gi)
 
     def get_num_var(self):
         mass = self.get_mass()
