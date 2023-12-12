@@ -270,6 +270,11 @@ def fit_scipy(
         # bd = Bounds(bnds)
         fcn.vm.set_bound(bounds_dict)
 
+        if fcn.vm.bnd_dic:
+            print("##boundary: ")
+        for k, v in fcn.vm.bnd_dic.items():
+            print("  ", k, "\t", v)
+
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         f_g = Cached_FG(f_g, grad_scale=grad_scale)
         # print(f_g)

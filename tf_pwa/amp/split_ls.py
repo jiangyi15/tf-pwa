@@ -148,7 +148,7 @@ class ParticleBWRLS(ParticleLS):
         thetas = [i() for i in self.theta]
         return mass, width, thetas, m1, m2
 
-    def get_sympy_dom(self, m, m0, g0, thetas, m1=None, m2=None):
+    def get_sympy_dom(self, m, m0, g0, thetas, m1=None, m2=None, sheet=0):
         if self.get_width() is None:
             raise NotImplemented
         from tf_pwa.formula import BWR_LS_dom

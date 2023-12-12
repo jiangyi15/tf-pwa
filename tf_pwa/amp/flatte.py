@@ -14,6 +14,16 @@ def cal_monentum(m, ma, mb):
     return tf.where(p2 > 0, p_p, p_m)
 
 
+def cal_monentum_sympy(m, ma, mb):
+    import sympy
+
+    mabp = ma + mb
+    mabm = ma - mb
+    s = m * m
+    p2 = (s - mabp * mabp) * (s - mabm * mabm)
+    return sympy.sqrt(p2) / 2 / m
+
+
 @register_particle("Flatte")
 class ParticleFlatte(Particle):
     """
@@ -89,6 +99,14 @@ Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1
     def __call__(self, m):
         return self.get_amp({"m": m})
 
+    def get_width(self, m=None):
+        if m is None:
+            m0 = self.get_mass()
+            m = tf.reshape(m0, (-1,))
+        amp = self.get_amp({"m": m})
+        w = tf.math.imag(1 / amp)
+        return w
+
     def get_amp(self, *args, **kwargs):
         m = args[0]["m"]
         mass = self.get_mass()
@@ -108,6 +126,37 @@ Required input arguments `mass_list: [[m11, m12], [m21, m22]]` for :math:`m_{i,1
         d = re * re + im * im
         ret = tf.complex(re / d, -im / d)
         return ret
+
+    def get_sympy_var(self):
+        import sympy as sym
+
+        gi = [sym.var(f"g_{i}") for i, _ in enumerate(self.mass_list)]
+        return (*sym.var("m m0"), *gi)
+
+    def get_num_var(self):
+        mass = self.get_mass()
+        gi = [self.g_value[i]() for i, _ in enumerate(self.mass_list)]
+        return (mass, *gi)
+
+    def get_sympy_dom(self, m, m0, *gi, sheet=0):
+        import sympy as sym
+
+        mass = m0
+        delta_s = mass * mass - m * m
+        m_c = mass / m
+        rhos = []
+        for i, mab in enumerate(self.mass_list):
+            ma, mb = mab
+            pi = cal_monentum_sympy(m, ma, mb)
+            if sheet & 1 == 0:
+                pi = -pi
+            sheet = sheet >> 1
+            # print(pi)
+            m_rho_i = pi * sym.I * gi[i] * m_c
+            rhos.append(m_rho_i)
+        rho = self.im_sign * sum(rhos)
+        re = delta_s + rho
+        return re
 
 
 @register_particle("FlatteC")
@@ -179,11 +228,9 @@ The plot use parameters :math:`m_0=0.7, m_{0,1}=m_{0,2}=0.1, m_{1,1}=m_{1,2}=0.3
         >>> _ = plot_particle_model("FlatteGen", {"mass_list": [[0.1, 0.1], [0.3,0.3]], "l_list": [0, 1], "mass": 0.7}, {"R_BC_g_0": 0.3,"R_BC_g_1": 0.2})
         >>> _ = plt.legend(["all l=0", "has_bprime=False", "cut_phsp=True", "normal"])
 
-
   `no_m0=True` to set :math:`i m_0 => i` in the width part.
 
-  `no_q0=True` to remove :math:`\\frac{m_0}{|q_{i0}|}=0` and set others :math:`q_{i0}=1`.
-
+  `no_q0=True` to remove :math:`\\frac{m_0}{|q_{i0}|}` and set others :math:`q_{i0}=1`.
 
     .. plot::
 
@@ -219,6 +266,11 @@ The plot use parameters :math:`m_0=0.7, m_{0,1}=m_{0,2}=0.1, m_{1,1}=m_{1,2}=0.3
 
     def get_coeff(self):
         return [i() for i in self.g_value]
+
+    def get_num_var(self):
+        mass = self.get_mass()
+        gi = self.get_coeff()
+        return (mass, *gi)
 
     def get_amp(self, *args, **kwargs):
         m = args[0]["m"]
@@ -265,6 +317,45 @@ The plot use parameters :math:`m_0=0.7, m_{0,1}=m_{0,2}=0.1, m_{1,1}=m_{1,2}=0.3
         d = re * re + im * im
         ret = tf.complex(re / d, -im / d)
         return ret
+
+    def get_sympy_dom(self, m, m0, *gi, sheet=0):
+        import sympy as sym
+
+        mass = m0
+        delta_s = mass * mass - m * m
+        if self.no_m0:
+            m_c = 1 / m
+        else:
+            m_c = mass / m
+        rhos = []
+        for i, (mab, l) in enumerate(zip(self.mass_list, self.l_list)):
+            ma, mb = mab
+            pi = cal_monentum_sympy(m, ma, mb)
+            pi0 = cal_monentum_sympy(mass, ma, mb)
+            if sheet & 1 == 0:
+                pi = -pi
+            sheet = sheet >> 1
+            # print(pi)
+            m_rho_i = pi * sym.I * gi[i] * m_c
+            if self.no_q0:
+                pi0 = 1
+            else:
+                m_rho_i = m_rho_i * mass / abs(pi0)
+            if l != 0:
+                m_rho_i = m_rho_i * abs(pi / pi0) ** (2 * l)
+            if self.has_bprime:
+                from tf_pwa.formula import Bprime_polynomial
+
+                bf = Bprime_polynomial(
+                    l, abs(pi0 * self.d) ** 2
+                ) / Bprime_polynomial(l, abs(pi * self.d) ** 2)
+                m_rho_i = m_rho_i * bf
+            if self.cut_phsp:
+                m_rho_i * sym.Heaviside(m - ma - mb)
+            rhos.append(m_rho_i)
+        rho = self.im_sign * sum(rhos)
+        re = delta_s + rho
+        return re
 
 
 @register_particle("Flatte2")

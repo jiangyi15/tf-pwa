@@ -142,7 +142,7 @@ class ParticleBWRCoupling(Particle):
         ret = tf.complex(a_r / a_d, a_i / a_d)
         return ret
 
-    def get_sympy_dom(self, m, m0, g0, m1=None, m2=None):
+    def get_sympy_dom(self, m, m0, g0, m1=None, m2=None, sheet=0):
         from tf_pwa.formula import BWR_coupling_dom
 
         if self.bw_l is None:
