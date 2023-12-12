@@ -296,7 +296,7 @@ def plot_partial_wave(
         data=data,
         phsp=phsp,
         bg=bg,
-        prefix="figure/",
+        prefix=prefix,
         res=res,
         save_root=save_root,
         chains_id_method=chains_id_method,

@@ -442,6 +442,7 @@ class ConfigLoader(BaseConfig):
                 simple_map = {"m": "mass", "g": "width"}
 
                 gauss_constr = particle_config.get("gauss_constr", None)
+                print(particle_config, params_dic)
                 if gauss_constr is not None:
                     assert isinstance(gauss_constr, dict)
                     for k, v in gauss_constr.items():
@@ -464,14 +465,14 @@ class ConfigLoader(BaseConfig):
                     if "float" in particle_config and particle_config["float"]:
                         if "m" in particle_config["float"]:
                             p_i.mass.freed()  # set_fix(i+'_mass',unfix=True)
-                            if "m_max" in particle_config:
-                                upper = particle_config["m_max"]
+                            if "mass_max" in params_dic:
+                                upper = params_dic["mass_max"]
                             # elif m_sigma is not None:
                             #    upper = self.config["particle"][i]["m0"] + 10 * m_sigma
                             else:
                                 upper = None
-                            if "m_min" in particle_config:
-                                lower = particle_config["m_min"]
+                            if "mass_min" in params_dic:
+                                lower = params_dic["mass_min"]
                             # elif m_sigma is not None:
                             #    lower = self.config["particle"][i]["m0"] - 10 * m_sigma
                             else:
@@ -481,14 +482,14 @@ class ConfigLoader(BaseConfig):
                             self._neglect_when_set_params.append(str(p_i.mass))
                         if "g" in particle_config["float"]:
                             p_i.width.freed()  # amp.vm.set_fix(i+'_width',unfix=True)
-                            if "g_max" in particle_config:
-                                upper = particle_config["g_max"]
+                            if "width_max" in params_dic:
+                                upper = params_dic["width_max"]
                             # elif g_sigma is not None:
                             #    upper = self.config["particle"][i]["g0"] + 10 * g_sigma
                             else:
                                 upper = None
-                            if "g_min" in particle_config:
-                                lower = particle_config["g_min"]
+                            if "width_min" in params_dic:
+                                lower = params_dic["width_min"]
                             # elif g_sigma is not None:
                             #    lower = self.config["particle"][i]["g0"] - 10 * g_sigma
                             else:
