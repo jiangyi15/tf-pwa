@@ -442,7 +442,6 @@ class ConfigLoader(BaseConfig):
                 simple_map = {"m": "mass", "g": "width"}
 
                 gauss_constr = particle_config.get("gauss_constr", None)
-                print(particle_config, params_dic)
                 if gauss_constr is not None:
                     assert isinstance(gauss_constr, dict)
                     for k, v in gauss_constr.items():
