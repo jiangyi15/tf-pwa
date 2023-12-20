@@ -24,7 +24,7 @@ You can go to
 for more informations. Get the packages using
 
 ```
-git clone https://github.com/jiangyi15/tf-pwa
+git clone https://github.com/jiangyi15/tf-pwa.git
 ```
 
 The dependencies can be installed by `conda` or `pip`.
@@ -43,7 +43,7 @@ When using conda, you don't need to install CUDA for TensorFlow specially.
 You can install a tensorflow gpu version in anaconda as
 
 ```
-conda install tensorflow-gpu=2.2
+conda install tensorflow[build="gpu*"]=2.8
 ```
 
 and then install the rest dependences
@@ -143,13 +143,21 @@ python setup.py build_sphinx
 
 Then, the documents can be found in build/sphinx/index.html.
 
-Documents cna also build with `Makefile` in `docs` as
+Documents can also build with `Makefile` in `docs` as
 
 ```
 cd docs && make html
 ```
 
 Then, the documents can be found in docs/\_build/html.
+
+## Other resources
+
+[面向 BESIII 用户的 TF-PWA 使用手册](https://note.ihep.ac.cn/s/xAr0zQXf8)
+
+[HADRON 2023](https://agenda.infn.it/event/33110/contributions/198135/)
+
+[PWA 12](https://indico.cern.ch/event/885396/timetable/#52-reach-on-the-partial-wave-a)
 
 ## Dependencies
 

@@ -60,8 +60,12 @@ class InterpolationParticle(Particle):
 
     def get_point_values(self):
         p = self.point_value()
-        v_r = [0.0] + [tf.math.real(i) for i in p] + [0.0]
-        v_i = [0.0] + [tf.math.imag(i) for i in p] + [0.0]
+        if self.with_bound:
+            v_r = [tf.math.real(i) for i in p]
+            v_i = [tf.math.imag(i) for i in p]
+        else:
+            v_r = [0.0] + [tf.math.real(i) for i in p] + [0.0]
+            v_i = [0.0] + [tf.math.imag(i) for i in p] + [0.0]
         return self.points, v_r, v_i
 
     def get_bin_index(self, m):
@@ -83,6 +87,43 @@ class InterpolationParticle(Particle):
         # print(tf.reduce_max(bin_idx), tf.reduce_min(bin_idx))
         bin_idx = tf.stop_gradient(bin_idx)
         return bin_idx
+
+
+@register_particle("linear_npy")
+class InterpLinearNpy(InterpolationParticle):
+    def __init__(self, *args, **kwargs):
+        self.input_file = kwargs.get("file")
+        self.data = np.load(self.input_file)
+        points = self.data[:, 0]
+        kwargs["points"] = points
+        super().__init__(*args, **kwargs)
+
+    def init_params(self):
+        pass
+
+    def get_point_values(self):
+        v_r = np.concatenate([[0.0], self.data[:, 1], [0.0]])
+        v_i = np.concatenate([[0.0], self.data[:, 1], [0.0]])
+        return self.data[:, 0], v_r, v_i
+
+    def interp(self, m):
+        x, p_r, p_i = self.get_point_values()
+        bin_idx = tf.raw_ops.Bucketize(input=m, boundaries=x)
+        bin_idx = (bin_idx + len(self.bound)) % len(self.bound)
+        ret_r_l = tf.gather(p_r[1:], bin_idx)
+        ret_i_l = tf.gather(p_r[1:], bin_idx)
+        ret_r_r = tf.gather(p_r[:-1], bin_idx)
+        ret_i_r = tf.gather(p_r[:-1], bin_idx)
+        delta = np.concatenate(
+            [[1.0], self.data[1:, 1] - self.data[:-1, 1], [1.0]]
+        )
+        x_left = np.concatenate([[x[0] - 1], x])
+        delta = tf.gather(delta, bin_idx)
+        x_left = tf.gather(x_left, bin_idx)
+        step = (m - x_left) / delta
+        a = step * (ret_r_l - ret_r_r)
+        b = step * (ret_i_l - ret_i_r)
+        return tf.complex(a, b)
 
 
 @register_particle("interp")
@@ -396,7 +437,36 @@ class HistParticle(InterpolationParticle):
 
 @register_particle("hist_idx")
 class InterpHistIdx(HistParticle):
-    """Interpolation for each bins as constant"""
+    """Interpolation for each bins as constant
+
+    use
+
+    .. code::
+
+        min_m: 0.19
+        max_m: 0.91
+        interp_N: 8
+        with_bound: True
+
+    for mass range [0.19, 0.91] and 7 bins
+
+    The first and last are fixed to zero unless set :code:`with_bound: True`.
+
+    This is an example of :math:`k\exp (i k)` for point k.
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> params = {}
+        >>> for i in range(7):
+        ...     params[f"R_BC_point_{i}r"] = i
+        ...     params[f"R_BC_point_{i}i"] = i
+        ...
+        >>> axis = plot_particle_model("hist_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8}, params)
+
+    """
 
     def interp(self, m):
         _, p_r, p_i = self.get_point_values()
@@ -409,7 +479,36 @@ class InterpHistIdx(HistParticle):
 
 @register_particle("spline_c_idx")
 class Interp1DSplineIdx(InterpolationParticle):
-    """Spline function in index way"""
+    """Spline function in index way.
+
+    use
+
+    .. code::
+
+        min_m: 0.19
+        max_m: 0.91
+        interp_N: 8
+        with_bound: True
+
+    for mass range [0.19, 0.91] and 8 interpolation points
+
+    The first and last are fixed to zero unless set :code:`with_bound: True`.
+
+    This is an example of :math:`k\exp (i k)` for point k.
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> params = {}
+        >>> for i in range(8):
+        ...     params[f"R_BC_point_{i}r"] = i
+        ...     params[f"R_BC_point_{i}i"] = i
+        ...
+        >>> axis = plot_particle_model("spline_c_idx", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params, special_points=np.linspace(0.19, 0.91, 8)[1:-1])
+
+    """
 
     def __init__(self, *args, **kwargs):
         self.bc_type = "not-a-knot"
@@ -496,3 +595,123 @@ def get_matrix_interp1d3_v2(x, xi):
     h = tf.stack([poly_i(i) for i in range(1, N)], axis=-1)
     b = tf.zeros_like(x)
     return h, b
+
+
+@register_particle("sppchip")
+class InterpSPPCHIP(InterpolationParticle):
+    """
+    Shape-Preserving Piecewise Cubic Hermite Interpolation Polynomial.
+    It is monotonic in each interval.
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> params = {}
+        >>> for i in range(8):
+        ...     params[f"R_BC_point_{i}r"] = i
+        ...     params[f"R_BC_point_{i}i"] = i
+        ...
+        >>> axis = plot_particle_model("sppchip", {"max_m": 0.91, "min_m": 0.19, "interp_N": 8, "with_bound": True}, params, special_points=np.linspace(0.19, 0.91, 8)[1:-1])
+
+    """
+
+    def init_params(self):
+        super().init_params()
+        self.x_matrix = create_sppchip_matrix(self.points)
+
+    def interp(self, m):
+        p, p_r, p_i = self.get_point_values()
+        idx = self.get_bin_index(m)
+        ret_r = sppchip(m, p, p_r, idx, self.x_matrix)
+        ret_i = sppchip(m, p, p_i, idx, self.x_matrix)
+        return tf.complex(ret_r, ret_i)
+
+
+def create_sppchip_matrix(points):
+    """
+    matrix to solve f(xi),f(xi+1),f'(xi),f'(xi+1)
+
+    """
+    x = np.array(points)
+    a = x[:-1]
+    b = x[1:]
+    one = np.ones_like(a)
+    zero = np.zeros_like(a)
+    matrix = [
+        [one, a, a**2, a**3],
+        [one, b, b**2, b**3],
+        [zero, one, 2 * a, 3 * a**2],
+        [zero, one, 2 * b, 3 * b**2],
+    ]
+    matrix = np.stack(matrix)
+    return np.linalg.inv(np.transpose(matrix, (2, 0, 1)))
+
+
+def sppchip(m, xi, y, idx=None, matrix=None):
+    """
+    Shape-Preserving Piecewise Cubic Hermite Interpolation Polynomial.
+    It is monotonic in each interval.
+
+    >>> from scipy.interpolate import pchip_interpolate
+    >>> x_observed = np.linspace(0.0, 10.0, 11)
+    >>> y_observed = np.sin(x_observed)
+    >>> x = np.linspace(min(x_observed), max(x_observed)-1e-12, num=100)
+    >>> y = pchip_interpolate(x_observed, y_observed, x)
+    >>> assert np.allclose(y, sppchip(x, x_observed, y_observed).numpy())
+
+    """
+    y = tf.stack(y)
+    if idx is None:
+        idx = tf.raw_ops.Bucketize(input=m, boundaries=list(xi)) - 1
+    xi = tf.cast(tf.stack(xi), y.dtype)
+    coeffs = sppchip_coeffs(xi, y, matrix)
+    ai, bi, ci, di = tf.unstack(coeffs, axis=-1)
+    a, b, c, d = (
+        tf.gather(ai, idx),
+        tf.gather(bi, idx),
+        tf.gather(ci, idx),
+        tf.gather(di, idx),
+    )
+    ret = a + m * (b + m * (c + d * m))
+    return ret
+
+
+def sppchip_coeffs(xi, y, matrix=None, eps=1e-12):
+    if matrix is None:
+        matrix = create_sppchip_matrix(xi)
+    h = xi[1:] - xi[:-1]
+    delta = (y[1:] - y[:-1]) / h
+    w1 = 2 * h[1:] + h[:-1]
+    w2 = h[1:] + 2 * h[:-1]
+    cond1 = tf.abs(delta) < eps
+    cond2 = delta[:-1] * delta[1:] <= 0
+    delta_wrap = tf.where(cond1, tf.ones_like(delta), delta)
+    d = (w1 + w2) / (w1 / delta_wrap[:-1] + w2 / delta_wrap[1:])
+    d = tf.where(cond2 | cond1[1:] | cond1[:-1], tf.zeros_like(d), d)
+
+    def cond(p, q):
+        d_tmp = ((2 * h[p] + h[q]) * delta[p] - h[p] * delta[q]) / (
+            h[p] + h[q]
+        )
+        d_tmp = tf.where(
+            d_tmp * delta[p] < 0,
+            tf.zeros_like(d_tmp),
+            tf.where(
+                (delta[p] * delta[q] < 0)
+                & (tf.abs(d_tmp) > 3 * tf.abs(delta[p])),
+                2 * delta[p],
+                d_tmp,
+            ),
+        )
+        return d_tmp
+
+    d1 = cond(0, 1)
+    dn = cond(-1, -2)
+    d = tf.concat([[d1], d, [dn]], axis=0)
+
+    v = tf.stack([y[:-1], y[1:], d[:-1], d[1:]], axis=-1)
+
+    coeffs = tf.linalg.matvec(matrix, v)
+    return coeffs

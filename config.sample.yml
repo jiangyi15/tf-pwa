@@ -5,7 +5,6 @@
 ## line starts with `##` is documnet.
 ## line starts with `#` is option.
 
-
 ## data entry is the data file name list used for fit
 data:
   ## 4-momentum order of final particles in dat files [option]
@@ -41,7 +40,6 @@ data:
   # cached_data: "data/all_data.npy"
   # data_charge: ["data/data4600_cc.dat"] # charge conjugation condition same as weight
   # cp_trans: True # when used charge conjugation as above, this do p -> -p for charge conjugation process.
-
 
 ## `decay` describe the decay structure, each node can be a list of particle name
 decay:
@@ -79,6 +77,7 @@ particle:
     A:
       J: 1 # spin, use 1/2 or 0.5 for half spin
       P: -1 # parity, alias: `Par`
+      mass: 4.6
       # spins: [-1, 1] # list of possible of spin-projected quantum numbers
       # polarization: "vector"  # possible polarization option
   ## final particles
@@ -86,12 +85,15 @@ particle:
     B:
       J: 1
       P: -1
+      mass: 2.1
     C:
       J: 1
       P: -1
+      mass: 1.8
     D:
       J: 0
       P: -1
+      mass: 0.1
   ## map for possible resonances in the same position
   ## each entry is a list of resonances id [option]
   ## include detailed parameters defined in `Resonances.yml`
@@ -119,7 +121,10 @@ constrains:
   #   equal:
   #     mass: [[D1_2430p, D1_2430]]
   ## fix the first decay chain total to 1.0
-  decay: { fix_chain_idx: 0, fix_chain_val: 1 }
+  decay:
+    fix_chain_idx: 0
+    fix_chain_val: 1
+  #   decay_d: 3.0
   # fix_var:
   #   "A->Zc_4025.DZc_4025->B.C_total_0r": 1.0
   # var_range:
@@ -132,6 +137,8 @@ plot:
   ## plot configuration TODO
   config:
     bins: 50
+    # legend_outside: True
+    ## Make the legend outside the plot, default is False (inside)
   ## invariant mass
   mass:
     R_CD:

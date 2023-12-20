@@ -1,8 +1,12 @@
 data:
   dat_order: [B, C, D]
+  extra_var:
+    c:
+      default: 1
   data: [["toy_data/data.dat"], ["toy_data/data.dat"]]
   bg: [["toy_data/bg.dat"], ["toy_data/bg.dat"]]
   phsp: [["toy_data/PHSP.dat"], ["toy_data/PHSP.dat"]]
+  phsp_c: ["toy_data/phsp_eff_value.dat", "toy_data/phsp_eff_value.dat"]
   bg_weight: [0.1, 0.1]
   random_z: False
   r_boost: False
@@ -31,7 +35,9 @@ particle:
 
 constrains:
   particle: null
-  decay: null
+  decay:
+    decay_d:
+      R_BC: 3.0
 
 plot:
   config:

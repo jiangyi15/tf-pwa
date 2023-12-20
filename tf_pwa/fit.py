@@ -194,6 +194,10 @@ def fit_scipy(
     improve=False,
     maxiter=None,
     jac=True,
+    callback=None,
+    standard_complex=True,
+    grad_scale=1.0,
+    gtol=1e-3,
 ):
     """
 
@@ -203,6 +207,7 @@ def fit_scipy(
     :param kwargs:
     :return:
     """
+    gtol *= grad_scale
     args_name = fcn.vm.trainable_vars
     x0 = []
     bnds = []
@@ -220,7 +225,7 @@ def fit_scipy(
     if maxiter is None:
         maxiter = max(100 * len(x0), 2000)
     min_nll = 0.0
-    ndf = 0
+    ndf = fcn.vm.get_all_val(True)
     # maxiter = 0
     def v_g2(x0):
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
@@ -243,6 +248,10 @@ def fit_scipy(
         for i, name in enumerate(args_name):
             print(args_name[i], gs[i], gs0[i])
 
+    callback_inner = lambda x, y: None
+    if callback is not None:
+        callback_inner = callback
+
     if method in ["BFGS", "CG", "Nelder-Mead", "test"]:
 
         def callback(x):
@@ -255,13 +264,19 @@ def fit_scipy(
             #    with open("fit_curve.json", "w") as f:
             #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
             #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
+            callback_inner(x, fcn)
             print(fcn.cached_nll)
 
         # bd = Bounds(bnds)
         fcn.vm.set_bound(bounds_dict)
 
+        if fcn.vm.bnd_dic:
+            print("##boundary: ")
+        for k, v in fcn.vm.bnd_dic.items():
+            print("  ", k, "\t", v)
+
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
-        f_g = Cached_FG(f_g)
+        f_g = Cached_FG(f_g, grad_scale=grad_scale)
         # print(f_g)
         x0 = np.array(fcn.vm.get_all_val(True))
         # print(x0, fcn.vm.get_all_dic())
@@ -274,7 +289,7 @@ def fit_scipy(
                     method=method,
                     jac=True,
                     callback=callback,
-                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                    options={"disp": 1, "gtol": gtol, "maxiter": maxiter},
                 )
             except LargeNumberError:
                 return except_result(fcn, x0.shape[0])
@@ -286,7 +301,7 @@ def fit_scipy(
                     method=method,
                     jac=jac,
                     callback=callback,
-                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                    options={"disp": 1, "gtol": gtol, "maxiter": maxiter},
                 )
             except LargeNumberError:
                 return except_result(fcn, x0.shape[0])
@@ -298,7 +313,7 @@ def fit_scipy(
                     method=method,
                     jac=True,
                     callback=callback,
-                    options={"disp": 1, "gtol": 1e-3, "maxiter": maxiter},
+                    options={"disp": 1, "gtol": gtol, "maxiter": maxiter},
                 )
             except LargeNumberError:
                 return except_result(fcn, x0.shape[0])
@@ -312,7 +327,7 @@ def fit_scipy(
                 method=method,
                 jac=True,
                 callback=callback,
-                options={"disp": 1, "gtol": 1e-2, "maxiter": maxiter},
+                options={"disp": 1, "gtol": gtol * 10, "maxiter": maxiter},
             )
             if hasattr(s, "hess_inv"):
                 edm = np.dot(np.dot(s.hess_inv, s.jac), s.jac)
@@ -330,9 +345,9 @@ def fit_scipy(
 
         # fcn.vm.set_all(s.x, True)
         ndf = s.x.shape[0]
-        min_nll = s.fun
+        min_nll = s.fun / grad_scale
         success = s.success
-        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv, s.x)
+        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv * grad_scale, s.x)
         fcn.vm.remove_bound()
 
         xn = fcn.vm.get_all_val()
@@ -396,6 +411,8 @@ def fit_scipy(
             xn[i] += 1e-5
             gs.append((nll0 - nll1) / 2e-5)
             print(args_name[i], gs[i], gs0[i])
+    if standard_complex:
+        fcn.vm.standard_complex()
     params = fcn.get_params()  # vm.get_all_dic()
     return FitResult(
         params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv
@@ -499,6 +516,7 @@ class FitResult(object):
         self.ndf = int(ndf)
         self.success = success
         self.hess_inv = hess_inv
+        self.extra = {}
 
     def save_as(self, file_name, save_hess=False):
         s = {
@@ -508,6 +526,7 @@ class FitResult(object):
                 "success": self.success,
                 "NLL": self.min_nll,
                 "Ndf": self.ndf,
+                **self.extra,
             },
         }
         if save_hess and self.hess_inv is not None:

@@ -17,10 +17,10 @@ from scipy.optimize import BFGS, basinhopping, minimize
 
 from tf_pwa.adaptive_bins import AdaptiveBound, cal_chi2
 from tf_pwa.amp import (
-    AmplitudeModel,
     DecayChain,
     DecayGroup,
     HelicityDecay,
+    create_amplitude,
     get_decay,
     get_particle,
 )
@@ -67,6 +67,7 @@ class ConfigLoader(BaseConfig):
             share_dict = {}
         super().__init__(file_name, share_dict)
         self.config["data"] = self.config.get("data", {})
+        self.multi_gpu = self.config["data"].get("multi_gpu", False)
         self.share_dict = share_dict
         self.decay_config = DecayConfig(self.config, share_dict)
         self.dec = self.decay_config.dec
@@ -78,7 +79,7 @@ class ConfigLoader(BaseConfig):
         self.full_decay = self.decay_config.full_decay
         self.decay_struct = self.decay_config.decay_struct
         if vm is None:
-            vm = VarsManager()
+            vm = VarsManager(multi_gpu=self.multi_gpu)
         self.vm = vm
         self.amps = {}
         self.cached_data = None
@@ -89,7 +90,6 @@ class ConfigLoader(BaseConfig):
             self.config.get("plot", {}), self.decay_struct
         )
         self._neglect_when_set_params = []
-        self.data = load_data_mode(self["data"], self.decay_struct)
         self.inv_he = None
         self._Ngroup = 1
         self.cached_fcn = {}
@@ -99,6 +99,9 @@ class ConfigLoader(BaseConfig):
         )
         self.chains_id_method = "auto"
         self.chains_id_method_table = {}
+        self.data = load_data_mode(
+            self["data"], self.decay_struct, config=self
+        )
 
     @staticmethod
     def load_config(file_name, share_dict={}):
@@ -146,18 +149,6 @@ class ConfigLoader(BaseConfig):
                 new_order.append(i)
         return new_order
 
-    def get_data_mode(self):
-        data_config = self.config.get("data", {})
-        data = data_config.get("data", "")
-        if isinstance(data, str):
-            mode = "single"
-        elif isinstance(data, list):
-            data_i = data[0]
-            if isinstance(data_i, str):
-                return "single"
-            elif isinstance(data_i, list):
-                return "multi"
-
     @functools.lru_cache()
     def get_data(self, idx):
         return self.data.get_data(idx)
@@ -196,13 +187,19 @@ class ConfigLoader(BaseConfig):
         )
         return self.get_data("phsp")[0]
 
-    def get_phsp_plot(self):
-        if "phsp_plot" in self.config["data"]:
-            assert len(self.config["data"]["phsp_plot"]) == len(
+    def get_phsp_plot(self, tail=""):
+        if "phsp_plot" + tail in self.config["data"]:
+            assert len(self.config["data"]["phsp_plot" + tail]) == len(
                 self.config["data"]["phsp"]
             )
-            return self.get_data("phsp_plot")
-        return self.get_data("phsp")
+            return self.get_data("phsp_plot" + tail)
+        return self.get_data("phsp" + tail)
+
+    def get_data_rec(self, name):
+        ret = self.get_data(name + "_rec")
+        if ret is None:
+            ret = self.get_data(name)
+        return ret
 
     def get_decay(self, full=True):
         if full:
@@ -212,17 +209,28 @@ class ConfigLoader(BaseConfig):
 
     @functools.lru_cache()
     def get_amplitude(self, vm=None, name=""):
-        use_tf_function = self.config.get("data", {}).get(
-            "use_tf_function", False
-        )
+        amp_config = self.config.get("data", {})
+        use_tf_function = amp_config.get("use_tf_function", False)
+        no_id_cached = amp_config.get("no_id_cached", False)
+        jit_compile = amp_config.get("jit_compile", False)
+        amp_model = amp_config.get("amp_model", "default")
+        cached_shape_idx = amp_config.get("cached_shape_idx", None)
         decay_group = self.full_decay
         self.check_valid_jp(decay_group)
         if vm is None:
             vm = self.vm
         if vm in self.amps:
             return self.amps[vm]
-        amp = AmplitudeModel(
-            decay_group, vm=vm, name=name, use_tf_function=use_tf_function
+        amp = create_amplitude(
+            decay_group,
+            vm=vm,
+            name=name,
+            use_tf_function=use_tf_function,
+            no_id_cached=no_id_cached,
+            jit_compile=jit_compile,
+            model=amp_model,
+            cached_shape_idx=cached_shape_idx,
+            all_config=amp_config,
         )
         self.add_constraints(amp)
         self.amps[vm] = amp
@@ -257,6 +265,13 @@ class ConfigLoader(BaseConfig):
         self.add_free_var_constraints(amp, constrains.get("free_var", []))
         self.add_var_range_constraints(amp, constrains.get("var_range", {}))
         self.add_var_equal_constraints(amp, constrains.get("var_equal", []))
+        self.add_pre_trans_constraints(amp, constrains.get("pre_trans", None))
+        self.add_from_trans_constraints(
+            amp, constrains.get("from_trans", None)
+        )
+        self.add_gauss_constr_constraints(
+            amp, constrains.get("gauss_constr", {})
+        )
         for k, v in self.extra_constrains.items():
             v(amp, constrains.get(k, {}))
 
@@ -302,6 +317,44 @@ class ConfigLoader(BaseConfig):
             print("same value:", k)
             amp.vm.set_same(k)
 
+    def add_pre_trans_constraints(self, amp, dic=None):
+        if dic is None:
+            return
+        from tf_pwa.transform import create_trans
+
+        for k, v in dic.items():
+            print("transform:", k, v)
+            v["x"] = v.get("x", k)
+            trans = create_trans(v)
+            amp.vm.pre_trans[k] = trans
+
+    def add_from_trans_constraints(self, amp, dic=None):
+        if dic is None:
+            return
+        var_equal = []
+        pre_trans = {}
+        new_var = []
+        for k, v in dic.items():
+            x = v.pop("x", None)
+            if x is not None:
+                if isinstance(x, list) and k != x[0]:
+                    new_var += x
+                    var_equal.append([x[0], k])
+                elif isinstance(x, str) and x != k:
+                    new_var.append(x)
+                    var_equal.append([x, k])
+                else:
+                    raise TypeError("x should be str or list")
+            else:
+                x = k
+            v["x"] = x
+            pre_trans[k] = v
+        for i in new_var:
+            if i not in amp.vm.variables:
+                amp.vm.add_real_var(i)
+        ConfigLoader.add_var_equal_constraints(self, amp, var_equal)
+        ConfigLoader.add_pre_trans_constraints(self, amp, pre_trans)
+
     def add_decay_constraints(self, amp, dic=None):
         if dic is None:
             dic = {}
@@ -311,6 +364,33 @@ class ConfigLoader(BaseConfig):
         fix_decay = amp.decay_group.get_decay_chain(fix_total_idx)
         # fix which total factor
         fix_decay.total.set_fix_idx(fix_idx=0, fix_vals=(fix_total_val, 0.0))
+
+        decay_d = dic.get("decay_d", None)
+        if decay_d is not None:
+            if isinstance(decay_d, (float, int)):
+                decay_d = [decay_d] * len(amp.decay_group[0])
+            if isinstance(decay_d, (list, tuple)):
+                for i in amp.decay_group:
+                    for d, j in zip(decay_d, i):
+                        if hasattr(j.core, "d"):
+                            j.core.d = d
+                        if hasattr(j, "d"):
+                            j.d = d
+            elif isinstance(decay_d, dict):
+                for i in amp.decay_group:
+                    for d, j in zip(decay_d, i):
+                        if j.core.name in decay_d:
+                            d = decay_d.get(j.core.name)
+                            if hasattr(j.core, "d"):
+                                j.core.d = d
+                            if hasattr(j, "d"):
+                                j.d = d
+            else:
+                raise ValueError("decay_d should be list or dict")
+
+    def add_gauss_constr_constraints(self, amp, dic=None):
+        dic = {} if dic is None else dic
+        self.gauss_constr_dic.update(dic)
 
     def free_for_extended(self, amp):
         constrains = self.config.get("constrains", {})
@@ -331,7 +411,7 @@ class ConfigLoader(BaseConfig):
         res_dec = {}
         for d in amp.decay_group:
             for p_i in d.inner:
-                i = str(p_i)
+                i = p_i.name
                 res_dec[i] = d
                 prefix_map = {
                     "m0": "mass",
@@ -370,7 +450,7 @@ class ConfigLoader(BaseConfig):
                             full_name = variable_prefix + name
                             var0 = self.vm.get(full_name)
                             self.gauss_constr_dic[full_name] = (
-                                var0.value,
+                                float(var0),
                                 v,
                             )
                         else:
@@ -384,14 +464,14 @@ class ConfigLoader(BaseConfig):
                     if "float" in particle_config and particle_config["float"]:
                         if "m" in particle_config["float"]:
                             p_i.mass.freed()  # set_fix(i+'_mass',unfix=True)
-                            if "m_max" in particle_config:
-                                upper = particle_config["m_max"]
+                            if "mass_max" in params_dic:
+                                upper = params_dic["mass_max"]
                             # elif m_sigma is not None:
                             #    upper = self.config["particle"][i]["m0"] + 10 * m_sigma
                             else:
                                 upper = None
-                            if "m_min" in particle_config:
-                                lower = particle_config["m_min"]
+                            if "mass_min" in params_dic:
+                                lower = params_dic["mass_min"]
                             # elif m_sigma is not None:
                             #    lower = self.config["particle"][i]["m0"] - 10 * m_sigma
                             else:
@@ -401,14 +481,14 @@ class ConfigLoader(BaseConfig):
                             self._neglect_when_set_params.append(str(p_i.mass))
                         if "g" in particle_config["float"]:
                             p_i.width.freed()  # amp.vm.set_fix(i+'_width',unfix=True)
-                            if "g_max" in particle_config:
-                                upper = particle_config["g_max"]
+                            if "width_max" in params_dic:
+                                upper = params_dic["width_max"]
                             # elif g_sigma is not None:
                             #    upper = self.config["particle"][i]["g0"] + 10 * g_sigma
                             else:
                                 upper = None
-                            if "g_min" in particle_config:
-                                lower = particle_config["g_min"]
+                            if "width_min" in params_dic:
+                                lower = params_dic["width_min"]
                             # elif g_sigma is not None:
                             #    lower = self.config["particle"][i]["g0"] - 10 * g_sigma
                             else:
@@ -481,7 +561,13 @@ class ConfigLoader(BaseConfig):
                     )
                 else:
                     model.append(
-                        Model_cfit(amp, wb, bg_function, eff_function)
+                        Model_cfit(
+                            amp,
+                            wb,
+                            bg_function,
+                            eff_function,
+                            resolution_size=self.resolution_size,
+                        )
                     )
         elif "inmc" in self.config["data"]:
             float_wmc = self.config["data"].get(
@@ -498,10 +584,45 @@ class ConfigLoader(BaseConfig):
         elif self.config["data"].get("cached_amp", False):
             for wb in w_bkg:
                 model.append(ModelCachedAmp(amp, wb))
+        elif model_name not in ["auto", "default"]:
+            from tf_pwa.model.model import get_nll_model
+
+            extended = self.config["data"].get("extended", False)
+            if extended:
+                self.free_for_extended(amp)
+            NewModel = get_nll_model(model_name)
+            nll_params = copy.copy(self.config.get("nll_model", {}))
+            params = {}
+            for i in getattr(NewModel, "required_params", []):
+                if i in self.config["data"]:
+                    params[i] = self.config["data"][i]
+                elif i in nll_params:
+                    params[i] = nll_params.pop(i)
+                else:
+                    raise IndexError(
+                        "not found required params {} for nll model".format(i)
+                    )
+            nll_params = self.config.get("nll_model", {})
+            for idx, wb in enumerate(w_bkg):
+                new_params = {k: v for k, v in nll_params.items()}
+                for k, v in params.items():
+                    if isinstance(v, list):
+                        new_params[k] = v[idx]
+                    else:
+                        new_params[k] = v
+                model.append(NewModel(amp, w_bkg=wb, **new_params))
         else:
+            extended = self.config["data"].get("extended", False)
+            if extended:
+                self.free_for_extended(amp)
             for wb in w_bkg:
                 model.append(
-                    Model(amp, wb, resolution_size=self.resolution_size)
+                    Model(
+                        amp,
+                        wb,
+                        resolution_size=self.resolution_size,
+                        extended=extended,
+                    )
                 )
         return model
 
@@ -549,6 +670,7 @@ class ConfigLoader(BaseConfig):
             bg = [None] * self._Ngroup
         model = self._get_model(vm=vm, name=name)
         fcns = []
+
         # print(self.config["data"].get("using_mix_likelihood", False))
         if self.config["data"].get("using_mix_likelihood", False):
             print("  Using Mix Likelihood")
@@ -563,7 +685,9 @@ class ConfigLoader(BaseConfig):
             if all_data is None:
                 self.cached_fcn[vm] = fcn
             return fcn
-        for md, dt, mc, sb, ij in zip(model, data, phsp, bg, inmc):
+        for idx, (md, dt, mc, sb, ij) in enumerate(
+            zip(model, data, phsp, bg, inmc)
+        ):
             if self.config["data"].get("model", "auto") == "cfit":
                 fcns.append(
                     FCN(
@@ -632,6 +756,9 @@ class ConfigLoader(BaseConfig):
         maxiter=None,
         jac=True,
         print_init_nll=True,
+        callback=None,
+        grad_scale=1.0,
+        gtol=1e-3,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
@@ -665,6 +792,9 @@ class ConfigLoader(BaseConfig):
             improve=False,
             maxiter=maxiter,
             jac=jac,
+            callback=callback,
+            grad_scale=grad_scale,
+            gtol=gtol,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
@@ -703,11 +833,12 @@ class ConfigLoader(BaseConfig):
             correct_params = []
             if method is None:
                 method = "correct"
-        if data is None:
-            data, phsp, bg, inmc = self.get_all_data()
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
+        if not using_cached:
+            if data is None:
+                data, phsp, bg, inmc = self.get_all_data()
+            fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
         if using_cached and self.inv_he is not None:
             hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
         elif method == "3-point":
@@ -737,7 +868,7 @@ class ConfigLoader(BaseConfig):
         # print("correlation matrix:")
         # print(corr_coef_matrix(self.inv_he))
         print("hesse_error:", hesse_error)
-        err = dict(zip(fcn.vm.trainable_vars, hesse_error))
+        err = dict(zip(self.vm.trainable_vars, hesse_error))
         if hasattr(self, "fit_params"):
             self.fit_params.set_error(err)
         return err
@@ -779,16 +910,18 @@ class ConfigLoader(BaseConfig):
             res = sorted(
                 list(set([str(i) for i in amp.res]) - set(exclude_res))
             )
-        frac, err_frac = fit_fractions(
+        frac_and_err = fit_fractions(
             amp, mcdata, self.inv_he, params, batch, res, method=method
         )
-        return frac, err_frac
+        return frac_and_err
 
     def cal_signal_yields(self, params={}, mcdata=None, batch=25000):
         if hasattr(params, "params"):
             params = getattr(params, "params")
         if mcdata is None:
             mcdata = self.get_data("phsp")
+
+        extended = self.config["data"].get("extended", False)
         amp = self.get_amplitude()
         fracs = [
             fit_fractions(amp, i, self.inv_he, params, batch) for i in mcdata
@@ -814,6 +947,8 @@ class ConfigLoader(BaseConfig):
         for frac_e, N_e in zip(fracs, N_total):
             frac, frac_err = frac_e
             N, N_err = N_e
+            if extended:
+                N_err = 0.0
             N_sig = {}
             for i in frac:
                 N_sig[i] = (
@@ -867,6 +1002,8 @@ class ConfigLoader(BaseConfig):
             except Exception as e:
                 print(e)
                 return False
+        else:
+            neglect_params = []
         if hasattr(params, "params"):
             params = params.params
         if isinstance(params, dict):
@@ -884,6 +1021,11 @@ class ConfigLoader(BaseConfig):
         amplitude.set_params(ret)
         return True
 
+    @contextlib.contextmanager
+    def mask_params(self, var):
+        with self.vm.mask_params(var):
+            yield
+
     def save_params(self, file_name):
         params = self.get_params()
         val = {k: float(v) for k, v in params.items()}
@@ -894,6 +1036,69 @@ class ConfigLoader(BaseConfig):
     def params_trans(self):
         with self.vm.error_trans(self.inv_he) as f:
             yield f
+
+    @contextlib.contextmanager
+    def mask_params(self, params):
+        with self.vm.mask_params(params):
+            yield
+
+    def attach_fix_params_error(self, params: dict, V_b=None) -> np.ndarray:
+        """
+        The minimal condition
+
+        .. math::
+            -\\frac{\\partial\\ln L(a,b)}{\\partial a} = 0,
+
+        can be treated as a implect function :math:`a(b)`. The gradients is
+
+        .. math::
+            \\frac{\\partial a }{\\partial b} = - (\\frac{\\partial^2 \ln L(a,b)}{\\partial a \\partial a })^{-1}
+            \\frac{\\partial \ln L(a,b)}{\\partial a\\partial b }.
+
+        The uncertanties from b with error matrix :math:`V_b` can propagate to a as
+
+        .. math::
+            V_a = \\frac{\\partial a }{\\partial b} V_b \\frac{\\partial a }{\\partial b}
+
+        This matrix will be added to the config.inv_he.
+
+        """
+        fcn = self.get_fcn()
+        new_params = list(params)
+        for i in new_params:
+            fcn.vm.set_fix(i, unfix=True)
+        all_params = list(fcn.vm.trainable_vars)
+        old_params = [i for i in all_params if i not in new_params]
+        _, _, hess = fcn.nll_grad_hessian()
+        hess = data_to_numpy(hess)
+        for i in new_params:
+            fcn.vm.set_fix(i)
+
+        idx_a = np.array([all_params.index(i) for i in old_params])
+        idx_b = np.array([all_params.index(i) for i in new_params])
+
+        hess_aa = hess[idx_a][:, idx_a]
+        hess_ab = hess[idx_a][:, idx_b]
+
+        hess_aa = np.stack(hess_aa)
+        hess_ab = np.stack(hess_ab)
+        grad = np.dot(np.linalg.inv(hess_aa), hess_ab)
+
+        if V_b is None:
+            V_b = np.diag(list(params.values())) ** 2
+
+        V = np.dot(np.dot(grad, V_b), grad.T)
+
+        if self.inv_he is None:
+            old_V = 0.0
+        else:
+            old_V = self.inv_he
+        new_V = old_V + V
+        self.inv_he = new_V
+        return V
+
+    def batch_sum_var(self, *args, **kwargs):
+        return self.vm.batch_sum_var(*args, **kwargs)
 
     def save_tensorflow_model(self, dir_name):
         class CustomModule(tf.Module):
@@ -1078,6 +1283,10 @@ class PlotParams(dict):
             units = v.get("units", "GeV")
             bins = v.get("bins", self.defaults_config.get("bins", 50))
             legend = v.get("legend", self.defaults_config.get("legend", True))
+            legend_outside = v.get(
+                "legend_outside",
+                self.defaults_config.get("legend_outside", False),
+            )
             yscale = v.get(
                 "yscale", self.defaults_config.get("yscale", "linear")
             )
@@ -1091,6 +1300,7 @@ class PlotParams(dict):
                     "m",
                 ),
                 "legend": legend,
+                "legend_outside": legend_outside,
                 "range": xrange,
                 "bins": bins,
                 "trans": trans,
@@ -1144,6 +1354,10 @@ class PlotParams(dict):
                 legend = v.get(
                     "legend", self.defaults_config.get("legend", False)
                 )
+                legend_outside = v.get(
+                    "legend_outside",
+                    self.defaults_config.get("legend_outside", False),
+                )
                 yscale = v.get(
                     "yscale", self.defaults_config.get("yscale", "linear")
                 )
@@ -1170,6 +1384,7 @@ class PlotParams(dict):
                     "bins": bins,
                     "range": xrange,
                     "legend": legend,
+                    "legend_outside": legend_outside,
                     "yscale": yscale,
                 }
 

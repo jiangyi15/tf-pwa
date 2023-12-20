@@ -125,10 +125,13 @@ class HelicityAngle:
     def get_phsp_factor(self, name, m):
         m = tf.convert_to_tensor(m, tf.float64)
         ms = self.get_all_mass({name: m})
+        return self.eval_phsp_factor(ms)
+
+    def eval_phsp_factor(self, ms):
         ps = []
         for i in self.decay_chain:
             ps.append(get_relative_p(ms[i.core], ms[i.outs[0]], ms[i.outs[1]]))
-        ret = tf.ones_like(m)
+        ret = tf.ones_like(ms[i.core])
         for i in ps:
             ret = ret * tf.cast(i, ret.dtype)
         return ret
@@ -163,6 +166,12 @@ class HelicityAngle:
         ms = {**mi, **m1, **m2}
         ms = {topo_map[k]: v for k, v in ms.items()}
         return ms, costheta, phi
+
+    def cal_angle(self, p4):
+        from tf_pwa.cal_angle import DecayGroup, cal_angle_from_momentum
+
+        decay_group = DecayGroup([self.decay_chain])
+        return cal_angle_from_momentum(p4, decay_group)
 
     def mass_linspace(self, name, N):
         x_min, x_max = self.get_mass_range(name)
@@ -265,7 +274,7 @@ def lorentz_neg(pc):
 def generate_p(ms, msp, costheta, phi):
     """
     ms(0) -> ms(1) + msp(0), costheta(0), phi(0)
-    ms(1) -> ms(2) + msp(1), costheta(0), phi(0)
+    ms(1) -> ms(2) + msp(1), costheta(1), phi(1)
     ...
     ms(n) -> ms(n+1) + msp(n), costheta(n), phi(n)
 

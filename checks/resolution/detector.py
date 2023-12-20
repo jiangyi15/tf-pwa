@@ -11,13 +11,20 @@ from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.data import data_mask
 from tf_pwa.data_trans.helicity_angle import HelicityAngle
 
-config = ConfigLoader("config.yml")
-decay_chain = config.get_decay(False).get_decay_chain("BC")
-ha = HelicityAngle(decay_chain)
-
 # loda detector model parameters
 with open("detector.yml") as f:
     detector_config = yaml.safe_load(f)
+
+config = ConfigLoader(detector_config["config"])
+decay_chain = config.get_decay(False).get_decay_chain(
+    detector_config["particle"]
+)
+ha = HelicityAngle(decay_chain)
+
+m_min = detector_config["mi"][0] + detector_config["mi"][1]
+m_max = detector_config["m0"] - detector_config["mi"][-1]
+m_range = m_min, m_max
+# m_range = ha.get_mass_range(detector_config["particle"])
 
 
 def detector(data):
@@ -27,7 +34,7 @@ def detector(data):
 
     ms, costheta, phi = ha.find_variable(data)
     p_map = {str(i): i for i in ms.keys()}
-    m = ms[p_map["BC"]]
+    m = ms[p_map[detector_config["particle"]]]
 
     # smear mass
     new_m = (
@@ -38,14 +45,20 @@ def detector(data):
     )
 
     # selected with effecency, eff(m) = m
-    weight = m
-    max_w = 2.0
+    weight = detector_config["eff_k"] * m + detector_config["eff_b"]
+    left_weight = (
+        detector_config["eff_k"] * m_range[0] + detector_config["eff_b"]
+    )
+    right_weight = (
+        detector_config["eff_k"] * m_range[1] + detector_config["eff_b"]
+    )
+    max_w = max(left_weight, right_weight)
     cut = max_w * tf.random.uniform(shape=m.shape, dtype=m.dtype) < weight
     # selected in reconstructed value, a mass cut
-    cut = (cut) & (new_m < 1.9) & (new_m > 0.2)
+    cut = (cut) & (new_m < m_range[1]) & (new_m > m_range[0])
 
     toy_truth = data_mask(data, cut)
-    ms[p_map["BC"]] = new_m
+    ms[p_map[detector_config["particle"]]] = new_m
     toy_rec = ha.build_data(*data_mask((ms, costheta, phi), cut))
     toy_rec = config.data.cal_angle(toy_rec)
 
@@ -61,14 +74,20 @@ def relative_p(m0, m1, m2):
 
 def phsp_factor(m):
     """phase space factor"""
-    p1 = relative_p(2.0, m, 0.1)
-    p2 = relative_p(m, 0.1, 0.1)
+    # return ha.get_phsp_factor(detector_config["particle"], m)
+    p1 = relative_p(detector_config["m0"], m, detector_config["mi"][-1])
+    p2 = relative_p(m, detector_config["mi"][0], detector_config["mi"][1])
     return p1 * p2
 
 
 def gauss(delta, sigma):
     """simple gauss function without normalisation"""
     return np.exp(-(delta**2) / 2 / sigma**2)
+
+
+def log_gauss(delta, sigma):
+    """simple gauss function without normalisation"""
+    return -(delta**2) / 2 / sigma**2
 
 
 def trans_function(m1, m2):
@@ -79,15 +98,32 @@ def trans_function(m1, m2):
 
     delta = m2 - m1 - detector_config["bias"]
     r1 = gauss(delta, sigma=detector_config["sigma"])
-    eff = np.where((m2 > 0.2) & (m2 < 1.9), m1, 0.0) * phsp_factor(m1)
+    eff = np.where(
+        (m2 > m_range[0]) & (m2 < m_range[1]), m1, 0.0
+    ) * phsp_factor(m1)
     return r1 * eff
+
+
+def log_trans_function(m1, m2):
+    """
+    log transisation function
+
+    """
+
+    delta = m2 - m1 - detector_config["bias"]
+    r1 = log_gauss(delta, sigma=detector_config["sigma"])
+    eff = np.where(
+        (m2 > m_range[0]) & (m2 < m_range[1]), m1, 0.0
+    ) * phsp_factor(m1)
+    cut = np.where(eff < 1e-6, 0.0, 1.0)
+    return r1 + np.log(np.where(cut == 0, 1, eff)), cut
 
 
 def rec_function(m2):
     """pdf of reconstructed value"""
     ret = 0
     N = 10000
-    m1 = np.linspace(0.2, 1.9, N)
+    m1 = np.linspace(m_range[0], m_range[1], N)
     ret = trans_function(m1[:, None], m2)
     return np.mean(ret, axis=0)
 
@@ -96,7 +132,7 @@ def truth_function(m1):
     """pdf of truth value"""
     ret = 0
     N = 10000
-    m2 = np.linspace(0.2, 1.9, N)
+    m2 = np.linspace(m_range[0], m_range[1], N)
     ret = trans_function(m1[:, None], m2)
     return np.mean(ret, axis=1)
 
@@ -104,8 +140,12 @@ def truth_function(m1):
 def delta_function(delta):
     """pdf of reconstructed value - truth value"""
     N = 10000
-    ms_min = 0.2 * 2 + np.abs(delta)  # np.where(delta<0, 0.2+delta, 0.2-delta)
-    ms_max = 1.9 * 2 - np.abs(delta)  # np.where(delta<0, 1.9+delta, 1.9-delta)
+    ms_min = m_range[0] * 2 + np.abs(
+        delta
+    )  # np.where(delta<0, 0.2+delta, 0.2-delta)
+    ms_max = m_range[1] * 2 - np.abs(
+        delta
+    )  # np.where(delta<0, 1.9+delta, 1.9-delta)
     # print(delta, ms_min, ms_max)
     ms = (
         np.linspace(0.0 + 1 / 2 / N, 1.0 - 1 / 2 / N, N)[:, None]
@@ -128,4 +168,3 @@ def run(name):
 if __name__ == "__main__":
     run("toy")
     run("phsp")
-    run("phsp_plot")

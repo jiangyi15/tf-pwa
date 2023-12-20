@@ -1,11 +1,11 @@
-{% set version = "0.1.7" %}
+{% set version = "0.2.0" %}
 
 package:
   name: tf-pwa
   version: {{ version }}
 
 source:
-  git_url: https://github.com/jiangyi15/tf-pwa
+  git_url: .. # https://github.com/jiangyi15/tf-pwa
   # git_depth: 1 # (Defaults to -1/not shallow)
 #  patches:
    # List any patch files here
@@ -35,14 +35,14 @@ build:
   ## number: 1
 
 requirements:
-  build:
-    - python=3.8.3
-    - setuptools=46.4.0
-    - setuptools-scm=4.1.2
+  host:
+    - python=3.9.18
+    - setuptools=68.0.0
+    - setuptools-scm=7.1.0
 
   run:
-    - python=3.8
-    - tensorflow-gpu>=2.0.0
+    - python>=3.6
+    - tensorflow
     - matplotlib
     - scipy
     - sympy
@@ -64,6 +64,8 @@ test:
   ## You can also put a file called run_test.py in the recipe that will be run
   ## at test time.
 
+  requires:
+    - numpy=1.19
   #requires:
     #- pytest
     #- pytest-benchmark

@@ -41,11 +41,13 @@ class KmatrixSimple(KmatrixSplitLSParticle):
         P_{i} = \\sum_{a} \\frac{\\beta_{a} g_{i,a}}{m_a^2 - m^2 +i\\epsilon} + f_{bkg,i}
 
     total amplitude
+
     .. math::
 
         R(m) = n (1 - K i \\rho n^2)^{-1} P
 
     barrief factor
+
     .. math::
 
         n_{ii} = q_i^l B'_l(q_i, 1/d, d)

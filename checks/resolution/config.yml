@@ -3,12 +3,10 @@ data:
   resolution_size: 100
   data: ["data/data.dat"]
   data_weight: ["data/data_w.dat"]
-  data_origin: ["data/toy_rec.dat"]
+  data_rec: ["data/toy_rec.dat"]
   phsp: ["data/phsp_truth.dat"]
+  phsp_rec: ["data/phsp_rec.dat"]
   phsp_noeff: ["data/phsp_plot.dat"]
-  phsp_plot: ["data/phsp_plot_rec.dat"]
-  phsp_plot_re: ["data/phsp_plot_re.npy"]
-  phsp_plot_re_weight: ["data/phsp_plot_re_w.dat"]
 
 decay:
   A:
@@ -62,6 +60,8 @@ constrains:
   decay: { fix_chain_idx: 0, fix_chain_val: 1 }
 
 plot:
+  config:
+    yscale: "log"
   mass:
     BC:
       display: "M(BC)"

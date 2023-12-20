@@ -1,0 +1,88 @@
+data:
+  model: cfit
+  bg_frac: 0.0909091
+  resolution_size: 1
+  data_bg_value: "toy_data/data_bg_value.dat"
+  phsp_bg_value: "toy_data/phsp_bg_value.dat"
+  data_rec_bg_value: "toy_data/data_bg_value.dat"
+  phsp_rec_bg_value: "toy_data/phsp_bg_value.dat"
+  dat_order: [B, C, D]
+  data: ["toy_data/data.dat"]
+  data_rec: ["toy_data/data.dat"]
+  phsp: ["toy_data/PHSP.dat"]
+  phsp_rec: ["toy_data/PHSP.dat"]
+
+decay:
+  A:
+    - [R_BC, D]
+    - [R_BD, C]
+    - [R_CD, B]
+  R_BC: [B, C]
+  R_BD: [B, D]
+  R_CD: [C, D, barrier_factor_norm: True]
+
+particle:
+  $top:
+    A: { J: 1, P: -1, spins: [-1, 1], mass: 4.6 }
+  $finals:
+    B: { J: 1, P: -1, mass: 2.00698 }
+    C: { J: 1, P: -1, mass: 2.01028 }
+    D: { J: 0, P: -1, mass: 0.13957 }
+  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, model: BWR2 }
+  R_BD:
+    {
+      J: 1,
+      Par: 1,
+      m0: 2.43,
+      g0: 0.3,
+      model: BW,
+      float: mg,
+      gauss_constr: { "m": 0.01 },
+    }
+  R_CD: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
+
+constrains:
+  particle: null
+  decay: null
+  var_equal:
+    - ["A->R_BC.DR_BC->B.C_total_0r", "A->R_BD.CR_BD->B.D_total_0r"]
+  free_var:
+    - "R_BC_mass"
+  fix_var:
+    "A->R_CD.BR_CD->C.D_total_0r": 0.33
+  gauss_constr:
+    R_BC_mass: [4.16, 0.02]
+
+plot:
+  mass:
+    R_BC: { display: "$M_{BC}$" }
+    R_BD: { display: "$M_{BD}$" }
+    R_CD: { display: "$M_{CD}$" }
+  angle:
+    R_BC:
+      cos(beta): { display: "$cos(\\theta)$" }
+  aligned_angle:
+    R_BC/B:
+      cos(beta): { display: "$cos(\\beta)$" }
+  2Dplot:
+    dalitz_12:
+      x: m_R_BC**2
+      y: m_R_BD**2
+    mass_angle:
+      x: m1
+      y: costheta
+      where:
+        m1: [mass, R_BC]
+        costheta: [angle, R_BC, cos(beta)]
+      xbins: 50
+      ybins: 50
+      plot_figs: ["data", "data_hist", "sideband_hist", "fitted"]
+    angle2:
+      x: a
+      y: costheta
+      where:
+        a: [aligned_angle, R_BC/B, cos(beta)]
+        costheta: [angle, R_BC, cos(beta)]
+      xbins: 50
+      ybins: 50
+      plot_figs: ["data", "sideband_hist", "fitted"]

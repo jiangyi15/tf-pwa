@@ -11,7 +11,7 @@ from tf_pwa import set_random_seed
 from tf_pwa.applications import gen_data, gen_mc
 from tf_pwa.config_loader import ConfigLoader, MultiConfig
 from tf_pwa.experimental import build_amp
-from tf_pwa.utils import tuple_table
+from tf_pwa.utils import save_frac_csv
 
 matplotlib.use("agg")
 
@@ -65,8 +65,36 @@ def gen_toy():
 
 
 @pytest.fixture
+def toy_npy(gen_toy):
+    for i in ["data", "bg", "PHSP"]:
+        data = np.loadtxt(f"toy_data/{i}.dat")
+        np.save(f"toy_data/{i}_npy.npy", data)
+
+
+@pytest.fixture
 def toy_config(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_toy.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
+@pytest.fixture
+def toy_config_extended(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_extended.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
+@pytest.fixture
+def toy_config_npy(toy_npy):
+    config = ConfigLoader(f"{this_dir}/config_toy_npy.yml")
+    config.set_params(f"{this_dir}/exp_params.json")
+    return config
+
+
+@pytest.fixture
+def toy_config_lazy(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_lazycall.yml")
     config.set_params(f"{this_dir}/exp_params.json")
     return config
 
@@ -83,7 +111,7 @@ def toy_config2(gen_toy, fit_result):
     config = MultiConfig(
         [f"{this_dir}/config_toy.yml", f"{this_dir}/config_toy2.yml"]
     )
-    config.set_params(f"{this_dir}/exp2_params.json")
+    config.set_params(f"{this_dir}/exp_params.json")
     return config
 
 
@@ -106,6 +134,7 @@ def toy_config3(gen_toy):
 @pytest.fixture
 def fit_result(toy_config):
     ret = toy_config.fit()
+    assert np.allclose(ret.min_nll, -204.9468493307786)
     return ret
 
 
@@ -147,12 +176,44 @@ def test_cfit(gen_toy):
     plotter.plot_var(amp)
 
 
+def test_precached(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_precached.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    fcn = config.get_fcn()
+    fcn({})
+    fcn.nll_grad({})
+    config.plot_partial_wave(prefix="toy_data/figure/s5")
+
+
+def test_precached2(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_precached2.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    fcn = config.get_fcn()
+    fcn({})
+    fcn.nll_grad({})
+
+
+def test_precached3(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_precached3.yml")
+    config.set_params(f"{this_dir}/gen_params.json")
+    fcn = config.get_fcn()
+    fcn({})
+    fcn.nll_grad({})
+
+
 def test_cfit_cached(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_cfit_cached.yml")
     config.set_params(f"{this_dir}/gen_params.json")
     fcn = config.get_fcn()
     fcn({})
     fcn.nll_grad({})
+
+
+def test_extended(toy_config_extended):
+    fcn = toy_config_extended.get_fcn()
+    fcn({})
+    fcn.nll_grad()
+    toy_config_extended.cal_signal_yields()
 
 
 def test_cfit_extended(gen_toy):
@@ -181,12 +242,23 @@ def test_fit_lazy_call(gen_toy):
     config_dic["data"]["lazy_call"] = True
     config = ConfigLoader(config_dic)
     config.set_params(f"{this_dir}/exp_params.json")
-    config.fit(print_init_nll=False)
+    results = config.fit(print_init_nll=False)
+    assert np.allclose(results.min_nll, -204.9468493307786)
     fcn = config.get_fcn()
     fcn.nll_grad()
     config.plot_partial_wave(prefix="toy_data/figure/s2")
     config.get_plotter().save_all_frame(prefix="toy_data/figure/s3")
     config.cal_fitfractions()
+
+
+def test_cfit_resolution(gen_toy):
+    with open(f"{this_dir}/config_rec.yml") as f:
+        config_dic = yaml.full_load(f)
+    config = ConfigLoader(config_dic)
+    config.set_params(f"{this_dir}/exp_params.json")
+    fcn = config.get_fcn()
+    fcn.nll_grad()
+    config.plot_partial_wave(prefix="toy_data/figure/c3")
 
 
 def test_constrains(gen_toy):
@@ -205,12 +277,21 @@ def test_constrains(gen_toy):
 
 
 def test_fit(toy_config, fit_result):
+    toy_config.plot_partial_wave(
+        prefix="toy_data/figure/no_pull", plot_pull=False
+    )
+    toy_config.plot_partial_wave(
+        prefix="toy_data/figure/has_pull", plot_pull=True, add_chi2=True
+    )
     toy_config.plot_partial_wave(prefix="toy_data/figure", save_root=True)
     toy_config.plot_partial_wave(
         prefix="toy_data/figure", plot_pull=True, single_legend=True
     )
     toy_config.plot_partial_wave(
-        prefix="toy_data/figure", smooth=False, bin_scale=1
+        prefix="toy_data/figure/s_res",
+        smooth=False,
+        bin_scale=1,
+        res=["R_BC", ["R_BD", "R_CD"]],
     )
     toy_config.plot_partial_wave(prefix="toy_data/figure", color_first=False)
     toy_config.get_params_error(fit_result)
@@ -220,7 +301,8 @@ def test_fit(toy_config, fit_result):
     )
     fit_result.save_as("toy_data/final_params.json")
     fit_frac, frac_err = toy_config.cal_fitfractions()
-    tuple_table(fit_frac)
+    fit_frac, frac_err = toy_config.cal_fitfractions(method="new")
+    save_frac_csv("toy_data/fit_frac.csv", fit_frac)
 
     with toy_config.params_trans() as pt:
         a = pt["A->R_BC.D_g_ls_1r"]
@@ -233,6 +315,70 @@ def test_fit(toy_config, fit_result):
         x = a + b
         y = a - b
     xy_err = pt.get_error_matrix([x, y])
+    with toy_config.params_trans() as pt:
+        a = pt["A->R_BC.D_g_ls_1r"]
+        with pt.mask_params({"A->R_BC.D_g_ls_1i": 0.0}):
+            b = pt["A->R_BC.D_g_ls_1i"]
+        x = a + b
+        y = a - b
+    xy_err2 = pt.get_error({"a": [x, y]})
+
+    # mask params for fit fraction
+    amp = toy_config.get_amplitude()
+    phsp = toy_config.get_phsp_noeff()
+    int_mc = amp.vm.batch_sum_var(amp, phsp)
+    ys = []
+    for i in toy_config.get_decay():
+        mask_params = {}
+        for j in toy_config.get_decay():
+            if i != j:
+                mask_params[str(j.total) + "_0r"] = 0
+        with toy_config.mask_params(mask_params):
+            ys.append(amp.vm.batch_sum_var(amp, phsp))
+        with amp.mask_params(mask_params):
+            pass
+
+    with toy_config.params_trans() as pt:
+        y = [i() for i in ys]
+        frac = [i / int_mc() for i in y]
+    pt.get_error(frac)
+
+    for i in amp.factor_iteration():
+        pass
+
+    toy_config.attach_fix_params_error({"R_BC_mass": 0.01})
+
+
+def test_bacth_sum(toy_config, fit_result):
+    toy_config.get_params_error(fit_result)
+    res = list(range(len(list(toy_config.get_decay()))))
+    fit_frac, fit_frac_err = toy_config.cal_fitfractions(res=res)
+    amp = toy_config.get_amplitude()
+    phsp = toy_config.get_phsp_noeff()
+    int_mc = toy_config.batch_sum_var(amp, phsp, batch=5000)
+    ys = []
+    for i in toy_config.get_decay():
+        mask_params = {}
+        for j in toy_config.get_decay():
+            if i != j:
+                mask_params[str(j.total) + "_0r"] = 0
+        with toy_config.mask_params(mask_params):
+            ys.append(toy_config.batch_sum_var(amp, phsp))
+
+    with toy_config.params_trans() as pt:
+        y = [i() for i in ys]
+        frac = [i / int_mc() for i in y]
+    frac_err = pt.get_error(frac)
+    assert np.allclose(frac, [fit_frac[str(i)] for i in res])
+    assert np.allclose(frac_err, [fit_frac_err[str(i)] for i in res])
+
+
+def test_lazycall(toy_config_lazy):
+    results = toy_config_lazy.fit(batch=100000)
+    assert np.allclose(results.min_nll, -204.9468493307786)
+    toy_config_lazy.plot_partial_wave(
+        prefix="toy_data/figure_lazy", batch=100000
+    )
 
 
 def test_cal_chi2(toy_config, fit_result):
@@ -244,9 +390,21 @@ def test_cal_signal_yields(toy_config, fit_result):
 
 
 def test_fit_combine(toy_config2):
-    toy_config2.fit()
+    results = toy_config2.fit()
+    print(results)
+    assert np.allclose(results.min_nll, -204.9468493307786 * 2)
     toy_config2.get_params_error()
     print(toy_config2.get_params())
+    toy_config2.plot_partial_wave(results)
+
+
+def test_plot_combine(gen_toy):
+    config = MultiConfig(
+        [f"{this_dir}/config_plot2.yml", f"{this_dir}/config_toy.yml"],
+        total_same=True,
+    )
+    config.set_params(f"{this_dir}/exp_params.json")
+    config.plot_partial_wave(prefix="toy_data/com_plot/")
 
 
 def test_fit_covten(toy_config_covten):
@@ -256,10 +414,35 @@ def test_fit_covten(toy_config_covten):
 
 
 def test_mix_likelihood(toy_config3):
-    toy_config3.fit(maxiter=1)
+    results = toy_config3.fit(maxiter=1)
 
 
 def test_cp_particles():
     config = ConfigLoader(f"{this_dir}/config_self_cp.yml")
     phsp = config.generate_phsp(100)
     config.get_amplitude()(phsp)
+
+
+def test_plot_2dpull(toy_config):
+    import matplotlib.pyplot as plt
+
+    toy_config.plot_adaptive_2dpull("m_R_BC**2", "m_R_CD**2")
+    with pytest.raises(AssertionError):
+        a, b = toy_config.get_dalitz_boundary("R_BC", "R_BC")
+    a, b = toy_config.get_dalitz_boundary("R_BC", "R_CD")
+    plt.plot(a, b, color="red")
+    plt.savefig("adptive_2d.png")
+
+
+def test_lazy_file(toy_config_npy):
+    fcn = toy_config_npy.get_fcn()
+    fcn.nll_grad()
+
+
+def test_factor_hel():
+    config = ConfigLoader(f"{this_dir}/config_hel.yml")
+    phsp = config.generate_phsp(10)
+    amp = config.get_amplitude()
+    amp(phsp)
+    amp.get_amp_list_part(phsp)
+    amp.decay_group.get_factor()

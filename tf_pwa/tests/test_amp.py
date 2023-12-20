@@ -169,8 +169,35 @@ def test_BW():
     )
 
 
-def simple_run(name):
-    a = get_particle(name, J=1, P=-1, model=name, mass=3.6, width=0.01)
+def test_linear_npy():
+    import os
+
+    dir_name = os.path.dirname(__file__)
+    from tf_pwa.amp import interpolation
+
+    a = get_particle(
+        "linear",
+        J=1,
+        P=-1,
+        model="linear_npy",
+        mass=3.6,
+        width=0.01,
+        file=os.path.join(dir_name, "linear_npy.npy"),
+    )
+    b = [get_particle(i, J=0, P=-1) for i in "ac"]
+    get_decay(a, b)
+    a.init_params()
+    b = a.get_amp(
+        {"m": np.array(1.0)},
+        {"|q|": np.array(1.0), "|q0|": np.array(1.0)},
+        all_data={},
+    )
+
+
+def simple_run(name, **kwargs):
+    a = get_particle(
+        name, J=1, P=-1, model=name, mass=3.6, width=0.01, **kwargs
+    )
     b = [get_particle(i, J=0, P=-1) for i in "ac"]
     get_decay(a, b)
     a.init_params()
@@ -229,6 +256,7 @@ def test_one():
     simple_run("exp")
     simple_run("exp_com")
     simple_run("BWR_normal")
+    simple_run("BWR", width_norm=True)
 
 
 def test_model2():
@@ -240,6 +268,7 @@ def test_model2():
 
 def test_model3():
     simple_run3("gls-bf", below_threshold=True)
+    simple_run3("gls-bf", force_min_l=True)
 
 
 def test_model_new():
@@ -309,6 +338,8 @@ def test_decay_ls_amp():
     data_p = {a: {"m": ma}, c: {"m": mb}, d: {"m": mb}}
     dec1.get_ls_amp(data, data_p)
     dec1.get_ls_amp({**data, "|q|2": mb}, data_p)
+    dec1.get_ls_amp(**dec1.build_simple_data())
+    dec1.build_ls2hel_eq()
 
 
 def test_polarization():
@@ -321,6 +352,23 @@ def test_polarization():
     dec1 = get_decay(a, [r, b])
     decs = DecayGroup([[dec1, dec2]])
     amp = AmplitudeModel(decs, polar=False)
+    print(amp.get_params())
+    for p_data in test_data:
+        p = dict(zip([b, c, d], p_data))
+        data = cal_angle_from_momentum(p, decs)
+        amp(data)
+
+
+def test_polarization2():
+    a = get_particle("a", J=1, P=-1, polarization="vector")
+    c = get_particle("c", J=1, P=-1)
+    d = get_particle("d", J=1, P=-1)
+    b = get_particle("b", J=0, P=-1)
+    r = get_particle("r", mass=1.0, width=0.5, J=1, P=1)
+    dec2 = get_decay(r, [c, d])
+    dec1 = get_decay(a, [r, b])
+    decs = DecayGroup([[dec1, dec2]])
+    amp = AmplitudeModel(decs)
     print(amp.get_params())
     for p_data in test_data:
         p = dict(zip([b, c, d], p_data))
@@ -376,6 +424,22 @@ End
 
 def test_split_ls():
     a = get_particle("a", J=1, P=1, mass=6.0, width=0.02, model="BWR_LS")
+    b = get_particle("b", J=1, P=-1)
+    c = get_particle("c", J=0, P=-1)
+    d = get_particle("d", J=0, P=-1)
+    t = get_particle("t", J=0, P=-1)
+    dec = get_decay(a, [b, c])
+    dec2 = get_decay(t, [a, d], p_break=True)
+    dg = DecayGroup([DecayChain([dec, dec2])])
+    amp = AmplitudeModel(dg)
+    p = dict(zip([b, c, d], test_data[0]))
+    data = cal_angle_from_momentum(p, dg)
+    amp1 = amp(data)
+    a(np.array([5.9, 6.0, 6.1]))
+
+
+def test_split_ls2():
+    a = get_particle("a", J=1, P=1, mass=6.0, width=0.02, model="BWR_LS2")
     b = get_particle("b", J=1, P=-1)
     c = get_particle("c", J=0, P=-1)
     d = get_particle("d", J=0, P=-1)

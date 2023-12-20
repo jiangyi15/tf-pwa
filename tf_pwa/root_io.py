@@ -16,6 +16,7 @@ except ImportError as e:
         has_uproot = False
         print(e, "you should install `uproot` correctly for using this module")
         uproot_version = 4
+        uproot = None
 
 
 def load_root_data(fnames):

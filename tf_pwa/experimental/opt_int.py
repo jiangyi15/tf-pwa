@@ -20,7 +20,7 @@ def split_gls(dec_chain):
 def build_sum_amplitude(dg, dec_chain, data):
     cached = []
     for i, dc in split_gls(dec_chain):
-        amp = dg.get_amp(data)
+        amp = dg.get_amp3(data)
         int_mc = amp
         gls = dc.product_gls()
         cached.append(amp / gls)
@@ -60,13 +60,15 @@ def build_int_matrix_batch(dec, data, batch=65000):
     return index, tf.reduce_sum(ret, axis=0)
 
 
-def build_params_vector(dec):
+def build_params_vector(dec, concat=True):
     ret = []
     for i in dec:
         factor = i.get_all_factor()
         a = gls_combine(factor)
         ret.append(a)
-    return tf.concat(ret, axis=0)
+    if concat:
+        return tf.concat(ret, axis=0)
+    return ret
 
 
 def build_params_matrix(dec):

@@ -32,6 +32,18 @@ def _load_yaml_file(name):
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
+def create_dir(name):
+    import os
+
+    dirname = os.path.dirname(name)
+    if dirname == "":
+        return True
+    if not os.path.exists(dirname):
+        os.makedirs(dirname, exist_ok=True)
+        return False
+    return True
+
+
 def load_config_file(name):
     """
     Load config file such as **Resonances.yml**.
@@ -254,11 +266,14 @@ def check_positive_definite(m):
     return False
 
 
-def tuple_table(fit_frac):
+def tuple_table(fit_frac, ignore_items=["sum_diag"]):
     names = []
     for i in fit_frac:
         if isinstance(i, str):
             names.append(i)
+    for i in ignore_items:
+        if i in names:
+            names.remove(i)
     n_items = len(names)
     table = [[None] * (n_items + 1) for i in range(n_items + 1)]
 
@@ -266,6 +281,8 @@ def tuple_table(fit_frac):
         if isinstance(k, tuple):
             a, b = k
             table[names.index(a) + 1][names.index(b) + 1] = v
+        elif k in ignore_items:
+            continue
         else:
             a, b = k, k
             table[names.index(a) + 1][names.index(b) + 1] = v
@@ -275,6 +292,15 @@ def tuple_table(fit_frac):
         table[0][i + 1] = name
 
     return table
+
+
+def save_frac_csv(file_name, fit_frac):
+    import csv
+
+    table = tuple_table(fit_frac)
+    with open(file_name, "w") as f:
+        f_csv = csv.writer(f)
+        f_csv.writerows(table)
 
 
 def fit_normal(data, weights=None):
@@ -315,10 +341,7 @@ def fit_normal(data, weights=None):
     return np.array([mu, sigma]), np.array([mu_error, sigma_error])
 
 
-def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
+def create_test_config(model_name, params={}, plot_params={}):
     from tf_pwa.config_loader import ConfigLoader
 
     config_dic = {
@@ -345,9 +368,22 @@ def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
     config.set_params({"A->R_BC.DR_BC->B.C_total_0r": 1.0})
     config.set_params({"A->R_BC.DR_BC->B.C_total_0i": 0.0})
     config.set_params(plot_params)
+    return config
+
+
+def plot_particle_model(
+    model_name, params={}, plot_params={}, axis=None, special_points=None
+):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    config = create_test_config(model_name, params, plot_params)
     f = config.get_particle_function("R_BC")
-    m = np.linspace(0.2, 0.9, 2000)
+    m = np.linspace(0.2, 0.9 - 1e-12, 2000)
     a = f(m).numpy()
+    if special_points is not None:
+        special_points = np.array(special_points)
+        at = f(special_points).numpy()
     if axis is None:
         ax3 = plt.subplot(2, 2, 3, label="argon")
         ax2 = plt.subplot(2, 2, 2, label="prob")
@@ -356,16 +392,24 @@ def plot_particle_model(model_name, params={}, plot_params={}, axis=None):
     else:
         ax0, ax1, ax2, ax3 = axis
     ax3.plot(np.real(a), np.imag(a))
+    if special_points is not None:
+        ax3.scatter(np.real(at), np.imag(at))
     ax3.set_xlabel("Re$A$")
     ax3.set_ylabel("Im$A$")
     ax2.plot(m, np.abs(a) ** 2, label=model_name)
+    if special_points is not None:
+        ax2.scatter(special_points, np.abs(at) ** 2)
     ax2.set_ylabel("$|A|^2$")
     ax2.set_ylim((0, None))
     ax2.axvline(x=0.2, linestyle="--")
     ax2.yaxis.set_label_position("right")
     ax2.yaxis.tick_right()
     ax1.plot(np.real(a), m)
+    if special_points is not None:
+        ax1.scatter(np.real(at), special_points)
     ax1.set_ylabel("mass")
     ax0.plot(m, np.imag(a))
+    if special_points is not None:
+        ax0.scatter(special_points, np.imag(at))
     ax0.set_xlabel("mass")
     return [ax0, ax1, ax2, ax3]

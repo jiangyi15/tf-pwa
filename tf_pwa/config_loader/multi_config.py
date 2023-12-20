@@ -31,8 +31,10 @@ from tf_pwa.applications import (
 from tf_pwa.cal_angle import prepare_data_from_decay
 from tf_pwa.data import (
     data_index,
+    data_merge,
     data_shape,
     data_split,
+    data_to_numpy,
     load_data,
     save_data,
 )
@@ -50,9 +52,16 @@ from .decay_config import DecayConfig
 
 
 class MultiConfig(object):
-    def __init__(self, file_names, vm=None, total_same=False, share_dict={}):
+    def __init__(
+        self,
+        file_names,
+        vm=None,
+        total_same=False,
+        share_dict={},
+        multi_gpu=False,
+    ):
         if vm is None:
-            self.vm = VarsManager()
+            self.vm = VarsManager(multi_gpu=multi_gpu)
             # print(self.vm)
         else:
             self.vm = vm
@@ -101,19 +110,30 @@ class MultiConfig(object):
             if not self.total_same:
                 fcns = [
                     i[1].get_fcn(
-                        name="s" + str(i[0]), all_data=j, vm=vm, batch=batch
+                        name="s" + str(i[0]),
+                        all_data=j,
+                        vm=vm,
+                        batch=batch,
                     )
                     for i, j in zip(enumerate(self.configs), datas)
                 ]
             else:
                 fcns = [
-                    j.get_fcn(all_data=data, vm=vm, batch=batch)
+                    j.get_fcn(
+                        all_data=data,
+                        vm=vm,
+                        batch=batch,
+                    )
                     for data, j in zip(datas, self.configs)
                 ]
         else:
             if not self.total_same:
                 fcns = [
-                    j.get_fcn(name="s" + str(i), vm=vm, batch=batch)
+                    j.get_fcn(
+                        name="s" + str(i),
+                        vm=vm,
+                        batch=batch,
+                    )
                     for i, j in enumerate(self.configs)
                 ]
             else:
@@ -148,74 +168,30 @@ class MultiConfig(object):
         return args_name, x0, args, bnds
 
     @time_print
-    def fit(self, datas=None, batch=65000, method="BFGS", maxiter=None):
+    def fit(
+        self,
+        datas=None,
+        batch=65000,
+        method="BFGS",
+        maxiter=None,
+        print_init_nll=False,
+        callback=None,
+    ):
         fcn = self.get_fcn(datas=datas)
         # fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2), flush=True)
-        print("initial NLL: ", fcn({}))
+        if print_init_nll:
+            print("initial NLL: ", fcn({}))
         self.fit_params = fit(
-            fcn=fcn, method=method, bounds_dict=self.bound_dic, maxiter=maxiter
+            fcn=fcn,
+            method=method,
+            bounds_dict=self.bound_dic,
+            maxiter=maxiter,
+            callback=callback,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
-        """# fit configure
-        bounds_dict = {}
-        args_name, x0, args, bnds = self.get_args_value(bounds_dict)
-
-        points = []
-        nlls = []
-        now = time.time()
-        maxiter = 1000
-        min_nll = 0.0
-        ndf = 0
-
-        if method in ["BFGS", "CG", "Nelder-Mead"]:
-            def callback(x):
-                if np.fabs(x).sum() > 1e7:
-                    x_p = dict(zip(args_name, x))
-                    raise Exception("x too large: {}".format(x_p))
-                points.append(self.vm.get_all_val())
-                nlls.append(float(fcn.cached_nll))
-                # if len(nlls) > maxiter:
-                #    with open("fit_curve.json", "w") as f:
-                #        json.dump({"points": points, "nlls": nlls}, f, indent=2)
-                #    pass  # raise Exception("Reached the largest iterations: {}".format(maxiter))
-                print(fcn.cached_nll)
-
-            self.vm.set_bound(bounds_dict)
-            f_g = self.vm.trans_fcn_grad(fcn.nll_grad)
-            s = minimize(f_g, np.array(self.vm.get_all_val(True)), method=method,
-                         jac=True, callback=callback, options={"disp": 1, "gtol": 1e-4, "maxiter": maxiter})
-            xn = s.x  # self.vm.get_all_val()  # bd.get_y(s.x)
-            ndf = s.x.shape[0]
-            min_nll = s.fun
-            if hasattr(s, "hess_inv"):
-                self.inv_he = s.hess_inv
-            success = s.success
-        elif method in ["L-BFGS-B"]:
-            def callback(x):
-                if np.fabs(x).sum() > 1e7:
-                    x_p = dict(zip(args_name, x))
-                    raise Exception("x too large: {}".format(x_p))
-                points.append([float(i) for i in x])
-                nlls.append(float(fcn.cached_nll))
-
-            s = minimize(fcn.nll_grad, np.array(x0), method=method, jac=True, bounds=bnds, callback=callback,
-                         options={"disp": 1, "maxcor": 10000, "ftol": 1e-15, "maxiter": maxiter})
-            xn = s.x
-            ndf = s.x.shape[0]
-            min_nll = s.fun
-            success = s.success
-        elif method in ["iminuit"]:
-            from .fit import fit_minuit
-            m = fit_minuit(fcn)
-            return m
-        else:
-            raise Exception("unknown method")
-        self.vm.set_all(xn)
-        params = self.vm.get_all_dic()
-        return FitResult(params, fcn, min_nll, ndf=ndf, success=success)"""
         return self.fit_params
 
     def reinit_params(self):
@@ -228,10 +204,11 @@ class MultiConfig(object):
             params = {}
         if hasattr(params, "params"):
             params = getattr(params, "params")
-        fcn = self.get_fcn(datas, batch=batch)
+
         if using_cached and self.inv_he is not None:
             hesse_error = np.sqrt(np.fabs(self.inv_he.diagonal())).tolist()
         else:
+            fcn = self.get_fcn(datas, batch=batch)
             hesse_error, self.inv_he = cal_hesse_error(
                 fcn, params, check_posi_def=True, save_npy=True
             )
@@ -287,3 +264,51 @@ class MultiConfig(object):
         val = {k: float(v) for k, v in params.items()}
         with open(file_name, "w") as f:
             json.dump(val, f, indent=2)
+
+    def plot_partial_wave(self, params=None, prefix="figure/all", **kwargs):
+
+        path = os.path.dirname(prefix)
+        os.makedirs(path, exist_ok=True)
+
+        all_data = []
+        extra = None
+        for config_i in self.configs:
+            for data, extra in config_i._get_plot_partial_wave_input(
+                params=params, **kwargs
+            ):
+                all_data.append(data)
+
+        data_dict = data_to_numpy(data_merge(*[i[0] for i in all_data]))
+        bg_dict = data_to_numpy(data_merge(*[i[2] for i in all_data]))
+
+        all_keys = list(all_data[-1][1].keys())
+        for idx, i in enumerate(all_data[:-1]):
+            phsp = i[1]
+            weights_keys = [j for j in phsp.keys() if j.endswith("_fit")]
+            tail_keys = [k[k[4:].index("_") + 4 :] for k in weights_keys]
+            for k in all_keys:
+                if k in phsp or not k.endswith("_fit"):
+                    continue
+                weights_keys = [j for j in phsp.keys() if j.endswith("_fit")]
+                idx_key = k[k[4:].index("_") + 4 :]
+                if idx_key in tail_keys:
+                    new_name = weights_keys[tail_keys.index(idx_key)]
+                    print(
+                        "com_plot: use", new_name, "for", k, "for sample", idx
+                    )
+                    phsp[k] = phsp[new_name]
+                else:
+                    print("com_plot: set", k, "to 0 for sample", idx)
+                    phsp[k] = np.zeros_like(phsp["MC_total_fit"])
+        phsp_dict = data_to_numpy(data_merge(*[i[1] for i in all_data]))
+        _, plot_var_dic, chain_property, nll = extra
+        self.configs[-1]._plot_partial_wave(
+            data_dict,
+            phsp_dict,
+            bg_dict,
+            prefix,
+            plot_var_dic,
+            chain_property,
+            nll=nll,
+            **kwargs,
+        )

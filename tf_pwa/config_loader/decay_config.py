@@ -24,37 +24,39 @@ def set_min_max(dic, name, name_min, name_max):
         )
 
 
-def decay_chain_cut_ls(decay):
-    for i in decay:
-        if isinstance(i, HelicityDecay):
-            if len(i.get_ls_list()) == 0:
-                return False, f"{i} ls not aviable {i.get_ls_list()}"
+def decay_cut_ls(decay):
+    if isinstance(decay, HelicityDecay):
+        if len(decay.get_ls_list()) == 0:
+            return False, f"{decay} ls not aviable {decay.get_ls_list()}"
     return True, ""
 
 
-def decay_chain_cut_mass(decay):
-    for i in decay:
-        if isinstance(i, HelicityDecay):
-            if i.core.mass is None or any([j.mass is None for j in i.outs]):
-                continue
-            # print(i, i.core.mass, [j.mass for j in i.outs])
-            if i.core.mass < sum([j.mass for j in i.outs]):
-                return (
-                    False,
-                    f"{i} mass break {i.core.mass} < {[j.mass for j in i.outs]}",
-                )
+def decay_cut_mass(decay):
+    if isinstance(decay, HelicityDecay):
+        if decay.core.mass is None or any(
+            [j.mass is None for j in decay.outs]
+        ):
+            True, ""
+        # print(i, i.core.mass, [j.mass for j in i.outs])
+        if decay.core.mass < sum([j.mass for j in decay.outs]):
+            return (
+                False,
+                f"{decay} mass break {decay.core.mass} < {[j.mass for j in decay.outs]}",
+            )
     return True, ""
 
 
 class DecayConfig(BaseConfig):
-    decay_chain_cut_list = {
-        "ls_cut": decay_chain_cut_ls,
-        "mass_cut": decay_chain_cut_mass,
+    decay_chain_cut_list = {}
+    decay_cut_list = {
+        "ls_cut": decay_cut_ls,
+        "mass_cut": decay_cut_mass,
     }
 
     def __init__(self, dic, share_dict={}):
         self.config = copy.deepcopy(dic)
         self.decay_chain_config = dic.get("decay_chain", {})
+        self.data_config = dic.get("data", {})
         self.share_dict = share_dict
         self.particle_key_map = {
             "Par": "P",
@@ -68,7 +70,8 @@ class DecayConfig(BaseConfig):
             "bw_l": "bw_l",
             "running_width": "running_width",
         }
-        self.cut_list = self.config["data"].get("decay_chain_cut", ["ls_cut"])
+        self.cut_list = self.data_config.get("decay_chain_cut", ["ls_cut"])
+        self.decay_cut_list = self.data_config.get("decay_cut", self.cut_list)
         self.decay_key_map = {"model": "model"}
         self.dec = self.decay_item(self.config["decay"])
         (
@@ -87,15 +90,15 @@ class DecayConfig(BaseConfig):
                 self.decay_chain_config,
             )
         )
-        if self.config["data"].get("cp_trans", True):
+        if self.data_config.get("cp_trans", True):
             self.disable_allow_cc(self.full_decay)
         self.decay_struct = DecayGroup(
-            self.get_decay_struct(self.dec, process_cut=False)
+            self.get_decay_struct(
+                self.dec, {}, self.particle_property, process_cut=False
+            )
         )
-        identical_particles = self.config["data"].get(
-            "identical_particles", None
-        )
-        cp_particles = self.config["data"].get("cp_particles", None)
+        identical_particles = self.data_config.get("identical_particles", None)
+        cp_particles = self.data_config.get("cp_particles", None)
         if identical_particles is not None:
             self.decay_struct.identical_particles = identical_particles
             self.full_decay.identical_particles = identical_particles
@@ -239,6 +242,8 @@ class DecayConfig(BaseConfig):
         for i in decays:
             flag = True
             for name in self.cut_list:
+                if name not in DecayConfig.decay_chain_cut_list:
+                    continue
                 f = DecayConfig.decay_chain_cut_list[name]
                 new_flag, msg = f(i)
                 flag = flag and new_flag
@@ -254,6 +259,38 @@ class DecayConfig(BaseConfig):
                     break
             if flag:
                 ret.append(i)
+        return ret
+
+    def decay_cut(self, decays):
+        ret = []
+        for decay_chain in decays:
+            flag = True
+            for i in decay_chain:
+                for name in self.cut_list:
+                    if name not in DecayConfig.decay_cut_list:
+                        continue
+                    f = DecayConfig.decay_cut_list[name]
+                    new_flag, msg = f(i)
+                    flag = flag and new_flag
+                    if not flag:
+                        print(
+                            "remove decay chain",
+                            decay_chain,
+                            "by",
+                            name,
+                            "\n\tbecause of",
+                            msg,
+                        )
+                        break
+                if not flag:
+                    if i in i.core.decay:
+                        i.core.decay.remove(i)
+                    for j in i.outs:
+                        if i in j.creators:
+                            j.creators.remove(i)
+                    break
+            if flag:
+                ret.append(decay_chain)
         return ret
 
     def get_decay_struct(
@@ -272,12 +309,15 @@ class DecayConfig(BaseConfig):
             particle_params if particle_params is not None else {}
         )
 
+        base_particle_set = {}
         particle_set = {}
 
-        def add_particle(name):
+        def add_particle(name, _id):
+            name = "{}:{}".format(name, _id)
             if name in particle_set:
                 return particle_set[name]
-            params = particle_params.get(name, {})
+            names = name.split(":")
+            params = particle_params.get(names[0], {})
             params = self.rename_params(params)
             set_min_max(params, "mass", "m_min", "m_max")
             set_min_max(params, "width", "g_min", "g_max")
@@ -285,9 +325,16 @@ class DecayConfig(BaseConfig):
             particle_set[name] = part
             return part
 
+        def add_base_particle(name):
+            if name in base_particle_set:
+                return base_particle_set[name]
+            part = get_particle(name)  # , **params)
+            base_particle_set[name] = part
+            return part
+
         def wrap_particle(name):
             name_list = particle_map.get(name, [name])
-            return [add_particle(i) for i in name_list]
+            return [add_base_particle(i) for i in name_list]
 
         def all_combine(out):
             if len(out) < 1:
@@ -298,13 +345,23 @@ class DecayConfig(BaseConfig):
                         yield [i] + j
 
         decs = []
+        new_decay_params = {}
         for dec in decay:
             core = wrap_particle(dec["core"])
             outs = [wrap_particle(j) for j in dec["outs"]]
             for i in core:
                 for j in all_combine(outs):
-                    dec_i = get_decay(i, j, **dec["params"])
+                    dec_i = get_decay(i, j)
+                    new_decay_params[dec_i] = dec["params"]
                     decs.append(dec_i)
+
+        decay_list = {}
+
+        def add_decay(a, b, params):
+            b = tuple(b)
+            if (a, b) not in decay_list:
+                decay_list[(a, b)] = get_decay(a, b, **params)
+            return decay_list[(a, b)]
 
         top_tmp, finals_tmp = set(), set()
         if top is None or finals is None:
@@ -314,18 +371,21 @@ class DecayConfig(BaseConfig):
             assert len(top_tmp) == 1, "not only one top particle"
             top = list(top_tmp)[0]
         else:
+            if isinstance(top, list):
+                assert len(top) == 1, "only one initial supported"
+                top = top[0]
             if isinstance(top, str):
-                top = particle_set[top]
+                top = base_particle_set[top]
             elif isinstance(top, dict):
                 keys = list(top.keys())
                 assert len(keys) == 1
-                top = particle_set[keys.pop()]
+                top = base_particle_set[keys.pop()]
             else:
-                return particle_set[str(top)]
+                top = base_particle_set[str(top)]
         if finals is None:
             finals = list(finals_tmp)
         elif isinstance(finals, (list, dict)):
-            finals = [particle_set[i] for i in finals]
+            finals = [base_particle_set[i] for i in finals]
         else:
             raise TypeError("{}: {}".format(finals, type(finals)))
 
@@ -334,9 +394,27 @@ class DecayConfig(BaseConfig):
         for i in dec_chain:
             if sorted(DecayChain(i).outs) == sorted(finals):
                 all_params = chain_params.get("$all", {})
-                dec_c = get_decay_chain(i, **all_params)
+                count_input = {}
+                count_output = {}
+                all_dec = []
+                for dec in i:
+                    count_input[dec.core.name] = (
+                        count_input.get(dec.core.name, -1) + 1
+                    )
+                    core = add_particle(
+                        dec.core.name, count_input[dec.core.name]
+                    )
+                    outs = []
+                    for j in dec.outs:
+                        count_output[j.name] = count_output.get(j.name, -1) + 1
+                        out = add_particle(j.name, count_output[j.name])
+                        outs.append(out)
+                    dec_i = add_decay(core, outs, new_decay_params[dec])
+                    all_dec.append(dec_i)
+                dec_c = get_decay_chain(all_dec, **all_params)
                 ret.append(dec_c)
         if process_cut:
+            ret = self.decay_cut(ret)
             ret = self.decay_chain_cut(ret)
         if len(ret) == 0:
             raise RuntimeError("not decay chain aviable, check you config.yml")

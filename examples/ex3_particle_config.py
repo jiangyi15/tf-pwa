@@ -55,10 +55,17 @@ import yaml
 from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.histogram import Hist1D
 
+# %%
+# The simple way to create config is write it to `config.yml` file
+# and then you can load it as `config = ConfigLoader("config.yml")`.
+# Here we used config_str directly.
+#
+
 config = ConfigLoader(yaml.full_load(config_str))
 
 # %%
 # We set parameters to a blance value. And we can generate some toy data and calclute the weights
+# The full params can be found by `print(config.get_params())`.
 #
 
 input_params = {
@@ -69,11 +76,19 @@ input_params = {
 }
 config.set_params(input_params)
 
+# %%
+# Here we generate some toy data and phsp mc to show the model
+
 data = config.generate_toy(1000)
 phsp = config.generate_phsp(10000)
 
+# %%
 # You can also fit the data fit to the data
+# We can omit the args when writen in config.yml
+#
+
 fit_result = config.fit([data], [phsp])
+# After the fit, you can get the uncertaities as
 err = config.get_params_error(fit_result, [data], [phsp])
 
 # %%
@@ -88,7 +103,15 @@ for var in input_params:
 # We can use the amplitude to plot the fit results
 
 amp = config.get_amplitude()
+
+# %%
+# This is the total :math:`|A|^2`
+
 weight = amp(phsp)
+
+# %%
+# This is the :math:`|A_i|^2` for each decay chain
+
 partial_weight = amp.partial_weight(phsp)
 
 # %%
@@ -98,7 +121,18 @@ data_hist = Hist1D.histogram(
     data.get_mass("(C, D)"), bins=60, range=(0.25, 1.45)
 )
 
+# %%
+# Read the mass var from phsp.
+
 mass_phsp = phsp.get_mass("(C, D)")
+
+# %%
+# For helicity angle it can be read as `phsp.get_angle("(C, D)", "C")`
+# The first arg is used to deteminate the decay chain. (decay chain include all particles)
+# The second arg is used to deteminate the angle in decay chain.
+# The return value is a dict as `{"alpha": phi, "beta": theta, "gamma": 0}`
+#
+
 phsp_hist = Hist1D.histogram(
     mass_phsp, weights=weight, bins=60, range=(0.25, 1.45)
 )

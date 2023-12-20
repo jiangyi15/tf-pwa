@@ -4,14 +4,12 @@ import sys
 
 import numpy as np
 
-from tf_pwa.applications import fit_fractions
+this_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, this_dir + "/..")
 
 # import tf_pwa
 from tf_pwa.config_loader import ConfigLoader
-from tf_pwa.utils import error_print
-
-this_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, this_dir + "/..")
+from tf_pwa.utils import error_print, save_frac_csv
 
 
 def main():
@@ -33,14 +31,13 @@ def cal_fitfractions(params_file):
     config = ConfigLoader("config.yml")
     config.set_params(params_file)
     params = config.get_params()
+    # get_params_error can be replaced by
+    # config.inv_he = np.load("error_matrix.npy")
     config.get_params_error(params)
 
-    mcdata = (
-        config.get_phsp_noeff()
-    )  # use the file of PhaseSpace MC without efficiency indicated in config.yml
-    fit_frac, err_frac = fit_fractions(
-        config.get_amplitude(), mcdata, config.inv_he, params
-    )
+    # use the file of PhaseSpace MC without efficiency indicated in config.yml
+    mcdata = config.get_phsp_noeff()
+    fit_frac, err_frac = config.cal_fitfractions(mcdata=mcdata, method="new")
     print("########## fit fractions:")
     fit_frac_string = ""
     for i in fit_frac:
@@ -52,68 +49,48 @@ def cal_fitfractions(params_file):
             name, error_print(fit_frac[i], err_frac.get(i, None))
         )
     print(fit_frac_string)
-    print("########## fit fractions table:")
-    print_frac_table(
-        fit_frac_string
+    print(
+        "########## fit fractions table:"
     )  # print the fit-fractions as a 2-D table. The codes below are just to implement the print function.
+    print_frac_table(fit_frac)
+    save_frac_csv("fit_frac.csv", fit_frac)
+    save_frac_csv("fit_frac_err.csv", err_frac)
 
 
-def print_frac_table(frac_txt):
-    def get_point(s):
-        partten = re.compile(r"([^\s]+)\s+([+-.e1234567890]+)\s+")
-        ret = {}
-        for i in s.split("\n"):
-            g = partten.match(i)
-            if g:
-                name = g.group(1).split("x")
-                frac = float(g.group(2))
-                if len(name) == 1:
-                    l, r = name * 2
-                elif len(name) == 2:
-                    l, r = name
-                else:
-                    raise Exception("error {}".format(name))
-                if l not in ret:
-                    ret[l] = {}
-                ret[l][r] = frac
-        return ret
+def print_frac_table(frac_dic):
+    idx = [i for i in frac_dic if not isinstance(i, tuple)]
+    if "sum_diag" in idx:
+        idx.remove("sum_diag")
 
-    s = get_point(frac_txt)
-
-    def get_table(s):
-        idx = list(s)
-        n_idx = len(idx)
-        idx_map = dict(zip(idx, range(n_idx)))
-        ret = []
-        for i in range(n_idx):
-            ret.append([0.0 for j in range(n_idx)])
-        for i, k in s.items():
-            for j, v in k.items():
-                ret[idx_map[i]][idx_map[j]] = v
-        return idx, ret
-
-    idx, table = get_table(s)
-
-    ret = []
-    for i, k in enumerate(table):
+    table = []
+    for i in idx:
         tmp = []
-        for j, v in enumerate(k):
-            if i < j:
-                tmp.append("-")
+        for j in idx:
+            if i == j:
+                v = frac_dic[i]
             else:
-                tmp.append("{:.3f}".format(v))
-        ret.append(tmp)
-    for i, k in zip(idx, ret):
+                v = frac_dic.get((i, j), None)
+            if v is None:
+                tmp.append(" -----")
+            else:
+                tmp.append("{: .3f}".format(v))
+        table.append(tmp)
+
+    for i, k in zip(idx, table):
         print(i, end="\t")
         for v in k:
             print(v, end="\t")
         print()
+    # the sum of all elements in the table, which should be one but for precision
     print(
-        "Total sum:", np.sum(table)
-    )  # the sum of all elements in the table, which should be one but for precision
+        "Total sum:",
+        np.sum(list(frac_dic.values())) - frac_dic.get("sum_diag", 0),
+    )
+    # the sum of all fit-fractions without the interference terms. We expect it to be near one.
     print(
-        "Non-interference sum:", np.sum(np.diagonal(table))
-    )  # the sum of all fit-fractions without the interference terms. We expect it to be near one.
+        "Non-interference sum:",
+        frac_dic.get("sum_diag", np.sum([frac_dic[i] for i in idx])),
+    )
 
 
 if __name__ == "__main__":

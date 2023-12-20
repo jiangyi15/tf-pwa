@@ -139,9 +139,7 @@ class PhaseSpaceGenerator(object):
             mass_t.append(i)
         mass_t.append(self.m0)
         zeros = tf.zeros([n_iter], dtype="float64")
-        p_list = [
-            tf.stack([zeros + self.m_mass[-1], zeros, zeros, zeros], axis=-1)
-        ]
+        p_list = []
         for i in range(0, self.m_nt - 1):
             p_list = self.generate_momentum_i(
                 mass_t[i + 1], mass_t[i], self.m_mass[-i - 2], n_iter, p_list
@@ -169,6 +167,8 @@ class PhaseSpaceGenerator(object):
         ret = [p]
         # recoil momentum
         p_boost = tf.stack([tf.sqrt(q * q + m1 * m1), p_x, p_y, p_z], axis=-1)
+        if len(p_list) == 0:
+            ret.append(LorentzVector.neg(p_boost))
         for i in p_list:
             ret.append(LorentzVector.rest_vector(p_boost, i))
         return ret

@@ -1,0 +1,43 @@
+data:
+  dat_order: [B, C, D]
+  data: ["toy_data/data.dat"]
+  bg: ["toy_data/bg.dat"]
+  phsp: ["toy_data/PHSP.dat"]
+  preprocessor: cached_amp
+  amp_model: cached_amp
+  use_tf_function: True
+  no_p4: True
+  no_angle: True
+  bg_weight: 0.1
+
+decay:
+  A:
+    - [R_BC, D, ls_list: [[0, 1], [2, 1]]]
+    - [R_BD, C, l_list: [0, 2]]
+    - [R_CD, B]
+  R_BC: [B, C]
+  R_BD: [B, D]
+  R_CD: [C, D]
+
+particle:
+  $top:
+    A: { J: 1, P: -1, spins: [-1, 1] }
+  $finals:
+    B: { J: 1, P: -1 }
+    C: { J: 1, P: -1 }
+    D: { J: 0, P: -1 }
+  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, model: BWR2 }
+  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3, model: BW }
+  R_CD: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
+
+constrains:
+  particle: null
+  decay: null
+
+plot:
+  config:
+    yscale: log
+  mass:
+    R_BC: { display: "$M_{BC}$" }
+    R_BD: { display: "$M_{BD}$" }
+    R_CD: { display: "$M_{CD}$" }

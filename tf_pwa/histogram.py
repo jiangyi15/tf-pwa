@@ -205,15 +205,25 @@ class Hist1D:
         )
 
     @staticmethod
-    def histogram(m, *args, weights=None, **kwargs):
+    def histogram(m, *args, weights=None, mask_error=np.inf, **kwargs):
         if weights is None:
             count, binning = np.histogram(m, *args, **kwargs)
             count2, _ = np.histogram(m, *args, **kwargs)
+            mask_count = count
         else:
             weights = np.asarray(weights)
             count, binning = np.histogram(m, *args, weights=weights, **kwargs)
             count2, _ = np.histogram(m, *args, weights=weights**2, **kwargs)
+            mask_count, _ = np.histogram(m, *args, **kwargs)
+        count2 = np.where(mask_count == 0, mask_error, count2)
         return Hist1D(binning, count, np.sqrt(count2))
+
+    def chi2(self):
+        cut = ~np.isinf(self.error)
+        return np.sum((self.count[cut] / self.error[cut]) ** 2)
+
+    def ndf(self):
+        return np.sum(~np.isinf(self.error))
 
     def scale_to(self, other):
         scale_factor = other.get_count() / self.get_count()

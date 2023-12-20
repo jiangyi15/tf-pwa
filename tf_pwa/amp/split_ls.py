@@ -7,7 +7,7 @@ from tf_pwa.amp.core import (
     register_decay,
     register_particle,
 )
-from tf_pwa.breit_wigner import Bprime_q2
+from tf_pwa.breit_wigner import BWR2, Bprime_q2, to_complex
 
 
 @register_decay("LS-decay")
@@ -70,6 +70,9 @@ class ParticleLS(Particle):
 
     def get_ls_amp(self, m, ls, q2, q02, d=3):
         raise NotImplementedError
+
+    def is_fixed_shape(self):
+        return False
 
 
 @register_particle("BWR_LS")
@@ -145,7 +148,7 @@ class ParticleBWRLS(ParticleLS):
         thetas = [i() for i in self.theta]
         return mass, width, thetas, m1, m2
 
-    def get_sympy_dom(self, m, m0, g0, thetas, m1=None, m2=None):
+    def get_sympy_dom(self, m, m0, g0, thetas, m1=None, m2=None, sheet=0):
         if self.get_width() is None:
             raise NotImplemented
         from tf_pwa.formula import BWR_LS_dom
@@ -178,6 +181,7 @@ class ParticleBWRLS(ParticleLS):
 
         ret = []
         for i in total_gamma:
+            i = to_complex(i)
             ret.append(tf.cast(i, dom.dtype) / dom)
 
         return ret
@@ -199,3 +203,117 @@ class ParticleBWRLS(ParticleLS):
             b = b * m / m0
         dom = tf.complex(a, -b)
         return dom, total_gamma
+
+
+@register_particle("BWR_LS2")
+class ParticleBWRLS2(ParticleLS):
+    """
+
+    Breit Wigner with split ls running width, each one use their own l,
+
+    .. math::
+        R_i (m) = \\frac{1}{m_0^2 - m^2 - im_0 \\Gamma_0 \\frac{\\rho}{\\rho_0} (g_i^2)}
+
+    , :math:`\\rho = 2q/m`, the partial width factor is
+
+    .. math::
+        g_i = \\gamma_i \\frac{q^l}{q_0^l} B_{l_i}'(q,q_0,d)
+
+    """
+
+    def __call__(self, m, l=0):
+        m0 = self.get_mass()
+        m1 = self.decay[0].outs[0].get_mass()
+        m2 = self.decay[0].outs[1].get_mass()
+        ls = [(l, 0)]
+        q2 = get_relative_p2(m, m1, m2)
+        q02 = get_relative_p2(m0, m1, m2)
+        return self.get_ls_amp(m, ls, q2, q02)
+
+    def get_ls_amp(self, m, ls, q2, q02, d=3.0):
+        m0 = self.get_mass()
+        g0 = self.get_width()
+
+        d = self.decay[0].d if self.decay else 3.0
+
+        ret = []
+        for l, s in ls:
+            ret.append(BWR2(m, m0, g0, q2, q02, l, d))
+        return ret
+
+
+@register_particle("MultiBWR")
+class ParticleMultiBWR(ParticleLS):
+    """
+
+    Combine Multi BWR into one particle
+
+    .. plot::
+
+        >>> import matplotlib.pyplot as plt
+        >>> plt.clf()
+        >>> from tf_pwa.utils import plot_particle_model
+        >>> axis = plot_particle_model("MultiBWR", {"mass_list": [0.4, 0.6], "width_list":[0.03, 0.04]},
+        ... {"R_BC_coeff_0_0r": 0.03, "R_BC_coeff_0_0i": 0.0, "R_BC_coeff_0_1r": 0.04, "R_BC_coeff_0_1i": 0.0})
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs["same_ratio"] = kwargs.get("same_ratio", True)
+        kwargs["same_phase"] = kwargs.get("same_phase", True)
+        super().__init__(*args, **kwargs)
+
+    def init_params(self):
+        if getattr(self, "ls_list", None) is None:
+            self.ls_list = self.decay[0].get_ls_list()
+        self.all_mass = self.add_var("com_mass", shape=(len(self.mass_list),))
+        self.all_mass.set_value(self.mass_list)
+        self.all_width = self.add_var(
+            "com_width", shape=(len(self.width_list),)
+        )
+        self.all_width.set_value(self.width_list)
+        self.coeff = self.add_var(
+            "coeff",
+            shape=(len(self.ls_list), len(self.mass_list)),
+            is_complex=True,
+        )
+        self.coeff.set_fix_idx([[0, 0]], [1.0, 0.0])
+
+    def mass(self):
+        return self.all_mass()[0]
+
+    def get_barrier_factor(self, ls, q2, q02, d):
+        return [
+            tf.sqrt(q2 / q02) ** i[0] * Bprime_q2(i[0], q2, q02, d) for i in ls
+        ]
+
+    def dom_fun(self, m, m0, g0, q2, q02, l, d):
+        return BWR2(m, m0, g0, q2, q02, l, d)
+
+    def get_ls_amp(self, m, ls, q2, q02, d=3.0):
+        coeff = self.coeff()
+        all_mass = self.all_mass()
+        all_width = self.all_width()
+        l = min([i[0] for i in ls])
+        dom = []
+        for m0, g0 in zip(all_mass, all_width):
+            dom.append(BWR2(m, m0, g0, q2, q02, l, d))
+        dom = tf.stack(dom, axis=-1)
+        ret = []
+        bf = self.get_barrier_factor(ls, q2, q02, d)
+        for c, (l, s), bfi in zip(coeff, ls, bf):
+            tmp = tf.reduce_sum(dom * tf.stack(c), axis=-1)
+            ret.append(tmp * tf.cast(bfi, tmp.dtype))
+        return ret
+
+
+@register_particle("MultiBW")
+class ParticleMultiBW(ParticleMultiBWR):
+    """
+    Combine Multi BW into one particle
+    """
+
+    def dom_fun(self, m, m0, g0, q2, q02, l, d):
+        from tf_pwa.breit_wigner import BW
+
+        return BW(m, m0, g0)
