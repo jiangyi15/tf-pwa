@@ -285,7 +285,7 @@ def test_fit(toy_config, fit_result):
         res=["R_BC", ["R_BD", "R_CD"]],
     )
 
-    def pw_f(x):
+    def pw_f(x, **kwargs):
         amp = toy_config.get_amplitude()
         return [amp(x)]
 
