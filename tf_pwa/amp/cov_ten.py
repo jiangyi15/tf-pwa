@@ -1045,6 +1045,55 @@ class CovTenDecayNew(HelicityDecay):
         return ret
 
 
+@register_decay("cov_ten_simple")
+class CovTenDecaySimple(CovTenDecayNew):
+    """
+    Decay Class for covariant tensor formula
+    """
+
+    def init_params(self):
+        super().init_params()
+
+    def get_amp(self, data, data_p, **kwargs):
+        ret = self.get_all_amp(data, data_p, **kwargs)
+        m_dep = self.get_ls_amp(data, data_p, **kwargs)
+        ret = tf.reduce_sum(ret * m_dep[..., None, None, None, :], axis=-1)
+        for p, idx in zip([self.core, *self.outs], [-3, -2, -1]):
+            if len(p.spins) > 0 and len(p.spins) != _spin_int(p.J * 2 + 1):
+                indices = [_spin_int(i + p.J) for i in p.spins]
+                ret = tf.gather(ret, axis=idx, indices=indices)
+        return ret
+
+    def get_all_amp(self, data, data_p, **kwargs):
+        # print(self)
+        p1 = data_p[self.outs[0]]["p"]
+        p2 = data_p[self.outs[1]]["p"]
+
+        ret_list = []
+        # ret = 0
+        for i, (l, s) in enumerate(self.get_total_ls_list()):
+            if self.ls_index is not None and i not in self.ls_index:
+                continue
+            from tf_pwa.cov_ten_ir import PWFA
+
+            mu1 = 0 if self.m1_zero else 1
+            mu2 = 0 if self.m2_zero else 1
+            ampi = PWFA(
+                p1,
+                self.m1_zero,
+                self.outs[0].J,
+                p2,
+                self.m2_zero,
+                self.outs[0].J,
+                self.core.J,
+                s,
+                l,
+            )
+            ret_list.append(ampi)
+        ret = tf.stop_gradient(tf.stack(ret_list, axis=-1))
+        return ret
+
+
 @register_decay_chain("cov_ten2")
 class CovTenDecayChain2(DecayChain):
     def init_params(self, name=""):
