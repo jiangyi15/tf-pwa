@@ -333,6 +333,7 @@ def _get_plot_partial_wave_input(
     save_root=False,
     chains_id_method=None,
     cut_function=lambda x: 1,
+    partial_waves_function=None,
     **kwargs
 ):
     """
@@ -393,7 +394,13 @@ def _get_plot_partial_wave_input(
     if chains_id_method is not None:
         self.chains_id_method = chains_id_method
 
-    chain_property = create_chain_property(self, res)
+    if partial_waves_function is None:
+        chain_property = create_chain_property(self, res)
+    else:
+        chain_property = [
+            [i, "pw_{}".format(i), "partial waves {}".format(i), None]
+            for i in range(100)
+        ]
     plot_var_dic = create_plot_var_dic(self.plot_params)
 
     if self._Ngroup == 1:
@@ -411,6 +418,7 @@ def _get_plot_partial_wave_input(
             res=res,
             phsp_rec=phsp_rec[0],
             cut_function=cut_function,
+            partial_waves_function=partial_waves_function,
             **kwargs,
         )
         all_data = data_dict, phsp_dict, bg_dict
@@ -435,6 +443,7 @@ def _get_plot_partial_wave_input(
                     save_root=save_root,
                     phsp_rec=phsp_rec[i],
                     cut_function=cut_function,
+                    partial_waves_function=partial_waves_function,
                     **kwargs,
                 )
                 all_data = data_dict, phsp_dict, bg_dict
@@ -463,6 +472,7 @@ def _get_plot_partial_wave_input(
                     res=res,
                     phsp_rec=phsp_rec[i],
                     cut_function=cut_function,
+                    partial_waves_function=partial_waves_function,
                     **kwargs,
                 )
                 # self._plot_partial_wave(data_dict, phsp_dict, bg_dict, path+'d{}_'.format(i), plot_var_dic, chain_property, **kwargs)
@@ -528,6 +538,7 @@ def _cal_partial_wave(
     ref_amp=None,
     phsp_rec=None,
     cut_function=lambda x: 1,
+    partial_waves_function=None,
     **kwargs
 ):
     data_dict = {}
@@ -566,9 +577,14 @@ def _cal_partial_wave(
             norm_frac = n_sig / np.sum(total_weight)
             if ref_amp is not None:
                 norm_frac_ref = n_sig / np.sum(total_weight_ref)
-        weights = batch_call_numpy(
-            lambda x: amp.partial_weight(x, combine=res), phsp, batch
-        )
+        if partial_waves_function is None:
+            weights = batch_call_numpy(
+                lambda x: amp.partial_weight(x, combine=res), phsp, batch
+            )
+        else:
+            weights = batch_call_numpy(
+                lambda x: partial_waves_function(x, combine=res), phsp, batch
+            )
         data_weights = data.get("weight", np.ones((data_shape(data),)))
         data_dict["data_weights"] = (
             batch_call_numpy(cut_function, data, batch) * data_weights
@@ -583,10 +599,13 @@ def _cal_partial_wave(
             )
         if bg is not None:
             bg_weight = -w_bkg
+            # sideband weight
             bg_dict["sideband_weights"] = (
                 batch_call_numpy(cut_function, bg, batch) * bg_weight
-            )  # sideband weight
+            )
         for i, name_i, label, _ in chain_property:
+            if i >= len(weights):
+                break
             weight_i = (
                 weights[i]
                 * norm_frac
@@ -594,9 +613,10 @@ def _cal_partial_wave(
                 * phsp.get("weight", 1.0)
                 * phsp.get("eff_value", 1.0)
             )
+            # MC partial weight
             phsp_dict["MC_{0}_{1}_fit".format(i, name_i)] = cut_phsp * sr(
                 weight_i
-            )  # MC partial weight
+            )
         for name in plot_var_dic:
             idx = plot_var_dic[name]["idx"]
             trans = lambda x: np.reshape(plot_var_dic[name]["trans"](x), (-1,))
@@ -673,6 +693,7 @@ def _plot_partial_wave(
     add_chi2=False,
     dpi=300,
     force_legend_labels=None,
+    labels=None,
     **kwargs
 ):
     # cmap = plt.get_cmap("jet")
@@ -759,7 +780,7 @@ def _plot_partial_wave(
             le = bg_hist.draw_bar(
                 ax, label="back ground", alpha=0.5, color="grey"
             )
-            has_negative = has_negative and np.any(bg_hist.count < 0)
+            has_negative = has_negative or np.any(bg_hist.count < 0)
             fitted_hist = fitted_hist + bg_hist
             if ref_amp is not None:
                 fitted_hist_ref = fitted_hist_ref + bg_hist
@@ -769,11 +790,11 @@ def _plot_partial_wave(
             le2 = fitted_hist_ref.draw(
                 ax, label="reference fit", color="red", linewidth=2
             )
-            has_negative = has_negative and np.any(fitted_hist_ref.count < 0)
+            has_negative = has_negative or np.any(fitted_hist_ref.count < 0)
             legends.append(le2[0])
             legends_label.append("reference fit")
         le2 = fitted_hist.draw(ax, label="total fit", color="black")
-        has_negative = has_negative and np.any(fitted_hist.count < 0)
+        has_negative = has_negative or np.any(fitted_hist.count < 0)
         legends.append(le2[0])
         legends_label.append("total fit")
 
@@ -819,7 +840,7 @@ def _plot_partial_wave(
                         linewidth=1,
                     )
 
-            has_negative = has_negative and np.any(hist_i.count < 0)
+            has_negative = has_negative or np.any(hist_i.count < 0)
             legends.append(le3[0])
             legends_label.append(label)
         if yscale == "log":
@@ -834,6 +855,8 @@ def _plot_partial_wave(
         if force_legend_labels:
             legends_label = force_legend_labels
         if has_legend:
+            if labels is not None:
+                legends_label = labels
             if legend_outside:
                 leg = ax.legend(
                     legends,

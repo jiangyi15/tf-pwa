@@ -284,6 +284,14 @@ def test_fit(toy_config, fit_result):
         bin_scale=1,
         res=["R_BC", ["R_BD", "R_CD"]],
     )
+
+    def pw_f(x, **kwargs):
+        amp = toy_config.get_amplitude()
+        return [amp(x)]
+
+    toy_config.plot_partial_wave(
+        prefix="toy_data/figure/pw_", partial_waves_function=pw_f
+    )
     toy_config.plot_partial_wave(prefix="toy_data/figure", color_first=False)
     toy_config.get_params_error(fit_result)
     toy_config.get_params_error(fit_result, method="3-point")
