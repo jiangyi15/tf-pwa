@@ -1328,7 +1328,7 @@ def PWFA(p1, m1_zero, s1, p2, m2_zero, s2, s, S, L):
         trans1,
         trans2,
     )
-    return a  # * tf.cast(factor[...,None, None, None], trans1.dtype)
+    return a * tf.cast(factor[..., None, None, None], trans1.dtype)
 
     # Eigen::TensorMap<Eigen::Tensor<std::complex<double>, 2>> ten1(trans1.data(), trans1.rows(), trans1.cols());
     # Eigen::TensorMap<Eigen::Tensor<std::complex<double>, 2>> ten2(trans2.data(), trans2.rows(), trans2.cols());
