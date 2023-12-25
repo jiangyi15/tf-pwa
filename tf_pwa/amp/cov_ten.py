@@ -1084,7 +1084,7 @@ class CovTenDecaySimple(CovTenDecayNew):
                 self.outs[0].J,
                 p2,
                 self.m2_zero,
-                self.outs[0].J,
+                self.outs[1].J,
                 self.core.J,
                 s,
                 l,
