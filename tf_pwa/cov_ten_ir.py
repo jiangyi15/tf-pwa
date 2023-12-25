@@ -1261,9 +1261,9 @@ def MassiveTransAngle(p1, p2):
     gamma2 = p2[:, 0] / tf.where(m2 < 1e-16, tf.ones_like(m2), m2)
     cosx = -v3.cos_theta(p1xyz, p2xyz)
     har = v3.dot(p1xyz, p2xyz)
-    cospsi_num = 1 - ((1 - cosx * cosx) * (gamma1 - 1) * (gamma2 - 1))
+    cospsi_num = (1 - cosx * cosx) * (gamma1 - 1) * (gamma2 - 1)
     cospsi_dom = 1 - har / (m1 * m2) + gamma1 * gamma2
-    cospsi = cospsi_num / tf.where(
+    cospsi = 1 - cospsi_num / tf.where(
         tf.abs(cospsi_dom) < 1e-16, tf.ones_like(cospsi_dom), cospsi_dom
     )
     psi = tf.math.acos(tf.clip_by_value(cospsi, -1, 1))
