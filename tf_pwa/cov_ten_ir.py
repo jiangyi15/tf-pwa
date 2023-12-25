@@ -1222,7 +1222,10 @@ def MasslessTransAngle(p1, p2):
     p2xyz = lv.vect(p2)
     q1 = tf.sqrt(v3.norm2(p1xyz))
     q2 = tf.sqrt(v3.norm2(p2xyz))
-    n1 = -p1xyz / q1[..., None]
+    bias = tf.where(q1 < 1e-16, tf.ones_like(q1), tf.zeros_like(q1))[..., None]
+    p1xyz = p1xyz + bias * np.array([0.0, 0.0, 1.0])
+    q1n = tf.sqrt(v3.norm2(p1xyz))
+    n1 = -p1xyz / q1n[..., None]
     n2 = p2xyz / q2[..., None]
     psi_1 = tf.math.atan2(n1[..., 1], n1[..., 0]) % (2 * np.pi)
     n1x, n1y, n1z = tf.unstack(n1, axis=-1)
