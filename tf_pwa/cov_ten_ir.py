@@ -1317,7 +1317,7 @@ def PWFA(p1, m1_zero, s1, p2, m2_zero, s2, s, S, L):
         )
     if m2_zero:
         psix2 = MasslessTransAngle(p0, p2)
-        trans2 = wigerDx(lens2 - 1, phi, theta, -psix2)
+        trans2 = wigerDx(lens2 - 1, np.pi + phi, np.pi - theta, -psix2)
     else:
         thetay2, phiy2, psiy2 = MassiveTransAngle(p0, p2)
         trans2 = tf.matmul(
