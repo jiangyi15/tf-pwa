@@ -855,7 +855,7 @@ def ExBoostPara(mm, p_Mu, lib=np):
     return CurlyTheta, Theta, Phi
 
 
-"""根据粒子的质量平方 mm 和四动量 p\[Mu]
+"""根据粒子的质量平方 mm 和四动量 p\\[Mu]
 给出任意自共轭表示[l,r]下任意参考系(pi,pf)中的振幅与质心系(ki,pfs)振幅之间的转换关系"""
 
 
@@ -1339,3 +1339,184 @@ def PWFA(p1, m1_zero, s1, p2, m2_zero, s2, s, S, L):
     # Eigen::Tensor<std::complex<double>, 3> resultx = result.contract(ten1, product_dims);
     # Eigen::Tensor<std::complex<double>, 3> resulty = resultx.contract(ten2, product_dims);
     # return  factor*resulty;
+
+
+# 三粒子分波振幅中线性独立的LS组合的数目: i=0 代表三个粒子均有质量的情况; i=1 代表粒子2无质量的情况; i=2 \
+# 代表粒子2和3均无质量的情况; i=3 代表初末态三粒子均无质量的情况。
+
+
+def NumSL0(s1, s2, s3):
+    if s1 <= (s2 - s3):
+        return (2 * s1 + 1) * (2 * s3 + 1)
+    if s1 <= (s3 - s2):
+        return (2 * s1 + 1) * (2 * s2 + 1)
+    if s1 >= (s2 + s3):
+        return (2 * s2 + 1) * (2 * s3 + 1)
+    return (
+        -(s1**2 + s2**2 + s3**2)
+        + 2 * (s1 * s2 + s2 * s3 + s1 * s3)
+        + s1
+        + s2
+        + s3
+        + 1
+    )
+
+
+def NumSL1(s1, s2, s3):
+    if s2 == 0:
+        return NumSL0(s1, 0, s3)
+    if s1 < (s2 - s3):
+        return 0
+    if s1 <= (s3 - s2):
+        return 2 * (2 * s1 + 1)
+    if s1 >= (s2 + s3):
+        2 * (2 * s3 + 1)
+    return 2 * (s1 - s2 + s3 + 1)
+
+
+def NumSL2(s1, s2, s3):
+    if s3 == 0:
+        return NumSL1(s1, s2, 0)
+    if s2 == 0:
+        return NumSL1(s1, s3, 0)
+    if s1 < abs(s2 - s3):
+        return 0
+    if s1 >= (s2 + s3):
+        return 4
+    return 2
+
+
+def NumSL3(s1, s2, s3):
+    if s1 == 0:
+        return NumSL2(0, s2, s3)
+    if (s1 - abs(s3 - s2) == 0) or s1 - s2 - s3 == 0:
+        return 2
+    return 0
+
+
+def force_int(f):
+    def _f(*args, **kwargs):
+        ret = f(*args, **kwargs)
+        return int(ret)
+
+    return _f
+
+
+@force_int
+def NumSL(s1, s2, s3, i):
+    if i == 0:
+        return NumSL0(s1, s2, s3)
+    if i == 1:
+        return NumSL1(s1, s2, s3)
+    if i == 2:
+        return NumSL2(s1, s2, s3)
+    return NumSL3(s1, s2, s3)
+
+
+# 在选择线性独立的LS组合时, 衡量特定LS组合是否被优先考虑的权重函数
+
+
+def FS(s1, s2, s3, S):
+    return -(s2 + s3 + 1) * abs(S - s1) + S
+
+
+def FL(s1, s2, s3, S, L):
+    return -2 * (s2 + s3 + 1) ** 2 * abs(L - abs(S - s1) - 1 / 2)
+
+
+def F_Sigma(s1, s2, s3, S, L):
+    from sympy.physics.quantum.cg import CG
+
+    if (
+        CG(L, 0, S, s2 - s3, s1, s2 - s3).doit() != 0
+        or CG(L, 0, S, s2 + s3, s1, s2 + s3).doit() != 0
+    ):
+        return 0
+    return -2 * (s2 + s3 + 1) ** 2 * (s1 + s2 + s3)
+
+
+def WFunc1(s1, s2, s3, S, L):
+    return FS(s1, s2, s3, S)
+
+
+def WFunc2(s1, s2, s3, S, L):
+    return FS(s1, s2, s3, S) + FL(s1, s2, s3, S, L) + F_Sigma(s1, s2, s3, S, L)
+
+
+def _srange(a, b=None):
+    if b is None:
+        a, b = 0, a
+    x = a
+    while x < b:
+        yield x
+        x += 1
+
+
+def SCombLS(s1, s2, s3, i):
+    """给出一组线性独立且完备的LS组合: i=0 代表三个粒子均有质量的情况; i=1 代表粒子2无质量的情况; i=2
+    代表粒子2和3均无质量的情况; i=3 代表初末态三粒子均无质量的情况。输出结果是一个集合,其元素为二元数组 {S,L}"""
+    if i == 0 or (i == 1 and s2 == 0):
+        res = []
+        for S in _srange(abs(s2 - s3), s2 + s3 + 1):
+            for L in _srange((abs(s1 - S)), s1 + S + 1):
+                res.append((int(L), S))
+    else:
+        com = []
+        for S in _srange(abs(s2 - s3), s2 + s3 + 1):
+            for L in _srange(abs(s1 - S), s1 + S + 1):
+                if i == 1:
+                    com.append((int(L), S, WFunc1(s1, s2, s3, S, L)))
+                else:
+                    com.append((int(L), S, WFunc2(s1, s2, s3, S, L)))
+        even = sorted(
+            list(filter(lambda x: x[0] % 2 == 0, com)), key=lambda x: -x[2]
+        )
+        odd = sorted(
+            list(filter(lambda x: x[0] % 2 == 1, com)), key=lambda x: -x[2]
+        )
+        leven = len(even)
+        lodd = len(odd)
+        if leven >= lodd:
+            list1 = even
+            list2 = odd
+            lmin = lodd
+        else:
+            list1 = odd
+            list2 = even
+            lmin = leven
+        list_all = []
+        for k in range(1 if lmin == 0 else 2 * lmin):
+            if k % 2 == 0:
+                list_all.append(list1[k // 2])
+            else:
+                list_all.append(list2[(k - 1) // 2])
+        list_all = list_all[: NumSL(s1, s2, s3, i)]
+        res = [(i[0], i[1]) for i in list_all]
+    return res
+
+
+def ls_selector_weight(decay, all_ls):
+    p1 = decay.core
+    p2 = decay.outs[0]
+    p3 = decay.outs[1]
+
+    idx = 0
+    if p2.get_mass() == 0:
+        idx += 1
+    if p3.get_mass() == 0:
+        idx += 1
+    if p1.get_mass() == 0:
+        idx += 1
+    if p3.get_mass() == 0:
+        independent_ls = SCombLS(p1.J, p3.J, p2.J, idx)
+    else:
+        independent_ls = SCombLS(p1.J, p2.J, p3.J, idx)
+    ret = []
+    for i in all_ls:
+        found = False
+        for j in independent_ls:
+            if j[0] - i[0] == 0 and j[1] - i[1] == 0.0:
+                found = True
+        if found:
+            ret.append(i)
+    return ret

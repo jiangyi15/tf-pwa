@@ -703,6 +703,7 @@ class HelicityDecay(AmpDecay):
         params_head=None,
         no_q0=False,
         helicity_inner_full=False,
+        ls_selector=None,
         **kwargs
     ):
         super(HelicityDecay, self).__init__(*args, **kwargs)
@@ -727,6 +728,7 @@ class HelicityDecay(AmpDecay):
         self.params_head = params_head
         self.no_q0 = no_q0
         self.helicity_inner_full = helicity_inner_full
+        self.ls_selector = ls_selector
 
     def get_params_head(self):
         if self.params_head is None:
@@ -1212,6 +1214,11 @@ class HelicityDecay(AmpDecay):
         ls_list = super(HelicityDecay, self).get_ls_list()
         if self.ls_list is not None:
             return self.ls_list
+        if self.ls_selector == "weight":
+            print("using ls_selector", self.ls_selector, "for", self)
+            from tf_pwa.cov_ten_ir import ls_selector_weight
+
+            ls_list = tuple(ls_selector_weight(self, ls_list))
         if self.l_list is None:
             return ls_list
         ret = []
