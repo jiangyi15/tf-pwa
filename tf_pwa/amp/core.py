@@ -1219,6 +1219,8 @@ class HelicityDecay(AmpDecay):
             from tf_pwa.cov_ten_ir import ls_selector_weight
 
             ls_list = tuple(ls_selector_weight(self, ls_list))
+        if self.ls_selector == "qr":
+            ls_list = tuple(ls_selector_qr(self, ls_list))
         if self.l_list is None:
             return ls_list
         ret = []
@@ -1226,6 +1228,47 @@ class HelicityDecay(AmpDecay):
             if l in self.l_list:
                 ret.append((l, s))
         return tuple(ret)
+
+
+def ls_selector_qr(decay, ls_list):
+    p0 = decay.core
+    p1 = decay.outs[0]
+    p2 = decay.outs[1]
+
+    hel_list = []
+    for l1 in p1.spins:
+        for l2 in p2.spins:
+            if abs(l1 - l2) <= p0.J:
+                if decay.p_break:
+                    if p1.J > p2.J and l1 > 0:
+                        continue
+                    if p1.J <= p2.J and l2 > 0:
+                        continue
+                hel_list.append((l1, l2))
+    from sympy import Matrix
+    from sympy.physics.quantum.cg import CG
+
+    cg = []
+    for l1, l2 in hel_list:
+        tmp = []
+        for l, s in ls_list:
+            delta = l1 - l2
+            coeff = CG(l, 0, s, delta, p0.J, delta)
+            coeff = coeff * CG(p1.J, l1, p2.J, -l2, s, delta)
+            tmp.append(coeff.doit())
+        cg.append(tmp)
+    cg = Matrix(cg)
+    _, r = cg.QRdecomposition()
+    all_idx = []
+    for i in range(r.rows):
+        idx = 1
+        for j in range(r.cols):
+            if r[i, j] == 0:
+                idx += 1
+            else:
+                break
+        all_idx.append(idx)
+    return [ls_list[i] for i in all_idx]
 
 
 @regist_decay("default", 3)
