@@ -366,3 +366,68 @@ def generate_phsp(m0, mi, N=1000):
 
     """
     return ChainGenerator(m0, mi).generate(N)
+
+
+def square_dalitz_cut(p):
+    """Copy from EvtGen old version"""
+    p1, p2, p3 = p
+
+    m0 = LorentzVector.M(p1 + p2 + p3)
+    m1 = LorentzVector.M(p1)
+    m2 = LorentzVector.M(p2)
+    m3 = LorentzVector.M(p3)
+
+    m12 = LorentzVector.M(p1 + p2)
+    m23 = LorentzVector.M(p2 + p3)
+    m13 = LorentzVector.M(p1 + p3)
+
+    m12norm = 2 * ((m12 - (m1 + m2)) / (m0 - (m1 + m2 + m3))) - 1
+    mPrime = tf.math.acos(m12norm) / np.pi
+    thPrime = (
+        tf.math.acos(
+            (
+                m12 * m12 * (m23 * m23 - m13 * m13)
+                - (m2 * m2 - m1 * m1) * (m0 * m0 - m3 * m3)
+            )
+            / (
+                tf.sqrt(
+                    (m12 * m12 + m1 * m1 - m2 * m2) ** 2
+                    - 4 * m12 * m12 * m1 * m1
+                )
+                * tf.sqrt(
+                    (-m12 * m12 + m0 * m0 - m3 * m3) ** 2
+                    - 4 * m12 * m12 * m3 * m3
+                )
+            )
+        )
+        / np.pi
+    )
+    p1st = tf.sqrt(
+        (-m12 * m12 - m1 * m1 + m2 * m2) ** 2 - 4 * m12 * m12 * m1 * m1
+    ) / (2 * m12)
+    p3st = tf.sqrt(
+        (-m12 * m12 + m0 * m0 - m3 * m3) ** 2 - 4 * m12 * m12 * m3 * m3
+    ) / (2 * m12)
+    jacobian = (
+        2
+        * np.pi**2
+        * tf.sin(np.pi * thPrime)
+        * tf.sin(np.pi * thPrime)
+        * p1st
+        * p3st
+        * m12
+        * (m0 - (m1 + m2 + m3))
+    )
+
+    prob = 1 / jacobian
+
+    return tf.where(prob < 1.0, prob, tf.ones_like(prob))
+
+
+def generate_square_dalitz12(m0, mi, N=1000):
+    gen = PhaseSpaceGenerator(m0, mi)
+    from tf_pwa.generator.generator import multi_sampling
+
+    return multi_sampling(gen.generate, square_dalitz_cut, N=N, max_weight=1)[
+        0
+    ]
