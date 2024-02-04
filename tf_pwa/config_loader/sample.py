@@ -431,12 +431,92 @@ def get_SDP_p_generator(config, node, legacy=True):
     if legacy:
         return get_SDP_p_generator_legacy(config, node)
 
+    from tf_pwa.generator.square_dalitz_plot import SDPGenerator
+
     decay_chain = config.get_decay(False).get_decay_chain(node)
+    decay_group = config.get_decay()
+
+    struct = config.get_decay(False).topology_structure()
+
+    ref_struct = None
+    for i in struct:
+        if i.topology_same(decay_chain):
+            ref_struct = i
+    inner_node = [set(i.inner) for i in struct]
+    same_inner = inner_node[0]
+    for i in inner_node[1:]:
+        same_inner = same_inner & i
+
+    for i in decay_chain:
+        if str(i.core) == str(node):
+            particle_1 = i.outs[0]
+            particle_2 = i.outs[1]
+        if str(node) in [str(j) for j in i.outs]:
+            particle_0 = i.core
+            particle_3 = [j for j in i.outs if str(j) != str(node)][0]
+
+    force_inner_node = [
+        i
+        for i in [particle_1, particle_2, particle_3]
+        if i not in decay_chain.outs
+    ]
+    if particle_0 != decay_chain.top:
+        force_inner_node.append(particle_0)
+
+    idx_table = decay_chain.sorted_table()
+    decay_map = ref_struct.topology_map(decay_chain)
+    st = ref_struct.sorted_table()
+    for j in same_inner:
+        for i in force_inner_node:
+            if idx_table[i] != st[j]:
+                force_inner_node.append(decay_map[i])
+
+    nodes = [(i, float(i.get_mass())) for i in force_inner_node]
+    mi = [i.get_mass() for i in decay_group.outs]
+    mi = dict(zip(decay_chain.outs, mi))
+    mi, final_idx = build_phsp_chain_sorted(idx_table, mi, nodes)
+    m0 = float(decay_chain.top.get_mass())
+
+    chain_gen = ChainGenerator(m0, mi)
+    chain_gen.unpack_map = final_idx
+
+    find_idx = tuple(final_idx[particle_1][1:])
+    for i, j in enumerate(chain_gen.idxs):
+        if j == find_idx:
+            gen_idx = i
+    old_phsp = chain_gen.gen[gen_idx]
+
+    mi_order = [
+        float(i.get_mass()) for i in [particle_1, particle_2, particle_3]
+    ]
+
+    new_order = []
+    for i in old_phsp.m_mass:
+        for idx, j in enumerate(mi_order):
+            if abs(i - j) < 1e-6 and idx not in new_order:
+                new_order.append(idx)
+
+    sdp_gen = SDPGenerator(old_phsp.m0, mi_order, legacy=False)
+
+    def reorder(pi):
+        return [pi[i] for i in new_order]
+
+    chain_gen.gen[gen_idx] = AfterGenerator(sdp_gen, reorder)
+
+    def loop_index(tree, idx):
+        for i in idx:
+            tree = tree[i]
+        return tree
+
+    def f_after(pi):
+        return {k: loop_index(pi, final_idx[k]) for k in decay_group.outs}
+
+    return AfterGenerator(chain_gen, f_after)
 
 
 @ConfigLoader.register_function()
-def generate_SDP_p(config, node, N=1000):
-    gen = get_SDP_p_generator(config, node)
+def generate_SDP_p(config, node, N=1000, legacy=False):
+    gen = get_SDP_p_generator(config, node, legacy=legacy)
     return gen.generate(N)
 
 
@@ -445,12 +525,6 @@ def get_SDP_generator(config, node, include_charge=False, legacy=True):
     gen_p = get_SDP_p_generator(config, node, legacy=legacy)
     f_after = create_cal_calangle(config, include_charge=include_charge)
     return AfterGenerator(gen_p, f_after)
-
-
-@ConfigLoader.register_function()
-def generate_SDP_p(config, node, N=1000):
-    gen = get_SDP_p_generator(config, node)
-    return gen.generate(N)
 
 
 @ConfigLoader.register_function()

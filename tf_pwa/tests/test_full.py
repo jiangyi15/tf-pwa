@@ -169,8 +169,9 @@ def test_cfit(gen_toy):
 
 def test_sdp_gen(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_cfit.yml")
-    config.generate_SDP_p("R_BC", 10)
+    config.generate_SDP_p("R_BC", 10, legacy=True)
     config.generate_SDP("R_BC", 10)
+    config.generate_SDP_p("R_BC", 10, legacy=False)
 
 
 def test_precached(gen_toy):
