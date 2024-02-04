@@ -128,3 +128,20 @@ def single_sampling2(phsp, amp, N, max_weight=None, importance_f=None):
     cut = rnd * max_weight < weight
     data = data_mask(data, cut)
     return data, max_weight
+
+
+class ARGenerator(BaseGenerator):
+    """Acceptance-Rejection Sampling"""
+
+    def __init__(self, phsp, amp, max_weight=None):
+        self.phsp = phsp
+        self.amp = amp
+        self.max_weight = max_weight
+        self.status = None
+
+    def generate(self, N):
+        ret, status = multi_sampling(
+            self.phsp, self.amp, N, max_weight=self.max_weight, display=False
+        )
+        self.status = status
+        return ret

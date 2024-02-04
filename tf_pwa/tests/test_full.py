@@ -167,6 +167,12 @@ def test_cfit(gen_toy):
     plotter.plot_var(amp)
 
 
+def test_sdp_gen(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_cfit.yml")
+    config.generate_SDP_p("R_BC", 10)
+    config.generate_SDP("R_BC", 10)
+
+
 def test_precached(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_precached.yml")
     config.set_params(f"{this_dir}/gen_params.json")

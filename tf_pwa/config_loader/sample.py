@@ -234,10 +234,7 @@ def generate_phsp_p(config, N=1000, cal_max=False):
     return gen.generate(N)
 
 
-@ConfigLoader.register_function()
-def get_phsp_generator(config, include_charge=False, nodes=[]):
-    gen_p = get_phsp_p_generator(config, nodes=nodes)
-
+def create_cal_calangle(config, include_charge=False):
     def f_after(p):
         N = data_shape(p)
         charge = gen_random_charge(N, include_charge)
@@ -246,6 +243,13 @@ def get_phsp_generator(config, include_charge=False, nodes=[]):
             ret["charge_conjugation"] = charge
         return ret
 
+    return f_after
+
+
+@ConfigLoader.register_function()
+def get_phsp_generator(config, include_charge=False, nodes=[]):
+    gen_p = get_phsp_p_generator(config, nodes=nodes)
+    f_after = create_cal_calangle(config, include_charge=include_charge)
     return AfterGenerator(gen_p, f_after)
 
 
@@ -394,3 +398,64 @@ def trans_node_order(struct, index, order_trans, level):
 
     ret_struct = create_new_struct(struct, level)
     return ret_struct, ret_index
+
+
+def get_SDP_p_generator_legacy(config, node):
+    from tf_pwa.generator.generator import ARGenerator
+    from tf_pwa.generator.square_dalitz_plot import square_dalitz_cut
+
+    gen_p = config.get_phsp_p_generator()
+
+    decay_chain = config.get_decay(False).get_decay_chain(node)
+    for i in decay_chain:
+        if str(i.core) == str(node):
+            particle_1 = i.outs[0]
+            particle_2 = i.outs[1]
+        if str(node) in [str(j) for j in i.outs]:
+            particle_0 = i.core
+            particle_3 = [j for j in i.outs if str(j) != str(node)][0]
+
+    idx_table = decay_chain.sorted_table()
+
+    def node_cut(p):
+        p1 = sum([p[i] for i in idx_table[particle_1]])
+        p2 = sum([p[i] for i in idx_table[particle_2]])
+        p3 = sum([p[i] for i in idx_table[particle_3]])
+        return square_dalitz_cut([p1, p2, p3])
+
+    return ARGenerator(gen_p.generate, node_cut, max_weight=1.0)
+
+
+@ConfigLoader.register_function()
+def get_SDP_p_generator(config, node, legacy=True):
+    if legacy:
+        return get_SDP_p_generator_legacy(config, node)
+
+    decay_chain = config.get_decay(False).get_decay_chain(node)
+
+
+@ConfigLoader.register_function()
+def generate_SDP_p(config, node, N=1000):
+    gen = get_SDP_p_generator(config, node)
+    return gen.generate(N)
+
+
+@ConfigLoader.register_function()
+def get_SDP_generator(config, node, include_charge=False, legacy=True):
+    gen_p = get_SDP_p_generator(config, node, legacy=legacy)
+    f_after = create_cal_calangle(config, include_charge=include_charge)
+    return AfterGenerator(gen_p, f_after)
+
+
+@ConfigLoader.register_function()
+def generate_SDP_p(config, node, N=1000):
+    gen = get_SDP_p_generator(config, node)
+    return gen.generate(N)
+
+
+@ConfigLoader.register_function()
+def generate_SDP(config, node, N=1000, include_charge=False, legacy=True):
+    gen = get_SDP_generator(
+        config, node, include_charge=include_charge, legacy=legacy
+    )
+    return gen.generate(N)
