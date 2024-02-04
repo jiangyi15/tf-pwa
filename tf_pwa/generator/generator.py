@@ -12,11 +12,12 @@ class BaseGenerator(metaclass=abc.ABCMeta):
 
 
 class GenTest:
-    def __init__(self, N_max):
+    def __init__(self, N_max, display=True):
         self.N_max = N_max
         self.N_gen = 0
         self.N_total = 0
         self.eff = 0.9
+        self.display = display
 
     def generate(self, N):
         self.N_gen = 0
@@ -32,24 +33,26 @@ class GenTest:
             finsh = "▓" * int(progress * N_progress)
             need_do = "-" * (N_progress - int(progress * N_progress) - 1)
             now = time.perf_counter() - start_time
-            print(
-                "\r{:^3.1f}%[{}>{}] {:.2f}/{:.2f}s eff: {:.6f}%  ".format(
-                    progress * 100,
-                    finsh,
-                    need_do,
-                    now,
-                    now / progress,
-                    self.eff * 100,
-                ),
-                end="",
-            )
+            if self.display:
+                print(
+                    "\r{:^3.1f}%[{}>{}] {:.2f}/{:.2f}s eff: {:.6f}%  ".format(
+                        progress * 100,
+                        finsh,
+                        need_do,
+                        now,
+                        now / progress,
+                        self.eff * 100,
+                    ),
+                    end="",
+                )
             self.eff = (self.N_gen + 1) / (self.N_total + 1)  # avoid zero
         end_time = time.perf_counter() - start_time
-        print(
-            "\r{:^3.1f}%[{}] {:.2f}/{:.2f}s  eff: {:.6f}%   ".format(
-                100, "▓" * N_progress, end_time, end_time, self.eff * 100
+        if self.display:
+            print(
+                "\r{:^3.1f}%[{}] {:.2f}/{:.2f}s  eff: {:.6f}%   ".format(
+                    100, "▓" * N_progress, end_time, end_time, self.eff * 100
+                )
             )
-        )
 
     def add_gen(self, n_gen):
         # print("add gen")
@@ -61,14 +64,21 @@ class GenTest:
 
 
 def multi_sampling(
-    phsp, amp, N, max_N=200000, force=True, max_weight=None, importance_f=None
+    phsp,
+    amp,
+    N,
+    max_N=200000,
+    force=True,
+    max_weight=None,
+    importance_f=None,
+    display=True,
 ):
 
     import tensorflow as tf
 
     from tf_pwa.data import data_mask, data_merge, data_shape
 
-    a = GenTest(max_N)
+    a = GenTest(max_N, display=display)
     all_data = []
 
     for i in a.generate(N):

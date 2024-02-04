@@ -218,12 +218,15 @@ class LorentzVector(tf.Tensor):
         """
         return tf.cast(tf.constant([1.0, -1.0, -1.0, -1.0]), self.dtype)
 
+    def Dot(self, other):
+        s = self * other * LorentzVector.get_metric(self)
+        return tf.reduce_sum(s, axis=-1)
+
     def M2(self):
         """
         The invariant mass squared
         """
-        s = self * self * LorentzVector.get_metric(self)
-        return tf.reduce_sum(s, axis=-1)
+        return LorentzVector.Dot(self, self)
 
     def M(self):
         """
