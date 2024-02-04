@@ -6,10 +6,10 @@ from tf_pwa.generator import BaseGenerator
 
 
 def square_dalitz_variables(p):
-    """
+    """Variables used of square dalitz plot, the first 2 is :math:`m'` and :math:`\\theta'`.
 
     .. math::
-        m' = \\frac{1}{\\pi}\\cos^{-1} \\left(2 \\frac{m_{12}-m_{min}}{m_{max}-m_{min}} - 1\\right)
+        m' = \\frac{1}{\\pi}\\cos^{-1} \\left(2 \\frac{m_{12}-m^{min}_{12}}{m^{max}_{12}-m^{min}_{12}} - 1\\right)
 
     .. math::
         \\theta' = \\frac{1}{\\pi} \\theta_{12}
@@ -91,9 +91,9 @@ def generate_SDP(m0, mi, N=1000, legacy=True):
 
         >>> import matplotlib.pyplot as plt
         >>> plt.clf()
-        >>> from tf_pwa.phasespace import generate_square_dalitz12, square_dalitz_variables
-        >>> p1, p2, p3 = generate_square_dalitz12(5.0, [2.0, 1.8, 0.5], 1000, legacy=True)
-        >>> p12, p22, p32 = generate_square_dalitz12(5.0, [2.0, 1.8, 0.5], 1000, legacy=False)
+        >>> from tf_pwa.generator.square_dalitz_plot import generate_SDP, square_dalitz_variables
+        >>> p1, p2, p3 = generate_SDP(5.0, [2.0, 1.8, 0.5], 1000, legacy=True)
+        >>> p12, p22, p32 = generate_SDP(5.0, [2.0, 1.8, 0.5], 1000, legacy=False)
         >>> mp, thetap, *_ = square_dalitz_variables([p1, p2, p3])
         >>> mp2, thetap2, *_ = square_dalitz_variables([p12, p22, p32])
         >>> _ = plt.subplot(1,2,1)
