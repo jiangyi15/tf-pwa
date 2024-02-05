@@ -321,6 +321,48 @@ def plot_partial_wave(
 
 
 @ConfigLoader.register_function()
+def plot_partial_wave_interf(self, res1, res2, **kwargs):
+
+    labels = ["data"]
+    if self.config["data"].get("model", "auto") == "cfit":
+        labels.append("background")
+    elif self.config["data"].get("bg", None) is not None:
+        labels.append("background")
+
+    if kwargs.get("ref_amp", None) is not None:
+        labels.append("reference fit")
+    labels.append("total fit")
+
+    if kwargs.get("force_legend_labels", None) is not None:
+        labels = kwargs["force_legend_labels"]
+        del kwargs["force_legend_labels"]
+
+    labels += [str(res1), str(res2), "sum", "interference"]
+
+    if not isinstance(res1, list):
+        res1 = [res1]
+    if not isinstance(res2, list):
+        res2 = [res2]
+
+    amp = self.get_amplitude()
+
+    def weights_function(data, **kwargs):
+        with amp.temp_used_res(res1):
+            a = amp(data)
+        with amp.temp_used_res(res2):
+            b = amp(data)
+        with amp.temp_used_res(res1 + res2):
+            ab = amp(data)
+        return [a, b, ab, ab - a - b]
+
+    self.plot_partial_wave(
+        partial_waves_function=weights_function,
+        force_legend_labels=labels,
+        **kwargs,
+    )
+
+
+@ConfigLoader.register_function()
 def _get_plot_partial_wave_input(
     self,
     params=None,

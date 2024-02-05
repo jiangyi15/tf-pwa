@@ -156,6 +156,17 @@ def test_cfit(gen_toy):
         linestyle_file="toy_data/a.yml",
         chains_id_method="res",
     )
+    config.plot_partial_wave_interf(
+        "R_BC",
+        "R_BD",
+        prefix="toy_data/figure/interf_",
+    )
+    config.plot_partial_wave_interf(
+        "R_BC",
+        "R_BD",
+        prefix="toy_data/figure/interf2_",
+        ref_amp=amp,
+    )
     config.get_plotter().save_all_frame(prefix="toy_data/figure/s3", idx=0)
     plotter = config.get_plotter("toy_data/a.yml", use_weighted=True)
     plotter.smooth = True
