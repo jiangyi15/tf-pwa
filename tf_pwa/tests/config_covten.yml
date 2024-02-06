@@ -1,0 +1,45 @@
+data:
+  dat_order: [B, C, D]
+  data: ["toy_data/data.dat"]
+  bg: ["toy_data/bg.dat"]
+  phsp: ["toy_data/PHSP.dat"]
+  random_z: False
+  r_boost: False
+  center_boost: True
+  bg_weight: 0.1
+
+decay:
+  A:
+    - [R_BC, D, model: cov_ten_com]
+    - [R_BD, C, model: cov_ten_com]
+    - [R_CD, B, model: cov_ten_com]
+  R_BC: [B, C, model: cov_ten_ir]
+  R_BD: [B, D, model: cov_ten_com]
+  R_CD: [C, D, model: cov_ten_com]
+
+particle:
+  $top:
+    A: { m0: 4.6, J: 1, P: -1, spins: [-1, 1] }
+  $finals:
+    B: { m0: 2.00698, J: 1, P: -1 }
+    C: { m0: 2.01028, J: 1, P: -1 }
+    D: { m0: 0.13957, J: 0, P: -1 }
+  R_BC: { J: 1, Par: 1, m0: 4.16, g0: 0.1, params: { mass_range: [4.0, 4.2] } }
+  R_BD: { J: 1, Par: 1, m0: 2.43, g0: 0.3 }
+  R_CD: { J: 1, Par: 1, m0: 2.42, g0: 0.03 }
+
+constrains:
+  particle: null
+  decay: null
+
+plot:
+  mass:
+    R_BC: { display: "$M_{BC}$" }
+    R_BD: { display: "$M_{BD}$" }
+    R_CD: { display: "$M_{CD}$" }
+  angle:
+    R_BC/B:
+      cos(beta):
+        display: "cos $\\theta$"
+      alpha:
+        display: "$\\phi$"
