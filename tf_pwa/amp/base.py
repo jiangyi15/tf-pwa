@@ -195,7 +195,7 @@ class ParticleGS(Particle):
       f(m) = \Gamma_0 \frac{m_0 ^2 }{q_0^3} \left[q^2 [h(m)-h(m_0)] + (m_0^2 - m^2) q_0^2 \frac{d h}{d m}|_{m0} \right]
 
     .. math::
-      h(m) = \frac{2}{\pi} \frac{q}{m} \ln \left(\frac{m+q}{2m_{\pi}} \right)
+      h(m) = \frac{2}{\pi} \frac{q}{m} \ln \left(\frac{m+2q}{2m_{\pi}} \right)
 
     .. math::
       \frac{d h}{d m}|_{m0} = h(m_0) [(8q_0^2)^{-1} - (2m_0^2)^{-1}] + (2\pi m_0^2)^{-1}

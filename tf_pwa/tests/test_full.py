@@ -165,6 +165,17 @@ def test_cfit(gen_toy):
         linestyle_file="toy_data/a.yml",
         chains_id_method="res",
     )
+    config.plot_partial_wave_interf(
+        "R_BC",
+        "R_BD",
+        prefix="toy_data/figure/interf_",
+    )
+    config.plot_partial_wave_interf(
+        "R_BC",
+        "R_BD",
+        prefix="toy_data/figure/interf2_",
+        ref_amp=amp,
+    )
     config.get_plotter().save_all_frame(prefix="toy_data/figure/s3", idx=0)
     plotter = config.get_plotter("toy_data/a.yml", use_weighted=True)
     plotter.smooth = True
@@ -174,6 +185,13 @@ def test_cfit(gen_toy):
     plotter.forzen_style()
     plotter.style.save()
     plotter.plot_var(amp)
+
+
+def test_sdp_gen(gen_toy):
+    config = ConfigLoader(f"{this_dir}/config_cfit.yml")
+    config.generate_SDP_p("R_BC", 10, legacy=True)
+    config.generate_SDP("R_BC", 10)
+    config.generate_SDP_p("R_BC", 10, legacy=False)
 
 
 def test_precached(gen_toy):
@@ -292,6 +310,14 @@ def test_fit(toy_config, fit_result):
         smooth=False,
         bin_scale=1,
         res=["R_BC", ["R_BD", "R_CD"]],
+    )
+
+    def pw_f(x, **kwargs):
+        amp = toy_config.get_amplitude()
+        return [amp(x)]
+
+    toy_config.plot_partial_wave(
+        prefix="toy_data/figure/pw_", partial_waves_function=pw_f
     )
     toy_config.plot_partial_wave(prefix="toy_data/figure", color_first=False)
     toy_config.get_params_error(fit_result)
