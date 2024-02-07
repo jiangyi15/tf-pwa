@@ -1218,16 +1218,18 @@ class HelicityDecay(AmpDecay):
             print("using ls_selector", self.ls_selector, "for", self)
             from tf_pwa.cov_ten_ir import ls_selector_weight
 
-            ls_list = tuple(ls_selector_weight(self, ls_list))
+            self.ls_list = tuple(ls_selector_weight(self, ls_list))
         if self.ls_selector == "qr":
-            ls_list = tuple(ls_selector_qr(self, ls_list))
+            print("using ls_selector", self.ls_selector, "for", self)
+            self.ls_list = tuple(ls_selector_qr(self, ls_list))
         if self.l_list is None:
-            return ls_list
+            return self.ls_list
         ret = []
-        for l, s in ls_list:
+        for l, s in self.ls_list:
             if l in self.l_list:
                 ret.append((l, s))
-        return tuple(ret)
+        self.ls_list = tuple(ret)
+        return self.ls_list
 
 
 def ls_selector_qr(decay, ls_list):
@@ -1261,7 +1263,7 @@ def ls_selector_qr(decay, ls_list):
     _, r = cg.QRdecomposition()
     all_idx = []
     for i in range(r.rows):
-        idx = 1
+        idx = i
         for j in range(r.cols):
             if r[i, j] == 0:
                 idx += 1
