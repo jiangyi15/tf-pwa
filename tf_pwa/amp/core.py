@@ -1218,10 +1218,11 @@ class HelicityDecay(AmpDecay):
             print("using ls_selector", self.ls_selector, "for", self)
             from tf_pwa.cov_ten_ir import ls_selector_weight
 
-            self.ls_list = tuple(ls_selector_weight(self, ls_list))
+            ls_list = tuple(ls_selector_weight(self, ls_list))
         if self.ls_selector == "qr":
             print("using ls_selector", self.ls_selector, "for", self)
-            self.ls_list = tuple(ls_selector_qr(self, ls_list))
+            ls_list = tuple(ls_selector_qr(self, ls_list))
+        self.ls_list = ls_list
         if self.l_list is None:
             return self.ls_list
         ret = []
