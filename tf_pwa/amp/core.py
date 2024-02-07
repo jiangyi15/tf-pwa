@@ -1211,9 +1211,9 @@ class HelicityDecay(AmpDecay):
 
     def get_ls_list(self):
         """get possible ls for decay, with l_list filter possible l"""
-        ls_list = super(HelicityDecay, self).get_ls_list()
         if self.ls_list is not None:
             return self.ls_list
+        ls_list = super(HelicityDecay, self).get_ls_list()
         if self.ls_selector == "weight":
             print("using ls_selector", self.ls_selector, "for", self)
             from tf_pwa.cov_ten_ir import ls_selector_weight
@@ -1264,7 +1264,7 @@ def ls_selector_qr(decay, ls_list):
     _, r = cg.QRdecomposition()
     all_idx = []
     for i in range(r.rows):
-        idx = i
+        idx = 0
         for j in range(r.cols):
             if r[i, j] == 0:
                 idx += 1
