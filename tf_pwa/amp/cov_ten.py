@@ -12,7 +12,7 @@ from tf_pwa.amp import (
 )
 from tf_pwa.angle import LorentzVector as lv
 from tf_pwa.data import data_shape
-from tf_pwa.particle import _spin_int
+from tf_pwa.particle import BaseDecay, _spin_int
 
 
 class IndexMap:
@@ -99,6 +99,7 @@ class EinSum:
         # print(einsum_expr)
         if any(i.dtype is tf.complex128 for i in real_inputs):
             real_inputs = [tf.cast(i, tf.complex128) for i in real_inputs]
+        # print(self, real_inputs)
         # print([i.shape for i in real_inputs])
         ret = tf.einsum(einsum_expr, *real_inputs)
         # print(self.name, ret)
@@ -245,9 +246,9 @@ class EvalT2:
             b = EvalBoost([self.decay.outs[0], self.decay.core], [-1, 1]).call(
                 inputs
             )
-            print("boost matrix")
-            print(b)
-            print("origin t_2^{\\beta\\rho}", ret)
+            # print("boost matrix")
+            # print(b)
+            # print("origin t_2^{\\beta\\rho}", ret)
             b = tf.linalg.inv(b)  #  * np.array([1,-1,-1,-1])
             return tf.einsum("...ab,...bc->...ac", b, ret)
         else:
@@ -385,7 +386,6 @@ class CovTenDecayChain(DecayChain):
         return ret
 
     def build_coupling_einsum(self, a, b, c, na, nb, nc, idx_map):
-        # print(a, b, c, na, nb, nc)
         idx_a = [f"{a}_lorentz_{i}" for i in range(na)]
         idx_b = [f"{b}_lorentz_{i}" for i in range(nb)]
         idx_c = [f"{c}_lorentz_{i}" for i in range(nc)]
@@ -421,7 +421,11 @@ class CovTenDecayChain(DecayChain):
             epsilon = EinSum(
                 "epsilon", (idx_a[-1], "delta", idx_b[-1], idx_c[-1])
             )
-            p = EinSum(f"{a}_p", ["delta"])
+            if isinstance(a, str):
+                aa = a.split("->")[0]
+                p = EinSum(f"{aa}_p", ["delta"])
+            else:
+                p = EinSum(f"{a}_p", ["delta"])
             g = [EinSum("g", (i, j)) for i, j in gs]
             ret = EinSum(
                 f"{a}_amp",
@@ -432,9 +436,6 @@ class CovTenDecayChain(DecayChain):
                 replace_axis=replace_axis,
             )
         return ret
-
-    def cal_tensor_t(self, p1, p2, cached_data=None):
-        cached_data = {} if cached_data is None else cached_data
 
     def build_s_einsum(self, decay, l, s, idx_map):
         a = decay.core
@@ -510,7 +511,14 @@ class CovTenDecayChain(DecayChain):
         if particle.J == 0:
             return tf.ones_like(pi[..., 0:1])
         if particle.J == 1:
-            return wave_function(1, pi)
+            ret = wave_function(1, pi)
+            if len(particle.spins) != 3:
+                ret = tf.gather(
+                    ret,
+                    [_spin_int(i + particle.J) for i in particle.spins],
+                    axis=-1,
+                )
+            return ret
         raise NotImplementedError()
 
 

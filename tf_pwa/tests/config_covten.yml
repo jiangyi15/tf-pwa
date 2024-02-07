@@ -32,7 +32,7 @@ particle:
       Par: 1,
       m0: 2.42,
       g0: 0.03,
-      decay_chain_params: { model: cov_ten },
+      decay_params: { decay_chain_params: { model: cov_ten } },
     }
 
 constrains:
