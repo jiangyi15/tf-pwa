@@ -343,7 +343,7 @@ def cal_helicity_angle(
     return ret
 
 
-def aligned_angle_ref_rule1(decay_group, decay_chain_struct, decay_data):
+def aligned_angle_ref_rule1(decay_group, decay_chain_struct, decay_data, data):
     # calculate aligned angle of final particles in each decay chain
     set_x = {}  # reference particles
     ref_matrix = {}
@@ -378,7 +378,7 @@ def aligned_angle_ref_rule1(decay_group, decay_chain_struct, decay_data):
     return set_x, ref_matrix_final
 
 
-def aligned_angle_ref_rule2(decay_group, decay_chain_struct, decay_data):
+def aligned_angle_ref_rule2(decay_group, decay_chain_struct, decay_data, data):
     # calculate aligned angle of final particles in each decay chain
     set_x = {}  # reference particles
     ref_matrix = {}
@@ -389,9 +389,17 @@ def aligned_angle_ref_rule2(decay_group, decay_chain_struct, decay_data):
             None,
             {"x": np.array([[1.0, 0, 0]]), "z": np.array([[0.0, 0, 1]])},
         )
+        p = data[i]["p"]
+        ang, _ = EulerAngle.angle_zx_z_getx(
+            np.array([[0.0, 0, 1]]),
+            np.array([[1.0, 0, 0]]),
+            LorentzVector.vect(p),
+        )
+        Bp = SU2M.Boost_z_from_p(LorentzVector.neg(p))
+        r = SU2M.Rotation_y(ang["beta"]) * SU2M.Rotation_z(ang["alpha"])
         ref_matrix_final[i] = {
             "b_matrix": SU2M([[1, 0], [0, 1]]),
-            "r_matrix": SU2M([[1, 0], [0, 1]]),
+            "r_matrix": r.inv() * Bp * r,
         }
 
     return set_x, ref_matrix_final
@@ -434,11 +442,11 @@ def cal_angle_from_particle(
         decay_data[i] = data_i
     if align_ref == "center_mass":
         set_x, ref_matrix_final = aligned_angle_ref_rule2(
-            decay_group, decay_chain_struct, decay_data
+            decay_group, decay_chain_struct, decay_data, data
         )
     else:
         set_x, ref_matrix_final = aligned_angle_ref_rule1(
-            decay_group, decay_chain_struct, decay_data
+            decay_group, decay_chain_struct, decay_data, data
         )
 
     for idx, decay_chain in enumerate(decay_chain_struct):
