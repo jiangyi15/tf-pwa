@@ -185,7 +185,10 @@ def exp_i(theta, mi):
     mi = tf.cast(mi, dtype=theta.dtype)
     m_theta = mi * theta_i
     zeros = tf.zeros_like(m_theta)
-    im_theta = tf.complex(zeros, m_theta)
+    if m_theta.dtype in [tf.complex128, tf.complex64]:
+        im_theta = 1.0j * m_theta
+    else:
+        im_theta = tf.complex(zeros, m_theta)
     exp_theta = tf.exp(im_theta)
     return exp_theta
 
@@ -246,6 +249,14 @@ def get_D_matrix_lambda(angle, ja, la, lb, lc=None):
     :param lc:
     :return:
     """
+    if angle is None:
+        assert lc is None
+        ret = np.zeros((1, len(la), len(lb)), dtype=np.complex128)
+        for idxi, i in enumerate(la):
+            for idxj, j in enumerate(lb):
+                if i == j:
+                    ret[0, idxi, idxj] = 1
+        return ret
     d = get_D_matrix_for_angle(angle, _spin_int(2 * ja))
     if lc is None:
         return tf.reshape(

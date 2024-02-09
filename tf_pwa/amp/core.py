@@ -628,6 +628,24 @@ class AmpDecay(Decay, AmpBase):
             ret.append(base_map[i])
         return ret
 
+    def n_helicity_inner(self):
+        ret = []
+        for i in self.outs:
+            if getattr(self, "helicity_inner_full", False):
+                ret.append(_spin_int(2 * i.J + 1))
+            else:
+                ret.append(len(i.spins))
+        return ret
+
+    def list_helicity_inner(self):
+        ret = []
+        for i in self.outs:
+            if getattr(self, "helicity_inner_full", False):
+                ret.append(tuple(_spin_range(-i.J, i.J)))
+            else:
+                ret.append(i.spins)
+        return ret
+
 
 @regist_decay("default")
 @regist_decay("gls-bf")
@@ -673,6 +691,7 @@ class HelicityDecay(AmpDecay):
         has_barrier_factor=True,
         l_list=None,
         barrier_factor_mass=False,
+        has_ql=True,
         has_bprime=True,
         aligned=False,
         allow_cc=True,
@@ -683,12 +702,15 @@ class HelicityDecay(AmpDecay):
         force_min_l=False,
         params_head=None,
         no_q0=False,
+        helicity_inner_full=False,
+        ls_selector=None,
         **kwargs
     ):
         super(HelicityDecay, self).__init__(*args, **kwargs)
         self.has_barrier_factor = has_barrier_factor
         self.l_list = l_list
         self.barrier_factor_mass = barrier_factor_mass
+        self.has_ql = has_ql
         self.has_bprime = has_bprime
         self.aligned = aligned
         self.allow_cc = allow_cc
@@ -705,6 +727,8 @@ class HelicityDecay(AmpDecay):
         self.mask_factor = False
         self.params_head = params_head
         self.no_q0 = no_q0
+        self.helicity_inner_full = helicity_inner_full
+        self.ls_selector = ls_selector
 
     def get_params_head(self):
         if self.params_head is None:
@@ -820,10 +844,14 @@ class HelicityDecay(AmpDecay):
 
     def get_cg_matrix(self, out_sym=False):
         ls = self.get_ls_list()
-        return self._get_cg_matrix(ls, out_sym=out_sym)
+        return self._get_cg_matrix(
+            ls, out_sym=out_sym, helicity_inner_full=self.helicity_inner_full
+        )
 
     @functools.lru_cache()
-    def _get_cg_matrix(self, ls, out_sym=False):  # CG factor inside H
+    def _get_cg_matrix(
+        self, ls, out_sym=False, helicity_inner_full=False
+    ):  # CG factor inside H
         """
         [(l,s),(lambda_b,lambda_c)]
 
@@ -836,9 +864,7 @@ class HelicityDecay(AmpDecay):
         ja = self.core.J
         jb = self.outs[0].J
         jc = self.outs[1].J
-        n = len(self.outs[0].spins), len(
-            self.outs[1].spins
-        )  # _spin_int(2 * jb + 1), _spin_int(2 * jc + 1)
+        n = self.n_helicity_inner()  # require helicity_inner_full
         ret = np.zeros(shape=(m, *n))
         sqrt = np.sqrt
         my_cg_coef = cg_coef
@@ -854,12 +880,8 @@ class HelicityDecay(AmpDecay):
             ret = ret.tolist()
         for i, ls_i in enumerate(ls):
             l, s = ls_i
-            for i1, lambda_b in enumerate(
-                self.outs[0].spins
-            ):  # _spin_range(-jb, jb)):
-                for i2, lambda_c in enumerate(
-                    self.outs[1].spins
-                ):  # _spin_range(-jc, jc)):
+            for i1, lambda_b in enumerate(self.list_helicity_inner()[0]):
+                for i2, lambda_c in enumerate(self.list_helicity_inner()[1]):
                     ret[i][i1][i2] = (
                         sqrt(2 * l + 1)
                         / sqrt(2 * ja + 1)
@@ -911,9 +933,7 @@ class HelicityDecay(AmpDecay):
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
         n_ls = len(self.get_ls_list())
         m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
-        cg_trans = tf.reshape(
-            cg_trans, (n_ls, len(self.outs[0].spins), len(self.outs[1].spins))
-        )
+        cg_trans = tf.reshape(cg_trans, (n_ls, *self.n_helicity_inner()))
         H = tf.reduce_sum(m_dep * cg_trans, axis=1)
         # print(n_ls, cg_trans, self, m_dep.shape) # )data_p)
         if self.allow_cc:
@@ -923,9 +943,7 @@ class HelicityDecay(AmpDecay):
                 H = tf.where(
                     charge[..., None, None] > 0, H, H[..., ::-1, ::-1]
                 )
-        ret = tf.reshape(
-            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins))
-        )
+        ret = tf.reshape(H, (-1, 1, *self.n_helicity_inner()))
         return ret
 
     def get_angle_helicity_amp(self, data, data_p, **kwargs):
@@ -933,9 +951,7 @@ class HelicityDecay(AmpDecay):
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
         n_ls = len(self.get_ls_list())
         m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
-        cg_trans = tf.reshape(
-            cg_trans, (n_ls, len(self.outs[0].spins), len(self.outs[1].spins))
-        )
+        cg_trans = tf.reshape(cg_trans, (n_ls, *self.n_helicity_inner()))
         H = tf.reduce_sum(m_dep * cg_trans, axis=1)
         # print(n_ls, cg_trans, self, m_dep.shape) # )data_p)
         if self.allow_cc:
@@ -945,9 +961,7 @@ class HelicityDecay(AmpDecay):
                 H = tf.where(
                     charge[..., None, None] > 0, H, H[..., ::-1, ::-1]
                 )
-        ret = tf.reshape(
-            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins))
-        )
+        ret = tf.reshape(H, (-1, 1, *self.n_helicity_inner()))
         return ret
 
     def get_factor_H(self, data, data_p, **kwargs):  # -> (n, n_ls, h1, h2)
@@ -955,9 +969,7 @@ class HelicityDecay(AmpDecay):
         cg_trans = tf.cast(self.get_cg_matrix(), m_dep.dtype)
         n_ls = len(self.get_ls_list())
         m_dep = tf.reshape(m_dep, (-1, n_ls, 1, 1))
-        cg_trans = tf.reshape(
-            cg_trans, (n_ls, len(self.outs[0].spins), len(self.outs[1].spins))
-        )
+        cg_trans = tf.reshape(cg_trans, (n_ls, *self.n_helicity_inner()))
         # H = tf.reduce_sum(m_dep * cg_trans, axis=1)
         H = m_dep * cg_trans  # (n, n_ls, h1, h2)
         return H
@@ -977,8 +989,7 @@ class HelicityDecay(AmpDecay):
                 -1,
                 H.shape[-3],
                 1,
-                len(self.outs[0].spins),
-                len(self.outs[1].spins),
+                *self.n_helicity_inner(),
             ),
         )
         return ret
@@ -1068,11 +1079,17 @@ class HelicityDecay(AmpDecay):
                 l = min(ls)
             if self.has_bprime:
                 bp = Bprime_q2(l, q2, q02, d)
-                tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
+                if self.has_ql:
+                    tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
+                else:
+                    tmp = tf.ones_like(q2) * tf.cast(bp, dtype=q2.dtype)
                 if self.barrier_factor_norm:
                     tmp = tmp / tf.cast(tf.abs(q02), tmp.dtype) ** (l / 2)
             else:
-                tmp = q2 ** (l / 2)
+                if self.has_ql:
+                    tmp = q2 ** (l / 2)
+                else:
+                    tmp = tf.ones_like(q2)
             # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
             ret.append(tf.reshape(tmp, (-1, 1)))
         ret = tf.concat(ret, axis=-1)
@@ -1086,39 +1103,64 @@ class HelicityDecay(AmpDecay):
         m_dep = 1.0 / tf.pow(tf.expand_dims(mass, -1), ls)
         return m_dep
 
-    def get_amp(self, data, data_p, **kwargs):
+    def add_algin(self, ret, data):
         a = self.core
         b = self.outs[0]
         c = self.outs[1]
-        ang = data[b]["ang"]
-        D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
-        H = self.get_helicity_amp(data, data_p, **kwargs)
-        H = tf.reshape(
-            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins))
-        )
-        H = tf.cast(H, dtype=D_conj.dtype)
-        ret = H * tf.stop_gradient(D_conj)
-        # print(self, H, D_conj)
-        # exit()
         if self.aligned:
             for j, particle in enumerate(self.outs):
-                if particle.J != 0 and "aligned_angle" in data[particle]:
+                if particle.J != 0:
                     ang = data[particle].get("aligned_angle", None)
-                    if ang is None:
+                    if ang is None and not getattr(
+                        self, "helicity_inner_full", False
+                    ):
                         continue
                     dt = get_D_matrix_lambda(
-                        ang, particle.J, particle.spins, particle.spins
+                        ang,
+                        particle.J,
+                        self.list_helicity_inner()[j],
+                        particle.spins,
                     )
                     dt_shape = [-1, 1, 1, 1, 1]
-                    dt_shape[j + 2] = len(particle.spins)
+                    dt_shape[j + 2] = len(self.list_helicity_inner()[j])
                     dt_shape[j + 3] = len(particle.spins)
                     dt = tf.reshape(dt, dt_shape)
-                    D_shape = [-1, len(a.spins), len(b.spins), len(c.spins)]
+                    if j >= 1:
+                        D_shape = [
+                            -1,
+                            len(a.spins),
+                            len(b.spins),
+                            len(c.spins),
+                        ]
+                    else:
+                        D_shape = [
+                            -1,
+                            len(a.spins),
+                            len(b.spins),
+                            self.n_helicity_inner()[-1],
+                        ]
                     D_shape.insert(j + 3, 2)
                     D_shape[j + 3] = 1
                     ret = tf.reshape(ret, D_shape)
                     ret = dt * ret
                     ret = tf.reduce_sum(ret, axis=j + 2)
+        return ret
+
+    def get_amp(self, data, data_p, **kwargs):
+        a = self.core
+        b = self.outs[0]
+        c = self.outs[1]
+        ang = data[b]["ang"]
+        D_conj = get_D_matrix_lambda(
+            ang, a.J, a.spins, *self.list_helicity_inner()
+        )
+        H = self.get_helicity_amp(data, data_p, **kwargs)
+        H = tf.reshape(H, (-1, 1, *self.n_helicity_inner()))
+        H = tf.cast(H, dtype=D_conj.dtype)
+        ret = H * tf.stop_gradient(D_conj)
+        # print(self, H, D_conj)
+        # exit()
+        self.add_algin(ret, data)
         return ret
 
     def get_angle_amp(self, data, data_p, **kwargs):
@@ -1126,34 +1168,16 @@ class HelicityDecay(AmpDecay):
         b = self.outs[0]
         c = self.outs[1]
         ang = data[b]["ang"]
-        D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
-        H = self.get_angle_helicity_amp(data, data_p, **kwargs)
-        H = tf.reshape(
-            H, (-1, 1, len(self.outs[0].spins), len(self.outs[1].spins))
+        D_conj = get_D_matrix_lambda(
+            ang, a.J, a.spins, *self.list_helicity_inner()
         )
+        H = self.get_angle_helicity_amp(data, data_p, **kwargs)
+        H = tf.reshape(H, (-1, 1, *self.n_helicity_inner()))
         H = tf.cast(H, dtype=D_conj.dtype)
         ret = H * tf.stop_gradient(D_conj)
         # print(self, H, D_conj)
         # exit()
-        if self.aligned:
-            for j, particle in enumerate(self.outs):
-                if particle.J != 0 and "aligned_angle" in data[particle]:
-                    ang = data[particle].get("aligned_angle", None)
-                    if ang is None:
-                        continue
-                    dt = get_D_matrix_lambda(
-                        ang, particle.J, particle.spins, particle.spins
-                    )
-                    dt_shape = [-1, 1, 1, 1, 1]
-                    dt_shape[j + 2] = len(particle.spins)
-                    dt_shape[j + 3] = len(particle.spins)
-                    dt = tf.reshape(dt, dt_shape)
-                    D_shape = [-1, len(a.spins), len(b.spins), len(c.spins)]
-                    D_shape.insert(j + 3, 2)
-                    D_shape[j + 3] = 1
-                    ret = tf.reshape(ret, D_shape)
-                    ret = dt * ret
-                    ret = tf.reduce_sum(ret, axis=j + 2)
+        self.add_algin(ret, data)
         return ret
 
     def get_factor_angle_amp(self, data, data_p, **kwargs):
@@ -1161,7 +1185,9 @@ class HelicityDecay(AmpDecay):
         b = self.outs[0]
         c = self.outs[1]
         ang = data[b]["ang"]
-        D_conj = get_D_matrix_lambda(ang, a.J, a.spins, b.spins, c.spins)
+        D_conj = get_D_matrix_lambda(
+            ang, a.J, a.spins, *self.list_helicity_inner()
+        )
         H = self.get_factor_angle_helicity_amp(data, data_p, **kwargs)
         H = tf.cast(H, dtype=D_conj.dtype)
         D_conj = tf.reshape(D_conj, (-1, 1, *D_conj.shape[1:]))
@@ -1175,21 +1201,77 @@ class HelicityDecay(AmpDecay):
     def get_m_dep(self, data, data_p, **kwargs):
         return self.get_ls_amp(data, data_p, **kwargs)
 
+    def get_total_ls_list(self):
+        if self.total_ls is None:
+            self.total_ls = self.get_ls_list()
+        return self.total_ls
+
     def get_factor_m_dep(self, data, data_p, **kwargs):
         return self.get_ls_amp(data, data_p, **kwargs)
 
     def get_ls_list(self):
         """get possible ls for decay, with l_list filter possible l"""
-        ls_list = super(HelicityDecay, self).get_ls_list()
         if self.ls_list is not None:
             return self.ls_list
+        ls_list = super(HelicityDecay, self).get_ls_list()
+        if self.ls_selector == "weight":
+            print("using ls_selector", self.ls_selector, "for", self)
+            from tf_pwa.cov_ten_ir import ls_selector_weight
+
+            ls_list = tuple(ls_selector_weight(self, ls_list))
+        if self.ls_selector == "qr":
+            print("using ls_selector", self.ls_selector, "for", self)
+            ls_list = tuple(ls_selector_qr(self, ls_list))
+        self.ls_list = ls_list
         if self.l_list is None:
-            return ls_list
+            return self.ls_list
         ret = []
-        for l, s in ls_list:
+        for l, s in self.ls_list:
             if l in self.l_list:
                 ret.append((l, s))
-        return tuple(ret)
+        self.ls_list = tuple(ret)
+        return self.ls_list
+
+
+def ls_selector_qr(decay, ls_list):
+    p0 = decay.core
+    p1 = decay.outs[0]
+    p2 = decay.outs[1]
+
+    hel_list = []
+    for l1 in p1.spins:
+        for l2 in p2.spins:
+            if abs(l1 - l2) <= p0.J:
+                if decay.p_break:
+                    if p1.J > p2.J and l1 > 0:
+                        continue
+                    if p1.J <= p2.J and l2 > 0:
+                        continue
+                hel_list.append((l1, l2))
+    from sympy import Matrix
+    from sympy.physics.quantum.cg import CG
+
+    cg = []
+    for l1, l2 in hel_list:
+        tmp = []
+        for l, s in ls_list:
+            delta = l1 - l2
+            coeff = CG(l, 0, s, delta, p0.J, delta)
+            coeff = coeff * CG(p1.J, l1, p2.J, -l2, s, delta)
+            tmp.append(coeff.doit())
+        cg.append(tmp)
+    cg = Matrix(cg)
+    _, r = cg.QRdecomposition()
+    all_idx = []
+    for i in range(r.rows):
+        idx = 0
+        for j in range(r.cols):
+            if r[i, j] == 0:
+                idx += 1
+            else:
+                break
+        all_idx.append(idx)
+    return [ls_list[i] for i in all_idx]
 
 
 @regist_decay("default", 3)
@@ -1223,10 +1305,10 @@ class AngSam3Decay(AmpDecay, AmpBase):
 
 
 class AmpDecayChain(BaseDecayChain, AmpBase):
-    def __init__(self, *args, is_cp=False, **kwargs):
+    def __init__(self, *args, is_cp=False, aligned=True, **kwargs):
         self.is_cp = is_cp
+        self.aligned = aligned
         super(AmpDecayChain, self).__init__(*args, **kwargs)
-        self.aligned = True
         self.need_amp_particle = True
         self.mask_factor = False
 
@@ -1333,10 +1415,16 @@ class DecayChain(AmpDecayChain):
 
         if self.aligned:
             for i in self:
-                for j in i.outs:
-                    if j.J != 0 and "aligned_angle" in data_c[i][j]:
-                        ang = data_c[i][j]["aligned_angle"]
-                        dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
+                for idxj, j in enumerate(i.outs):
+                    if j.J != 0:
+                        ang = data_c[i][j].get("aligned_angle", None)
+                        if ang is None and not getattr(
+                            i, "helicity_inner_full", False
+                        ):
+                            continue
+                        dt = get_D_matrix_lambda(
+                            ang, j.J, i.list_helicity_inner()[idxj], j.spins
+                        )
                         amp_d.append(tf.stop_gradient(dt))
                         idx = [base_map[j], base_map[j].upper()]
                         indices.append(idx)
@@ -1370,10 +1458,16 @@ class DecayChain(AmpDecayChain):
 
         if self.aligned:
             for i in self:
-                for j in i.outs:
-                    if j.J != 0 and "aligned_angle" in data_c[i][j]:
-                        ang = data_c[i][j]["aligned_angle"]
-                        dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
+                for idxj, j in enumerate(i.outs):
+                    if j.J != 0:
+                        ang = data_c[i][j].get("aligned_angle", None)
+                        if ang is None and not getattr(
+                            i, "helicity_inner_full", False
+                        ):
+                            continue
+                        dt = get_D_matrix_lambda(
+                            ang, j.J, i.list_helicity_inner()[idxj], j.spins
+                        )
                         amp_d.append(tf.stop_gradient(dt))
                         idx = [base_map[j], base_map[j].upper()]
                         indices.append(idx)
@@ -1415,10 +1509,16 @@ class DecayChain(AmpDecayChain):
 
         if self.aligned:
             for i in self:
-                for j in i.outs:
-                    if j.J != 0 and "aligned_angle" in data_c[i][j]:
-                        ang = data_c[i][j]["aligned_angle"]
-                        dt = get_D_matrix_lambda(ang, j.J, j.spins, j.spins)
+                for idxj, j in enumerate(i.outs):
+                    if j.J != 0:
+                        ang = data_c[i][j].get("aligned_angle", None)
+                        if ang is None and not getattr(
+                            i, "helicity_inner_full", False
+                        ):
+                            continue
+                        dt = get_D_matrix_lambda(
+                            ang, j.J, i.list_helicity_inner()[idxj], j.spins
+                        )
                         amp_d.append(tf.stop_gradient(dt))
                         idx = [base_map[j], base_map[j].upper()]
                         indices.append(idx)

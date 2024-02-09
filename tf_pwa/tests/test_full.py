@@ -116,6 +116,15 @@ def toy_config2(gen_toy, fit_result):
 
 
 @pytest.fixture
+def toy_config_covten(gen_toy):
+    from tf_pwa.amp import cov_ten
+
+    config = ConfigLoader(f"{this_dir}/config_covten.yml")
+    config.set_params(f"{this_dir}/exp_covten_params.json")
+    return config
+
+
+@pytest.fixture
 def toy_config3(gen_toy):
     config = ConfigLoader(f"{this_dir}/config_toy3.yml")
     config.set_params(f"{this_dir}/exp_params.json")
@@ -422,6 +431,12 @@ def test_plot_combine(gen_toy):
     )
     config.set_params(f"{this_dir}/exp_params.json")
     config.plot_partial_wave(prefix="toy_data/com_plot/")
+
+
+def test_fit_covten(toy_config_covten):
+    toy_config_covten.fit()
+    toy_config_covten.get_params_error()
+    toy_config_covten.plot_partial_wave(prefix="toy_data/figure/cov_ten")
 
 
 def test_mix_likelihood(toy_config3):

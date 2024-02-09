@@ -1,5 +1,6 @@
 data:
   dat_order: [B, C, D]
+  align_ref: center_mass
   preprocessor: cached_angle
   amp_model: base_factor
 

@@ -140,6 +140,14 @@ class Hist1D:
             **kwargs,
         )
 
+    def chi2(self):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            y_error = np.where(self.error == 0, 0, self.count / self.error)
+        print(y_error)
+        print((y_error**2).astype(np.int))
+        print(np.sum((y_error**2).astype(np.int)))
+        return np.sum(y_error**2)
+
     def draw_line(self, ax=plt, num=1000, kind="UnivariateSpline", **kwargs):
         x_new, y_new = interp_hist(self.binning, self.count, num, kind)
         return ax.plot(x_new, y_new, **kwargs)

@@ -29,6 +29,7 @@ def test_hist1d():
     )
     ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1)
     (hist2 - hist).draw_pull(ax2)
+    (hist2 - hist).chi2()
     plt.savefig("hist1d_test1.png")
     plt.clf()
 
