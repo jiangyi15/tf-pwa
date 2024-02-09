@@ -2,7 +2,61 @@
 
 ## [Unreleased](https://github.com/jiangyi15/tf-pwa/tree/HEAD)
 
-[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.2.0...HEAD)
+[Full Changelog](https://github.com/jiangyi15/tf-pwa/compare/v0.2.1...HEAD)
+
+## [v0.2.1](https://github.com/jiangyi15/tf-pwa/tree/v0.2.1) (2024-02-10)
+
+**Irreducible Tensor Formula**
+
+[Covariant orbital-spin scheme for any spin based on irreducible tensor](https://inspirehep.net/literature/2620146).
+[#138](https://github.com/jiangyi15/tf-pwa/pull/138)
+
+**Added**
+
+- `no_q0=True` options to remove `q0` dependences of barrier factor.
+  [#132](https://github.com/jiangyi15/tf-pwa/pull/132)
+
+- `ls_selector` options for redundant degree of freedom when decay to massless
+  particle ($\gamma$). [#138](https://github.com/jiangyi15/tf-pwa/pull/138)
+
+- Square Dalitz plot generator.
+  [#136](https://github.com/jiangyi15/tf-pwa/pull/136)
+
+- New models.
+
+  - `linear_npy` and `linear_txt`
+    [#137](https://github.com/jiangyi15/tf-pwa/pull/137)
+
+  - `FlatteGen` and `Flatte2`
+    [#132](https://github.com/jiangyi15/tf-pwa/pull/132)
+
+- More plot functions and options.
+
+  - `config.plot_partial_wave_interf`
+    [#137](https://github.com/jiangyi15/tf-pwa/pull/137)
+
+  - `partial_waves_function`
+    [#135](https://github.com/jiangyi15/tf-pwa/pull/135)
+
+  - `MuliConfig.plot_partial_wave`
+    [#133](https://github.com/jiangyi15/tf-pwa/pull/133)
+
+  - `force_legend_labels`, `add_chi2`
+    [#132](https://github.com/jiangyi15/tf-pwa/pull/132)
+
+- More nll models. `constr_frac` model support constrians on fractions.
+  [#128](https://github.com/jiangyi15/tf-pwa/pull/128)
+  [#129](https://github.com/jiangyi15/tf-pwa/pull/129)
+
+**Changed**
+
+- `no_q0` options to remove `q0` dependences of barrier factor.
+
+- More options for `solve_pole`.
+  [#134](https://github.com/jiangyi15/tf-pwa/pull/134)
+
+- Update documents.
+  [#130](https://github.com/jiangyi15/tf-pwa/pull/130)[#131](https://github.com/jiangyi15/tf-pwa/pull/131)[#135](https://github.com/jiangyi15/tf-pwa/pull/135)
 
 ## [v0.2.0](https://github.com/jiangyi15/tf-pwa/tree/v0.2.0) (2023-11-01)
 
