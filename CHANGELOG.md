@@ -50,8 +50,6 @@
 
 **Changed**
 
-- `no_q0` options to remove `q0` dependences of barrier factor.
-
 - More options for `solve_pole`.
   [#134](https://github.com/jiangyi15/tf-pwa/pull/134)
 
