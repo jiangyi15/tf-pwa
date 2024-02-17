@@ -16,6 +16,7 @@ def test_hist1d():
     hist.draw_kde(ax, kind="gauss", color="blue")
     hist.draw_kde(ax, kind="cauchy", color="red")
     (hist * 0.5).draw(ax, type="fill", facecolor="none", hatch="///")
+    (hist * 0.4).draw_stepfill(ax, facecolor="none", hatch="\\")
     (0.1 * hist + hist * 0.1).draw_bar(ax)
     hist.draw_error(ax)
     hist2 = Hist1D.histogram(
