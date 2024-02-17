@@ -104,7 +104,7 @@ class InterpLinearNpy(InterpolationParticle):
         >>> import numpy as np
         >>> from tf_pwa.utils import plot_particle_model
         >>> a = tempfile.mktemp(".npy")
-        >>> m = np.linspace(0.2, 0.9)
+        >>> m = np.linspace(0.2, 0.9, 51)
         >>> mi = m[::5]
         >>> np.save(a, np.stack([mi, np.cos(mi*5), np.sin(mi*5)], axis=-1))
         >>> axs = plot_particle_model("linear_npy", {"file": a})
@@ -113,11 +113,16 @@ class InterpLinearNpy(InterpolationParticle):
     """
 
     def __init__(self, *args, **kwargs):
-        self.input_file = kwargs.get("file")
-        self.data = np.load(self.input_file)
+        self.data = self.get_data(**kwargs)
         points = self.data[:, 0]
-        kwargs["points"] = points
-        super().__init__(*args, **kwargs)
+        kwargs["points"] = points.tolist()
+        super(InterpLinearNpy, self).__init__(*args, **kwargs)
+        self.delta = np.concatenate([[1e20], points[1:] - points[:-1], [1e20]])
+        self.x_left = np.concatenate([[points[-1] - 1], points])
+
+    def get_data(self, **kwargs):
+        self.input_file = kwargs.get("file")
+        return np.load(self.input_file)
 
     def init_params(self):
         pass
@@ -129,20 +134,19 @@ class InterpLinearNpy(InterpolationParticle):
 
     def interp(self, m):
         x, p_r, p_i = self.get_point_values()
-        bin_idx = tf.raw_ops.Bucketize(input=m, boundaries=x)
-        bin_idx = (bin_idx) % (len(self.bound) + 1)
+        bin_idx = tf.raw_ops.Bucketize(input=m, boundaries=self.points)
         ret_r_r = tf.gather(p_r[1:], bin_idx)
         ret_i_r = tf.gather(p_i[1:], bin_idx)
         ret_r_l = tf.gather(p_r[:-1], bin_idx)
         ret_i_l = tf.gather(p_i[:-1], bin_idx)
-        delta = np.concatenate([[1e20], x[1:] - x[:-1], [1e20]])
-        x_left = np.concatenate([[x[0] - 1], x])
-        delta = tf.gather(delta, bin_idx)
-        x_left = tf.gather(x_left, bin_idx)
+        delta = tf.gather(self.delta, bin_idx)
+        x_left = tf.gather(self.x_left, bin_idx)
         step = (m - x_left) / delta
         a = step * (ret_r_r - ret_r_l) + ret_r_l
         b = step * (ret_i_r - ret_i_l) + ret_i_l
-        return tf.complex(a, b)
+        ret = tf.complex(a, b)
+        cut = (bin_idx <= 0) | (bin_idx >= self.delta.shape[-1] - 1)
+        return tf.where(cut, tf.zeros_like(ret), ret)
 
 
 @register_particle("linear_txt")
@@ -158,7 +162,7 @@ class InterpLinearTxt(InterpLinearNpy):
         >>> import numpy as np
         >>> from tf_pwa.utils import plot_particle_model
         >>> a = tempfile.mktemp(".txt")
-        >>> m = np.linspace(0.2, 0.9)
+        >>> m = np.linspace(0.2, 0.9, 51)
         >>> mi = m[::5]
         >>> np.savetxt(a, np.stack([mi, np.cos(mi*5), np.sin(mi*5)], axis=-1))
         >>> axs = plot_particle_model("linear_txt", {"file": a})
@@ -166,12 +170,9 @@ class InterpLinearTxt(InterpLinearNpy):
 
     """
 
-    def __init__(self, *args, **kwargs):
+    def get_data(self, **kwargs):
         self.input_file = kwargs.get("file")
-        self.data = np.loadtxt(self.input_file)
-        points = self.data[:, 0]
-        kwargs["points"] = points
-        super(InterpLinearNpy, self).__init__(*args, **kwargs)
+        return np.loadtxt(self.input_file)
 
 
 @register_particle("interp")
