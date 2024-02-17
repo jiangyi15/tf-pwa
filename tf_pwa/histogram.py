@@ -99,6 +99,8 @@ class Hist1D:
             ret = self.draw_error(ax=ax, **kwargs)
         elif draw_type == "line":
             ret = self.draw_line(ax=ax, **kwargs)
+        elif draw_type == "fill":
+            ret = self.draw_fill(ax=ax, **kwargs)
         else:
             raise NotImplementedError()
         return ret
@@ -129,6 +131,18 @@ class Hist1D:
             return ax.plot(x, kde(x), fmt, color=color, **kwargs)
         else:
             return ax.plot(x, kde(x), color=color, **kwargs)
+
+    def draw_fill(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
+        color = kwargs.pop("color", self._cached_color)
+        m = self.bin_center
+        bw = self.bin_width * bin_scale
+        kde = weighted_kde(m, self.count, bw, kind)
+        x = np.linspace(
+            self.binning[0], self.binning[-1], self.count.shape[0] * 10
+        )
+        return ax.fill_between(
+            x, kde(x), np.zeros_like(x), color=color, **kwargs
+        )
 
     def draw_pull(self, ax=plt, **kwargs):
         with np.errstate(divide="ignore", invalid="ignore"):
