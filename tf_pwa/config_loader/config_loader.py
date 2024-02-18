@@ -1014,9 +1014,13 @@ class ConfigLoader(BaseConfig):
         if neglect_params is None:
             neglect_params = self._neglect_when_set_params
         if len(neglect_params) != 0:
-            # warnings.warn("Neglect {} when setting params.".format(neglect_params))
             for v in params:
                 if v in self._neglect_when_set_params:
+                    warnings.warn(
+                        "Neglect {} when setting params.".format(
+                            neglect_params
+                        )
+                    )
                     del ret[v]
         amplitude.set_params(ret)
         return True

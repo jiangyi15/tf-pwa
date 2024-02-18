@@ -227,32 +227,7 @@ class MultiConfig(object):
 
     def set_params(self, params, neglect_params=None):
         _amps = self.get_amplitudes()
-        if isinstance(params, str):
-            if params == "":
-                return False
-            try:
-                with open(params) as f:
-                    params = yaml.safe_load(f)
-            except Exception as e:
-                print(e)
-                return False
-        if hasattr(params, "params"):
-            params = params.params
-        if isinstance(params, dict):
-            if "value" in params:
-                params = params["value"]
-        ret = params.copy()
-        if neglect_params is None:
-            neglect_params = self._neglect_when_set_params
-        if len(neglect_params) != 0:
-            warnings.warn(
-                "Neglect {} when setting params.".format(neglect_params)
-            )
-            for v in params:
-                if v in self._neglect_when_set_params:
-                    del ret[v]
-        self.vm.set_all(ret)
-        return True
+        self.configs[0].set_params(params, neglect_params=neglect_params)
 
     @contextlib.contextmanager
     def params_trans(self):

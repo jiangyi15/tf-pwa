@@ -89,16 +89,17 @@ class Hist1D:
             ret = []
             for i in draw_type.split("+"):
                 ret.append(self.draw(ax=ax, type=i, **kwargs))
-        elif draw_type == "hist":
-            ret = self.draw_hist(ax=ax, **kwargs)
-        elif draw_type == "bar":
-            ret = self.draw_bar(ax=ax, **kwargs)
-        elif draw_type == "kde":
-            ret = self.draw_kde(ax=ax, **kwargs)
-        elif draw_type == "error":
-            ret = self.draw_error(ax=ax, **kwargs)
-        elif draw_type == "line":
-            ret = self.draw_line(ax=ax, **kwargs)
+        elif draw_type in [
+            "hist",
+            "bar",
+            "kde",
+            "error",
+            "line",
+            "fill",
+            "stepfill",
+        ]:
+            draw_fun = getattr(self, "draw_" + draw_type)
+            ret = draw_fun(ax=ax, **kwargs)
         else:
             raise NotImplementedError()
         return ret
@@ -129,6 +130,24 @@ class Hist1D:
             return ax.plot(x, kde(x), fmt, color=color, **kwargs)
         else:
             return ax.plot(x, kde(x), color=color, **kwargs)
+
+    def draw_fill(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
+        color = kwargs.pop("color", self._cached_color)
+        m = self.bin_center
+        bw = self.bin_width * bin_scale
+        kde = weighted_kde(m, self.count, bw, kind)
+        x = np.linspace(
+            self.binning[0], self.binning[-1], self.count.shape[0] * 10
+        )
+        return ax.fill_between(
+            x, kde(x), np.zeros_like(x), color=color, **kwargs
+        )
+
+    def draw_stepfill(self, ax=plt, kind="gauss", bin_scale=1.0, **kwargs):
+        color = kwargs.pop("color", self._cached_color)
+        x = np.repeat(self.binning, 2)
+        y = np.concatenate([[0], np.repeat(self.count, 2), [0]])
+        return ax.fill_between(x, y, np.zeros_like(x), color=color, **kwargs)
 
     def draw_pull(self, ax=plt, **kwargs):
         with np.errstate(divide="ignore", invalid="ignore"):
