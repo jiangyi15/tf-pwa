@@ -424,8 +424,8 @@ class VarsManager(object):
         else:
             if name in self.bnd_dic:
                 value = self.bnd_dic[name].get_y2x(value)
-        var = tf.Variable(value, dtype=self.dtype, trainable=unfix)
-        self.variables[name] = var
+        self.variables[name].assign(value)
+        self.variables[name]._trainable = unfix
         if unfix:
             if name in self.trainable_vars:
                 warnings.warn("{} has been freed already!".format(name))
