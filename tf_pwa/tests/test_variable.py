@@ -144,6 +144,25 @@ def test_rename():
         assert vm.get("ci") == 3
 
 
+def test_same():
+    with variable_scope() as vm:
+        Variable("a", value=1.0)
+        Variable("b", value=1.0)
+        Variable("c", value=1.0)
+        vm.set_same(["a", "b"])
+        vm.set_same(["b", "c"])
+        assert len(vm.trainable_vars) == 1
+
+
+def test_fixed():
+    with variable_scope() as vm:
+        Variable("a", value=1.0)
+        Variable("b", value=1.0)
+        vm.set_fix("a", 1.0)
+        vm.set_fix("b", unfix=True)
+        assert len(vm.trainable_vars) == 1
+
+
 def test_transform():
     from tf_pwa.config_loader import ConfigLoader
     from tf_pwa.transform import BaseTransform, register_trans
