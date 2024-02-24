@@ -421,11 +421,13 @@ class VarsManager(object):
         """
         if value is None:
             value = self.variables[name].value
+            if callable(value):
+                value = value()
         else:
             if name in self.bnd_dic:
                 value = self.bnd_dic[name].get_y2x(value)
-        var = tf.Variable(value, dtype=self.dtype, trainable=unfix)
-        self.variables[name] = var
+        self.variables[name].assign(value)
+        self.variables[name]._trainable = unfix
         if unfix:
             if name in self.trainable_vars:
                 warnings.warn("{} has been freed already!".format(name))
@@ -503,18 +505,27 @@ class VarsManager(object):
         :param cplx: Boolean. Whether the variables are complex or real.
         """
         tmp_list = []
+        head_list = []
         for name in name_list:
             for add_list in self.same_list:
                 if name not in self.variables:
                     continue
                 if name in add_list:
                     tmp_list += add_list
+                    head_list += [add_list[0]]
                     self.same_list.remove(add_list)
                     break
 
+        # use head to avoid duplicate setting
+        new_name_list = head_list
+        for i in name_list:
+            if i not in tmp_list:
+                new_name_list.append(i)
+
+        # remove duplicate items
         for i in tmp_list:
             if i not in name_list:
-                name_list.append(i)  # 去掉重复元素
+                name_list.append(i)
 
         def same_real(name_list):
             name_list = [i for i in name_list if i in self.variables]
@@ -534,10 +545,10 @@ class VarsManager(object):
                 self.variables[name] = var
 
         if cplx:
-            same_real([name + "r" for name in name_list])
-            same_real([name + "i" for name in name_list])
+            same_real([name + "r" for name in new_name_list])
+            same_real([name + "i" for name in new_name_list])
         else:
-            same_real(name_list)
+            same_real(new_name_list)
         self.same_list.append(name_list)
 
     def get(self, name, val_in_fit=True):
