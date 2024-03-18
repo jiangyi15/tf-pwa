@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from tf_pwa.amp import Particle, register_particle
 
-from .pipi_swave_ampgen import constructKMatrix, phsp_FOCUS, pol, poleConfig
+from .ampgen_pipi_swave import constructKMatrix, phsp_FOCUS, pol, poleConfig
 
 
 @register_particle("Kpi_Swave")
