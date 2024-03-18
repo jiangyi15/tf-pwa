@@ -1242,10 +1242,8 @@ def ls_selector_qr(decay, ls_list):
     for l1 in p1.spins:
         for l2 in p2.spins:
             if abs(l1 - l2) <= p0.J:
-                if decay.p_break:
-                    if p1.J > p2.J and l1 > 0:
-                        continue
-                    if p1.J <= p2.J and l2 > 0:
+                if not decay.p_break:
+                    if (-l1, -l2) in hel_list:
                         continue
                 hel_list.append((l1, l2))
     from sympy import Matrix
