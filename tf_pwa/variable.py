@@ -719,10 +719,10 @@ class VarsManager(object):
             r.assign(tf.abs(r))
             if type(self.complex_vars[name]) == list:
                 for name_r in self.complex_vars[name]:
-                    self.variables[name_r[:-1] + "i"].assign_add(np.pi)
+                    self.variables[name_r[:-1] + "i"].assign(p + np.pi)
             else:
-                p.assign_add(np.pi)
-        self._std_polar_angle(p)
+                p.assign(p + np.pi)
+        p.assign(self._std_polar_angle(p))
 
     def std_polar_all(self):  # std polar expression: r>0, -pi<p<pi
         """
