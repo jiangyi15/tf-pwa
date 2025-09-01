@@ -370,6 +370,23 @@ def test_fit(toy_config, fit_result):
         y = a - b
     xy_err2 = pt.get_error({"a": [x, y]})
 
+    bak_inv_he = toy_config.inv_he
+    with pytest.raises(ValueError):
+        toy_config.inv_he = None
+        with toy_config.params_trans() as pt:
+            a = pt["A->R_BC.D_g_ls_1r"]
+            y = a + 1
+        xy_err2 = pt.get_error({"a": [y]})
+    with pytest.raises(ValueError):
+        toy_config.inv_he = None
+        with toy_config.params_trans() as pt:
+            a = pt["A->R_BC.D_g_ls_1r"]
+            b = pt["A->R_BC.D_g_ls_1i"]
+            x = a + b
+            y = a - b
+        xy_err = pt.get_error_matrix([x, y])
+    toy_config.inv_he = bak_inv_he
+
     # mask params for fit fraction
     amp = toy_config.get_amplitude()
     phsp = toy_config.get_phsp_noeff()
