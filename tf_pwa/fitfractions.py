@@ -309,7 +309,7 @@ def cal_fitfractions_no_grad(
                 name = "{}".format(res[i])
                 amp_tmp.set_used_res([res[i]])
             else:
-                name = "{}x{}".format(res[i], res[j])
+                name = (str(res[i]), str(res[j]))
                 amp_tmp.set_used_res([res[i], res[j]])
             int_tmp = sum_no_gradient(
                 amp_tmp,

@@ -5,7 +5,7 @@ import tensorflow as tf
 
 
 class ParamsTrans:
-    def __init__(self, vm, err_matrix):
+    def __init__(self, vm, err_matrix=None):
         self.vm = vm
         self.err_matrix = err_matrix
         self.tape = None
@@ -27,13 +27,15 @@ class ParamsTrans:
             self.vm.trainable_variables,
             unconnected_gradients="zero",
         )
-        print(grad)
+        # print(grad)
         grad = tf.stack(grad, axis=-1)
         if not keep:
             del self.tape
         return grad
 
     def get_error(self, vals, keep=False):
+        if self.err_matrix is None:
+            raise ValueError("no error matrix provided")
         if isinstance(vals, (list, tuple)):
             ret = type(vals)([self.get_error(v, keep=True) for v in vals])
         elif isinstance(vals, dict):
@@ -73,6 +75,8 @@ class ParamsTrans:
         return ret
 
     def get_error_matrix(self, vals, keep=False):
+        if self.err_matrix is None:
+            raise ValueError("no error matrix provided")
         if isinstance(vals, (list, tuple)):
             grad = [
                 self.tape.gradient(

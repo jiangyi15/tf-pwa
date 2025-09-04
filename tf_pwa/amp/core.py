@@ -406,7 +406,11 @@ class Particle(BaseParticle, AmpBase):
         mass = self.get_mass()
         width = self.get_width()
         if width is None:
-            return tf.ones_like(data["m"])
+            warnings.warn(
+                "No width provided for {}, set it to constant".format(self)
+            )
+            one = tf.ones_like(data["m"])
+            return tf.complex(one, tf.zeros_like(one))
         if not self.running_width:
             ret = BW(data["m"], mass, width)
         else:
@@ -415,6 +419,12 @@ class Particle(BaseParticle, AmpBase):
             if self.bw_l is None:
                 decay = self.decay[0]
                 self.bw_l = min(decay.get_l_list())
+                if len(self.decay) > 1:
+                    warnings.warn(
+                        "{} decays find for {}, will used the first one for bw_l={}".format(
+                            len(self.decay), self, self.bw_l
+                        )
+                    )
             ret = BWR(data["m"], mass, width, q, q0, self.bw_l, self.d)
             # ret = tf.where(q0 > 0, ret, tf.zeros_like(ret))
             # ret = tf.where(q > 0, ret, tf.zeros_like(ret))
