@@ -29,6 +29,7 @@ A detailed configuration file sample (with all usable parameters) can be found *
    particle_model
    decay_model
    tensorflow_version
+   useful_tools
    FAQ
 
 

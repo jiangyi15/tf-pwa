@@ -596,7 +596,7 @@ G1 = gls1 * (q / q0) ** 1 * Bprime(1, q, q0)
 # Next, we calculate the helicity amplitude, it is
 #
 # .. math::
-#    H_{\lambda_{1},\lambda_{2} } = \sum_{l,s} G_{l,s} \sqrt{\frac{2l+1}{2J_0+1}} \langle J_{1}, \lambda_{1}; J_{2}, \lambda_{2}| s, \delta \rangle  \langle l,0;s,\delta | J_{0}, \delta\rangle
+#    H_{\lambda_{1},\lambda_{2} } = \sum_{l,s} G_{l,s} \sqrt{\frac{2l+1}{2J_0+1}} \langle J_{1}, \lambda_{1}; J_{2}, -\lambda_{2}| s, \delta \rangle  \langle l,0;s,\delta | J_{0}, \delta\rangle
 #
 # :math:`\delta=\lambda_{1}-\lambda_{2}`. :math:`l,s` is all possible in the range
 #
