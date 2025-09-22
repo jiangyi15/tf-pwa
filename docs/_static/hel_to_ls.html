@@ -158,12 +158,12 @@
             </div>
         </div>
 
-        <button id="calculateBtn">start</button>
+        <button id="calculateBtn">Start</button>
 
         <div id="error" class="error"></div>
 
         <div id="result" class="result" style="display: none;">
-            <h2>Reuslts</h2>
+            <h2>Reuslts:</h2>
             <div id="latexOutput"></div>
         </div>
     </div>
@@ -270,8 +270,17 @@
         }
 
         function formatSpin(m) {
-            if (Math.abs(2*m) % 2 != 1) return `${-m}`;
+            if (Math.abs(2*m) % 2 != 1) return `${m}`;
             else return (m< 0) ? `-\\frac{${-2*m}}{2}` : `\\frac{${2*m}}{2}`;
+        }
+
+        function formatFrac(v) {
+            let sign = (v.numerator * v.denominator < 0) ? `-` : `+`;
+            if (Math.abs(v.denominator) === 1)  {
+                if (Math.abs(v.numerator) === 1) return `${sign}`;
+                else return `${sign} \\sqrt{${Math.abs(v.numerator)} }`;
+            }
+            return `${sign} \\sqrt{ \\frac{${Math.abs(v.numerator)} }{  ${v.denominator}} }`;
         }
 
         function calculateCG() {
@@ -298,10 +307,20 @@
             const errorElem = document.getElementById('error');
             errorElem.textContent = '';
             errorElem.style.display = 'none';
-            if (ls.length === 0) {
-                errorElem.textContent = 'no available LS';
+
+            if (2*(j1+j2-J)%2 != 0) {
+                errorElem.textContent = 'Spins not available';
                 errorElem.style.display = 'block';
+                renderLatex('', 'latexOutput');
+                return;
             }
+            if (ls.length === 0) {
+                errorElem.textContent = 'No available LS';
+                errorElem.style.display = 'block';
+                renderLatex('', 'latexOutput');
+                return;
+            }
+
 
             let m1, m2, lsi;
             let latexExpr =  `\\begin{aligned}`;
@@ -316,9 +335,8 @@
                         const cgFraction1 = clebschGordanFraction(j1, m1, j2, -m2, s, m1- m2);
                         const cgFraction2 = clebschGordanFraction(l,0, s, m1- m2, J, m1 - m2);
                         const cgtotal = simplifyFraction(cgFraction1.numerator *cgFraction2.numerator * (2*l + 1), cgFraction1.denominator *cgFraction2.denominator * (2*J + 1));
-                        let sign = (cgtotal.numerator * cgtotal.denominator < 0) ? `-` : `+`;
                         if (cgtotal.numerator != 0) {
-                            tmp = `${tmp} ${sign} \\sqrt{ \\frac{${Math.abs(cgtotal.numerator)} }{  ${cgtotal.denominator}} } G_{${l}, ${formatSpin(s)}}  `;
+                            tmp = `${tmp} ${formatFrac(cgtotal)} G_{${l}, ${formatSpin(s)}}  `;
                             count += 1;
                         }
                     }
@@ -331,18 +349,15 @@
 
             renderLatex(latexExpr, 'latexOutput');
             document.getElementById('result').style.display = 'block';
-            document.getElementById('result').style.display = 'block';
-
-            renderLatex(`H_{\\lambda_1,\\lambda_2} =\\sum_{l,s} \\sqrt{\\frac{2l+1}{2J+1}} \\langle j_1,m_1;j_2,-m_2|s,\\delta \\rangle\\langle l,0;s,\\delta|J,\\delta \\rangle G_{ls}`, 'formula');
         }
 
         function updateLatex() {
 
-            renderLatex(`H_{\\lambda_1,\\lambda_2} =\\sum_{l,s} \\sqrt{\\frac{2l+1}{2J+1}} \\langle j_1,m_1;j_2,-m_2|s,\\delta \\rangle\\langle l,0;s,\\delta|J,\\delta \\rangle G_{ls}`, 'formula');
+            renderLatex(`H_{\\lambda_1,\\lambda_2} =\\sum_{l,s} \\sqrt{\\frac{2l+1}{2J+1}} \\langle j_1,m_1;j_2,-m_2|s,\\delta \\rangle\\langle l,0;s,\\delta|J,\\delta \\rangle G_{ls}.`, 'formula');
 
             document.getElementById('formula').style.display = 'block';
 
-            renderLatex(`J^{P}\\rightarrow j_{1}^{P_1}  +  j_{2}^{P_2}`, 'decay');
+            renderLatex(`J^{P}\\rightarrow j_{1}^{P_1}  +  j_{2}^{P_2}.`, 'decay');
 
             document.getElementById('decay').style.display = 'block';
 
