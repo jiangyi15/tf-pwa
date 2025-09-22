@@ -125,8 +125,10 @@
 
         <div class="instructions">
             <h3>User guide</h3>
-            <p> J P to J1 P1 + J2 P2 </p>
-            <p> set P=0 to allow P violation </p>
+            <p> Create the LS formula for the following decay </p>
+            <div id="decay" class="formula"></div>
+            <p> Set P=0 to allow P violation. The total formula is </p>
+            <div id="formula" class="formula"></div>
         </div>
 
         <div class="input-group">
@@ -140,7 +142,7 @@
             </div>
             <div class="input-field">
                 <label for="J">J</label>
-                <input type="number" id="J" step="0.5" value="1" min="0">
+                <input type="number" id="J" step="0.5" value="0" min="0">
             </div>
             <div class="input-field">
                 <label for="p1">P₁</label>
@@ -152,7 +154,7 @@
             </div>
             <div class="input-field">
                 <label for="P">P</label>
-                <input type="number" id="P" step="2" value="-1" min="-1" max="1">
+                <input type="number" id="P" step="0" value="-1" min="-1" max="1">
             </div>
         </div>
 
@@ -170,10 +172,26 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
     <script>
+        function fracAdd(a, b) {
+            let num = a.numerator * b.denominator + b.numerator * a.denominator;
+            let den = a.denominator * b.denominator;
+            return simplifyFraction(num, den);
+        }
+
+        function fracMul(a, b) {
+            return simplifyFraction(a.numerator * b.numerator, a.denominator * b.denominator);
+        }
+
+        function fracValue(v) {
+            return v.numerator/ v.denominator;
+        }
+
+
         function gcd(a, b) {
-            if (a === b) return a;
-            if (a > b) return gcd( a- b, b);
-            return gcd(b-a, a);
+            if (a === 0) return b;
+            if (b === 0) return a;
+            if (a > b) return gcd(a % b , b);
+            return gcd(b % a, a);
         }
 
         function simplifyFraction(numerator, denominator) {
@@ -195,72 +213,52 @@
             return result;
         }
 
-        function triangleCoefficient(j1, j2, j3) {
-            return factorial(j1 + j2 - j3) *
-                   factorial(j1 - j2 + j3) *
-                   factorial(-j1 + j2 + j3) /
-                   factorial(j1 + j2 + j3 + 1);
+
+        function wigner_3j(j_1, j_2, j_3, m_1, m_2, m_3) {
+            if (m_1 + m_2 + m_3 != 0) return {numerator: 0, denominator: 1};
+            let a1 = j_1 + j_2 - j_3;
+            if (a1 < 0) return {numerator: 0, denominator: 1};
+            let a2 = j_1 - j_2 + j_3;
+            if (a2 < 0) return {numerator: 0, denominator: 1};
+            let a3 = -j_1 + j_2 + j_3;
+            if (a3 < 0) return {numerator: 0, denominator: 1};
+            if ((Math.abs(m_1) > j_1) || (Math.abs(m_2) > j_2) || (Math.abs(m_3) > j_3)) return  {numerator: 0, denominator: 1};
+            let maxfact = Math.max(j_1 + j_2 + j_3 + 1, j_1 + Math.abs(m_1), j_2 + Math.abs(m_3), j_3 + Math.abs(m_3));
+
+            let _Factlist = [1];
+            let i = 1;
+            for (i = 1; i<= maxfact; i+=1) {
+                _Factlist.push(_Factlist[-1] * i);
+            };
+            let argsqrt = {numerator: factorial(j_1 + j_2 - j_3) *
+                     factorial(j_1 - j_2 + j_3) *
+                     factorial(-j_1 + j_2 + j_3) *
+                     factorial(j_1 - m_1) *
+                     factorial(j_1 + m_1) *
+                     factorial(j_2 - m_2) *
+                     factorial(j_2 + m_2) *
+                     factorial(j_3 - m_3) *
+                     factorial(j_3 + m_3),
+                     denominator: factorial(j_1 + j_2 + j_3 + 1)};
+            let ressqrt = argsqrt;
+            let imin = Math.max(-j_3 + j_1 + m_2, -j_3 + j_2 - m_1, 0);
+            let imax = Math.min(j_2 + m_2, j_1 - m_1, j_1 + j_2 - j_3);
+            let sumres = {numerator: 0, denominator: 1};
+            let ii;
+            for (ii=imin; ii<= imax; ii+=1) {
+                let den = factorial(ii) * factorial(ii + j_3 - j_1 - m_2) *  factorial(j_2 + m_2 - ii) * factorial(j_1 - ii - m_1) * factorial(ii + j_3 - j_2 + m_1) * factorial(j_1 + j_2 - j_3 - ii);
+                sumres = fracAdd(sumres, {numerator: Math.pow(-1, ii), denominator: den});
+            };
+            let prefid = Math.pow(-1, j_1 - j_2 - m_3);
+            let res = fracMul(fracMul(ressqrt, fracMul(sumres,sumres)), {numerator: prefid*prefid, denominator: 1})
+            let sign = ((sumres.numerator*sumres.denominator * prefid) >= 0)? 1 : -1
+            return {numerator: res.numerator * sign, denominator: res.denominator}
         }
 
-        function clebschGordanFraction(j1, m1, j2, m2, J, M) {
-
-            if (Math.abs(m1 + m2 - M) > 1e-10) return { numerator: 0, denominator: 1 };
-            if (J < Math.abs(j1 - j2) || J > j1 + j2) return { numerator: 0, denominator: 1 };
-            if (Math.abs(m1) > j1 || Math.abs(m2) > j2 || Math.abs(M) > J) return { numerator: 0, denominator: 1 };
-
-            const factor = 2;
-            const j1_int = j1 * factor;
-            const m1_int = m1 * factor;
-            const j2_int = j2 * factor;
-            const j3_int = J * factor;
-            const m3_int = M * factor;
-
-            const term1 = (2 * J + 1) * triangleCoefficient(j1, j2, J);
-            const term2 = factorial(J + M) * factorial(J - M) *
-                         factorial(j1 - m1) * factorial(j1 + m1) *
-                         factorial(j2 - m2) * factorial(j2 + m2);
-
-            const cgSquared = term1 * term2;
-
-            let sum = 0;
-            const kMin = Math.max(0, j2 - J - m1, j1 - J + m2);
-            const kMax = Math.min(j1 + j2 - J, j1 - m1, j2 + m2);
-
-            for (let k = kMin; k <= kMax; k++) {
-                const denominator = factorial(k) *
-                                  factorial(j1 + j2 - J - k) *
-                                  factorial(j1 - m1 - k) *
-                                  factorial(j2 + m2 - k) *
-                                  factorial(J - j2 + m1 + k) *
-                                  factorial(J - j1 - m2 + k);
-
-                if (denominator === 0) continue;
-
-                const sign = (k % 2 === 0) ? 1 : -1;
-                sum += sign / denominator;
-            }
-
-            const fullCgSquared = term1 * term2 * sum * sum;
-
-            function findFraction(x, tolerance = 1e-10) {
-                var d2, n2;
-                for (d2=1;d2<1000;d2+=1) {
-                    n2 = Math.floor(x * d2+0.5);
-                    if (Math.abs(x - n2/d2) < tolerance) break;
-                }
-
-                return simplifyFraction(n2, d2);
-            }
-
-            const fraction = findFraction(fullCgSquared);
-
-            const numericalCg = Math.sqrt(term1 * term2) * sum;
-            const sign = numericalCg >= 0 ? 1 : -1;
-
-            return {
-                numerator: sign * fraction.numerator,
-                denominator: fraction.denominator
-            };
+        function clebschGordanFraction(j_1, m_1, j_2, m_2, j_3, m_3) {
+            let w = wigner_3j(j_1, j_2, j_3, m_1, m_2, -m_3);
+            let frac = Math.pow(-1, (j_1 - j_2 + m_3)) *  (2 * j_3 + 1)
+            return fracMul( {numerator: frac, denominator: 1},  w)
         }
 
         function renderLatex(latexExpr, elementId) {
@@ -269,6 +267,11 @@
                 throwOnError: false,
                 displayMode: true
             });
+        }
+
+        function formatSpin(m) {
+            if (Math.abs(2*m) % 2 != 1) return `${-m}`;
+            else return (m< 0) ? `-\\frac{${-2*m}}{2}` : `\\frac{${2*m}}{2}`;
         }
 
         function calculateCG() {
@@ -292,8 +295,10 @@
                 }
             }
 
+            const errorElem = document.getElementById('error');
+            errorElem.textContent = '';
+            errorElem.style.display = 'none';
             if (ls.length === 0) {
-                const errorElem = document.getElementById('error');
                 errorElem.textContent = 'no available LS';
                 errorElem.style.display = 'block';
             }
@@ -303,7 +308,7 @@
             for (m1=-j1; m1 <= j1; m1 += 1) {
                 for (m2=-j2; m2 <= j2; m2 += 1) {
                     if (Math.abs(m1 - m2) > J) continue;
-                    let tmp = `H_{ ${m1}, ${m2} } & = `;
+                    let tmp = `H_{ ${formatSpin(m1)}, ${formatSpin(m2)} } & = `;
                     let count = 0;
                     for (lsi = 0; lsi < ls.length;lsi+=1) {
                         let l = ls[lsi][0];
@@ -311,9 +316,9 @@
                         const cgFraction1 = clebschGordanFraction(j1, m1, j2, -m2, s, m1- m2);
                         const cgFraction2 = clebschGordanFraction(l,0, s, m1- m2, J, m1 - m2);
                         const cgtotal = simplifyFraction(cgFraction1.numerator *cgFraction2.numerator * (2*l + 1), cgFraction1.denominator *cgFraction2.denominator * (2*J + 1));
-                        let sign = cgtotal.numerator < 0 ? `-` : `+`;
+                        let sign = (cgtotal.numerator * cgtotal.denominator < 0) ? `-` : `+`;
                         if (cgtotal.numerator != 0) {
-                            tmp = `${tmp} ${sign} \\sqrt{ \\frac{${Math.abs(cgtotal.numerator)} }{  ${cgtotal.denominator}} } g_{${l}, ${s}}  `;
+                            tmp = `${tmp} ${sign} \\sqrt{ \\frac{${Math.abs(cgtotal.numerator)} }{  ${cgtotal.denominator}} } G_{${l}, ${formatSpin(s)}}  `;
                             count += 1;
                         }
                     }
@@ -325,13 +330,29 @@
             latexExpr = `${latexExpr} \\end{aligned} `;
 
             renderLatex(latexExpr, 'latexOutput');
-
             document.getElementById('result').style.display = 'block';
+            document.getElementById('result').style.display = 'block';
+
+            renderLatex(`H_{\\lambda_1,\\lambda_2} =\\sum_{l,s} \\sqrt{\\frac{2l+1}{2J+1}} \\langle j_1,m_1;j_2,-m_2|s,\\delta \\rangle\\langle l,0;s,\\delta|J,\\delta \\rangle G_{ls}`, 'formula');
+        }
+
+        function updateLatex() {
+
+            renderLatex(`H_{\\lambda_1,\\lambda_2} =\\sum_{l,s} \\sqrt{\\frac{2l+1}{2J+1}} \\langle j_1,m_1;j_2,-m_2|s,\\delta \\rangle\\langle l,0;s,\\delta|J,\\delta \\rangle G_{ls}`, 'formula');
+
+            document.getElementById('formula').style.display = 'block';
+
+            renderLatex(`J^{P}\\rightarrow j_{1}^{P_1}  +  j_{2}^{P_2}`, 'decay');
+
+            document.getElementById('decay').style.display = 'block';
+
+
+            calculateCG();
         }
 
         document.getElementById('calculateBtn').addEventListener('click', calculateCG);
 
-        window.onload = calculateCG;
+        window.onload = updateLatex;
     </script>
 </body>
 </html>
