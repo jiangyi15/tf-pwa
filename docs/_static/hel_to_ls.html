@@ -188,26 +188,32 @@
 
 
         function gcd(a, b) {
-            if (a === 0) return b;
-            if (b === 0) return a;
+            if (a === 0n) return b;
+            if (b === 0n) return a;
             if (a > b) return gcd(a % b , b);
             return gcd(b % a, a);
         }
 
+        function abs(a) {
+            return (a > 0n) ? a : -a;
+        }
+
+
         function simplifyFraction(numerator, denominator) {
-            if (numerator === 0) return { numerator: 0, denominator: 1 };
-            const commonDivisor = gcd(Math.abs(numerator), Math.abs(denominator));
+            if (numerator === 0n) return { numerator: 0n, denominator: 1n };
+            const commonDivisor = gcd(abs(numerator), abs(denominator));
             return {
                 numerator: numerator / commonDivisor,
                 denominator: denominator / commonDivisor
             };
         }
 
-        function factorial(n) {
-            if (n < 0) return NaN;
-            if (n === 0 || n === 1) return 1;
-            let result = 1;
-            for (let i = 2; i <= n; i++) {
+        function factorial(m) {
+            let n = BigInt(m);
+            if (n < 0n) return NaN;
+            if (n === 0n || n === 1n) return 1n;
+            let result = 1n;
+            for (let i = 2n; i <= n; i++) {
                 result *= i;
             }
             return result;
@@ -215,21 +221,16 @@
 
 
         function wigner_3j(j_1, j_2, j_3, m_1, m_2, m_3) {
-            if (m_1 + m_2 + m_3 != 0) return {numerator: 0, denominator: 1};
+            if (m_1 + m_2 + m_3 != 0) return {numerator: 0n, denominator: 1n};
             let a1 = j_1 + j_2 - j_3;
-            if (a1 < 0) return {numerator: 0, denominator: 1};
+            if (a1 < 0) return {numerator: 0n, denominator: 1n};
             let a2 = j_1 - j_2 + j_3;
-            if (a2 < 0) return {numerator: 0, denominator: 1};
+            if (a2 < 0) return {numerator: 0n, denominator: 1n};
             let a3 = -j_1 + j_2 + j_3;
-            if (a3 < 0) return {numerator: 0, denominator: 1};
-            if ((Math.abs(m_1) > j_1) || (Math.abs(m_2) > j_2) || (Math.abs(m_3) > j_3)) return  {numerator: 0, denominator: 1};
+            if (a3 < 0) return {numerator: 0n, denominator: 1n};
+            if ((Math.abs(m_1) > j_1) || (Math.abs(m_2) > j_2) || (Math.abs(m_3) > j_3)) return  {numerator: 0n, denominator: 1n};
             let maxfact = Math.max(j_1 + j_2 + j_3 + 1, j_1 + Math.abs(m_1), j_2 + Math.abs(m_3), j_3 + Math.abs(m_3));
 
-            let _Factlist = [1];
-            let i = 1;
-            for (i = 1; i<= maxfact; i+=1) {
-                _Factlist.push(_Factlist[-1] * i);
-            };
             let argsqrt = {numerator: factorial(j_1 + j_2 - j_3) *
                      factorial(j_1 - j_2 + j_3) *
                      factorial(-j_1 + j_2 + j_3) *
@@ -243,22 +244,22 @@
             let ressqrt = argsqrt;
             let imin = Math.max(-j_3 + j_1 + m_2, -j_3 + j_2 - m_1, 0);
             let imax = Math.min(j_2 + m_2, j_1 - m_1, j_1 + j_2 - j_3);
-            let sumres = {numerator: 0, denominator: 1};
+            let sumres = {numerator: 0n, denominator: 1n};
             let ii;
             for (ii=imin; ii<= imax; ii+=1) {
                 let den = factorial(ii) * factorial(ii + j_3 - j_1 - m_2) *  factorial(j_2 + m_2 - ii) * factorial(j_1 - ii - m_1) * factorial(ii + j_3 - j_2 + m_1) * factorial(j_1 + j_2 - j_3 - ii);
-                sumres = fracAdd(sumres, {numerator: Math.pow(-1, ii), denominator: den});
+                sumres = fracAdd(sumres, {numerator: BigInt(Math.pow(-1, ii)), denominator: den});
             };
-            let prefid = Math.pow(-1, j_1 - j_2 - m_3);
-            let res = fracMul(fracMul(ressqrt, fracMul(sumres,sumres)), {numerator: prefid*prefid, denominator: 1})
-            let sign = ((sumres.numerator*sumres.denominator * prefid) >= 0)? 1 : -1
+            let prefid = BigInt(Math.pow(-1, j_1 - j_2 - m_3));
+            let res = fracMul(fracMul(ressqrt, fracMul(sumres,sumres)), {numerator: prefid*prefid, denominator: 1n})
+            let sign = ((sumres.numerator*sumres.denominator * prefid) >= 0n)? 1n : -1n;
             return {numerator: res.numerator * sign, denominator: res.denominator}
         }
 
         function clebschGordanFraction(j_1, m_1, j_2, m_2, j_3, m_3) {
             let w = wigner_3j(j_1, j_2, j_3, m_1, m_2, -m_3);
-            let frac = Math.pow(-1, (j_1 - j_2 + m_3)) *  (2 * j_3 + 1)
-            return fracMul( {numerator: frac, denominator: 1},  w)
+            let frac = BigInt(Math.pow(-1, (j_1 - j_2 + m_3)) * (2 * j_3 + 1))
+            return fracMul( {numerator: frac, denominator: 1n},  w)
         }
 
         function renderLatex(latexExpr, elementId) {
@@ -275,12 +276,12 @@
         }
 
         function formatFrac(v) {
-            let sign = (v.numerator * v.denominator < 0) ? `-` : `+`;
-            if (Math.abs(v.denominator) === 1)  {
-                if (Math.abs(v.numerator) === 1) return `${sign}`;
-                else return `${sign} \\sqrt{${Math.abs(v.numerator)} }`;
+            let sign = (v.numerator * v.denominator < 0n) ? `-` : `+`;
+            if (abs(v.denominator) === 1n)  {
+                if (abs(v.numerator) === 1n) return `${sign}`;
+                else return `${sign} \\sqrt{${abs(v.numerator)} }`;
             }
-            return `${sign} \\sqrt{ \\frac{${Math.abs(v.numerator)} }{  ${v.denominator}} }`;
+            return `${sign} \\sqrt{ \\frac{${abs(v.numerator)} }{  ${v.denominator}} }`;
         }
 
         function calculateCG() {
@@ -334,7 +335,7 @@
                         let s = ls[lsi][1];
                         const cgFraction1 = clebschGordanFraction(j1, m1, j2, -m2, s, m1- m2);
                         const cgFraction2 = clebschGordanFraction(l,0, s, m1- m2, J, m1 - m2);
-                        const cgtotal = simplifyFraction(cgFraction1.numerator *cgFraction2.numerator * (2*l + 1), cgFraction1.denominator *cgFraction2.denominator * (2*J + 1));
+                        const cgtotal = simplifyFraction(cgFraction1.numerator *cgFraction2.numerator * BigInt(2*l + 1), cgFraction1.denominator *cgFraction2.denominator * BigInt(2*J + 1));
                         if (cgtotal.numerator != 0) {
                             tmp = `${tmp} ${formatFrac(cgtotal)} G_{${l}, ${formatSpin(s)}}  `;
                             count += 1;
