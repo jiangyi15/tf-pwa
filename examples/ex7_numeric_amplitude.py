@@ -471,12 +471,12 @@ L_Sigma = L3 * L2 * L1
 # For the second decay chain, :math:`\Lambda_c^{+} \rightarrow \rho \Lambda, \rho\rightarrow \pi^{+}\pi^{0}, \Lambda\rightarrow p \pi^{-}`, the total Lorentz transform of :math:`p` is
 #
 # .. math::
-#    L_{\rho} = R_y(\theta_{3}')R_z(\phi_{3}') B_z(\omega_{3}') B_z(\omega_2') {\color{ead}R_{x}(\pi)} R_y(\theta_1') R_z(\phi_1') B_z(\omega_{1})
+#    L_{\rho} = R_y(\theta_{3}')R_z(\phi_{3}') B_z(\omega_{3}') {\color{ead}R_{x}(\pi)} R_y(\theta_1') R_z(\phi_1') B_z(\omega_{1})
 #
-# Here we choose :math:`R_{x}(\pi) R_y(\theta_1') R_z(\phi_1') = R_y(\pi-\theta_1') R_z(\phi_1'{\color{red}-\pi})`, so that
+# There is an additional retation :math:`{\color{ead}R_{x}(\pi)}`, since :math:`\Lambda` is in the opposite direction of :math:`\rho`. Here we choose :math:`R_{x}(\pi) R_y(\theta_1') R_z(\phi_1') = R_y(\pi-\theta_1') R_z(\phi_1'{\color{red}-\pi})`, so that
 #
 # .. math::
-#    L_{\rho} = R_y(\theta_{3}')R_z(\phi_{3}') B_z(\omega_{3}') B_z(\omega_2') R_y(\pi-\theta_1') R_z(\phi_1'-\pi) B_z(\omega_{1}')
+#    L_{\rho} = R_y(\theta_{3}')R_z(\phi_{3}') B_z(\omega_{3}') R_y(\pi-\theta_1') R_z(\phi_1'-\pi) B_z(\omega_{1}')
 #
 # The :math:`{\color{red}-\pi}` can also be :math:`{\color{red}+\pi}`. But for baryon, rotation of :math:`-\pi` and :math:`+\pi` have different factor :math:`i` and :math:`-i`, we need to choose one of them in the conversion.
 #
@@ -596,7 +596,7 @@ G1 = gls1 * (q / q0) ** 1 * Bprime(1, q, q0)
 # Next, we calculate the helicity amplitude, it is
 #
 # .. math::
-#    H_{\lambda_{1},\lambda_{2} } = \sum_{l,s} G_{l,s} \sqrt{\frac{2l+1}{2J_0+1}} \langle J_{1}, \lambda_{1}; J_{2}, \lambda_{2}| s, \delta \rangle  \langle l,0;s,\delta | J_{0}, \delta\rangle
+#    H_{\lambda_{1},\lambda_{2} } = \sum_{l,s} G_{l,s} \sqrt{\frac{2l+1}{2J_0+1}} \langle J_{1}, \lambda_{1}; J_{2}, -\lambda_{2}| s, \delta \rangle  \langle l,0;s,\delta | J_{0}, \delta\rangle
 #
 # :math:`\delta=\lambda_{1}-\lambda_{2}`. :math:`l,s` is all possible in the range
 #

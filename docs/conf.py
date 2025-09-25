@@ -49,6 +49,8 @@ html_theme = "sphinx_rtd_theme"
 html_title = "TFPWA"
 viewcode_follow_imported_members = True
 
+html_static_path = ["_static/"]
+
 # -- Options for API ---------------------------------------------------------
 add_module_names = False
 autodoc_mock_imports = [
