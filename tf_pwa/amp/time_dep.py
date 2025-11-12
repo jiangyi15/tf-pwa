@@ -244,13 +244,12 @@ class TimeDepParamsAmplitudeModel(BaseAmplitudeModel):
     def eval_A_Abar(self, data):
         top = self.decay_group.top
         ones = tf.ones((1,), dtype=get_config("dtype"))
-        A = self.decay_group.get_amp({**data, "tag": ones})
-        Abar = self.decay_group.get_amp({**data, "tag": -ones})
+        A = self.decay_group.get_amp2({**data, "tag": ones})
+        Abar = self.decay_group.get_amp2({**data, "tag": -ones})
         return A, Abar
 
     def eval_A_Abar_time(self, data):
         A, Abar = self.eval_A_Abar(data)
-
         top = self.decay_group.top
         ones = tf.ones((1,), dtype=get_config("dtype"))
         t = data.get("time", 0.0 * ones)
@@ -333,9 +332,9 @@ class TimeDepCpAmplitudeModel(TimeDepParamsAmplitudeModel):
         top.poq.freed()
 
     def eval_A_Abar(self, data):
-
-        A = self.decay_group.get_amp2(data)
-        Abar = self.decay_group.get_amp2(data["cp_swap"])
+        one = tf.ones_like(data["time"])
+        A = self.decay_group.get_amp2({**data, "tag": one})
+        Abar = self.decay_group.get_amp2({**data["cp_swap"], "tag": -one})
         return A, Abar
 
 
@@ -351,8 +350,9 @@ class TimeDepCpFSAmplitudeModel(TimeDepParamsFSAmplitudeModel):
         top.poq.freed()
 
     def eval_A_Abar(self, data):
-        A = self.decay_group.get_amp2(data)
-        Abar = self.decay_group.get_amp2(data["cp_swap"])
+        one = tf.ones_like(data["time"])
+        A = self.decay_group.get_amp2({**data, "tag": one})
+        Abar = self.decay_group.get_amp2({**data["cp_swap"], "tag": -one})
         return A, Abar
 
 
