@@ -444,8 +444,9 @@ class TimeDepCpConvAmplitudeModel(TimeDepParamsConvAmplitudeModel):
         top.poq.freed()
 
     def eval_A_Abar(self, data):
-        A = self.decay_group.get_amp2(data)
-        Abar = self.decay_group.get_amp2(data["cp_swap"])
+        one = tf.ones_like(data["time"])
+        A = self.decay_group.get_amp2({**data, "tag": one})
+        Abar = self.decay_group.get_amp2({**data["cp_swap"], "tag": -one})
         return A, Abar
 
 
@@ -457,7 +458,7 @@ class FlavourTagPDF(BaseAmplitudeModel):
         eta_name="eta",
         tag_name="tag_value",
         true_tag="tag",
-        tag_eff=1.0,
+        tag_eff=None,
         **kwargs,
     ):
         self.eta_name = eta_name
@@ -471,17 +472,23 @@ class FlavourTagPDF(BaseAmplitudeModel):
         tag_value = data.get(self.tag_name, 1)
         true_tag = data.get(self.true_tag, 1)
         tag1, tag2 = eta, eta
+        if self.tag_eff is None:
+            tag_ratio = 1.0
+            mis_tag_ratio = 1.0
+        else:
+            tag_ratio = self.tag_eff
+            mis_tag_ratio = 1 - self.tag_eff
         return tf.where(
             true_tag > 0,
             tf.where(
                 tag_value == 0,
-                tf.ones_like(tag1) * (1 - self.tag_eff),
-                tf.where(tag_value > 0, 1 - tag1, tag1) * self.tag_eff,
+                tf.ones_like(tag1) * mis_tag_ratio,
+                tf.where(tag_value > 0, 1 - tag1, tag1) * tag_ratio,
             ),
             tf.where(
                 tag_value == 0,
-                tf.ones_like(tag2) * (1 - self.tag_eff),
-                tf.where(tag_value > 0, tag2, 1 - tag2) * self.tag_eff,
+                tf.ones_like(tag2) * mis_tag_ratio,
+                tf.where(tag_value > 0, tag2, 1 - tag2) * tag_ratio,
             ),
         )
 
