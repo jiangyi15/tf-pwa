@@ -86,11 +86,22 @@ class HelicityAngle:
                         )
         return ms
 
-    def generate_p_mass(self, name, m, random=False):
+    def create_ms(self, name, m=None):
+        if m is None:
+            if isinstance(name, dict):
+                ms = self.get_all_mass(name)
+                m = tf.convert_to_tensor(list(name.values())[0], tf.float64)
+            else:
+                raise ValueError("not support input for create_ms")
+        else:
+            m = tf.convert_to_tensor(m, tf.float64)
+            ms = self.get_all_mass({name: m})
+        return ms, m
+
+    def generate_p_mass(self, name, m=None, random=False):
         """generate monmentum with M_name = m"""
-        m = tf.convert_to_tensor(m, tf.float64)
-        ms = self.get_all_mass({name: m})
         data = {}
+        ms, m = self.create_ms(name, m)
 
         for i in self.decay_chain:
             data[i] = {}
@@ -132,9 +143,8 @@ class HelicityAngle:
         # ret = self.generate_p(ms, costheta, phi)
         return ret  # dict(zip(self.par, ret))
 
-    def get_phsp_factor(self, name, m):
-        m = tf.convert_to_tensor(m, tf.float64)
-        ms = self.get_all_mass({name: m})
+    def get_phsp_factor(self, name, m=None):
+        ms, _ = self.create_ms(name, m)
         return self.eval_phsp_factor(ms)
 
     def eval_phsp_factor(self, ms):

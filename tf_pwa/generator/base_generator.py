@@ -31,7 +31,9 @@ def create_simple_generator(name, params):
     params = params.copy()
     model = params.get("model", "default")
     gen_params = {
-        k: v for k, v in params.items() if k not in ["model", "default"]
+        k: v
+        for k, v in params.items()
+        if k not in ["model", "default", "dtype"]
     }
     if "params" in gen_params:
         gen_params = gen_params["params"]
