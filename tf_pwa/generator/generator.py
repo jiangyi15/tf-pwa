@@ -89,7 +89,9 @@ def multi_sampling(
             max_weight = new_max_weight * 1.1
         if new_max_weight > max_weight and len(all_data) > 0:
             tmp = data_merge(*all_data)
-            rnd = tf.random.uniform((data_shape(tmp),), dtype=max_weight.dtype)
+            rnd = tf.random.uniform(
+                (data_shape(tmp),), dtype=new_max_weight.dtype
+            )
             cut = (
                 rnd * new_max_weight / max_weight < 1.0
             )  # .max_amplitude < 1.0
