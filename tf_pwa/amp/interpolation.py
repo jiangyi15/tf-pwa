@@ -61,8 +61,8 @@ class InterpolationParticle(Particle):
     def get_point_values(self):
         p = self.point_value()
         if self.with_bound:
-            v_r = [tf.math.real(i) for i in p]
-            v_i = [tf.math.imag(i) for i in p]
+            v_r = [tf.math.real(i) for i in tf.unstack(p)]
+            v_i = [tf.math.imag(i) for i in tf.unstack(p)]
         else:
             v_r = [0.0] + [tf.math.real(i) for i in p] + [0.0]
             v_i = [0.0] + [tf.math.imag(i) for i in p] + [0.0]
@@ -101,9 +101,13 @@ def create_width_interp_class(cls):
             g0 = self.get_width()
 
             delta = m0**2 - m**2
-            refm0 = tf.math.real(self.interp(tf.stack([m0])))[0]
+            fm0 = self.interp(tf.stack([m0]))[0]
+            refm0 = tf.math.real(fm0)
+            imfm0 = tf.math.imag(fm0)
+            if getattr(self, "width_scale", False):
+                g0 = g0 / imfm0
             re = delta - m0 * g0 * (tf.math.real(fm) - refm0)
-            im = g0 * tf.math.imag(fm)
+            im = m0 * g0 * tf.math.imag(fm)
             dom = re * re + im * im
             return tf.complex(re / dom, im / dom)
 
@@ -195,6 +199,8 @@ class WidthInterpLinearNpy(create_width_interp_class(InterpLinearNpy)):
     .. math::
 
         f(m) = \\frac{1}{m_0^2 - m^2 - m_0 \\Gamma_0 (Re \\Pi(m) - Re \\Pi(m_0) + i Im \\Pi(m))}
+
+    Additional option `width_scale: True`, will use :math:`\\Pi(m)/Im \\Pi(m_0)` instead of :math:`\\Pi(m)` to have a normal width value.
 
     The example is `exp(5 I m)`.
 
