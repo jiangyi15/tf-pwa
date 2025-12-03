@@ -214,6 +214,8 @@ class WidthInterpLinearNpy(create_width_interp_class(InterpLinearNpy)):
         >>> mi = m[::5]
         >>> np.savetxt(a, np.stack([mi, np.cos(mi*5), np.sin(mi*5)], axis=-1))
         >>> axs = plot_particle_model("width_linear_txt", {"mass": 0.5, "width": 0.2,"file": a})
+        >>> _ = plot_particle_model("width_linear_txt", {"mass": 0.5, "width": 0.2, "width_scale": True, "file": a}, axis = axs)
+        >>> _ = axs[2].legend(["default", "width_scale=True"])
 
     """
 
