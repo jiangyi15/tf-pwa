@@ -52,7 +52,7 @@ class Vector3(tf.Tensor):
         """
         The unit vector of itself. It has interface to *tf.linalg.normalize()*.
         """
-        p, _n = tf.linalg.normalize(self, axis=-1)
+        p = tf.math.l2_normalize(self, axis=-1)
         return p
 
     def cross_unit(self, other):
