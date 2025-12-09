@@ -347,7 +347,7 @@ class SimpleCFitModel(BaseCustomModel):
     def eval_nll_part(self, data, weight, norm, idx=0):
         bg_frac = self.bg_frac
         pdf = (1 - bg_frac) * self.Amp(data) * data.get(
-            "err_value", 1.0
+            "eff_value", 1.0
         ) / norm[0] + bg_frac * data.get("bg_value", 1.0) / norm[1]
         nll = -tf.reduce_sum(weight * tf.math.log(pdf))
         return nll

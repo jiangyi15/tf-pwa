@@ -270,7 +270,7 @@ class TimeDepParamsAmplitudeModel(BaseAmplitudeModel):
             shape = (-1, *shape[1:])
         return tf.reshape(ret1, shape), tf.reshape(ret2, shape)
 
-    def pdf(self, data):
+    def eval_P_Pbar_time(self, data):
         A, Abar = self.eval_A_Abar_time(data)
         ret1 = self.decay_group.sum_with_polarization(A)
         ret2 = self.decay_group.sum_with_polarization(Abar)
@@ -279,7 +279,13 @@ class TimeDepParamsAmplitudeModel(BaseAmplitudeModel):
         top = self.decay_group.top
         prod1 = tf.cast((1 - top.A_prod()), dtype=ret1.dtype)
         prod2 = tf.cast((1 + top.A_prod()), dtype=ret2.dtype)
-        return tf.where(tag > 0, ret1 * prod1, ret2 * prod2)
+        return ret1 * prod1, ret2 * prod2
+
+    def pdf(self, data):
+        P, Pbar = self.eval_P_Pbar_time(data)
+        ones = tf.ones((1,), dtype=get_config("dtype"))
+        tag = data.get("tag", ones)
+        return tf.where(tag > 0, P, Pbar)
 
 
 @register_amp_model("time_dep_params_fs")
@@ -310,14 +316,12 @@ class TimeDepParamsFSAmplitudeModel(TimeDepParamsAmplitudeModel):
         ret2 = ret2_a + ret2_abar
         return ret1, ret2
 
-    def pdf(self, data):
+    def eval_P_Pbar_time(self, data):
         ret1, ret2 = self.eval_A2_Abar2_time(data)
-        ones = tf.ones((1,), dtype=get_config("dtype"))
-        tag = data.get("tag", ones)
         top = self.decay_group.top
         prod1 = tf.cast((1 - top.A_prod()), dtype=ret1.dtype)
         prod2 = tf.cast((1 + top.A_prod()), dtype=ret2.dtype)
-        return tf.where(tag > 0, ret1 * prod1, ret2 * prod2)
+        return ret1 * prod1, ret2 * prod2
 
 
 @register_amp_model("time_dep_cp")
@@ -370,7 +374,7 @@ class TimeDepParamsConvAmplitudeModel(TimeDepParamsAmplitudeModel):
         self.t_min = t_min
         super().__init__(*args, **kwargs)
 
-    def pdf(self, data):
+    def eval_P_Pbar_time(self, data):
         A, Abar = self.eval_A_Abar(data)
         top = self.decay_group.top
         phase = top.poq()
@@ -425,11 +429,9 @@ class TimeDepParamsConvAmplitudeModel(TimeDepParamsAmplitudeModel):
             - 2 * ImA_p * sint
         ) / 2
 
-        tag = data.get("tag", ones)
         prod1 = tf.cast((1 - top.A_prod()), dtype=ret1.dtype)
         prod2 = tf.cast((1 + top.A_prod()), dtype=ret2.dtype)
-        ret = tf.where(tag > 0, ret1 * prod1, ret2 * prod2)
-        return ret
+        return ret1 * prod1, ret2 * prod2
 
 
 @register_amp_model("time_dep_cp_conv")
@@ -554,10 +556,14 @@ class TimeDepFTPDF(BaseAmplitudeModel):
         decay_group,
         base_model={"model": "default"},
         taggers=[{"model": "flavour_tag"}],
+        use_p_pbar_time=True,
         **kwargs,
     ):
+        if isinstance(base_model, str):
+            base_model = {"model": base_model}
         self.base_model = create_amplitude(decay_group, **base_model)
         self.taggers = [create_amplitude(decay_group, **i) for i in taggers]
+        self.use_p_pbar_time = use_p_pbar_time
         super().__init__(decay_group, **kwargs)
 
     def init_params(self, *args, **kwargs):
@@ -567,15 +573,22 @@ class TimeDepFTPDF(BaseAmplitudeModel):
             tagger.init_params(*args, **kwargs)
 
     def pdf(self, data):
+        if self.use_p_pbar_time:
+            amp1, amp2 = self.base_model.eval_P_Pbar_time(data)
+
         time = data["time"]
         tag = tf.ones_like(time)
         old_tag = data.get("tag", None)
         data["tag"] = tag
-        amp1 = self.base_model(data)
         ft1 = tf.reduce_prod([f(data) for f in self.taggers], axis=0)
+        if not self.use_p_pbar_time:
+            amp1 = self.base_model(data)
+
         data["tag"] = -tag
-        amp2 = self.base_model(data)
         ft2 = tf.reduce_prod([f(data) for f in self.taggers], axis=0)
+        if not self.use_p_pbar_time:
+            amp2 = self.base_model(data)
+
         del data["tag"]
         if old_tag is not None:
             data["tag"] = old_tag
