@@ -53,13 +53,16 @@ def test_time_dep_cp():
     phsp = config_cp.generate_phsp(10)
 
     a = amp_cp(phsp).numpy()
+    amp_cp.use_p_pbar_time = False
+    a2 = amp_cp(phsp).numpy()
+
     phsp2 = phsp.copy()
     del phsp2["cp_swap"]
     b = amp(phsp2).numpy()
     c = amp2(phsp2).numpy()
     d = amp4(phsp2).numpy()
 
-    assert np.allclose(a, b, c, d)
+    assert np.allclose(a, b, c, d, a2)
 
 
 def test_time_dep_cp_conv():
@@ -136,9 +139,9 @@ def test_time_dep_fs():
     params = amp_cp.get_params()
     delta = 0.001
     for idx, name in enumerate(var_name):
-        amp_cp.set_params({"name": params[name] + delta})
+        amp_cp.set_params({name: params[name] + delta})
         y1 = f()
-        amp_cp.set_params({"name": params[name] - delta})
+        amp_cp.set_params({name: params[name] - delta})
         y2 = f()
         assert abs((y1 - y2) / delta / 2 - grad[idx]) < 1e-4
         amp_cp.set_params(params)

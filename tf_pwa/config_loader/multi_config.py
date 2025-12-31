@@ -202,7 +202,7 @@ class MultiConfig(object):
         return self.fit_params
 
     def reinit_params(self):
-        self.get_fcn().vm.refresh_vars(self.bound_dic)
+        self.get_amplitudes()[0].vm.refresh_vars(bound_dic=self.bound_dic)
 
     def get_params_error(
         self, params=None, datas=None, batch=10000, using_cached=False

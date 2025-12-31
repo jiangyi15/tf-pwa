@@ -86,7 +86,7 @@ def test_set_seed():
 
 
 def test_batch_call():
-    data = {"a": np.array([1.0, 2.0]), "b": []}
+    data = {"a": np.array([1.0, 2.0]), "b": [], "c": 0.2}
 
     def f(x):
         c = x["b"]
