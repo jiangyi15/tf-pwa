@@ -143,7 +143,7 @@ def remove_size1(expr, *args, extra=None):
     return expr2, ret, size_map
 
 
-@lru_cache
+@lru_cache()
 @tf.autograph.experimental.do_not_convert
 def contract_path_cache(*args, **kwargs):
     return contract_path(*args, **kwargs)
