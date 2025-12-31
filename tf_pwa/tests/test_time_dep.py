@@ -62,7 +62,10 @@ def test_time_dep_cp():
     c = amp2(phsp2).numpy()
     d = amp4(phsp2).numpy()
 
-    assert np.allclose(a, b, c, d, a2)
+    assert np.allclose(a, b)
+    assert np.allclose(a, c)
+    assert np.allclose(a, d)
+    assert np.allclose(a, a2)
 
 
 def test_time_dep_cp_conv():
