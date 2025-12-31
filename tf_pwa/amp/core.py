@@ -484,10 +484,13 @@ class Particle(BaseParticle, AmpBase):
         mass = self.get_mass()
         width = self.get_width()
 
+        def _float(x):
+            return float(np.reshape(x, ()))
+
         if init is None:
-            init_pole = float(mass) - sym.I * float(width) / 2
+            init_pole = _float(mass) - sym.I * _float(width) / 2
         else:
-            init_pole = float(np.real(init)) - sym.I * float(np.imag(init))
+            init_pole = _float(np.real(init)) - sym.I * _float(np.imag(init))
 
         from tf_pwa.formula import create_complex_root_sympy_tfop
 

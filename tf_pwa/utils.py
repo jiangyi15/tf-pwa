@@ -309,7 +309,7 @@ def fit_normal(data, weights=None):
     Fit data distribution with Gaussian distribution. Though minimize the negative log likelihood function
 
     .. math::
-        - \\ln L = \\frac{1}{2}\\sum w_i \\frac{(\\mu - x_i )^2}{\\sigma^2} + (\\sum w_i) \\ln (\\sqrt{2\pi} \\sigma )
+        - \\ln L = \\frac{1}{2}\\sum w_i \\frac{(\\mu - x_i )^2}{\\sigma^2} + (\\sum w_i) \\ln (\\sqrt{2\\pi} \\sigma )
 
     the fit result can be solved as
 

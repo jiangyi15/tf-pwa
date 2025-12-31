@@ -1072,8 +1072,8 @@ class ConfigLoader(BaseConfig):
         can be treated as a implect function :math:`a(b)`. The gradients is
 
         .. math::
-            \\frac{\\partial a }{\\partial b} = - (\\frac{\\partial^2 \ln L(a,b)}{\\partial a \\partial a })^{-1}
-            \\frac{\\partial \ln L(a,b)}{\\partial a\\partial b }.
+            \\frac{\\partial a }{\\partial b} = - (\\frac{\\partial^2 \\ln L(a,b)}{\\partial a \\partial a })^{-1}
+            \\frac{\\partial \\ln L(a,b)}{\\partial a\\partial b }.
 
         The uncertanties from b with error matrix :math:`V_b` can propagate to a as
 

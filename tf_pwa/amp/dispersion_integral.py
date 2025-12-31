@@ -5,7 +5,7 @@ When a function :math:`f(z)` is analytic in the real axis and vanish when :math:
 The function has the property that the integration over the edge of the upper half plane is zero,
 
 .. math::
-    \\int_C  \\frac{f(z)}{z -z_0 } \\mathrm{d} z = \\lim_{\\epsilon\\rightarrow 0}\\left[\\int_{-\\infty}^{z_0-\\epsilon}\\frac{f(z)}{z - z_0} \\mathrm{d} z + \\int_{z_0+\\epsilon}^{\infty} \\frac{f(z)}{z -z_0 } \\mathrm{d} z + \\int_{z_0-\\epsilon}^{z_0+\\epsilon}\\frac{f(z)}{z -z_0 } \\mathrm{d} z \\right]  = 0
+    \\int_C  \\frac{f(z)}{z -z_0 } \\mathrm{d} z = \\lim_{\\epsilon\\rightarrow 0}\\left[\\int_{-\\infty}^{z_0-\\epsilon}\\frac{f(z)}{z - z_0} \\mathrm{d} z + \\int_{z_0+\\epsilon}^{\\infty} \\frac{f(z)}{z -z_0 } \\mathrm{d} z + \\int_{z_0-\\epsilon}^{z_0+\\epsilon}\\frac{f(z)}{z -z_0 } \\mathrm{d} z \\right]  = 0
 
 .. plot::
 
@@ -24,18 +24,18 @@ The function has the property that the integration over the edge of the upper ha
 The integration suround the pole :math:`z_0` contibute a residue term.
 
 .. math::
-    i \\pi f(z_0) = P\\int_{-\\infty}^{+\\infty}\\frac{f(z)}{z - z_0} \\mathrm{d} z = \\lim_{\\epsilon \\rightarrow 0}\\left[\\int_{-\\infty}^{z_0-\\epsilon}\\frac{f(z)}{z - z_0} \\mathrm{d} z + \\int_{z_0+\\epsilon}^{\infty} \\frac{f(z)}{z -z_0 } \\mathrm{d} z\\right]
+    i \\pi f(z_0) = P\\int_{-\\infty}^{+\\infty}\\frac{f(z)}{z - z_0} \\mathrm{d} z = \\lim_{\\epsilon \\rightarrow 0}\\left[\\int_{-\\infty}^{z_0-\\epsilon}\\frac{f(z)}{z - z_0} \\mathrm{d} z + \\int_{z_0+\\epsilon}^{\\infty} \\frac{f(z)}{z -z_0 } \\mathrm{d} z\\right]
 
 
 The physical amplitude have the same property after some subtraction of infinity.
 
 .. math::
-    Re f(s) - Re f(s_0) = \\frac{1}{\\pi}P\\int_{s_{th}}^{\\infty} \left[\\frac{Im f(s')}{s' - s} - \\frac{Im f(s')}{s' - s_0}\\right]\mathrm{d} s' = \\frac{(s-s_0)}{\\pi}P\\int_{s_{th}}^{\\infty} \\frac{Im f(s')}{(s' - s)(s' - s_0)}\mathrm{d} s'
+    Re f(s) - Re f(s_0) = \\frac{1}{\\pi}P\\int_{s_{th}}^{\\infty} \left[\\frac{Im f(s')}{s' - s} - \\frac{Im f(s')}{s' - s_0}\\right]\mathrm{d} s' = \\frac{(s-s_0)}{\\pi}P\\int_{s_{th}}^{\\infty} \\frac{Im f(s')}{(s' - s)(s' - s_0)}\\mathrm{d} s'
 
 Sometimes, additional substrction will be used to make sure that the intergration is finity.
 
 .. math::
-    Re f(s) - Re \\left[\\sum_{k=0}^{n-1}\\frac{(s-s_0)^k f^{(k)}(s_0)}{k!}\\right] = \\frac{(s-s_0)^n}{\\pi}P\\int_{s_{th}}^{\\infty} \\frac{Im f(s')}{(s' - s)(s' - s_0)^n}\mathrm{d} s'
+    Re f(s) - Re \\left[\\sum_{k=0}^{n-1}\\frac{(s-s_0)^k f^{(k)}(s_0)}{k!}\\right] = \\frac{(s-s_0)^n}{\\pi}P\\int_{s_{th}}^{\\infty} \\frac{Im f(s')}{(s' - s)(s' - s_0)^n}\\mathrm{d} s'
 
 More detials can be found in `Dispersion Relation Integrals <https://analyticphysics.com/S-Matrix%20Theory/Dispersion%20Relation%20Integrals.htm>`_.
 
@@ -54,7 +54,7 @@ def build_integral(fun, s_range, s_th, N=1001, add_tail=True, method="tf"):
 
     .. math::
        F(s) = P\\int_{s_{th}}^{\\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
-            = \\int_{s_{th}}^{s- \\epsilon} \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s + \\epsilon}^{s_{max} } \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s_{max}}^{\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
+            = \\int_{s_{th}}^{s- \\epsilon} \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s + \\epsilon}^{s_{max} } \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s_{max}}^{\\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
 
     It require same :math:`\\epsilon` for :math:`s- \\epsilon` and :math:`s- \\epsilon` to get the Cauchy Principal Value. We used bin center to to keep the same :math:`\\epsilon` from left and right bound.
 
@@ -72,7 +72,7 @@ def build_integral_scipy(
 
     .. math::
        F(s) = P\\int_{s_{th}}^{\\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
-            = \\int_{s_{th}}^{s- \\epsilon} \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s + \\epsilon}^{s_{max} } \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s_{max}}^{\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
+            = \\int_{s_{th}}^{s- \\epsilon} \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s + \\epsilon}^{s_{max} } \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s_{max}}^{\\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
 
     It require same :math:`\\epsilon` for :math:`s- \\epsilon` and :math:`s- \\epsilon` to get the Cauchy Principal Value. We used bin center to to keep the same :math:`\\epsilon` from left and right bound.
 
@@ -108,7 +108,7 @@ def build_integral_tf(fun, s_range, s_th, N=1001, add_tail=True):
 
     .. math::
        I(s) = P\\int_{s_{th}}^{\\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
-            = \\int_{s_{th}}^{s- \\epsilon} \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s + \\epsilon}^{s_{max} } \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s_{max}}^{\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
+            = \\int_{s_{th}}^{s- \\epsilon} \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s + \\epsilon}^{s_{max} } \\frac{f(s')}{s'-s} \\mathrm{d} s' + \\int_{s_{max}}^{\\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s'
 
     It require same :math:`\\epsilon` for :math:`s- \\epsilon` and :math:`s- \\epsilon` to get the Cauchy Principal Value. We used bin center to to keep the same :math:`\\epsilon` from left and right bound.
 
@@ -135,7 +135,7 @@ def build_integral_tail(fun, x_center, tail, s_th, N=1001, _epsilon=1e-9):
     Integration of the tail parts using tan transfrom.
 
     .. math::
-       \\int_{s_{max}}^{\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s' = \\int_{\\arctan s_{max}}^{\\frac{\\pi}{2}} \\frac{f(\\tan x)}{\\tan x-s} \\frac{\\mathrm{d} \\tan x}{\\mathrm{d} x} \\mathrm{d} x
+       \\int_{s_{max}}^{\\infty} \\frac{f(s')}{s'-s} \\mathrm{d} s' = \\int_{\\arctan s_{max}}^{\\frac{\\pi}{2}} \\frac{f(\\tan x)}{\\tan x-s} \\frac{\\mathrm{d} \\tan x}{\\mathrm{d} x} \\mathrm{d} x
 
     """
     x_min, x_max = np.arctan(tail), np.pi / 2
@@ -190,7 +190,7 @@ class DispersionIntegralParticle(Particle):
 
     where :math:`Im \\Pi_i(s)=\\rho_i(s)n_i^2(s)`, :math:`n_i(s)={q}^{l} {B_l'}(q,1/d, d)`.
 
-    The real parts of :math:`\Pi(s)` is defined using the dispersion intergral
+    The real parts of :math:`\\Pi(s)` is defined using the dispersion intergral
 
     .. math::
 

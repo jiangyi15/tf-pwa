@@ -309,7 +309,7 @@ class ModelCfitExtended(Model):
           -\\ln L_{2} = -\\ln ( L \\lambda^{N_{data}} / {N_{data}}! e^{-\\lambda}) = -\\ L - N_{data} \\ln \\lambda + \\lambda + C
 
         .. math::
-          \\lambda = 1/(1-f_{bg}) \int Amp(x_i; \\theta_k) d \\Phi
+          \\lambda = 1/(1-f_{bg}) \\int Amp(x_i; \\theta_k) d \\Phi
 
         :param data: Data array
         :param mcdata: MCdata array
