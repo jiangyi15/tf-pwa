@@ -699,7 +699,7 @@ class HelicityDecayP(HelicityDecayNP):
             self.part_H = 1
         self.fix_unused_h()
 
-    def get_helicity_amp(self, data, data_p, **kwargs):
+    def get_helicity_amp(self, data=None, data_p=None, **kwargs):
         n_b = len(self.outs[0].spins)
         n_c = len(self.outs[1].spins)
         H_part = self.get_H()
