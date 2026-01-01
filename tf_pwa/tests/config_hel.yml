@@ -11,7 +11,7 @@ decay:
     - [CD, B, model: helicity_full]
   BC: [B, C]
   BD: [B, D]
-  CD: [C, D]
+  CD: [C, D, model: helicity_parity]
 
 particle:
   $top:

@@ -703,6 +703,8 @@ class HelicityDecayP(HelicityDecayNP):
         n_b = len(self.outs[0].spins)
         n_c = len(self.outs[1].spins)
         H_part = self.get_H()
+        if n_b == 1 and n_c == 1:
+            return H_part
         if self.part_H == 0:
             H = tf.concat(
                 [

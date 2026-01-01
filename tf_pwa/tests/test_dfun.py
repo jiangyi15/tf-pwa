@@ -12,3 +12,9 @@ def test_get_D_matrix_lambda():
 
     get_D_matrix_lambda(None, 1, (-1, 1), (-1, 1))
     get_D_matrix_lambda(test_angle, 2, (-2, 2), (-2, 2), (0,))
+    get_D_matrix_lambda(None, 1, (-1, 1), (-1, 1))
+
+
+def test_get_D_matrix_for_angle():
+    get_D_matrix_for_angle({}, 2)
+    get_D_matrix_for_angle({"beta": np.array([1.0, 2.0])}, 1, cached=True)
