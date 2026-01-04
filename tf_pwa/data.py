@@ -431,6 +431,9 @@ def data_generator(data, fun=_data_split, args=(), kwargs=None, MAX_ITER=1000):
                 vs.append(_gen(v))
             for s_data in zip(*vs):
                 yield s_data
+        elif isinstance(dat, (float, int, bool, complex)):
+            for i in range(MAX_ITER):
+                yield dat
         else:
             for i in fun(dat, *args, **kwargs):
                 yield i

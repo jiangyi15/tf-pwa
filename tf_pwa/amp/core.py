@@ -484,10 +484,13 @@ class Particle(BaseParticle, AmpBase):
         mass = self.get_mass()
         width = self.get_width()
 
+        def _float(x):
+            return float(np.reshape(x, ()))
+
         if init is None:
-            init_pole = float(mass) - sym.I * float(width) / 2
+            init_pole = _float(mass) - sym.I * _float(width) / 2
         else:
-            init_pole = float(np.real(init)) - sym.I * float(np.imag(init))
+            init_pole = _float(np.real(init)) - sym.I * _float(np.imag(init))
 
         from tf_pwa.formula import create_complex_root_sympy_tfop
 
@@ -1079,14 +1082,22 @@ class HelicityDecay(AmpDecay):
             if self.has_bprime:
                 bp = Bprime_q2(l, q2, q02, d)
                 if self.has_ql:
-                    tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
+                    if l % 2 == 1:
+                        tmp = tf.abs(q2) ** (l / 2) * tf.cast(
+                            bp, dtype=q2.dtype
+                        )
+                    else:
+                        tmp = q2 ** (l / 2) * tf.cast(bp, dtype=q2.dtype)
+                    if self.barrier_factor_norm:
+                        tmp = tmp / tf.cast(tf.abs(q02), tmp.dtype) ** (l / 2)
                 else:
                     tmp = tf.ones_like(q2) * tf.cast(bp, dtype=q2.dtype)
-                if self.barrier_factor_norm:
-                    tmp = tmp / tf.cast(tf.abs(q02), tmp.dtype) ** (l / 2)
+
             else:
                 if self.has_ql:
                     tmp = q2 ** (l / 2)
+                    if self.barrier_factor_norm:
+                        tmp = tmp / tf.cast(tf.abs(q02), tmp.dtype) ** (l / 2)
                 else:
                     tmp = tf.ones_like(q2)
             if self.add_covariant_term:
@@ -1462,7 +1473,8 @@ class DecayChain(AmpDecayChain):
         # print(idx_s)#, amp_d)
         try:
             ret = einsum(idx_s, *amp_d)
-        except:
+        except Exception as e:
+            print(e)
             ret = tf.einsum(idx_s, *amp_d)
         # print(self, ret[0])
         # exit()

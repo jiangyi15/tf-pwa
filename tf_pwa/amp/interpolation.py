@@ -549,7 +549,7 @@ class InterpHistIdx(HistParticle):
 
     The first and last are fixed to zero unless set :code:`with_bound: True`.
 
-    This is an example of :math:`k\exp (i k)` for point k.
+    This is an example of :math:`k\\exp (i k)` for point k.
 
     .. plot::
 
@@ -591,7 +591,7 @@ class Interp1DSplineIdx(InterpolationParticle):
 
     The first and last are fixed to zero unless set :code:`with_bound: True`.
 
-    This is an example of :math:`k\exp (i k)` for point k.
+    This is an example of :math:`k\\exp (i k)` for point k.
 
     .. plot::
 

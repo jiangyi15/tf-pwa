@@ -18,6 +18,7 @@ class BaseCustomModel(Model):
 
         def _fun(*args, **kwargs):
             with tf.GradientTape(persistent=True) as tape:
+                tape.watch(all_var)
                 y = fun(*args, **kwargs)
             dy = tf.nest.map_structure(
                 lambda x: tf.stack(
@@ -55,7 +56,8 @@ class BaseCustomModel(Model):
 
     def _fast_int_mc_grad(self, data):
         if self.Amp.vm.strategy is not None:
-            return self._fast_int_mc_grad_multi(data)
+            ret = self._fast_int_mc_grad_multi(data)
+            return ret
         else:
             return self.value_and_grad(self.eval_normal_factors)(
                 data[0], data[1]
@@ -67,9 +69,10 @@ class BaseCustomModel(Model):
             n_var = len(all_var)
             int_mc = SumVar([np.array(1.0)], [np.zeros((n_var,))], all_var)
         if self.Amp.vm.strategy is not None:
-            return self._fast_nll_part_grad_multi(
+            ret = self._fast_nll_part_grad_multi(
                 data, int_mc.value, int_mc.grad, idx
             )
+            return ret
         else:
             return self.value_and_grad(
                 lambda: self.eval_nll_part(data[0], data[1], int_mc(), idx)
@@ -347,7 +350,7 @@ class SimpleCFitModel(BaseCustomModel):
     def eval_nll_part(self, data, weight, norm, idx=0):
         bg_frac = self.bg_frac
         pdf = (1 - bg_frac) * self.Amp(data) * data.get(
-            "err_value", 1.0
+            "eff_value", 1.0
         ) / norm[0] + bg_frac * data.get("bg_value", 1.0) / norm[1]
         nll = -tf.reduce_sum(weight * tf.math.log(pdf))
         return nll
@@ -362,6 +365,10 @@ class SimpleChi2Model(BaseCustomModel):
     def eval_nll_part(self, data, weight, norm, idx=0):
         nll = 0.5 * tf.reduce_sum((weight - self.Amp(data)) ** 2)
         return nll
+
+    def get_weight_data(self, *args, **kwargs):
+        alpha = kwargs.pop("alpha", False)
+        return super().get_weight_data(*args, alpha=False, **kwargs)
 
 
 def create_histogram(binning, weight, n_bins):

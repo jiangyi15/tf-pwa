@@ -1,4 +1,5 @@
 import warnings
+from functools import lru_cache
 
 from opt_einsum import contract, contract_path, get_symbol
 
@@ -142,10 +143,16 @@ def remove_size1(expr, *args, extra=None):
     return expr2, ret, size_map
 
 
+@lru_cache()
+@tf.autograph.experimental.do_not_convert
+def contract_path_cache(*args, **kwargs):
+    return contract_path(*args, **kwargs)
+
+
 def einsum(expr, *args, **kwargs):
     shapes = [replace_none_in_shape(i.shape, 10000) for i in args]
     expr, extra = replace_ellipsis(expr, shapes)
-    path, path_info = contract_path(
+    path, path_info = contract_path_cache(
         expr, *shapes, shapes=True, optimize="auto"
     )
     final_idx = expr.split("->")[1]
