@@ -51,3 +51,33 @@ class LinearTrans(BaseTransform):
 
     def inverse(self, x: T) -> T:
         return (x - self.b) / self.k
+
+
+@register_trans("blind")
+class BlindTrans(BaseTransform):
+    def __init__(
+        self,
+        x: "list | str",
+        range: "list[float]",
+        key: "str | int | float",
+        **kwargs,
+    ):
+        super().__init__(x)
+        self.key = key
+        self.range = range
+        self.range_size = abs(self.range[1] - self.range[0])
+        self.start_point = min(self.range[0], self.range[1])
+        import numpy as np
+
+        rng = np.random.RandomState(key)
+        self.bias = rng.random()
+
+    def call(self, x) -> T:
+        return (
+            x - self.start_point + self.bias * self.range_size
+        ) % self.range_size + self.start_point
+
+    def inverse(self, x: T) -> T:
+        return (
+            (x - self.start_point) - self.bias * self.range_size
+        ) % self.range_size + self.start_point

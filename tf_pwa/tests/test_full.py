@@ -556,3 +556,10 @@ def test_simple_mlp(toy_config):
     fcn = config.get_fcn()
     fcn.nll_grad()
     amp.partial_weight(config.get_data("phsp")[0])
+
+
+def test_blind():
+    config = ConfigLoader(f"{this_dir}/config_blind.yml")
+    phsp = config.generate_phsp(10)
+    p = config.get_decay().get_particle("R_BD")
+    assert config.get_params()["R_BD_mass"] != p.get_mass()

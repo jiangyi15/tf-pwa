@@ -158,6 +158,7 @@ class VarsManager(object):
         self.same_var_map = {}
         self.mask_vars = {}
         self.pre_trans = {}
+        self.post_trans = {}
 
         self.bnd_dic = {}  # {name:(a,b),...}
 
@@ -296,7 +297,7 @@ class VarsManager(object):
             del self.complex_vars[name]
             self.remove_var(name + "r")
             self.remove_var(name + "i")
-        else:
+        elif name in self.variables:
             if self.variables[name].trainable:
                 if name in self.trainable_vars:
                     self.trainable_vars.remove(name)
@@ -306,6 +307,8 @@ class VarsManager(object):
             if name in self.bnd_dic:
                 del self.bnd_dic[name]
             del self.variables[name]
+        else:
+            raise IndexError("not found such variables")
 
     def rename_var(self, name, new_name, cplx=False):
         """
@@ -557,6 +560,9 @@ class VarsManager(object):
         if name in self.pre_trans:
             trans = self.pre_trans[name]
             val = trans(self.variables)
+        if name in self.post_trans:
+            trans = self.post_trans[name]
+            val = trans({name: val})
         return val
 
     def set(self, name, value, val_in_fit=True):
@@ -651,13 +657,13 @@ class VarsManager(object):
         dic = {}
         if trainable_only:
             for i in self.trainable_vars:
-                val = self.read(i).numpy()
+                val = self.get(i)  # .numpy()
                 # if i in self.bnd_dic:
                 #     val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
         else:
             for i in self.variables:
-                val = self.read(i).numpy()
+                val = self.get(i)  # .numpy()
                 # if i in self.bnd_dic:
                 #    val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
