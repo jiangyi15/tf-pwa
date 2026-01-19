@@ -167,9 +167,7 @@ Available Decay Model
         decay_model_doc += """
 {}-body decays
 ----------------
-""".format(
-            n
-        )
+""".format(n)
         for idx, v in enumerate(models):
             name_list = model_params[v]["name"]
             name = ", ".join(name_list)

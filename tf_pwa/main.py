@@ -111,11 +111,9 @@ def _build_arguments(f, config_args):
 
 @regist_subcommand(name="help")
 def help_function():
-    print(
-        """
+    print("""
     using ```python -m tf_pwa [subprocess]```
-    """
-    )
+    """)
 
 
 def main(argv=None):
