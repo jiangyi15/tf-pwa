@@ -266,6 +266,9 @@ class ConfigLoader(BaseConfig):
         self.add_from_trans_constraints(
             amp, constrains.get("from_trans", None)
         )
+        self.add_post_trans_constraints(
+            amp, constrains.get("post_trans", None)
+        )
         self.add_gauss_constr_constraints(
             amp, constrains.get("gauss_constr", {})
         )
@@ -326,6 +329,17 @@ class ConfigLoader(BaseConfig):
             v["x"] = v.get("x", k)
             trans = create_trans(v)
             amp.vm.pre_trans[k] = trans
+
+    def add_post_trans_constraints(self, amp, dic=None):
+        if dic is None:
+            return
+        from tf_pwa.transform import create_trans
+
+        for k, v in dic.items():
+            print("post transform:", k, v)
+            v["x"] = v.get("x", k)
+            trans = create_trans(v)
+            amp.vm.post_trans[k] = trans
 
     def add_from_trans_constraints(self, amp, dic=None):
         if dic is None:
