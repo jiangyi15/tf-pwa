@@ -180,11 +180,22 @@ def test_transform():
         tmp.vm = vm
         Variable("a", value=1.0)
         Variable("b", value=1.0)
+        Variable("d", value=1.0)
         ConfigLoader.add_from_trans_constraints(
             None, tmp, {"a": {"x": ["c", "b"], "model": "__test1"}}
+        )
+        ConfigLoader.add_post_trans_constraints(
+            None,
+            tmp,
+            {"d": {"model": "blind", "key": 1235, "range": [0.0, 2.0]}},
         )
     vm.set("c", 1.0)
     assert np.allclose(vm.get("a"), 2.0)
     vm.set("a", 1.0)
-    assert vm.get_all_dic(False) == {"a": 2.0, "b": 1.0, "c": 1.0}
+    assert vm.get_all_dic(False) == {"a": 2.0, "b": 1.0, "c": 1.0, "d": 1.0}
     print(vm.get_all_dic(True))
+
+    vm.set("d", 1.0)
+    assert np.allclose(vm.get("d"), 1.0)
+    assert vm.read("d") != vm.get("d")
+    assert vm.post_trans["d"].inverse(vm.read("d")) == vm.get("d")
