@@ -75,9 +75,7 @@ def _create_register(model_name, var):
 
         :params name: model name used in configuration
         :params f: Model class
-    """.format(
-        model_name
-    )
+    """.format(model_name)
 
     return _register
 
