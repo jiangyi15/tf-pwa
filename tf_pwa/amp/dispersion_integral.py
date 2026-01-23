@@ -359,7 +359,7 @@ class DispersionIntegralParticleA0(DispersionIntegralParticle):
     .. math::
         f(s) = \\frac{1}{m_0^2 - s - \\sum_{i} [Re \\Pi_i(s) - Re\\Pi_i(m_0^2)] - i \\sum_{i} \\rho'_i(s) }
 
-    where :math:`\\rho'_i(s) = g_i^2 \\rho_i(s) F_i^2(s)` is the phase space with barrier factor :math:`F_i^2(s)=\\exp(-\\alpha k_i^2)`.
+    where :math:`\\rho'_i(s) = g_i^2 \\rho_i(s) F_i^2(s)` is the phase space with barrier factor :math:`F_i(s)=\\exp(-\\alpha k_i^2)`.
 
     The real parts of :math:`\\Pi(s)` is defined using the dispersion intergral
 

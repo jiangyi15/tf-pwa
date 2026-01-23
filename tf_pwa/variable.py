@@ -646,7 +646,7 @@ class VarsManager(object):
             vals.append(xval)
         return vals  # list (for list of tf.Variable use self.trainable_variables; for dict of all vars, use self.variables)
 
-    def get_all_dic(self, trainable_only=False):
+    def get_all_dic(self, trainable_only=False, val_in_fit=False):
         """
         Get a dictionary of all variables.
 
@@ -657,13 +657,13 @@ class VarsManager(object):
         dic = {}
         if trainable_only:
             for i in self.trainable_vars:
-                val = self.get(i)  # .numpy()
+                val = self.get(i, val_in_fit)  # .numpy()
                 # if i in self.bnd_dic:
                 #     val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
         else:
             for i in self.variables:
-                val = self.get(i)  # .numpy()
+                val = self.get(i, val_in_fit)  # .numpy()
                 # if i in self.bnd_dic:
                 #    val = self.bnd_dic[i].get_y2x(val)
                 dic[i] = val
