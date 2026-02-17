@@ -413,6 +413,32 @@ def test_fit(toy_config, fit_result):
     toy_config.attach_fix_params_error({"R_BC_mass": 0.01})
 
 
+def test_cons_fit(toy_config, fit_result):
+    v = fit_result.params["A->R_CD.BR_CD->C.D_total_0r"]
+
+    def add_fun():
+        a = toy_config.vm.read("A->R_CD.BR_CD->C.D_total_0r")
+        return a - v
+
+    ret = toy_config.fit(add_fun=lambda: add_fun() ** 2)
+    from tf_pwa.fit_improve import Cached_FG
+
+    cons_f_g2 = Cached_FG(
+        toy_config.vm.trans_fcn_grad(toy_config.vm.build_nll_grad(add_fun))
+    )
+    ret = toy_config.fit(
+        constraints=[
+            {
+                "fun": lambda x: cons_f_g2(x)[0],
+                "jac": lambda x: cons_f_g2(x)[1],
+                "type": "eq",
+            }
+        ]
+    )
+    assert np.allclose(ret.min_nll, -204.9468493307786)
+    return ret
+
+
 def test_bacth_sum(toy_config, fit_result):
     toy_config.get_params_error(fit_result)
     res = list(range(len(list(toy_config.get_decay()))))

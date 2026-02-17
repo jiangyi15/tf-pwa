@@ -311,6 +311,8 @@ class ConfigLoader(BaseConfig):
         for k, v in dic.items():
             print("variable range: ", k, " in ", v)
             self.bound_dic[k] = v
+        amp.vm.set_bound(self.bound_dic)
+        self.bound_dic = {}
 
     def add_var_equal_constraints(self, amp, dic=None):
         if dic is None:
@@ -784,12 +786,19 @@ class ConfigLoader(BaseConfig):
         callback=None,
         grad_scale=1.0,
         gtol=1e-3,
+        add_fun=None,
+        constraints=None,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
             fcn = self.get_fcn(batch=batch)
         else:
             fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
+        if add_fun is not None:
+            from tf_pwa.model.model import AddFCN
+
+            add_fun_obj = fcn.vm.build_nll_grad(add_fun)
+            fcn = AddFCN(fcn, add_fun_obj)
         if self.config["data"].get("lazy_call", False):
             print_init_nll = False
         # print("sss")
@@ -820,6 +829,7 @@ class ConfigLoader(BaseConfig):
             callback=callback,
             grad_scale=grad_scale,
             gtol=gtol,
+            constraints=constraints,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
