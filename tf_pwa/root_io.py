@@ -48,6 +48,8 @@ def load_root_data(fnames):
 def load_Ttree(tree):
     """load TTree as dict"""
     ret = {}
+    if uproot_version >= 5:
+        return tree.arrays(tree.keys(), library="np")
     for i in tree.keys():
         if uproot_version >= 4:
             arr = tree.get(i).array(library="np")
