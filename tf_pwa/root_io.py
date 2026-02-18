@@ -111,7 +111,8 @@ def save_dict_to_root(dic, file_name, tree_name=None):
                 branch_type[j] = branch_data[j].dtype.name
             if uproot_version >= 5:
                 f.mktree(t, branch_type)
-            if uproot_version >= 4:
+                f[t].extend(branch_data)
+            elif uproot_version >= 4:
                 f[t] = branch_data
             else:
                 f[t] = uproot.newtree(branch_type)

@@ -127,12 +127,13 @@ class RootData(MultiData):
         scale = self.dic.get("unit_scale", 0.001)
         ret = []
         for file_name_part in build_matrix(matrix_order[:-2], matrix):
-            tmp = []
-            with uproot.open(file_name.format(**file_name_part)) as t:
-                for pname in build_matrix(matrix_order[-3:], matrix):
-                    tmp.append(
-                        t.get(p4_name.format(**pname)).array(library="np")
-                    )
+            pnames = []
+            for pname in build_matrix(matrix_order[-3:], matrix):
+                pnames.append(p4_name.format(**pname))
+            tmp = load_root_data(
+                file_name.format(**file_name_part), pnames, is_tree=True
+            )
+            tmp = [tmp[i] for i in pnames]
             ret.append(
                 scale * np.stack(tmp, axis=-1).reshape((-1, len(tmp) // 4, 4))
             )
