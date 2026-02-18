@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from tf_pwa.config_loader.data import MultiData, register_data_mode
 from tf_pwa.data import data_mask
-from tf_pwa.root_io import uproot, uproot_version
+from tf_pwa.root_io import load_root_data, uproot, uproot_version
 
 
 def build_matrix(order, matrix):
@@ -105,13 +105,9 @@ class RootData(MultiData):
             var = list(expr.free_symbols)
             tmp = {}
             custom_function["select"] = lambda x: x[i]
-            with uproot.open(file_name.format(**file_name_part)) as t:
-                for name in var:
-                    b = t.get(str(name))
-                    if b is None:
-                        print("not found", name)
-                        continue
-                    tmp[str(name)] = b.array(library="np")
+            tmp = load_root_data(
+                file_name.format(**file_name_part), used_vars=var
+            )
             ret.append(
                 sympy.lambdify(var, expr, modules=[custom_function, "numpy"])(
                     **tmp
