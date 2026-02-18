@@ -102,12 +102,13 @@ class RootData(MultiData):
         ):
             expr = self.dic[idx + tail].format(**file_name_part)
             expr = sympy.simplify(expr)
-            var = list(expr.free_symbols)
+            var = [str(i) for i in expr.free_symbols]
             tmp = {}
             custom_function["select"] = lambda x: x[i]
             tmp = load_root_data(
-                file_name.format(**file_name_part), used_vars=var
+                file_name.format(**file_name_part), used_vars=var, is_tree=True
             )
+            print(tmp)
             ret.append(
                 sympy.lambdify(var, expr, modules=[custom_function, "numpy"])(
                     **tmp
