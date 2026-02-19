@@ -835,6 +835,46 @@ class ConfigLoader(BaseConfig):
             self.inv_he = self.fit_params.hess_inv
         return self.fit_params
 
+    @time_print
+    def fit_cons(self, fun, val, k=10000, gauss_first=True, **kwargs):
+
+        if gauss_first:
+
+            if hasattr(fun, "nll_grad"):
+
+                def add_fun(*args, **kwargs):
+                    y, g = fun.nll_grad(*args, **kwargs)
+                    return k * (y - val) ** 2, 2 * k * (y - val) * g
+
+                class _Tmp:
+                    pass
+
+                add_fun_obj = _Tmp()
+                add_fun_obj.nll_grad = add_fun
+            else:
+
+                def add_fun_obj(*args, **kwargs):
+                    return k * (fun(*args, **kwargs) - val) ** 2
+
+            self.fit(add_fun=add_fun_obj, **kwargs)
+
+        f1 = self.vm.build_nll_grad(fun)  #  then f1(x) is f(), df/dx (x)
+        f2 = self.vm.trans_fcn_grad(f1)  # to include variables boundary
+        from tf_pwa.fit_improve import Cached_FG
+
+        f3 = Cached_FG(f2)
+        ret = self.fit(
+            constraints=[
+                {
+                    "fun": lambda x: f3(x)[0] - val,
+                    "jac": lambda x: f3(x)[1],
+                    "type": "eq",
+                }
+            ],
+            **kwargs,
+        )
+        return ret
+
     def reinit_params(self):
         vm = self.get_amplitude().vm
         vm.refresh_vars(init_val=self.init_value, bound_dic=self.bound_dic)

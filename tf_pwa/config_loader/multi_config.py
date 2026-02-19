@@ -209,6 +209,11 @@ class MultiConfig(object):
             self.inv_he = self.fit_params.hess_inv
         return self.fit_params
 
+    def fit_cons(self, fun, val, k=10000, gauss_first=True, **kwargs):
+        return ConfigLoader.fit_cons(
+            self, fun, val, k=10000, gauss_first=True, **kwargs
+        )
+
     def reinit_params(self):
         self.get_amplitudes()[0].vm.refresh_vars(bound_dic=self.bound_dic)
 

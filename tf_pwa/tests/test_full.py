@@ -416,25 +416,25 @@ def test_fit(toy_config, fit_result):
 def test_cons_fit(toy_config, fit_result):
     v = fit_result.params["A->R_CD.BR_CD->C.D_total_0r"]
 
-    def add_fun():
+    def eval_fun():
         a = toy_config.vm.read("A->R_CD.BR_CD->C.D_total_0r")
-        return a - v
+        return a
 
-    ret = toy_config.fit(add_fun=lambda: add_fun() ** 2)
-    from tf_pwa.fit_improve import Cached_FG
+    ret = toy_config.fit_cons(eval_fun, v)
+    assert np.allclose(ret.min_nll, -204.9468493307786)
+    ret = toy_config.fit_cons(eval_fun, v, gauss_first=False)
+    assert np.allclose(ret.min_nll, -204.9468493307786)
 
-    cons_f_g2 = Cached_FG(
-        toy_config.vm.trans_fcn_grad(toy_config.vm.build_nll_grad(add_fun))
-    )
-    ret = toy_config.fit(
-        constraints=[
-            {
-                "fun": lambda x: cons_f_g2(x)[0],
-                "jac": lambda x: cons_f_g2(x)[1],
-                "type": "eq",
-            }
-        ]
-    )
+    eval_fun_grad = toy_config.vm.build_nll_grad(eval_fun)
+
+    class Tmp:
+        pass
+
+    a = Tmp()
+    a.nll_grad = eval_fun_grad
+    ret = toy_config.fit_cons(a, v)
+    assert np.allclose(ret.min_nll, -204.9468493307786)
+    ret = toy_config.fit_cons(a, v, gauss_first=False)
     assert np.allclose(ret.min_nll, -204.9468493307786)
     return ret
 
@@ -478,6 +478,17 @@ def test_fit_combine(toy_config2):
     toy_config2.get_params_error()
     print(toy_config2.get_params())
     toy_config2.plot_partial_wave(results)
+
+
+def test_fit_combine_cons(toy_config2, fit_result):
+    v = fit_result.params["A->R_BD.C_g_ls_2r"]
+
+    def eval_fun():
+        a = toy_config2.vm.read("A->R_BD.C_g_ls_2r")
+        return a
+
+    ret = toy_config2.fit_cons(eval_fun, v)
+    assert np.allclose(ret.min_nll, -204.9468493307786 * 2)
 
 
 def test_plot_combine(gen_toy):
