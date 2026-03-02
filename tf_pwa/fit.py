@@ -196,6 +196,7 @@ def fit_scipy(
     standard_complex=True,
     grad_scale=1.0,
     gtol=1e-3,
+    constraints=None,
 ):
     """
 
@@ -285,7 +286,16 @@ def fit_scipy(
                 params, fcn, min_nll, ndf=0, success=True, hess_inv=None
             )
         # s = minimize(f_g, x0, method='trust-constr', jac=True, hess=BFGS(), options={'gtol': 1e-4, 'disp': True})
-        if method == "test":
+        if constraints is not None:
+            s = minimize(
+                f_g,
+                x0,
+                jac=True,
+                constraints=constraints,
+                callback=callback,
+                options={"disp": True},
+            )
+        elif method == "test":
             try:
                 s = my_minimize(
                     f_g,
@@ -351,7 +361,9 @@ def fit_scipy(
         ndf = s.x.shape[0]
         min_nll = s.fun / grad_scale
         success = s.success
-        hess_inv = fcn.vm.trans_error_matrix(s.hess_inv * grad_scale, s.x)
+        hess_inv = None
+        if hasattr(s, "hess_inv"):
+            hess_inv = fcn.vm.trans_error_matrix(s.hess_inv * grad_scale, s.x)
         fcn.vm.remove_bound()
 
         xn = fcn.vm.get_all_val()
@@ -419,7 +431,7 @@ def fit_scipy(
         fcn.vm.standard_complex()
     params = fcn.get_params()  # vm.get_all_dic()
     return FitResult(
-        params, fcn, min_nll, ndf=ndf, success=success, hess_inv=hess_inv
+        params, fcn, min_nll, ndf=ndf, success=bool(success), hess_inv=hess_inv
     )
 
 

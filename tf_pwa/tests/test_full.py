@@ -413,6 +413,32 @@ def test_fit(toy_config, fit_result):
     toy_config.attach_fix_params_error({"R_BC_mass": 0.01})
 
 
+def test_cons_fit(toy_config, fit_result):
+    v = fit_result.params["A->R_CD.BR_CD->C.D_total_0r"]
+
+    def eval_fun():
+        a = toy_config.vm.read("A->R_CD.BR_CD->C.D_total_0r")
+        return a
+
+    ret = toy_config.fit_cons(eval_fun, v)
+    assert np.allclose(ret.min_nll, -204.9468493307786)
+    ret = toy_config.fit_cons(eval_fun, v, gauss_first=False)
+    assert np.allclose(ret.min_nll, -204.9468493307786)
+
+    eval_fun_grad = toy_config.vm.build_nll_grad(eval_fun)
+
+    class Tmp:
+        pass
+
+    a = Tmp()
+    a.nll_grad = eval_fun_grad
+    ret = toy_config.fit_cons(a, v)
+    assert np.allclose(ret.min_nll, -204.9468493307786)
+    ret = toy_config.fit_cons(a, v, gauss_first=False)
+    assert np.allclose(ret.min_nll, -204.9468493307786)
+    return ret
+
+
 def test_bacth_sum(toy_config, fit_result):
     toy_config.get_params_error(fit_result)
     res = list(range(len(list(toy_config.get_decay()))))
@@ -452,6 +478,17 @@ def test_fit_combine(toy_config2):
     toy_config2.get_params_error()
     print(toy_config2.get_params())
     toy_config2.plot_partial_wave(results)
+
+
+def test_fit_combine_cons(toy_config2, fit_result):
+    v = fit_result.params["A->R_BD.C_g_ls_2r"]
+
+    def eval_fun():
+        a = toy_config2.vm.read("A->R_BD.C_g_ls_2r")
+        return a
+
+    ret = toy_config2.fit_cons(eval_fun, v)
+    assert np.allclose(ret.min_nll, -204.9468493307786 * 2)
 
 
 def test_plot_combine(gen_toy):

@@ -19,7 +19,7 @@ except ImportError as e:
         uproot = None
 
 
-def load_root_data(fnames):
+def load_root_data(fnames, used_vars=None, is_tree=False):
     """load root file as dict"""
     if isinstance(fnames, str):
         fnames = [fnames]
@@ -37,18 +37,28 @@ def load_root_data(fnames):
     for i in common_keys:
         data = []
         for j in root_file:
-            data_i = load_Ttree(j.get(i))
-            data.append(data_i)
-        ret[i] = data_merge(*data)
+            if is_tree:
+                if i in used_vars:
+                    data_i = load_Ttree(j, used_vars=[i])
+                    data.append(data_i[i])
+            else:
+                data_i = load_Ttree(j.get(i), used_vars=used_vars)
+                data.append(data_i)
+        if data:
+            ret[i] = data_merge(*data)
     for i in root_file:
         i.close()
     return ret
 
 
-def load_Ttree(tree):
+def load_Ttree(tree, used_vars=None):
     """load TTree as dict"""
     ret = {}
-    for i in tree.keys():
+    if used_vars is None:
+        used_vars = list(tree.keys())
+    if uproot_version >= 5:
+        return tree.arrays(list(used_vars), library="np")
+    for i in used_vars:
         if uproot_version >= 4:
             arr = tree.get(i).array(library="np")
         else:
@@ -99,7 +109,10 @@ def save_dict_to_root(dic, file_name, tree_name=None):
                 )
                 branch_data[j] = np.array(d[i])
                 branch_type[j] = branch_data[j].dtype.name
-            if uproot_version >= 4:
+            if uproot_version >= 5:
+                f.mktree(t, branch_type)
+                f[t].extend(branch_data)
+            elif uproot_version >= 4:
                 f[t] = branch_data
             else:
                 f[t] = uproot.newtree(branch_type)

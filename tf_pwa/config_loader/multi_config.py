@@ -183,8 +183,15 @@ class MultiConfig(object):
         maxiter=None,
         print_init_nll=False,
         callback=None,
+        add_fun=None,
+        constraints=None,
     ):
         fcn = self.get_fcn(datas=datas)
+        if add_fun is not None:
+            from tf_pwa.model.model import AddFCN
+
+            add_fun_obj = fcn.vm.build_nll_grad(add_fun)
+            fcn = AddFCN(fcn, add_fun_obj)
         # fcn.gauss_constr.update({"Zc_Xm_width": (0.177, 0.03180001857)})
         print("\n########### initial parameters")
         print(json.dumps(fcn.get_params(), indent=2), flush=True)
@@ -196,10 +203,16 @@ class MultiConfig(object):
             bounds_dict=self.bound_dic,
             maxiter=maxiter,
             callback=callback,
+            constraints=constraints,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
         return self.fit_params
+
+    def fit_cons(self, fun, val, k=10000, gauss_first=True, **kwargs):
+        return ConfigLoader.fit_cons(
+            self, fun, val, k=10000, gauss_first=True, **kwargs
+        )
 
     def reinit_params(self):
         self.get_amplitudes()[0].vm.refresh_vars(bound_dic=self.bound_dic)
