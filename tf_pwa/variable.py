@@ -804,7 +804,7 @@ class VarsManager(object):
                 i += 1
             fcn, grad_yv = fcn_grad(yvals)
             grad = np.array(grad_yv) * dydxs
-            return fcn, grad
+            return float(fcn), grad
 
         return fcn_t
 
@@ -929,6 +929,22 @@ class VarsManager(object):
         self.mask_vars = params
         yield
         self.mask_vars = old_mask
+
+    def build_nll_grad(self, fcn):
+        if hasattr(fcn, "nll_grad"):
+            f = fcn.nll_grad
+        else:
+
+            def f(x, *args, **kwargs):
+                self.set_all(x)
+                with tf.GradientTape() as tape:
+                    y = fcn(*args, **kwargs)
+                g = tape.gradient(
+                    y, self.trainable_variables, unconnected_gradients="zero"
+                )
+                return float(y), np.array([float(i) for i in g])
+
+        return f
 
     def minimize(self, fcn, jac=True, method="BFGS", mini_kwargs={}):
         """

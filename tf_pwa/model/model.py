@@ -1538,3 +1538,24 @@ class MixLogLikehoodFCN(CombineFCN):
             gs.append(g)
         print(sum(nlls))
         return sum(nlls), tf.reduce_sum(gs, axis=0)
+
+
+class AddFCN:
+    def __init__(self, fcn, add):
+        self.fcn = fcn
+        self.vm = fcn.vm
+        self.add = add
+
+    def __call__(self, x={}):
+        y = self.fcn(x)
+        y2, g2 = self.add(x)
+        return y + y2
+
+    def nll_grad(self, x):
+        y, g = self.fcn.nll_grad(x)
+        y2, g2 = self.add(x)
+        self.cached_nll = y + y2
+        return self.cached_nll, g + g2
+
+    def get_params(self):
+        return self.fcn.get_params()

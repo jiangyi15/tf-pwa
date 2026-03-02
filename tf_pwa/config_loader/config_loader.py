@@ -311,6 +311,8 @@ class ConfigLoader(BaseConfig):
         for k, v in dic.items():
             print("variable range: ", k, " in ", v)
             self.bound_dic[k] = v
+        amp.vm.set_bound(self.bound_dic)
+        self.bound_dic = {}
 
     def add_var_equal_constraints(self, amp, dic=None):
         if dic is None:
@@ -784,12 +786,19 @@ class ConfigLoader(BaseConfig):
         callback=None,
         grad_scale=1.0,
         gtol=1e-3,
+        add_fun=None,
+        constraints=None,
     ):
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
             fcn = self.get_fcn(batch=batch)
         else:
             fcn = self.get_fcn([data, phsp, bg, inmc], batch=batch)
+        if add_fun is not None:
+            from tf_pwa.model.model import AddFCN
+
+            add_fun_obj = fcn.vm.build_nll_grad(add_fun)
+            fcn = AddFCN(fcn, add_fun_obj)
         if self.config["data"].get("lazy_call", False):
             print_init_nll = False
         # print("sss")
@@ -820,10 +829,51 @@ class ConfigLoader(BaseConfig):
             callback=callback,
             grad_scale=grad_scale,
             gtol=gtol,
+            constraints=constraints,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
         return self.fit_params
+
+    @time_print
+    def fit_cons(self, fun, val, k=10000, gauss_first=True, **kwargs):
+
+        if gauss_first:
+
+            if hasattr(fun, "nll_grad"):
+
+                def add_fun(*args, **kwargs):
+                    y, g = fun.nll_grad(*args, **kwargs)
+                    return k * (y - val) ** 2, 2 * k * (y - val) * g
+
+                class _Tmp:
+                    pass
+
+                add_fun_obj = _Tmp()
+                add_fun_obj.nll_grad = add_fun
+            else:
+
+                def add_fun_obj(*args, **kwargs):
+                    return k * (fun(*args, **kwargs) - val) ** 2
+
+            self.fit(add_fun=add_fun_obj, **kwargs)
+
+        f1 = self.vm.build_nll_grad(fun)  #  then f1(x) is f(), df/dx (x)
+        f2 = self.vm.trans_fcn_grad(f1)  # to include variables boundary
+        from tf_pwa.fit_improve import Cached_FG
+
+        f3 = Cached_FG(f2)
+        ret = self.fit(
+            constraints=[
+                {
+                    "fun": lambda x: f3(x)[0] - val,
+                    "jac": lambda x: f3(x)[1],
+                    "type": "eq",
+                }
+            ],
+            **kwargs,
+        )
+        return ret
 
     def reinit_params(self):
         vm = self.get_amplitude().vm
