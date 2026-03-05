@@ -231,7 +231,7 @@ class TimeDepParamsAmplitudeModel(BaseAmplitudeModel):
     """
 
     def init_params(self, *args, **kwargs):
-        super().init_params()
+        super().init_params(*args, **kwargs)
         top = self.decay_group.top
         top.delta_m = top.add_var("delta_m", value=0.0)
         top.delta_gamma = top.add_var("delta_gamma", value=0.0)
@@ -561,10 +561,15 @@ class TimeDepFTPDF(BaseAmplitudeModel):
     ):
         if isinstance(base_model, str):
             base_model = {"model": base_model}
+        if "vm" in kwargs:
+            base_model["vm"] = kwargs.pop("vm")
         self.base_model = create_amplitude(decay_group, **base_model)
-        self.taggers = [create_amplitude(decay_group, **i) for i in taggers]
+        self.taggers = [
+            create_amplitude(decay_group, **i, vm=self.base_model.vm)
+            for i in taggers
+        ]
         self.use_p_pbar_time = use_p_pbar_time
-        super().__init__(decay_group, **kwargs)
+        super().__init__(decay_group, **kwargs, vm=self.base_model.vm)
 
     def init_params(self, *args, **kwargs):
         super().init_params(*args, **kwargs)
