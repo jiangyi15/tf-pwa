@@ -53,3 +53,22 @@ def significance(l1: float, l2: float, ndf: int) -> float:
     p = prob(DeltaLL, ndf)
     # math.sqrt(2) * erfc_inverse(p)
     return -normal_quantile(p / 2.0)
+
+
+if __name__ == "__main__":
+    import json
+    import sys
+
+    a = sys.argv[1]
+    b = sys.argv[2]
+    with open(a) as f:
+        a = json.load(f)
+    with open(b) as f:
+        b = json.load(f)
+    print(
+        significance(
+            a["status"]["NLL"],
+            b["status"]["NLL"],
+            abs(a["status"]["Ndf"] - b["status"]["Ndf"]),
+        )
+    )

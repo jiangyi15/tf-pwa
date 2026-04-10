@@ -7,6 +7,12 @@ from tf_pwa.amp.Kmatrix import KmatrixSplitLSParticle
 from tf_pwa.breit_wigner import Bprime_polynomial
 
 
+def C(x, d):
+    if x.dtype in [tf.complex128, tf.complex64]:
+        return tf.cast(x, tf.complex128)
+    return tf.cast(tf.complex(x, tf.zeros_like(x)), d)
+
+
 def get_relative_p(m, m1, m2):
     p2 = (m * m - (m1 + m2) ** 2) * (m * m - (m1 - m2) ** 2) / 4 / m / m
     return tf.where(m > m1 + m2, tf.sqrt(tf.abs(p2)), tf.zeros_like(p2))
@@ -124,22 +130,20 @@ class KmatrixSimple(KmatrixSplitLSParticle):
         n2 = self.build_barrier_factor(s)
         K = self.build_k_matrix(s)
         P = self.build_p_vector(s)
-        K_i_rho_n2 = K * tf.cast(
+        K_i_rho_n2 = K * C(
             (rho * n2**2)[..., None, :], K.dtype
         )  # np.einsum("...ij,...j->...ij", K, rho * n2**2)
         dom = (
-            tf.cast(tf.eye(self.n_channel), K.dtype) - 1.0j * K_i_rho_n2
+            C(tf.eye(self.n_channel), K.dtype) - 1.0j * K_i_rho_n2
         )  # .einsum("...ij,...jk->...ik", np.eye(self.n_channel) * rho[:,:,None], K)
         k_inv = tf.linalg.inv(dom)
-        ret = tf.reduce_sum(k_inv * P[..., None, :], axis=-1) * tf.cast(
-            n2, P.dtype
-        )
+        ret = tf.reduce_sum(k_inv * P[..., None, :], axis=-1) * C(n2, P.dtype)
         return tf.stack([ret[..., i] for i in self.index_list], axis=-1)
 
     def build_barrier_factor(self, s):
         ret = []
         for (m1, m2), l in zip(self.decay_list, self.l_list):
-            ret.append(barrier_factor(np.sqrt(s), m1, m2, l))
+            ret.append(barrier_factor(tf.sqrt(s), m1, m2, l))
         return tf.stack(ret, axis=-1)
 
     def build_k_matrix(self, s):
@@ -152,10 +156,7 @@ class KmatrixSimple(KmatrixSplitLSParticle):
                     tmp = tmp + tf.cast(
                         self.coeffs()[i][k] * self.coeffs()[j][k],
                         tf.complex128,
-                    ) / (
-                        tf.cast(mi**2 - s, tf.complex128)
-                        - 1.0j * self._epsilon
-                    )
+                    ) / (C(mi**2 - s, tf.complex128) - 1.0j * self._epsilon)
                 K.append(tmp)
         ret = tf.reshape(
             tf.stack(K, axis=-1), (-1, self.n_channel, self.n_channel)
@@ -170,9 +171,7 @@ class KmatrixSimple(KmatrixSplitLSParticle):
                 mi = self.mi[k]()  # self.mass_list[k]
                 tmp = tmp + self.beta()[k] * tf.cast(
                     self.coeffs()[i][k], tf.complex128
-                ) / (
-                    tf.cast(mi**2 - s, tf.complex128) - 1.0j * self._epsilon
-                )
+                ) / (C(mi**2 - s, tf.complex128) - 1.0j * self._epsilon)
             P.append(tmp)
         # print(self.bkg.vm.variables)
         return tf.reshape(
