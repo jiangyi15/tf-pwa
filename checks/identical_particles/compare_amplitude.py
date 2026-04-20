@@ -5,7 +5,7 @@ from tf_pwa.amp import cov_ten
 from tf_pwa.angle import LorentzVector as lv
 from tf_pwa.config_loader import ConfigLoader
 
-config_hel = ConfigLoader("config3.yml")
+config_hel = ConfigLoader("configs/config3.yml")
 
 for i in config_hel.get_decay():
     for j in i:
