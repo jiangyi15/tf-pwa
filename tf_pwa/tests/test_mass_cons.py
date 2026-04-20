@@ -1,6 +1,6 @@
 import numpy as np
 
-from tf_pwa.mass_cons import Model, mass_sq
+from tf_pwa.mass_cons import MassCons, mass_sq
 
 # Particle masses (GeV)
 M_D = 1.86966
@@ -23,7 +23,7 @@ def test_mass_constraints_satisfied():
     np.random.seed(42)
     n_events = 100
     data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-    model = Model(3, mass_constraints=[(0, 1, 2)])
+    model = MassCons(3, mass_constraints=[(0, 1, 2)])
 
     result = model.do_constraints(data, MASS_TARGETS[:4])
 
@@ -51,7 +51,7 @@ def test_momentum_constraint():
     np.random.seed(42)
     n_events = 100
     data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-    model = Model(3)  # No total mass constraint
+    model = MassCons(3)  # No total mass constraint
 
     result = model.do_constraints(
         data, MASS_TARGETS[:3], momentum_target=MOMENTUM_TARGET
@@ -78,7 +78,7 @@ def test_per_event_momentum():
     np.random.seed(42)
     n_events = 100
     data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-    model = Model(3)
+    model = MassCons(3)
 
     # Different energy for each event
     momentum_target = np.zeros((n_events, 4))
@@ -99,7 +99,7 @@ def test_per_event_mass():
     np.random.seed(42)
     n_events = 100
     data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-    model = Model(3, mass_constraints=[(0, 1, 2)])
+    model = MassCons(3, mass_constraints=[(0, 1, 2)])
 
     # Varying mass targets
     mass_targets_2d = np.zeros((n_events, 4))
@@ -122,7 +122,7 @@ def test_auto_mass_targets():
     np.random.seed(42)
     n_events = 100
     data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-    model = Model(3, mass_constraints=[(0, 1, 2)])
+    model = MassCons(3, mass_constraints=[(0, 1, 2)])
 
     # Expected targets from input mean
     expected_masses = np.sqrt(get_all_mass(data).mean(axis=0))
@@ -141,7 +141,7 @@ def test_no_extra_mass_constraints():
     np.random.seed(42)
     n_events = 100
     data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-    model = Model(3)  # No extra constraints
+    model = MassCons(3)  # No extra constraints
 
     result = model.do_constraints(data, MASS_TARGETS[:3])
 
@@ -159,7 +159,7 @@ def test_chunking():
     np.random.seed(42)
     n_events = 5000
     data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-    model = Model(3, mass_constraints=[(0, 1, 2)])
+    model = MassCons(3, mass_constraints=[(0, 1, 2)])
 
     # Without chunking
     result_no_chunk = model.do_constraints(
@@ -179,6 +179,6 @@ def test_small_dataset():
     np.random.seed(42)
     for n_events in [1, 2, 5]:
         data = np.random.randn(n_events, 3, 4) * 2 + np.array([5, 0, 0, 0])
-        model = Model(3, mass_constraints=[(0, 1, 2)])
+        model = MassCons(3, mass_constraints=[(0, 1, 2)])
         result = model.do_constraints(data, MASS_TARGETS)
         assert result.shape == (n_events, 3, 4)

@@ -9,7 +9,7 @@ def mass_sq(p4):
     return np.sum(p4 * p4 * METRIC, axis=-1)
 
 
-class Model:
+class MassCons:
     """
     Kinematic constraint model for particle physics.
 
