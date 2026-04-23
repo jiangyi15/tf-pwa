@@ -1680,6 +1680,9 @@ class DecayGroup(BaseDecayGroup, AmpBase):
         super(DecayGroup, self).__init__(chains)
         self.not_full = False
         self.polarization = getattr(self.top, "polarization", "none")
+        self.inverse_helicity_cp = getattr(
+            self.top, "inverse_helicity_cp", True
+        )
         # self.init_params()
 
     def init_params(self, name=""):
@@ -1945,9 +1948,16 @@ class DecayGroup(BaseDecayGroup, AmpBase):
             transpose = self.get_swap_transpose(
                 tuple(change), len(amp_swap.shape)
             )
-            p_reverse = [Ellipsis] + [
-                slice(None, None, -1) for i in range(len(amp_swap.shape) - 1)
-            ]
+            if self.inverse_helicity_cp:
+                p_reverse = [Ellipsis] + [
+                    slice(None, None, -1)
+                    for i in range(len(amp_swap.shape) - 1)
+                ]
+            else:
+                p_reverse = [Ellipsis] + [
+                    slice(None, None, 1)
+                    for i in range(len(amp_swap.shape) - 1)
+                ]
 
             amp = (
                 amp
@@ -2081,9 +2091,17 @@ class DecayGroup(BaseDecayGroup, AmpBase):
                 res_map[j].append(i)
         return res_map
 
+    def _flatten_res(self, res):
+        ret = []
+        if isinstance(res, (list, tuple)):
+            for i in res:
+                ret += self._flatten_res(i)
+        else:
+            ret.append(res)
+        return ret
+
     def set_used_res(self, res, only=False):
-        if not isinstance(res, (list, tuple)):
-            res = [res]
+        res = self._flatten_res(res)
         res_set = set()
         idx_chains = []
         for i in res:
