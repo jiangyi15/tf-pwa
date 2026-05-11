@@ -29,6 +29,10 @@ def fit_minuit(fcn, bounds_dict={}, hesse=True, minos=False, **kwargs):
     :param minos:
     :return:
     """
+    bounds_dict = bounds_dict.copy()
+    for k, v in fcn.vm.bnd_dic.items():
+        if v.lower is not None and v.upper is not None:
+            bounds_dict[k] = (v.lower, v.upper)
     if int(iminuit.__version__[0]) < 2:
         return fit_minuit_v1(
             fcn, bounds_dict=bounds_dict, hesse=hesse, minos=minos, **kwargs
