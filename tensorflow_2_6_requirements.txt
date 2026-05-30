@@ -6,3 +6,4 @@ pyyaml
 scipy
 setuptools_scm<7.0
 sympy
+pip<26.1
