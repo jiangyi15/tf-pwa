@@ -94,6 +94,7 @@ jobs:
       - name: Install dependencies
         run: |
           conda install --file requirements-min.txt -y
+          conda install pip -y
           python -m pip install -e . --no-deps
           conda install pylint -y
           conda install pre-commit -c conda-forge -y
