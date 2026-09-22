@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from scipy.optimize import BFGS, basinhopping, minimize
 
-from .fit_improve import Cached_FG
+from .fit_improve import Cached_FG, build_tf_nll_grad
 from .fit_improve import minimize as my_minimize
 from .utils import time_print
 
@@ -201,12 +201,16 @@ def fit_scipy(
     grad_scale=1.0,
     gtol=1e-3,
     constraints=None,
+    tf_function_nll=False,
 ):
     """
 
     :param fcn:
     :param method:
     :param bounds_dict:
+    :param tf_function_nll: bool. Compile the whole NLL and its gradient
+        with ``tf.function`` (per batch, lazy-stream friendly) for the scipy
+        minimizer. Falls back to the eager path when unsupported.
     :param kwargs:
     :return:
     """
@@ -279,7 +283,17 @@ def fit_scipy(
         for k, v in fcn.vm.bnd_dic.items():
             print("  ", k, "\t", v)
 
-        f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+        if tf_function_nll:
+            try:
+                f_g = fcn.vm.trans_fcn_grad(build_tf_nll_grad(fcn))
+            except Exception as e:
+                print(
+                    "Warning: tf.function nll_grad unavailable ({}), "
+                    "fallback to eager path.".format(e)
+                )
+                f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
+        else:
+            f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         f_g = Cached_FG(f_g, grad_scale=grad_scale)
         # print(f_g)
         x0 = np.array(fcn.vm.get_all_val(True))

@@ -48,6 +48,9 @@ data:
   # bg_frac: 0.3
   ## use tf function to complite the amplitude model
   # use_tf_function: Ture
+  ## use tf function to complite the whole NLL and its gradient (scipy BFGS),
+  ## eager path used as fallback when unsupported
+  # tf_function_nll: True
   ## Pre-Proceesor and amplutude model for different way of amplitude calculation. ["default", "cached_amp","cached_shape", "p4_directly"]
   # preprocessor: cached_shape
   # amp_model: cached_shape

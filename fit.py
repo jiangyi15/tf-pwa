@@ -160,7 +160,7 @@ def fit(
 
     # calculate parameters error
     if maxiter != 0:
-        fit_error = config.get_params_error(fit_result, batch=13000)
+        fit_error = config.get_params_error(fit_result, batch=45000)
         np.save("error_matrix.npy", config.inv_he)
         fit_result.set_error(fit_error)
         fit_result.save_as("final_params.json")

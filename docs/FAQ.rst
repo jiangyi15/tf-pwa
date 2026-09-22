@@ -104,6 +104,19 @@ There is a script (scripts/check_nan.py) to check it.
 
 5.1.4 Some special models require large memory (such as an interpolation model), try another model.
 
+5.1.5 Compile the NLL and its gradient with :code:`tf_function_nll`
+
+  .. code::
+     yaml
+
+     # config.yml
+     data:
+        tf_function_nll: True
+
+  This compiles the whole negative log-likelihood and its gradient into
+  :code:`tf.function` while keeping the batch loop eager, so it also works
+  with :code:`lazy_call`. It can speed up the scipy BFGS fit by a few times.
+
 5.2 CPU
 -------------------
 

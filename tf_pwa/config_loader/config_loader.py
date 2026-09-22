@@ -788,7 +788,21 @@ class ConfigLoader(BaseConfig):
         gtol=1e-3,
         add_fun=None,
         constraints=None,
+        tf_function_nll=None,
     ):
+        """Fit the amplitude model.
+
+        :param batch: batch size for data and MC evaluation.
+        :param tf_function_nll: bool or None. Compile the NLL and its
+            gradient for the scipy minimizer. ``None`` reads
+            ``data.tf_function_nll`` from the configuration (default False).
+        :param kwargs: other options are passed to ``tf_pwa.fit``.
+        :return: a ``FitResult``.
+        """
+        if tf_function_nll is None:
+            tf_function_nll = self.config.get("data", {}).get(
+                "tf_function_nll", False
+            )
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
             fcn = self.get_fcn(batch=batch)
@@ -830,6 +844,7 @@ class ConfigLoader(BaseConfig):
             grad_scale=grad_scale,
             gtol=gtol,
             constraints=constraints,
+            tf_function_nll=tf_function_nll,
         )
         if self.fit_params.hess_inv is not None:
             self.inv_he = self.fit_params.hess_inv
