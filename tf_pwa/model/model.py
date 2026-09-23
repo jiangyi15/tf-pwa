@@ -488,50 +488,6 @@ class BaseModel(object):
         nll = -ln_data + sw * self.int_f(int_mc)
         return nll, g
 
-    def _get_tf_nll_kernels(self):
-        """Build and cache the compiled per-batch kernels (once per model)."""
-        if not hasattr(self, "_tf_nll_kernels"):
-            var = self.signal.trainable_variables
-            self._tf_nll_kernels = (
-                _make_batch_sum_grad_kernel(
-                    self.signal, var, clip_log, self.resolution_size
-                ),
-                _make_batch_sum_grad_kernel(self.signal, var, tf.identity, 1),
-            )
-        return self._tf_nll_kernels
-
-    def nll_grad_batch_tf(self, data, mcdata, weight, mc_weight):
-        """Compiled version of ``nll_grad_batch`` for list or lazy batch data.
-
-        Each batch is evaluated inside a single ``tf.function`` while the
-        outer loop over batches stays eager, so streaming (``lazy_call``) data
-        can be consumed without materializing every batch in one graph.
-        """
-        weight = list(weight)
-        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
-        k_data, k_mc = self._get_tf_nll_kernels()
-        ln_data, g_ln_data = _sum_gradient_batch_tf(
-            self.signal, data, self.signal.trainable_variables, weight, k_data
-        )
-        int_mc, g_int_mc = _sum_gradient_batch_tf(
-            self.signal,
-            mcdata,
-            self.signal.trainable_variables,
-            mc_weight,
-            k_mc,
-        )
-
-        sw = tf.cast(sw, ln_data.dtype)
-
-        g = list(
-            map(
-                lambda x: -x[0] + sw * x[1] * self.int_g(int_mc),
-                zip(g_ln_data, g_int_mc),
-            )
-        )
-        nll = -ln_data + sw * self.int_f(int_mc)
-        return nll, g
-
     def grad_hessp_batch(self, p, data, mcdata, weight, mc_weight):
         """
         ``self.nll_grad()`` is replaced by this one???
@@ -655,6 +611,60 @@ class BaseModel(object):
         It has interface to ``Amplitude.get_params()``.
         """
         return self.Amp.get_params(trainable_only)
+
+
+class BaseModelTf(BaseModel):
+    """``BaseModel`` with the NLL gradient compiled per batch.
+
+    The outer loop over batches stays eager while the forward pass and its
+    gradient of a single batch are evaluated inside one ``tf.function``. This
+    keeps compatibility with streaming (``lazy_call``) data at the cost of a
+    small per-batch Python overhead.
+    """
+
+    def _get_tf_nll_kernels(self):
+        """Build and cache the compiled per-batch kernels (once per model)."""
+        if not hasattr(self, "_tf_nll_kernels"):
+            var = self.signal.trainable_variables
+            self._tf_nll_kernels = (
+                _make_batch_sum_grad_kernel(
+                    self.signal, var, clip_log, self.resolution_size
+                ),
+                _make_batch_sum_grad_kernel(self.signal, var, tf.identity, 1),
+            )
+        return self._tf_nll_kernels
+
+    def nll_grad_batch(self, data, mcdata, weight, mc_weight):
+        """Compiled version of ``BaseModel.nll_grad_batch``.
+
+        ``data`` (and ``mcdata``) may be either a list of batches or a lazy
+        batch stream, so this works for both the eager and the ``lazy_call``
+        data mode.
+        """
+        weight = list(weight)
+        sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
+        k_data, k_mc = self._get_tf_nll_kernels()
+        ln_data, g_ln_data = _sum_gradient_batch_tf(
+            self.signal, data, self.signal.trainable_variables, weight, k_data
+        )
+        int_mc, g_int_mc = _sum_gradient_batch_tf(
+            self.signal,
+            mcdata,
+            self.signal.trainable_variables,
+            mc_weight,
+            k_mc,
+        )
+
+        sw = tf.cast(sw, ln_data.dtype)
+
+        g = list(
+            map(
+                lambda x: -x[0] + sw * x[1] * self.int_g(int_mc),
+                zip(g_ln_data, g_int_mc),
+            )
+        )
+        nll = -ln_data + sw * self.int_f(int_mc)
+        return nll, g
 
 
 @register_nll_model("default")
@@ -843,20 +853,6 @@ class Model(object):
         )
         return self.model.nll_grad_batch(data_i, mcdata_i, weight, mc_weight)
 
-    def nll_grad_batch_tf(self, data, mcdata, weight, mc_weight):
-        """Compiled batch version of ``self.nll_grad_batch``."""
-        data_i = data
-        mcdata_i = mcdata
-        if not hasattr(self.model, "nll_grad_batch_tf"):
-            raise NotImplementedError(
-                "compiled nll_grad is not supported for {}".format(
-                    type(self.model).__name__
-                )
-            )
-        return self.model.nll_grad_batch_tf(
-            data_i, mcdata_i, weight, mc_weight
-        )
-
     def nll_grad_hessian(
         self, data, mcdata, weight=1.0, batch=24000, bg=None, mc_weight=1.0
     ):
@@ -887,6 +883,32 @@ class Model(object):
         It has interface to ``Amplitude.get_params()``.
         """
         return self.Amp.get_params(trainable_only)
+
+
+@register_nll_model("default_tf")
+class ModelTf(Model):
+    """``Model`` with a compiled (``tf.function``) NLL gradient.
+
+    It behaves exactly like the default ``Model`` but routes the batch NLL
+    gradient through ``BaseModelTf``, which compiles the forward pass and its
+    gradient per batch. Select it with ``data.model: default_tf`` in the
+    configuration. Other custom nll models are not affected and can implement
+    their own compiled variant.
+    """
+
+    def __init__(
+        self, amp, w_bkg=1.0, resolution_size=1, extended=False, **kwargs
+    ):
+        super(ModelTf, self).__init__(
+            amp,
+            w_bkg=w_bkg,
+            resolution_size=resolution_size,
+            extended=extended,
+            **kwargs,
+        )
+        self.model = BaseModelTf(
+            amp, resolution_size=resolution_size, extended=extended
+        )
 
 
 @register_nll_model("inject_mc")
@@ -1344,22 +1366,6 @@ class FCN(object):
         """
         self.model.set_params(x)
         nll, g = self.model.nll_grad_batch(
-            self.batch_data,
-            self.batch_mcdata,
-            weight=self.batch_weight,
-            mc_weight=self.batch_mc_weight,
-        )
-        self.n_call += 1
-        return nll, g
-
-    def get_nll_grad_tf(self, x={}):
-        """Compiled version of ``get_nll_grad`` supporting lazy batch data.
-
-        Unlike ``get_nll_grad`` this does not require wrapping the whole batch
-        loop inside one graph; each batch is compiled separately by the model.
-        """
-        self.model.set_params(x)
-        nll, g = self.model.nll_grad_batch_tf(
             self.batch_data,
             self.batch_mcdata,
             weight=self.batch_weight,

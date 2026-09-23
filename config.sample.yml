@@ -44,13 +44,11 @@ data:
 
   ## Currently, addtion configuration for fit can also be put in here, some option might be changed frequrently.
   ## likehood formula, cfit, some model require other options (bg_frac)
+  ## use "default_tf" for a model with the NLL and its gradient compiled by tf.function
   # model: default
   # bg_frac: 0.3
   ## use tf function to complite the amplitude model
   # use_tf_function: Ture
-  ## use tf function to complite the whole NLL and its gradient (scipy BFGS),
-  ## eager path used as fallback when unsupported
-  # tf_function_nll: True
   ## Pre-Proceesor and amplutude model for different way of amplitude calculation. ["default", "cached_amp","cached_shape", "p4_directly"]
   # preprocessor: cached_shape
   # amp_model: cached_shape
