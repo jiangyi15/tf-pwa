@@ -101,7 +101,6 @@ def _make_batch_sum_grad_kernel(f, var, trans, resolution_size):
     one ``tf.function``. This is used by the streaming (lazy) NLL path, where
     iterating all batches inside a single graph is not possible.
     """
-    import tensorflow as tf
 
     def _kernel(data_i, weight_i):
         with tf.GradientTape() as tape:
@@ -677,12 +676,14 @@ class Model(object):
     :param w_bkg: Real number. The weight of background.
     """
 
+    _model_cls = BaseModel
+
     def __init__(
         self, amp, w_bkg=1.0, resolution_size=1, extended=False, **kwargs
     ):
         for k, v in kwargs.items():
             setattr(self, k, v)
-        self.model = BaseModel(
+        self.model = self._model_cls(
             amp, resolution_size=resolution_size, extended=extended
         )
         self.Amp = amp
@@ -802,8 +803,8 @@ class Model(object):
                 [mc_weight] * data_shape(mcdata), dtype="float64"
             )
         return self.model.nll_grad(
-            {**data, "weight": weight},
-            {**mcdata, "weight": mc_weight},
+            data_replace(data, "weight", weight),
+            data_replace(mcdata, "weight", mc_weight),
             batch=batch,
         )
 
@@ -896,19 +897,7 @@ class ModelTf(Model):
     their own compiled variant.
     """
 
-    def __init__(
-        self, amp, w_bkg=1.0, resolution_size=1, extended=False, **kwargs
-    ):
-        super(ModelTf, self).__init__(
-            amp,
-            w_bkg=w_bkg,
-            resolution_size=resolution_size,
-            extended=extended,
-            **kwargs,
-        )
-        self.model = BaseModelTf(
-            amp, resolution_size=resolution_size, extended=extended
-        )
+    _model_cls = BaseModelTf
 
 
 @register_nll_model("inject_mc")
