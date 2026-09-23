@@ -21,12 +21,21 @@ def load_config(name, model):
 
 
 def test_default_tf_consistency(gen_toy):  # noqa: F811
-    ref = load_config("config_toy.yml", "default").get_fcn()
-    new = load_config("config_toy.yml", "default_tf").get_fcn()
+    # use a small batch to force multiple batches for both data and MC
+    batch = 400
+    ref = load_config("config_toy.yml", "default").get_fcn(batch=batch)
+    new = load_config("config_toy.yml", "default_tf").get_fcn(batch=batch)
     nll_ref, grad_ref = ref.nll_grad()
     nll_new, grad_new = new.nll_grad()
     assert np.allclose(nll_ref, nll_new)
     assert np.allclose(np.asarray(grad_ref), np.asarray(grad_new))
+
+
+def test_default_tf_lazy_nll(gen_toy):  # noqa: F811
+    config = load_config("config_lazycall.yml", "default_tf")
+    fcn = config.get_fcn(batch=400)
+    nll = fcn.get_nll()
+    assert np.isfinite(float(nll))
 
 
 def test_fit_default_tf(gen_toy):  # noqa: F811
