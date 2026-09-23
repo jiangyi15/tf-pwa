@@ -1,7 +1,6 @@
 import contextlib
 import copy
 import functools
-import inspect
 import itertools
 import json
 import os
@@ -624,12 +623,6 @@ class ConfigLoader(BaseConfig):
                         "not found required params {} for nll model".format(i)
                     )
             nll_params = self.config.get("nll_model", {})
-            accepted = inspect.signature(NewModel.__init__).parameters
-            extra = {}
-            if "resolution_size" in accepted:
-                extra["resolution_size"] = self.resolution_size
-            if "extended" in accepted:
-                extra["extended"] = extended
             for idx, wb in enumerate(w_bkg):
                 new_params = {k: v for k, v in nll_params.items()}
                 for k, v in params.items():
@@ -637,7 +630,7 @@ class ConfigLoader(BaseConfig):
                         new_params[k] = v[idx]
                     else:
                         new_params[k] = v
-                model.append(NewModel(amp, w_bkg=wb, **extra, **new_params))
+                model.append(NewModel(amp, w_bkg=wb, **new_params))
         else:
             extended = self.config["data"].get("extended", False)
             if extended:
@@ -796,11 +789,6 @@ class ConfigLoader(BaseConfig):
         add_fun=None,
         constraints=None,
     ):
-        """Fit the amplitude model.
-
-        :param batch: batch size for data and MC evaluation.
-        :return: a ``FitResult``.
-        """
         if data is None and phsp is None:
             data, phsp, bg, inmc = self.get_all_data()
             fcn = self.get_fcn(batch=batch)

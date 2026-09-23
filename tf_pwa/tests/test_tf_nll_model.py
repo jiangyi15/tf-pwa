@@ -15,6 +15,11 @@ def load_config(name, model):
     with open(os.path.join(this_dir, name)) as f:
         config_dic = yaml.full_load(f)
     config_dic["data"]["model"] = model
+    if model == "default_tf":
+        # default_tf declares these as required_params (like bg_frac/n_bins
+        # for the custom nll models in tf_pwa/model/custom.py)
+        config_dic["data"].setdefault("resolution_size", 1)
+        config_dic["data"].setdefault("extended", False)
     config = ConfigLoader(config_dic)
     config.set_params(os.path.join(this_dir, "exp_params.json"))
     return config

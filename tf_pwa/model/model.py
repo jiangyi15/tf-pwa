@@ -897,6 +897,7 @@ class ModelTf(Model):
     their own compiled variant.
     """
 
+    required_params = ["resolution_size", "extended"]
     _model_cls = BaseModelTf
 
 

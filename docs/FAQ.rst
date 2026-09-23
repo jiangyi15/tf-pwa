@@ -112,11 +112,15 @@ There is a script (scripts/check_nan.py) to check it.
      # config.yml
      data:
         model: default_tf
+        resolution_size: 1
+        extended: False
 
   :code:`default_tf` is a registered nll model that compiles the forward pass
   and its gradient into :code:`tf.function` per batch while keeping the batch
   loop eager, so it also works with :code:`lazy_call`. It can speed up the
-  scipy BFGS fit by a few times. Other custom nll models are unaffected.
+  scipy BFGS fit by a few times. It requires :code:`resolution_size` and
+  :code:`extended` to be given explicitly. Other custom nll models are
+  unaffected.
 
 5.2 CPU
 -------------------

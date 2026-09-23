@@ -44,8 +44,11 @@ data:
 
   ## Currently, addtion configuration for fit can also be put in here, some option might be changed frequrently.
   ## likehood formula, cfit, some model require other options (bg_frac)
-  ## use "default_tf" for a model with the NLL and its gradient compiled by tf.function
+  ## use "default_tf" to compile the NLL and its gradient with tf.function;
+  ## it requires resolution_size and extended to be given explicitly
   # model: default
+  # resolution_size: 1
+  # extended: False
   # bg_frac: 0.3
   ## use tf function to complite the amplitude model
   # use_tf_function: Ture
