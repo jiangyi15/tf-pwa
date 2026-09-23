@@ -622,17 +622,17 @@ class BaseModelTf(BaseModel):
     small per-batch Python overhead.
     """
 
-    def _get_tf_nll_kernels(self):
-        """Build and cache the compiled per-batch kernels (once per model)."""
-        if not hasattr(self, "_tf_nll_kernels"):
-            var = self.signal.trainable_variables
-            self._tf_nll_kernels = (
-                _make_batch_sum_grad_kernel(
-                    self.signal, var, clip_log, self.resolution_size
-                ),
-                _make_batch_sum_grad_kernel(self.signal, var, tf.identity, 1),
-            )
-        return self._tf_nll_kernels
+    def __init__(self, signal, resolution_size=1, extended=False):
+        super(BaseModelTf, self).__init__(
+            signal, resolution_size=resolution_size, extended=extended
+        )
+        var = self.signal.trainable_variables
+        self._tf_nll_kernels = (
+            _make_batch_sum_grad_kernel(
+                self.signal, var, clip_log, self.resolution_size
+            ),
+            _make_batch_sum_grad_kernel(self.signal, var, tf.identity, 1),
+        )
 
     def nll_grad_batch(self, data, mcdata, weight, mc_weight):
         """Compiled version of ``BaseModel.nll_grad_batch``.
@@ -643,7 +643,7 @@ class BaseModelTf(BaseModel):
         """
         weight = list(weight)
         sw = tf.reduce_sum([tf.reduce_sum(i) for i in weight])
-        k_data, k_mc = self._get_tf_nll_kernels()
+        k_data, k_mc = self._tf_nll_kernels
         ln_data, g_ln_data = _sum_gradient_batch_tf(
             self.signal, data, self.signal.trainable_variables, weight, k_data
         )
