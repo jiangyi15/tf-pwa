@@ -81,7 +81,7 @@ For N body phase space
    \mathrm{d} \Phi(P;p_1,\cdots,p_n) =
    \frac{1}{2^n (2\pi)^{3n-4}} \left( \frac{1}{M}\prod_{i=0}^{n-2}|\vec{p_{i+1}^\star}|  \right)\prod_{i=1}^{n-2} \mathrm{d} M_{i} \prod_{i=0}^{n-2} \mathrm{d}\Omega_{i+1}^\star,
 
-take a weeker condition
+take a weaker condition
 
 .. math::
    \sum_{j>i} m_{j} < M_{i} < M - \sum_{j \leq i }  m_j,
@@ -96,4 +96,4 @@ has the simple limit at the factor term
 
 * 1. Generate :math:`M_i` with the factor
 * 2. Generate :math:`\mathrm{d}\Omega = \mathrm{d}\cos\theta \mathrm{d}\varphi`
-* 3. boost :math:`p^\star=(\sqrt{|\vec{p*}|^2 + m^2} ,|\vec{p^\star}|\cos\theta\cos\varphi,|\vec{p^\star}|\sin\theta\sin\varphi,|\vec{p^\star}|\cos\theta,)`  to a same farme.
+* 3. boost :math:`p^\star=(\sqrt{|\vec{p*}|^2 + m^2} ,|\vec{p^\star}|\cos\theta\cos\varphi,|\vec{p^\star}|\sin\theta\sin\varphi,|\vec{p^\star}|\cos\theta,)`  to a same frame.

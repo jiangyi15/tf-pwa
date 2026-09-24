@@ -7,8 +7,8 @@ To use TFPWA, we need some dependent packages. There are two main ways,
 1. virtual environment
 ----------------------
 
-To avoid conflict of dependence, we recommed to use vitrual environment. there are two main vitrual environment for python packages,
-`conda <https://conda.io/projects/conda/en/latest/index.html>`_ and  `virtualenv <https://virtualenv.pypa.io/en/latest/>`_. You can choose one of them. Since conda include cudatoolkit for gpu, we recommed it for user.
+To avoid dependency conflicts, we recommend to use virtual environment. there are two main virtual environment for python packages,
+`conda <https://conda.io/projects/conda/en/latest/index.html>`_ and  `virtualenv <https://virtualenv.pypa.io/en/latest/>`_. You can choose one of them. Since conda include cudatoolkit for gpu, we recommend it for user.
 
 
 1.1 conda
@@ -75,7 +75,7 @@ and then you can install packages in the conda environment
 --------------
 
 The most important package is `tensorflow2 <https://github.com/tensorflow/tensorflow>`_.
-We recommed to install tensorflow first. You can following the install instructions in `tensorflow website <https://tensorflow.google.cn/install>`_ (or `tensorflow.org <https://tensorflow.org/install>`_).
+We recommend to install tensorflow first. You can following the install instructions in `tensorflow website <https://tensorflow.google.cn/install>`_ (or `tensorflow.org <https://tensorflow.org/install>`_).
 
 2.1 conda
 `````````

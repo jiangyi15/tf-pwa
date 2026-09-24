@@ -2,7 +2,7 @@
 ## using YAML format,see more: https://yaml.org/
 ## required PyYAML module
 ## this file use indentation to indicate hierarchy
-## line starts with `##` is documnet.
+## line starts with `##` is document.
 ## line starts with `#` is option.
 
 ## data entry is the data file name list used for fit
@@ -12,13 +12,13 @@ data:
   ## it is necessary when dat files has momentum out of final particles
   dat_order: [B, C, D]
   ## The file path is grouped by `name[_tail]`
-  ## Each tail correspanding to the valriable in a dataset
+  ## Each tail corresponding to the variable in a dataset
   ## basic data files, every line is `E px py pz` as 4-momentum of a particle,
-  ## and every m lines group as m final particls
+  ## and every m lines group as m final particles
   ## support input multi data as [["data.dat"], ["data2.dat"]] to do simultaneous fit using the same model
   data: ["data/data4600_new.dat"]
   ## The additional file is grouped by `name[_tail]`
-  ## Each tail is corresponding to the valriables in a dataset `name`
+  ## Each tail is corresponding to the variables in a dataset `name`
   ## data weight file, each line for a weight
   # data_weight: ["data/data_weight.dat"]
   ## phase space data for normalize amplitude
@@ -33,8 +33,8 @@ data:
   bg: ["data/bg4600_new.dat"]
   ## background weight
   bg_weight: 0.731
-  ## using total monumtum direction as initial axis (or labrary axis)
-  ## set to False if the initial particle is e+e- direcly
+  ## using total momentum direction as initial axis (or laboratory axis)
+  ## set to False if the initial particle is e+e- directly
   # random_z: True
   ## cached data file
   # cached_data: "data/all_data.npy"
@@ -42,17 +42,17 @@ data:
   # data_charge: ["data/data4600_cc.dat"]
   # cp_trans: True # when used charge conjugation as above, this do p -> -p for charge conjugation process.
 
-  ## Currently, addtion configuration for fit can also be put in here, some option might be changed frequrently.
-  ## likehood formula, cfit, some model require other options (bg_frac)
+  ## Currently, addition configuration for fit can also be put in here, some option might be changed frequently.
+  ## likelihood formula, cfit, some model require other options (bg_frac)
   ## use "default_tf" to compile the NLL and its gradient with tf.function;
   ## it requires resolution_size and extended to be given explicitly
   # model: default
   # resolution_size: 1
   # extended: False
   # bg_frac: 0.3
-  ## use tf function to complite the amplitude model
-  # use_tf_function: Ture
-  ## Pre-Proceesor and amplutude model for different way of amplitude calculation. ["default", "cached_amp","cached_shape", "p4_directly"]
+  ## use tf function to compile the amplitude model
+  # use_tf_function: True
+  ## Pre-Processor and amplitude model for different way of amplitude calculation. ["default", "cached_amp","cached_shape", "p4_directly"]
   # preprocessor: cached_shape
   # amp_model: cached_shape
   ## use TensorFlow Dataset instead of loading all data to GPU directly.
@@ -68,7 +68,7 @@ data:
 ## `decay` describe the decay structure, each node can be a list of particle name
 decay:
   ## each entry is a list of direct decay particle, or a list or the list.
-  ## `dec_file` entry for loading `*.dec` files will be supported in the feature.
+  ## `dec_file` entry for loading `*.dec` files will be supported in the future.
   ## `-` is often used for list in yaml
   A:
     ## for example A -> R_CD + B, R_CD -> C + D
@@ -131,7 +131,7 @@ particle:
   ## just used for calculating angle data.
   R_CD: []
   ## particle can be defined in here or included by `Resonances.yml`
-  ## if both have the defination, defination in here will overtite defination in `Resonances.yml`
+  ## if both have the definition, definition in here will overwrite definition in `Resonances.yml`
   # NR(BC)SP: {J: 1, P: -1, model: one}
 
 ## The following config is used for DecayChain

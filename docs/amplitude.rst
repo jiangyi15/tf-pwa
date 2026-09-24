@@ -81,7 +81,7 @@ The indices part is quantum number, and it can be summed automatically.
 Default Amplitude Model
 ------------------------
 
-The defalut model for Decay is helicity amplitude
+The default model for Decay is helicity amplitude
 
 .. math::
    A^{A \rightarrow B C}_{\lambda_A,\lambda_B, \lambda_C} = H_{\lambda_B,\lambda_C}^{A \rightarrow B C} D^{J_{A}*}_{\lambda_A,\lambda_B - \lambda_C}(\phi, \theta, 0).
@@ -113,9 +113,9 @@ By using the combination rules, the amplitude is built automatically.
 Helicity Angles
 ---------------
 
-The helicity angle in TFPWA is defined as the roation between two coordinates systems.
+The helicity angle in TFPWA is defined as the rotation between two coordinates systems.
 
-The first one is :math:`(\vec{x}_0, \vec{y}_0, \vec{z}_0)`, the last one is :math:`(\vec{x}_1, \vec{y}_1, \vec{z}_1)`. We can calculate the Eular Angle between the two system. The rotation order is:
+The first one is :math:`(\vec{x}_0, \vec{y}_0, \vec{z}_0)`, the last one is :math:`(\vec{x}_1, \vec{y}_1, \vec{z}_1)`. We can calculate the Euler Angle between the two system. The rotation order is:
 
 * 1. Rotate :math:`\alpha` around :math:`\vec{z}_0`. The :math:`\vec{y}_0` is rotated to :math:`\vec{y}_R`.
 * 2. Rotate :math:`\beta` around :math:`\vec{y}_R`. The :math:`\vec{z}_0` is rotated to :math:`\vec{z}_1`.
@@ -128,9 +128,9 @@ And then we can define the new coordinate system after the first decay :code:`A 
 
 To calculate helicity angle of the second decay :code:`R -> C D`, the first coordinate system has been defined as above. We need to keep the same coordinate system. And we define the second coordinate system by :math:`\vec{z}_1 = \vec{p_{C}}` and :math:`\gamma=0`, and calculate the helicity angle. The :math:`p_{C}` should boost to rest frame of :code:`R` after we boost to the rest frame of :code:`A`. The boost sequence will introduce a additional rotation of the coordinate system.
 
-Due to the boost sequence of final particles, the coordinate system of each final particles in different decay chains is different. We need to do alignment for different decay chains before sum the amplitude over. We can record the roation and boost sequence, and combine then into a single object of Lorentz group, :math:`L_1 = \overleftarrow{R_y(\theta_2)R_z(\phi_2)B_z(\omega_2)R_y(\theta_1)R_z(\phi_1)B_z(\omega_1)}`, :math:`L_2 = \overleftarrow{R_y(\theta_2')R_z(\phi_2')B_z(\omega_2')R_y(\theta_1')R_z(\phi_1')B_z(\omega_1)}`, where :math:`\omega=\tanh^{-1}\frac{|p|}{E}`. The direction of the arrow is order of the operator. And then we can find the standalone rotation between the two coordinate system by solve :math:`\alpha,\beta,\gamma` from :math:`L_1 = \overleftarrow{[R_z(\gamma)R_y(\beta)R_z(\alpha)B_z(\omega)] L_2} = \overleftarrow{[L_1 L_2^{-1}] L_2}`. The two coordinate system both have :math:`\vec{z}=\vec{p}`, so only :math:`B_z(\omega)` remain. See `Chin.Phys.C 45 (2021) 6, 063103 <https://inspirehep.net/literature/1835597>`_ and `JHEP 12 (2022) 033 <https://inspirehep.net/literature/2153556>`_ for more information.
+Due to the boost sequence of final particles, the coordinate system of each final particles in different decay chains is different. We need to do alignment for different decay chains before sum the amplitude over. We can record the rotation and boost sequence, and combine then into a single object of Lorentz group, :math:`L_1 = \overleftarrow{R_y(\theta_2)R_z(\phi_2)B_z(\omega_2)R_y(\theta_1)R_z(\phi_1)B_z(\omega_1)}`, :math:`L_2 = \overleftarrow{R_y(\theta_2')R_z(\phi_2')B_z(\omega_2')R_y(\theta_1')R_z(\phi_1')B_z(\omega_1)}`, where :math:`\omega=\tanh^{-1}\frac{|p|}{E}`. The direction of the arrow is order of the operator. And then we can find the standalone rotation between the two coordinate system by solve :math:`\alpha,\beta,\gamma` from :math:`L_1 = \overleftarrow{[R_z(\gamma)R_y(\beta)R_z(\alpha)B_z(\omega)] L_2} = \overleftarrow{[L_1 L_2^{-1}] L_2}`. The two coordinate system both have :math:`\vec{z}=\vec{p}`, so only :math:`B_z(\omega)` remain. See `Chin.Phys.C 45 (2021) 6, 063103 <https://inspirehep.net/literature/1835597>`_ and `JHEP 12 (2022) 033 <https://inspirehep.net/literature/2153556>`_ for more information.
 
-The two dimisional presentation of Lorentz group is used.
+The two dimensional presentation of Lorentz group is used.
 
 .. math::
    R_z(\phi) = \begin{pmatrix}
@@ -153,6 +153,6 @@ Then the angle can be solved as
    \alpha  - \gamma = - 2\arg L_{21},
    \cos\beta = L_{11} L_{22} + L_{12} L_{21}
 
-The range of :math:`\beta` is :math:`[0,\pi]` and the range of :math:`\alpha,\gamma` are :math:`[-2\pi,2\pi]`. The :math:`4\pi` range is required for fermion, whose :math:`2\pi` rotation will contribute a negative sign. It also raise a problem for the defination rotation to opposite direction. In the first decay :code:`A -> R B`, we define the new coordinate as :math:`\vec{z}_1 = \vec{p_{R}}`, but the :math:`\vec{p_{B}}` is the opposite direction. Additional rotation from :math:`\vec{p_{R}}` to the opposite :math:`\vec{p_{B}}` is required, which will affect the phase of fit parameters. In TFPWA, such rotation is defined as :math:`R_x(\pi)=[\overleftarrow{R_y(\pi-\theta)R_z(\phi-\pi)}][\overleftarrow{R_y(\theta)R_z(\phi)}]^{-1}=\overleftarrow{R_y(\pi)R_z(-\pi)}`.  :math:`\phi-\pi` and :math:`\pi-\theta` are the angles if you calculate from :math:`\vec{z}_1 = \vec{p_{B}}`, but we fix the phase difference to :math:`-\pi`. If we calculate directly from :math:`\vec{z}_1 = \vec{p_{B}}`, the phase difference would be random sign :math:`\pm\pi`, which would cancel some interferences that should exist.
+The range of :math:`\beta` is :math:`[0,\pi]` and the range of :math:`\alpha,\gamma` are :math:`[-2\pi,2\pi]`. The :math:`4\pi` range is required for fermion, whose :math:`2\pi` rotation will contribute a negative sign. It also raise a problem for the definition rotation to opposite direction. In the first decay :code:`A -> R B`, we define the new coordinate as :math:`\vec{z}_1 = \vec{p_{R}}`, but the :math:`\vec{p_{B}}` is the opposite direction. Additional rotation from :math:`\vec{p_{R}}` to the opposite :math:`\vec{p_{B}}` is required, which will affect the phase of fit parameters. In TFPWA, such rotation is defined as :math:`R_x(\pi)=[\overleftarrow{R_y(\pi-\theta)R_z(\phi-\pi)}][\overleftarrow{R_y(\theta)R_z(\phi)}]^{-1}=\overleftarrow{R_y(\pi)R_z(-\pi)}`.  :math:`\phi-\pi` and :math:`\pi-\theta` are the angles if you calculate from :math:`\vec{z}_1 = \vec{p_{B}}`, but we fix the phase difference to :math:`-\pi`. If we calculate directly from :math:`\vec{z}_1 = \vec{p_{B}}`, the phase difference would be random sign :math:`\pm\pi`, which would cancel some interferences that should exist.
 
-see :ref:`sphx_glr_auto_examples_ex7_numeric_amplitude.py` for more detials.
+see :ref:`sphx_glr_auto_examples_ex7_numeric_amplitude.py` for more details.
