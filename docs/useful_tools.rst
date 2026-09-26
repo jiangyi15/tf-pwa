@@ -1,4 +1,4 @@
 Useful Tools
 ------------
 
-Helicty to LS formula: `Helicty to LS <_static/hel_to_ls.html>`_.
+Helicity to LS formula: `Helicity to LS <_static/hel_to_ls.html>`_.

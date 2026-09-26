@@ -5,10 +5,10 @@ Resonances Parameters
 
 This section is about how do the `Resonances.yml` work.
 
-From `Resonacces.yml` to the real model, there will be following steps.
+From `Resonances.yml` to the real model, there will be following steps.
 
 
-1. loaded by config.yml, it is will be combined the defination in `config.yml` particle parts.
+1. loaded by config.yml, it is will be combined the definition in `config.yml` particle parts.
 
    For examples, `config.yml` have
 
@@ -56,7 +56,7 @@ Parameters defined in `~tf_pwa.particle.BaseParticle` are common parameters incl
 +-----------+----------------+-------------------------------------------------------------------------------+
 |   `C`     |    None        |  C-Parity, +1 or -1                                                           |
 +-----------+----------------+-------------------------------------------------------------------------------+
-|  `mass`   |    None        |  mass, float, it is always required because of the calcultion of :math:`q_0`  |
+|  `mass`   |    None        |  mass, float, it is always required because of the calculation of :math:`q_0` |
 +-----------+----------------+-------------------------------------------------------------------------------+
 |  `width`  |    None        |  width, float                                                                 |
 +-----------+----------------+-------------------------------------------------------------------------------+
@@ -72,7 +72,7 @@ Parameters defined in the real model. :doc:`particle_model`
 
 
 There are many parameters defined by the user, then those parameters will be passed to the model class,
-such as the paramthers for `__init__(self, **kwargs)` method.
+such as the parameters for `__init__(self, **kwargs)` method.
 
 For example, the default model (`BWR`, `~tf_pwa.particle.BaseParticle`) has the following parameters:
 
@@ -81,7 +81,7 @@ For example, the default model (`BWR`, `~tf_pwa.particle.BaseParticle`) has the 
 +=====================+=============================+========================================+
 | `running_width`     |     True                    |  if using running width, bool          |
 +---------------------+-----------------------------+----------------------------------------+
-|   `bw_l`            | None, auto deteminated      |  running width angular momentum, int   |
+|   `bw_l`            | None, auto determined       |  running width angular momentum, int   |
 +---------------------+-----------------------------+----------------------------------------+
 
 
@@ -99,7 +99,7 @@ For example, simple constraints, the following parameters are used by `~tf_pwa.c
 +----------------------------+----------------+-----------------------------------+
 | `width_min`, `width_max`   |     None       |  width range                      |
 +----------------------------+----------------+-----------------------------------+
-| `float`                    |    `[]`        |  float paramsters list            |
+| `float`                    |    `[]`        |  float parameters list            |
 +----------------------------+----------------+-----------------------------------+
 
 

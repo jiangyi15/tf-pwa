@@ -13,7 +13,7 @@ Tensorflow and Cudatoolkit Version
 
 3. **Why should Ampere use** `cudatoolkit` **version > 11.0?**
     - To avoid *a few minutes* of overhead due to JIT compilation.
-    - `cudatoolkit` version < **11.0** does not have pre-compiled CUDA binaries for Ampere architecture. So older `cudatoolkit` versions have to JIT compile the PTX code everytime `tensorflow` uses the GPU hence the overhead.
+    - `cudatoolkit` version < **11.0** does not have pre-compiled CUDA binaries for Ampere architecture. So older `cudatoolkit` versions have to JIT compile the PTX code every time `tensorflow` uses the GPU hence the overhead.
     - See this `explanation <https://developer.nvidia.com/blog/cuda-pro-tip-understand-fat-binaries-jit-caching/>`_ about old CUDA versions and JIT compile.
 
 4. **Will you update the** `tensorflow_2_X_requirements.txt` **file regularly to the latest available version on `conda`?**

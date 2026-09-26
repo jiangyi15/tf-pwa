@@ -8,11 +8,11 @@ FAQ
 
   ::
 
-      message: Desired error not nescessarily achieved due to precision loss.
+      message: Desired error not necessarily achieved due to precision loss.
 
 Check the jac value,
 
-1.1 If all absulute values are small. it is acceptable because of the precision.
+1.1 If all absolute values are small. it is acceptable because of the precision.
 
 1.2 If some absolute values are large. It is due to the bad parameters or some problem in the models.
 
@@ -55,7 +55,7 @@ There is a script (scripts/check_nan.py) to check it.
 
 3.2 Bad fit parameters: width too narrow or wide, reach the boundary and so on.
 
-3.3 Bad gradients. No gradients or the gradients are not correct for fit paramters.
+3.3 Bad gradients. No gradients or the gradients are not correct for fit parameters.
 
 4. Singular Matrix when getting params error
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -143,7 +143,7 @@ There is a script (scripts/check_nan.py) to check it.
 
       yaml.parser.ParserError: while parsing ..
 
-Check the yaml file (see https://yaml.org): the indent, speical chars :code:`,:}]`, unicode and so on.
+Check the yaml file (see https://yaml.org): the indent, special chars :code:`,:}]`, unicode and so on.
 
 6.2 Decay chain
 ---------------
