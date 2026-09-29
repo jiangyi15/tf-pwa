@@ -104,6 +104,29 @@ def print_fit_result_roofit(config, fit_result):
         print("")
 
 
+def reinit_params_keep_nominal(config):
+    """Re-randomize the free couplings but restore the values that were
+    explicitly given in the config (e.g. resonance ``m0``/``g0``).
+
+    ``config.reinit_params()`` re-draws every trainable variable. For a
+    resonance with ``float: mg`` and ``m_min``/``m_max``/``g_min``/``g_max``
+    the generator of the mass/width variable has been replaced by a uniform
+    distribution over the range in ``VarsManager.set_bound()``, so the masses
+    and widths are randomized on every restart and the fit usually does not
+    converge ("Desired error not necessarily achieved due to precision
+    loss"). Those nominal values are available in ``vm.init_val``.
+    """
+    if hasattr(config, "get_amplitudes"):  # MultiConfig
+        vm = config.get_amplitudes()[0].vm
+    else:  # ConfigLoader
+        vm = config.get_amplitude().vm
+    nominal = {
+        k: v for k, v in vm.init_val.items() if not hasattr(v, "__len__")
+    }
+    config.reinit_params()
+    config.set_params(nominal, neglect_params=[])
+
+
 def fit(
     config,
     init_params="",
@@ -141,9 +164,10 @@ def fit(
             config.save_params("break_params.json")
             raise
         fit_results.append(fit_result)
-        # reset parameters
+        # reset parameters: keep the nominal masses/widths and only
+        # re-randomize the free couplings
         try:
-            config.reinit_params()
+            reinit_params_keep_nominal(config)
         except Exception as e:
             print(e)
 
