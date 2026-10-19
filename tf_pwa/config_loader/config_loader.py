@@ -1535,8 +1535,9 @@ class PlotParams(dict):
             for i in used_var:
                 idx = where.get(i, i)
                 if isinstance(idx, (list, tuple)):
-                    idx = idx[0], "/".join(idx[1])
-                    var_f = ReadData(self.get_data_index(*idx))
+                    if isinstance(idx[1], (list, tuple)):
+                        idx = idx[0], "/".join(idx[1])
+                    var_f.append(ReadData(self.get_data_index(*idx)))
                 elif isinstance(idx, str):
                     for j in self.params:
                         if j["name"] == idx:

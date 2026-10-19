@@ -30,7 +30,7 @@ The integration suround the pole :math:`z_0` contibute a residue term.
 The physical amplitude have the same property after some subtraction of infinity.
 
 .. math::
-    Re f(s) - Re f(s_0) = \\frac{1}{\\pi}P\\int_{s_{th}}^{\\infty} \left[\\frac{Im f(s')}{s' - s} - \\frac{Im f(s')}{s' - s_0}\\right]\mathrm{d} s' = \\frac{(s-s_0)}{\\pi}P\\int_{s_{th}}^{\\infty} \\frac{Im f(s')}{(s' - s)(s' - s_0)}\\mathrm{d} s'
+    Re f(s) - Re f(s_0) = \\frac{1}{\\pi}P\\int_{s_{th}}^{\\infty} \\left[\\frac{Im f(s')}{s' - s} - \\frac{Im f(s')}{s' - s_0}\\right]\\mathrm{d} s' = \\frac{(s-s_0)}{\\pi}P\\int_{s_{th}}^{\\infty} \\frac{Im f(s')}{(s' - s)(s' - s_0)}\\mathrm{d} s'
 
 Sometimes, additional substrction will be used to make sure that the intergration is finity.
 
