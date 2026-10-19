@@ -65,7 +65,7 @@ plot:
       expr: x
       where:
         x: m_R_BC
-      range: [4.2, 1.5]
+      range: [4.2, 4.5]
 
   2Dplot:
     dalitz_12:
