@@ -383,9 +383,9 @@ class VarsManager(object):
                 value = 0.0
             if callable(value):
                 value = value()
-        else:
-            if name in self.bnd_dic:
-                value = self.bnd_dic[name].get_y2x(value)
+        # else:
+        # if name in self.bnd_dic:
+        #     value = self.bnd_dic[name].get_y2x(value)
         if name in self.variables:
             self.variables[name].assign(value)
             self.variables[name]._trainable = unfix
@@ -781,6 +781,27 @@ class VarsManager(object):
             if name in self.bnd_dic:
                 yvals[i] = self.bnd_dic[name].get_x2y(xvals[i])
         self.set_all(yvals)
+
+    def trans_fcn(self, fcn):  # bound transform fcn and grad
+        """
+        :math:`F(x)=F(y(x))`
+
+        :param fcn: callable function use transformed value
+        :return:
+        """
+
+        def fcn_t(xvals):
+            xvals = np.array(xvals)
+            yvals = xvals.copy()
+            i = 0
+            for name in self.trainable_vars:
+                if name in self.bnd_dic:
+                    yvals[i] = self.bnd_dic[name].get_x2y(xvals[i])
+                i += 1
+            y = fcn(yvals)
+            return float(y)
+
+        return fcn_t
 
     def trans_fcn_grad(self, fcn_grad):  # bound transform fcn and grad
         """
