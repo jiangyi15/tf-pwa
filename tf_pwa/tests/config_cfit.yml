@@ -56,6 +56,17 @@ plot:
   extra_vars:
     m_BC2:
       expr: m_R_BC + m_R_CD
+    phi_test:
+      expr: (phi1 + phi2)%6.2831853
+      where:
+        phi1:  [angle, R_BC/C, alpha]
+        phi2:  [angle, R_CD/C, alpha]
+    m_BC_large:
+      expr: x
+      where:
+        x: m_R_BC
+      range: [4.2, 4.5]
+
   2Dplot:
     dalitz_12:
       x: m_R_BC**2

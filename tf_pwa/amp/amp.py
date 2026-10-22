@@ -115,13 +115,18 @@ class AbsPDF:
         return True
 
     def __call__(self, data, cached=False):
+        no_id_cached = self.no_id_cached
         if isinstance(data, LazyCall):
             data = data.eval()
-        if id(data) in self.f_data and not self.no_id_cached:
-            if self.cached_available():  # decay_group.not_full:
+            no_id_cached = True
+        if self.cached_available():
+            if no_id_cached:
                 return self.cached_fun(data)
-        else:
-            self.f_data.append(id(data))
+            else:
+                if id(data) in self.f_data:
+                    return self.cached_fun(data)
+                else:
+                    self.f_data.append(id(data))
         ret = self.pdf(data)
         return ret
 
