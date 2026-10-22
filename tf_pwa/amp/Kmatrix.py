@@ -1,9 +1,13 @@
 import sympy as sym
 import tensorflow as tf
 
-from tf_pwa.amp import HelicityDecay, Particle
+from tf_pwa.amp import (
+    HelicityDecay,
+    Particle,
+    register_decay,
+    register_particle,
+)
 from tf_pwa.amp import get_relative_p as get_relative_p2
-from tf_pwa.amp import register_decay, register_particle
 from tf_pwa.breit_wigner import Bprime_q2, get_bprime_coeff
 
 

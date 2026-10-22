@@ -29,15 +29,13 @@ from tf_pwa.particle import (
     DEFAULT_DECAY,
     BaseParticle,
     Decay,
-)
-from tf_pwa.particle import DecayChain as BaseDecayChain
-from tf_pwa.particle import DecayGroup as BaseDecayGroup
-from tf_pwa.particle import (
     _spin_int,
     _spin_range,
     cp_charge_group,
     split_particle_type,
 )
+from tf_pwa.particle import DecayChain as BaseDecayChain
+from tf_pwa.particle import DecayGroup as BaseDecayGroup
 from tf_pwa.tensorflow_wrapper import tf
 from tf_pwa.variable import Variable, VarsManager
 
