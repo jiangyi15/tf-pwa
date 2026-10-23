@@ -387,8 +387,11 @@ class VarsManager(object):
         # if name in self.bnd_dic:
         #     value = self.bnd_dic[name].get_y2x(value)
         if name in self.variables:
-            self.variables[name].assign(value)
-            self.variables[name]._trainable = unfix
+            var = self.variables[name]
+            var.assign(value)
+            var._trainable = unfix
+            for v in getattr(var, "values", []):  # MirroredVariable components
+                v._trainable = unfix
         else:
             warnings.warn("no veriable named as {} in free".format(name))
             return
