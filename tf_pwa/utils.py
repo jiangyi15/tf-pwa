@@ -254,7 +254,7 @@ def check_positive_definite(m):
     >>> check_positive_definite([[1.0,0.0],[0.0, 0.1]])
     True
 
-    >>> check_positive_definite([[1.0,0.0],[1.0,-0.1]])
+    >>> check_positive_definite([[1.0,0.0],[0.0,-0.1]])
     eigvalues:  [-0.1  1. ]
     False
 
