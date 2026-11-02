@@ -259,6 +259,7 @@ def check_positive_definite(m):
     False
 
     """
+    m = np.array(m)
     e, v = np.linalg.eigh((m + m.T) / 2)
     if np.all(e > 0.0):
         return True
