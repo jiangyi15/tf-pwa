@@ -1100,7 +1100,7 @@ class HelicityDecay(AmpDecay):
                     tmp = tf.ones_like(q2)
             if self.add_covariant_term:
                 if (
-                    l - self.core.J + self.outs[0].J + +self.outs[0].J
+                    l - self.core.J + self.outs[0].J + self.outs[1].J
                 ) % 2 == 1:
                     tmp *= mass
             # tmp = tf.where(q > 0, tmp, tf.zeros_like(tmp))
