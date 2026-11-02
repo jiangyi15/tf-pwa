@@ -265,7 +265,7 @@ def force_pos_def(h):
     H = dot(v, dot(diag(e), inv(v))
 
     """
-    e, v = np.linalg.eig(h)
+    e, v = np.linalg.eigh((h + h.T) / 2)
     inv_he = np.linalg.pinv(h)
     e_min = np.min(e)
     e_max = np.max(np.abs(e))
@@ -273,10 +273,13 @@ def force_pos_def(h):
         return inv_he
     if e_min > -0.00001 * e_max:  # pricession cause small nagtive eigen value
         idx = np.argmin(e)
-        e_new = np.where(e < 0, e - e_min * 1.1, e)
+        add_value = e - e_min * 1.1
+        max_add = 0.00001 * e_max
+        clip_value = np.clip(add_value, -np.inf, max_add)
+        e_new = np.where(e < 0, clip_value, e)
         warnings.warn(
-            "Matrix forced pos-def by adding {} to eigen value".format(
-                -e_min * 1.1
+            "Matrix forced pos-def by adding {} (max to {}) to eigen value".format(
+                -e_min * 1.1, 0.00001 * e_max
             )
         )
         h = np.dot(v, np.dot(np.diag(e_new), np.linalg.inv(v)))

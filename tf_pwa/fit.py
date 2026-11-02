@@ -214,10 +214,12 @@ def fit_scipy(
     args_name = fcn.vm.trainable_vars
     x0 = []
     bnds = []
+    fcn.vm.set_bound(bounds_dict)
     for name, i in zip(args_name, fcn.vm.trainable_variables):
         x0.append(i.numpy())
-        if name in bounds_dict:
-            bnds.append(bounds_dict[name])
+        if name in fcn.vm.bnd_dic:
+            a, b = fcn.vm.bnd_dic[name]
+            bnds.append((a, b))
         else:
             bnds.append((None, None))
 
@@ -272,7 +274,7 @@ def fit_scipy(
             print(fcn.cached_nll)
 
         # bd = Bounds(bnds)
-        fcn.vm.set_bound(bounds_dict)
+        # fcn.vm.set_bound(bounds_dict)
 
         if fcn.vm.bnd_dic:
             print("##boundary: ")
@@ -314,7 +316,7 @@ def fit_scipy(
         elif jac is not True:
             try:
                 s = minimize(
-                    lambda x: float(fcn(x)),
+                    fcn.vm.trans_fcn(fcn),
                     x0,
                     method=method,
                     jac=jac,
@@ -359,7 +361,7 @@ def fit_scipy(
                 break
         fcn.vm.set_trans_var(s.x)  # make sure fit results same as variable
         print(s)
-        # xn = s.x  # fcn.vm.get_all_val()  # bd.get_y(s.x)
+        xn = s.x  # fcn.vm.get_all_val()  # bd.get_y(s.x)
 
         # fcn.vm.set_all(s.x, True)
         ndf = s.x.shape[0]
@@ -368,9 +370,8 @@ def fit_scipy(
         hess_inv = None
         if hasattr(s, "hess_inv"):
             hess_inv = fcn.vm.trans_error_matrix(s.hess_inv * grad_scale, s.x)
-        fcn.vm.remove_bound()
-
-        xn = fcn.vm.get_all_val()
+        # fcn.vm.remove_bound()
+        # xn = fcn.vm.get_all_val()
     elif method in ["L-BFGS-B"]:
 
         def callback(x):
@@ -383,7 +384,7 @@ def fit_scipy(
         try:
 
             s = minimize(
-                fcn.nll_grad,
+                Cached_FG(fcn.nll_grad),
                 np.array(x0),
                 method=method,
                 jac=True,
@@ -399,16 +400,16 @@ def fit_scipy(
         except LargeNumberError:
             return except_result(fcn, len(x0))
         xn = s.x
-        fcn.vm.set_var(xn)
+        fcn.vm.set_all(xn)
         print(s)
         ndf = s.x.shape[0]
         min_nll = s.fun
         success = s.success
     elif method in ["Newton-CG", "trust-krylov", "trust-ncg", "trust-exact"]:
-        fcn.vm.set_bound(bounds_dict)
+        # fcn.vm.set_bound(bounds_dict)
         return fit_newton_cg(fcn, method, False)
     elif method in ["Newton-CG-p", "trust-krylov-p", "trust-ncg-p"]:
-        fcn.vm.set_bound(bounds_dict)
+        # fcn.vm.set_bound(bounds_dict)
         return fit_newton_cg(fcn, method[:-2], True)
     elif method in ["iminuit"]:
         m = fit_minuit(fcn)
@@ -420,6 +421,7 @@ def fit_scipy(
         raise Exception("unknown method")
     if check_grad:
         print("checking gradients ...")
+        xn = np.array(fcn.vm.get_all_val(True))
         f_g = fcn.vm.trans_fcn_grad(fcn.nll_grad)
         _, gs0 = f_g(xn)
         gs = []

@@ -306,7 +306,7 @@ class ModelCfitExtended(Model):
           P(x_i;\\theta_k) = (1-f_{bg})Amp(x_i; \\theta_k) + f_{bg} Bg(x_{i};\\theta_k)
 
         .. math::
-          -\\ln L_{2} = -\\ln ( L \\lambda^{N_{data}} / {N_{data}}! e^{-\\lambda}) = -\\ L - N_{data} \\ln \\lambda + \\lambda + C
+          -\\ln L_{2} = -\\ln ( L \\lambda^{N_{data}} / {N_{data}}! e^{-\\lambda}) = -\\ln L - N_{data} \\ln \\lambda + \\lambda + C
 
         .. math::
           \\lambda = 1/(1-f_{bg}) \\int Amp(x_i; \\theta_k) d \\Phi
