@@ -254,12 +254,13 @@ def check_positive_definite(m):
     >>> check_positive_definite([[1.0,0.0],[0.0, 0.1]])
     True
 
-    >>> check_positive_definite([[1.0,0.0],[1.0,-0.1]])
+    >>> check_positive_definite([[1.0,0.0],[0.0,-0.1]])
     eigvalues:  [-0.1  1. ]
     False
 
     """
-    e, v = np.linalg.eig(m)
+    m = np.array(m)
+    e, v = np.linalg.eigh((m + m.T) / 2)
     if np.all(e > 0.0):
         return True
     warnings.warn("matrix is not positive definited")
