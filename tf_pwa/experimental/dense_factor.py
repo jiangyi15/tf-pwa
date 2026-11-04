@@ -945,6 +945,13 @@ class DenseFactorModel(BaseAmplitudeModel):
             "max_internal_lines": max_internal_lines,
         }
         self.M1 = tf.constant(M1, dtype=tf.float64)
+        coo = np.nonzero(
+            M1.reshape(n_u * max_internal_lines, n_param)
+        )
+        self.sparse_index = tf.constant(
+            np.stack(coo, axis=1), dtype=tf.int64
+        )
+        self.sparse_shape = (n_u * max_internal_lines, n_param)
         self.M1T = tf.reshape(
             tf.transpose(self.M1, [2, 0, 1]),
             [n_param, n_u * max_internal_lines],
@@ -1037,7 +1044,7 @@ class DenseFactorModel(BaseAmplitudeModel):
         else:
             B = tf.zeros((n_data, 0), dtype=F_chains[0].dtype)
         dtype = get_config("complex_dtype")
-        return tf.cast(F, dtype), tf.cast(B, dtype)
+        return tf.cast(F, dtype), tf.transpose(tf.cast(B, dtype))
 
     def pdf(self, data):
         dg = self.decay_group
@@ -1054,14 +1061,16 @@ class DenseFactorModel(BaseAmplitudeModel):
         C, g = dg.build_dense_coeff(structure)
         dtype = g.dtype
         B = tf.cast(B, dtype)
-        M1T = tf.cast(self.M1T, dtype)
         n_u = structure["n_u"]
         n_line = structure["max_internal_lines"]
         if n_line == 0:
             D = tf.ones((tf.shape(F)[0], n_u), dtype=g.dtype)
         else:
-            M1gT = M1T * g[:, None]
-            D = tf.matmul(B, M1gT)
+            values = tf.gather(g, self.sparse_index[:, 1])
+            sp = tf.sparse.SparseTensor(
+                self.sparse_index, values, self.sparse_shape
+            )
+            D = tf.transpose(tf.sparse.sparse_dense_matmul(sp, B))
             if n_line == 1 and self.line_mask_all:
                 D = tf.reshape(D, [tf.shape(F)[0], n_u])
             else:
