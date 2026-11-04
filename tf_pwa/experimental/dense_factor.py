@@ -20,6 +20,7 @@ This module must be imported before the amplitude is created, because the
 ``dense_factor`` preprocessor and amplitude model are registered on import.
 """
 
+import contextlib
 import functools
 import itertools
 
@@ -189,15 +190,13 @@ class _DefaultTerms:
             f_shape = self._F_shape(data_c["|q|"], m, L)
         else:
             f_shape = one
-        basis = tf.stack(
-            [
-                tf.complex(one, zero),
-                tf.complex(m * m, zero),
-                tf.complex(zero, -f_shape),
-            ],
-            axis=-1,
-        )
-        return {"num": [tf.cast(one, basis.dtype)], "den": [basis]}
+        one_c = tf.complex(one, zero)
+        basis = [
+            one_c,
+            tf.complex(m * m, zero),
+            tf.complex(zero, -f_shape),
+        ]
+        return {"num": [one_c], "den": basis}
 
     def get_term_coeff(self):
         """Return the current coefficients for the rational terms."""
@@ -216,20 +215,22 @@ class _DefaultTerms:
             L = self._get_bw_l()
             q0 = self._get_q0()
             f0 = self._F_shape(q0, tf.cast(m0, q0.dtype), L)
+            eps = tf.cast(1e-15, f0.dtype)
+            f0 = tf.where(
+                tf.abs(f0) > eps,
+                f0,
+                tf.where(f0 < 0, -eps, eps),
+            )
             f0 = tf.cast(f0, dtype)
         else:
             f0 = tf.cast(1.0, dtype)
-        if self.width_norm:
-            c0 = c_m0 * c_m0 / c_g0
-            c1 = -1.0 / c_g0
-            c2 = c_m0 / f0
-        else:
-            c0 = c_m0 * c_m0
-            c1 = tf.cast(-1.0, dtype)
-            c2 = c_m0 * c_g0 / f0
+        c0 = c_m0 * c_m0
+        c1 = tf.cast(-1.0, dtype)
+        c2 = c_m0 * c_g0 / f0
+        num = c_g0 if self.width_norm else tf.cast(1.0, dtype)
         return {
-            "num": [tf.cast(1.0, dtype)],
-            "den": [[c0, c1, c2]],
+            "num": [num],
+            "den": [c0, c1, c2],
         }
 
 
@@ -239,15 +240,13 @@ class _BWTerms:
         m = data["m"]
         one = tf.ones_like(m)
         zero = tf.zeros_like(m)
-        basis = tf.stack(
-            [
-                tf.complex(one, zero),
-                tf.complex(m * m, zero),
-                tf.complex(zero, -one),
-            ],
-            axis=-1,
-        )
-        return {"num": [tf.cast(one, basis.dtype)], "den": [basis]}
+        one_c = tf.complex(one, zero)
+        basis = [
+            one_c,
+            tf.complex(m * m, zero),
+            tf.complex(zero, -one),
+        ]
+        return {"num": [one_c], "den": basis}
 
     def get_term_coeff(self):
         g0 = self.get_width()
@@ -268,13 +267,30 @@ class _BWTerms:
         c2 = c_m0 * c_g0
         return {
             "num": [tf.cast(1.0, dtype)],
-            "den": [[c0, c1, c2]],
+            "den": [c0, c1, c2],
         }
 
     def get_sympy_dom(self, m, m0, g0, m1=None, m2=None, sheet=0):
         from tf_pwa.formula import BW_dom
 
         return BW_dom(m, m0, g0)
+
+
+@terms("one")
+class _OneTerms:
+    def get_term_basis(self, data, data_c=None, **kwargs):
+        m = data["m"]
+        one = tf.ones_like(m)
+        zero = tf.zeros_like(m)
+        basis = [tf.complex(one, zero)]
+        return {"num": [basis[0]], "den": basis}
+
+    def get_term_coeff(self):
+        dtype = get_config("complex_dtype")
+        return {
+            "num": [tf.cast(1.0, dtype)],
+            "den": [tf.cast(1.0, dtype)],
+        }
 
 
 @terms("GS_rho")
@@ -290,15 +306,13 @@ class _GSTerms:
         zero = tf.zeros_like(m)
         if not self.running_width:
             # ``get_amp`` falls back to the constant-width ``BW``.
-            basis = tf.stack(
-                [
-                    tf.complex(one, zero),
-                    tf.complex(m * m, zero),
-                    tf.complex(zero, -one),
-                ],
-                axis=-1,
-            )
-            return {"num": [tf.cast(one, basis.dtype)], "den": [basis]}
+            one_c = tf.complex(one, zero)
+            basis = [
+                one_c,
+                tf.complex(m * m, zero),
+                tf.complex(zero, -one),
+            ]
+            return {"num": [one_c], "den": basis}
         if data_c is None:
             return _DefaultTerms.get_term_basis(
                 self, data, data_c, **kwargs
@@ -311,17 +325,15 @@ class _GSTerms:
         k2 = twoBodyCMmom(m, c2, c3) ** 2
         h_m = hFun(m * m, c2, c3)
         f_m = self._F_shape(data_c["|q|"], m, L)
-        basis = tf.stack(
-            [
-                tf.complex(one, zero),
-                tf.complex(m * m, zero),
-                tf.complex(k2 * h_m, zero),
-                tf.complex(k2, zero),
-                tf.complex(zero, -f_m),
-            ],
-            axis=-1,
-        )
-        return {"num": [tf.cast(one, basis.dtype)], "den": [basis]}
+        one_c = tf.complex(one, zero)
+        basis = [
+            one_c,
+            tf.complex(m * m, zero),
+            tf.complex(k2 * h_m, zero),
+            tf.complex(k2, zero),
+            tf.complex(zero, -f_m),
+        ]
+        return {"num": [one_c], "den": basis}
 
     def get_term_coeff(self):
         g0 = self.get_width()
@@ -334,11 +346,9 @@ class _GSTerms:
             return {
                 "num": [tf.cast(1.0, dtype)],
                 "den": [
-                    [
-                        tf.cast(m0 * m0, dtype),
-                        tf.cast(-1.0, dtype),
-                        tf.cast(m0 * g0, dtype),
-                    ]
+                    tf.cast(m0 * m0, dtype),
+                    tf.cast(-1.0, dtype),
+                    tf.cast(m0 * g0, dtype),
                 ],
             }
         c_m0 = tf.cast(m0, dtype)
@@ -373,7 +383,7 @@ class _GSTerms:
             b,
             c_m0 * c_g0 / f0,
         ]
-        return {"num": [num], "den": [coeff]}
+        return {"num": [num], "den": coeff}
 
 
 @terms("Flatte")
@@ -389,8 +399,8 @@ class _FlatteTerms:
             p = cal_monentum(m, ma, mb)
             basis.append(sign * i_c * p / tf.cast(m, p.dtype))
         return {
-            "num": [tf.cast(one, basis[0].dtype)],
-            "den": [tf.stack(basis, axis=-1)],
+            "num": [basis[0]],
+            "den": basis,
         }
 
     def get_term_coeff(self):
@@ -399,7 +409,7 @@ class _FlatteTerms:
         coeff = [m0 * m0, tf.cast(-1.0, dtype)]
         for i in range(len(self.mass_list)):
             coeff.append(m0 * tf.cast(self.g_value[i](), dtype))
-        return {"num": [tf.cast(1.0, dtype)], "den": [coeff]}
+        return {"num": [tf.cast(1.0, dtype)], "den": coeff}
 
 
 @terms("spline_c_idx", requires=("get_amp", "interp"))
@@ -417,10 +427,10 @@ class _SplineTerms:
         m = data["m"]
         phi = self.spline_basis(m)
         n_term = phi.shape[-1]
-        one = tf.ones((tf.shape(m)[0], 1), dtype=phi.dtype)
+        one = tf.ones_like(m, dtype=phi.dtype)
         return {
             "num": [phi[..., i] for i in range(n_term)],
-            "den": [one for _ in range(n_term)],
+            "den": [one],
         }
 
     def get_term_coeff(self):
@@ -429,7 +439,7 @@ class _SplineTerms:
         one = tf.ones((), dtype=p.dtype)
         return {
             "num": [p[i] for i in range(n_term)],
-            "den": [[one] for _ in range(n_term)],
+            "den": [one],
         }
 
 
@@ -485,10 +495,15 @@ class _HelicityBasis:
             ret.append(b)
         return tf.stack(ret, axis=-1)
 
-    def get_barrier_coeff(self, q0, d=None):
+    def get_barrier_coeff(self, q0, d=None, q02=None):
         """Parameter-only coefficient F_l(q_0) (and q_0^{-l} if norm)."""
         if d is None:
             d = self.d
+        if q02 is None:
+            q02 = q0 * q0
+        if self.no_q0:
+            q0 = tf.ones_like(q0)
+            q02 = tf.ones_like(q02)
         ls = self.get_l_list()
         l_min = min(ls) if self.force_min_l else None
         ret = []
@@ -500,7 +515,7 @@ class _HelicityBasis:
                 if self.has_bprime:
                     c = Bprime_num(l, q0, d)
                 if self.has_ql and self.barrier_factor_norm:
-                    c = c / q0**l
+                    c = c / tf.cast(tf.abs(q02), c.dtype) ** (l / 2)
             ret.append(c)
         return tf.stack(ret)
 
@@ -540,7 +555,8 @@ class _HelicityBasis:
         ):
             return _AmpDecayBasis.get_amplitude_coeff(self)
         q0 = self.get_relative_momentum({}, False)
-        c = self.get_barrier_coeff(q0, self.d)
+        q02 = self.get_relative_momentum2({}, False)
+        c = self.get_barrier_coeff(q0, self.d, q02=q02)
         g = self.get_g_ls()
         coeff = g * tf.cast(c, g.dtype)
         return {"coeff": list(tf.unstack(coeff))}
@@ -754,35 +770,31 @@ class _DecayGroupBasis:
                     for d in meta["decays"]
                 ]
             )
-            num_vecs.append(
-                [p.get_term_coeff()["num"] for p in meta["lines"]]
-            )
-            den_vecs.append(
-                [p.get_term_coeff()["den"][0] for p in meta["lines"]]
-            )
+            term_coeffs = [p.get_term_coeff() for p in meta["lines"]]
+            num_vecs.append([c["num"] for c in term_coeffs])
+            den_vecs.append([c["den"] for c in term_coeffs])
 
+        dtype = get_config("complex_dtype")
         for u, k in enumerate(structure["u_chain"]):
             if k not in used_chains:
-                C.append(
-                    tf.zeros((), dtype=get_config("complex_dtype"))
-                )
+                C.append(tf.zeros((), dtype=dtype))
                 continue
-            c = chain_c[k]
+            c = tf.cast(chain_c[k], dtype)
             for d, ls_idx in enumerate(structure["u_ls"][u]):
-                c = c * ls_vecs[k][d][ls_idx]
+                c = c * tf.cast(ls_vecs[k][d][ls_idx], dtype)
             for l, term_idx in enumerate(structure["u_term"][u]):
-                c = c * num_vecs[k][l][term_idx]
-            C.append(tf.cast(c, get_config("complex_dtype")))
+                c = c * tf.cast(num_vecs[k][l][term_idx], dtype)
+            C.append(tf.cast(c, dtype))
 
         g_blocks = [g for row in den_vecs for block in row for g in block]
         if C:
             C = tf.stack(C)
         else:
-            C = tf.zeros((0,), dtype=get_config("complex_dtype"))
+            C = tf.zeros((0,), dtype=dtype)
         if g_blocks:
-            g = tf.cast(tf.stack(g_blocks), get_config("complex_dtype"))
+            g = tf.cast(tf.stack(g_blocks), dtype)
         else:
-            g = tf.zeros((0,), dtype=get_config("complex_dtype"))
+            g = tf.zeros((0,), dtype=dtype)
         return C, g
 
 
@@ -793,17 +805,48 @@ class _DecayGroupBasis:
 
 @register_preprocessor("dense_factor")
 class DenseFactorPreProcessor(CachedAnglePreProcessor):
+    """Precompute the dense ``F`` and ``B`` tensors.
+
+    Config::
+
+        data:
+          preprocessor:
+            dense_factor:
+              force_cpu: true
+
+    With ``force_cpu``, the angle pre-processing and the ``F``/``B``
+    construction run on CPU.  Only the final ``F`` and ``B`` tensors are
+    copied to GPU, using ``tf.identity``.
+    """
+
+    def __init__(self, *args, force_cpu=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.force_cpu = force_cpu
+        self.gpu_device = None
+        if tf.config.list_physical_devices("GPU"):
+            self.gpu_device = "/GPU:0"
+
     def call(self, x, **kwargs):
-        x = BasePreProcessor.call(self, x, **kwargs)
-        structure = getattr(self.amp, "structure", None)
-        if structure is None:
-            # Trigger the particle-specific NotImplementedError.
-            self.decay_group.get_particle_terms(x)
-            return x
-        F, B, spin_shape = self.amp.build_dense_terms(x)
+        if self.force_cpu:
+            ctx = tf.device("/CPU:0")
+        else:
+            ctx = contextlib.nullcontext()
+        with ctx:
+            x = BasePreProcessor.call(self, x, **kwargs)
+            structure = getattr(self.amp, "structure", None)
+            if structure is None:
+                # Trigger the particle-specific NotImplementedError.
+                self.decay_group.get_particle_terms(x)
+                return x
+            F, B = self.amp.build_dense_terms(x)
+
+        if self.force_cpu and self.gpu_device is not None:
+            # Only the final cached F and B are moved to the GPU.
+            F = tf.identity(F)
+            B = tf.identity(B)
+
         x["F"] = F
         x["B"] = B
-        x["F_spin_shape"] = spin_shape
         return x
 
 
@@ -826,19 +869,11 @@ class DenseFactorModel(BaseAmplitudeModel):
             lines = list(chain.inner)
             n_ls = [len(d.get_ls_list()) for d in decays]
             try:
-                n_term = [len(p.get_term_coeff()["num"]) for p in lines]
-                den_list = [p.get_term_coeff()["den"] for p in lines]
+                terms = [p.get_term_coeff() for p in lines]
             except NotImplementedError:
                 return
-            den_sizes = []
-            for d in den_list:
-                if len(d) == 1:
-                    den_sizes.append(len(d[0]))
-                elif all(len(i) == 1 for i in d):
-                    # multiple numerator terms, denominator is 1
-                    den_sizes.append(1)
-                else:
-                    return
+            n_term = [len(t["num"]) for t in terms]
+            den_sizes = [len(t["den"]) for t in terms]
 
             n_internal_lines = len(lines)
             max_internal_lines = max(
@@ -877,7 +912,6 @@ class DenseFactorModel(BaseAmplitudeModel):
         )
         n_u = len(u_chain)
 
-        param_offset = []
         off = 0
         for meta in chain_meta:
             offsets = []
@@ -955,9 +989,9 @@ class DenseFactorModel(BaseAmplitudeModel):
 
             n_ls_combo = int(np.prod(n_ls)) if n_ls else 1
             n_decay = len(decays)
-            spin_shape = list(F_chain.shape[1 + n_decay :])
+            f_shape = list(F_chain.shape[1 + n_decay :])
             F_ls = tf.reshape(
-                F_chain, [n_data, n_ls_combo] + spin_shape
+                F_chain, [n_data, n_ls_combo] + f_shape
             )
 
             term_combos = (
@@ -982,29 +1016,28 @@ class DenseFactorModel(BaseAmplitudeModel):
                     F_list.append(base * tf.reshape(f, shape))
 
             for l in range(len(lines)):
-                B_blocks.append(
-                    tf.cast(
-                        particle_terms[idx][l][1]["den"][0],
-                        F_chain.dtype,
-                    )
-                )
+                B_blocks.append(particle_terms[idx][l][1]["den"])
 
         if F_list:
             F = tf.stack(F_list, axis=1)
-            spin_shape = tuple(F.shape[2:])
             F = tf.reshape(F, [n_data, len(F_list), -1])
             F = tf.transpose(F, [0, 2, 1])
         else:
-            spin_shape = ()
             F = tf.zeros((n_data, 0, 0), dtype=F_chains[0].dtype)
-        if B_blocks:
-            B = tf.concat(B_blocks, axis=-1)
+        B_cols = [
+            tf.cast(col, F_chains[0].dtype)
+            for block in B_blocks
+            for col in block
+        ]
+        if B_cols:
+            B = tf.stack(B_cols, axis=-1)
             B = tf.matmul(
                 B, tf.cast(self.M2, B.dtype), transpose_b=True
             )
         else:
             B = tf.zeros((n_data, 0), dtype=F_chains[0].dtype)
-        return F, B, spin_shape
+        dtype = get_config("complex_dtype")
+        return tf.cast(F, dtype), tf.cast(B, dtype)
 
     def pdf(self, data):
         dg = self.decay_group
@@ -1015,9 +1048,8 @@ class DenseFactorModel(BaseAmplitudeModel):
 
         F = data.get("F", None)
         B = data.get("B", None)
-        spin_shape = data.get("F_spin_shape", None)
         if F is None or B is None:
-            F, B, spin_shape = self.build_dense_terms(data)
+            F, B = self.build_dense_terms(data)
 
         C, g = dg.build_dense_coeff(structure)
         dtype = g.dtype
@@ -1039,10 +1071,8 @@ class DenseFactorModel(BaseAmplitudeModel):
                 )
                 D = tf.reduce_prod(D, axis=-1)
 
-        e = tf.shape(F)[0]
-        W = C[None, :] / D
+        W = tf.math.divide_no_nan(C[None, :], D)
         amp = tf.linalg.matvec(F, W)
-        amp = tf.reshape(amp, [e] + list(spin_shape))
         return dg.sum_with_polarization(amp)
 
 

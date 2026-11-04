@@ -1,18 +1,23 @@
 import numpy as np
 
 import tf_pwa.amp  # noqa: F401  (register models)
-import tf_pwa.experimental.dense_factor  # noqa: F401  (install dense plugin)
 import tf_pwa.amp.interpolation  # noqa: F401
+import tf_pwa.experimental.dense_factor  # noqa: F401  (install dense plugin)
 from tf_pwa.config_loader import ConfigLoader
 from tf_pwa.phasespace import generate_phsp
 
 
-def _config(particle):
+def _config(particle, top=None, decay_opts=None):
+    if top is None:
+        top = {"J": 0, "P": 1, "mass": 4.6}
+    r_decay = ["B", "D"]
+    if decay_opts is not None:
+        r_decay = ["B", "D", decay_opts]
     return {
         "data": {"format": "simple", "random_z": False, "r_boost": False},
-        "decay": {"A": [["R", "C"]], "R": ["B", "D"]},
+        "decay": {"A": [["R", "C"]], "R": r_decay},
         "particle": {
-            "$top": {"A": {"J": 0, "P": 1, "mass": 4.6}},
+            "$top": {"A": top},
             "$finals": {
                 "B": {"J": 0, "P": 1, "mass": 1.0},
                 "C": {"J": 0, "P": 1, "mass": 0.5},
@@ -23,13 +28,18 @@ def _config(particle):
     }
 
 
-def _compare(particle):
-    cfg = _config(particle)
+def _compare(particle, force_cpu=False, top=None, decay_opts=None):
+    cfg = _config(particle, top=top, decay_opts=decay_opts)
+    preprocessor = (
+        {"dense_factor": {"force_cpu": True}}
+        if force_cpu
+        else "dense_factor"
+    )
     cfg2 = {
         **cfg,
         "data": {
             **cfg["data"],
-            "preprocessor": "dense_factor",
+            "preprocessor": preprocessor,
             "amp_model": "dense_factor",
         },
     }
@@ -72,6 +82,81 @@ def test_dense_factor_bw():
             "running_width": False,
         }
     )
+
+
+def test_dense_factor_one():
+    _compare({"J": 0, "P": 1, "model": "one"})
+
+
+def test_dense_factor_force_cpu():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BW",
+            "running_width": False,
+        },
+        force_cpu=True,
+    )
+
+
+def test_dense_factor_polarization():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BW",
+            "running_width": False,
+        },
+        top={"J": 1, "P": -1, "mass": 4.6, "polarization": "vector"},
+    )
+
+
+def test_dense_factor_no_q0():
+    _compare(
+        {
+            "J": 1,
+            "P": -1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BWR",
+        },
+        top={"J": 1, "P": -1, "mass": 4.6},
+        decay_opts={"no_q0": True},
+    )
+
+
+def test_dense_factor_below_threshold_finite():
+    cfg = _config(
+        {
+            "J": 1,
+            "P": -1,
+            "m0": 1.0,
+            "g0": 0.1,
+            "model": "BWR",
+        },
+        top={"J": 1, "P": -1, "mass": 4.6},
+    )
+    cfg2 = {
+        **cfg,
+        "data": {
+            **cfg["data"],
+            "preprocessor": "dense_factor",
+            "amp_model": "dense_factor",
+        },
+    }
+    (p_b, p_d), p_c = generate_phsp(
+        4.6, ((2.0, (1.0, 0.4)), 0.5), N=10
+    )
+    config = ConfigLoader(cfg2)
+    data = config.data.cal_angle({"B": p_b, "D": p_d, "C": p_c})
+    amp = config.get_amplitude()
+    values = amp(data).numpy()
+    assert np.all(np.isfinite(values))
 
 
 def test_dense_factor_bwr():
@@ -147,6 +232,39 @@ def test_dense_factor_bw_width_norm():
             "width_norm": True,
         }
     )
+
+
+def test_dense_factor_bwr_width_norm():
+    _compare(
+        {
+            "J": 1,
+            "P": -1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BWR",
+            "width_norm": True,
+        },
+        top={"J": 1, "P": -1, "mass": 4.6},
+    )
+
+
+def test_dense_factor_complex64():
+    from tf_pwa.config import get_config, set_config
+
+    old = get_config("complex_dtype")
+    set_config("complex_dtype", "complex64")
+    try:
+        _compare(
+            {
+                "J": 0,
+                "P": 1,
+                "m0": 2.0,
+                "g0": 0.1,
+                "model": "BWR",
+            }
+        )
+    finally:
+        set_config("complex_dtype", old)
 
 
 def test_dense_factor_spline():    _compare(
