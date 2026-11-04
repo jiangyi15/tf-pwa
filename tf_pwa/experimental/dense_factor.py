@@ -754,7 +754,6 @@ class _DecayGroupBasis:
     def build_dense_coeff(self, structure):
         """Build numerator and denominator coefficients for a term cache."""
         C = []
-        used_chains = set(self.chains_idx)
 
         chain_c = []
         ls_vecs = []
@@ -776,9 +775,6 @@ class _DecayGroupBasis:
 
         dtype = get_config("complex_dtype")
         for u, k in enumerate(structure["u_chain"]):
-            if k not in used_chains:
-                C.append(tf.zeros((), dtype=dtype))
-                continue
             c = tf.cast(chain_c[k], dtype)
             for d, ls_idx in enumerate(structure["u_ls"][u]):
                 c = c * tf.cast(ls_vecs[k][d][ls_idx], dtype)
@@ -960,6 +956,19 @@ class DenseFactorModel(BaseAmplitudeModel):
         self.line_mask = tf.constant(line_mask)
         self.line_mask_all = bool(np.all(line_mask))
 
+        self._coeff_fn = None
+        if n_u > 0 and n_param > 0:
+            dg = self.decay_group
+            structure = self.structure
+
+            def _build_coeff():
+                return dg.build_dense_coeff(structure)
+
+            try:
+                self._coeff_fn = tf.function(_build_coeff)
+            except Exception:
+                self._coeff_fn = None
+
     def build_dense_terms(self, data):
         structure = self.structure
         dg = self.decay_group
@@ -1058,8 +1067,24 @@ class DenseFactorModel(BaseAmplitudeModel):
         if F is None or B is None:
             F, B = self.build_dense_terms(data)
 
-        C, g = dg.build_dense_coeff(structure)
+        C, g = None, None
+        if self._coeff_fn is not None:
+            try:
+                C, g = self._coeff_fn()
+            except Exception:
+                self._coeff_fn = None
+        if C is None:
+            C, g = dg.build_dense_coeff(structure)
         dtype = g.dtype
+        used = set(dg.chains_idx)
+        mask = tf.constant(
+            [
+                1.0 if k in used else 0.0
+                for k in structure["u_chain"]
+            ],
+            dtype=dtype,
+        )
+        C = C * mask
         B = tf.cast(B, dtype)
         n_u = structure["n_u"]
         n_line = structure["max_internal_lines"]
