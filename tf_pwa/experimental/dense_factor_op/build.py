@@ -24,30 +24,65 @@ missing piece; nothing else in ``tf_pwa`` depends on this module.
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 _DIR = Path(__file__).resolve().parent
 _CC = _DIR / "dense_factor_op.cc"
 _CU = _DIR / "dense_factor_op.cu"
 
+#: Flags used for both the device and host compilation.
+COMPILE_FLAGS = (
+    "-std=c++17",
+    "-O3",
+    "-D_GLIBCXX_USE_CXX11_ABI=1",
+)
+
+
+CACHE_ENV = "TF_PWA_CACHE_DIR"
+
+
+def _writable(path):
+    path.mkdir(parents=True, exist_ok=True)
+    probe = path / ".write_test"
+    probe.write_bytes(b"")
+    probe.unlink()
+    return path
+
 
 def _cache_dir():
-    """Writable directory for the compiled library.
+    """Directory holding the op library.
+
+    Resolution order:
+
+    1. ``$TF_PWA_CACHE_DIR``, always a directory.  A library already in
+       it is reused, which is how a prebuilt ``.so`` is deployed.
+    2. ``$XDG_CACHE_HOME/tf_pwa/dense_factor_op`` (default
+       ``~/.cache/tf_pwa/dense_factor_op``).
+    3. The package directory, if neither of the above is writable.
 
     The package directory is read-only under a normal ``site-packages``
-    install, so prefer the user cache and only fall back to the package
-    directory when no cache can be created.
+    install, which is why the user cache is preferred.
     """
+    explicit = os.environ.get(CACHE_ENV)
+    if explicit:
+        path = Path(explicit)
+        if path.exists() and not path.is_dir():
+            raise RuntimeError(
+                f"{CACHE_ENV}={explicit!r} is not a directory"
+            )
+        try:
+            return _writable(path)
+        except OSError as exc:
+            raise RuntimeError(
+                f"{CACHE_ENV}={explicit!r} is not writable: {exc}"
+            )
     base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
-    cand = Path(base) / "tf_pwa" / "dense_factor_op"
     try:
-        cand.mkdir(parents=True, exist_ok=True)
-        probe = cand / ".write_test"
-        probe.write_bytes(b"")
-        probe.unlink()
-        return cand
+        return _writable(Path(base) / "tf_pwa" / "dense_factor_op")
     except OSError:
         return _DIR
 
@@ -113,6 +148,13 @@ def _arch():
 
 
 def _source_hash():
+    """Digest of the kernel sources.
+
+    Compile flags, the host compiler and the CUDA toolkit are not part of
+    it: they are environment, not identity, and including them would stop
+    a binary built on another machine from matching.  After changing any
+    of them, rebuild with ``force=True``.
+    """
     h = hashlib.sha256()
     for p in (_CC, _CU):
         h.update(p.read_bytes())
@@ -120,20 +162,30 @@ def _source_hash():
 
 
 def build(force=False):
-    """Compile the op if needed and return the path of the ``.so``."""
+    """Return the path of the compiled op, building it if needed.
+
+    A library named for the current source digest, TensorFlow version and
+    arch is reused instead of building, so a prebuilt ``.so`` is deployed
+    by copying it into ``$TF_PWA_CACHE_DIR`` under that exact name.  Any
+    other file there is ignored.
+
+    The digest covers only the kernel sources.  Changing a compile flag,
+    the host compiler or the CUDA toolkit therefore does not invalidate
+    the cache; use ``force=True`` or ``--force`` after such a change.
+    """
+    cache = _cache_dir()
+
     import tensorflow as tf
 
     tf_inc = Path(tf.sysconfig.get_include())
     tf_lib = Path(tf.sysconfig.get_lib())
 
-    cache = _cache_dir()
+    arch = os.environ.get("DENSE_OP_ARCH") or _arch()
     digest = _source_hash()
-    tag = f"{digest}-tf{tf.__version__}-{_arch()}"
+    tag = f"{digest}-tf{tf.__version__}-{arch}"
     so = cache / f"_dense_factor_op-{tag}.so"
-    marker = cache / f"_dense_factor_op-{tag}.hash"
-    if not force and so.exists() and marker.exists():
-        if marker.read_text().strip() == digest:
-            return str(so)
+    if not force and so.exists():
+        return str(so)
 
     cuda_inc = _cuda_include()
     if cuda_inc is None:
@@ -149,15 +201,11 @@ def build(force=False):
             "(conda: `conda install -c conda-forge libabseil`)"
         )
 
-    arch = os.environ.get("DENSE_OP_ARCH") or _arch()
-    abi = "-D_GLIBCXX_USE_CXX11_ABI=1"
     inc = [
         f"-I{cuda_inc}",
         f"-I{tf_inc}",
         f"-I{absl_inc}",
-        abi,
-        "-std=c++17",
-        "-O3",
+        *COMPILE_FLAGS,
         "-w",
     ]
     cc_obj = cache / f"_dense_factor_op-{tag}.cc.o"
@@ -207,5 +255,84 @@ def build(force=False):
                 + r.stdout
                 + r.stderr
             )
-    marker.write_text(digest)
     return str(so)
+
+
+def _prune_cache(cache, so_path):
+    """Remove stale libraries for the *same* TF version and arch.
+
+    Builds for a different ``-tf<version>-sm<XX>`` suffix are kept, so a
+    shared cache can hold several targets.  Files that are not
+    ``_dense_factor_op-*`` are never touched.
+    """
+    name = Path(so_path).name
+    match = re.match(r"_dense_factor_op-(.*)(-tf.+-sm[\d_]+)\.so$", name)
+    if match is None:
+        return []
+    keep = name[: -len(".so")]
+    suffix = match.group(2)  # -tf2.21.0-sm_120
+
+    removed = []
+    for path in sorted(Path(cache).glob("_dense_factor_op-*")):
+        if suffix not in path.name:
+            continue          # another TF version or arch: keep
+        if path.name.startswith(keep):
+            continue          # the build just resolved
+        try:
+            path.unlink()
+            removed.append(path.name)
+        except OSError:
+            pass
+    return removed
+
+
+def main(argv=None):
+    """Build the op from the command line, e.g. for CI artefacts.
+
+    ``python -m tf_pwa.experimental.dense_factor_op.build`` prints the
+    path of the library, building it if the cache has no match.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m tf_pwa.experimental.dense_factor_op.build",
+        description="Build the dense-factor custom op and print its path.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="rebuild even if a cached library matches",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default=None,
+        metavar="DIR",
+        help=f"build into DIR (same as {CACHE_ENV})",
+    )
+    parser.add_argument(
+        "--arch",
+        default=None,
+        metavar="sm_XX",
+        help="target compute capability (same as DENSE_OP_ARCH)",
+    )
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="delete other _dense_factor_op-* files from the cache dir",
+    )
+    args = parser.parse_args(argv)
+
+    if args.cache_dir:
+        os.environ[CACHE_ENV] = args.cache_dir
+    if args.arch:
+        os.environ["DENSE_OP_ARCH"] = args.arch
+    so = build(force=args.force)
+    print(so)
+    if args.prune:
+        for name in _prune_cache(_cache_dir(), so):
+            print("pruned " + name, file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
