@@ -45,9 +45,7 @@ class DenseFactorOpModel(DenseFactorModel):
                 "got %d" % n_line
             )
         metas = structure["chain_meta"]
-        off = [
-            metas[k]["param_offset"][0] for k in structure["u_chain"]
-        ]
+        off = [metas[k]["param_offset"][0] for k in structure["u_chain"]]
         sz = [metas[k]["den_sizes"][0] for k in structure["u_chain"]]
         return (
             tf.constant(off, dtype=tf.int32),
@@ -76,10 +74,7 @@ class DenseFactorOpModel(DenseFactorModel):
         C, g = self._get_coeff()
         used = set(dg.chains_idx)
         mask = tf.constant(
-            [
-                1.0 if k in used else 0.0
-                for k in structure["u_chain"]
-            ],
+            [1.0 if k in used else 0.0 for k in structure["u_chain"]],
             dtype=C.dtype,
         )
         C = C * mask
@@ -88,6 +83,11 @@ class DenseFactorOpModel(DenseFactorModel):
         # F is [ne, n_pol, n_u]; the kernel sums |A_p|^2 over the middle
         # axis with one shared denominator.
         return dense_factor_p(
-            tf.cast(F, g.dtype), tf.cast(B, g.dtype), C, g, off, sz,
+            tf.cast(F, g.dtype),
+            tf.cast(B, g.dtype),
+            C,
+            g,
+            off,
+            sz,
             max_basis=max_basis,
         )

@@ -71,9 +71,7 @@ def _cache_dir():
     if explicit:
         path = Path(explicit)
         if path.exists() and not path.is_dir():
-            raise RuntimeError(
-                f"{CACHE_ENV}={explicit!r} is not a directory"
-            )
+            raise RuntimeError(f"{CACHE_ENV}={explicit!r} is not a directory")
         try:
             return _writable(path)
         except OSError as exc:
@@ -275,9 +273,9 @@ def _prune_cache(cache, so_path):
     removed = []
     for path in sorted(Path(cache).glob("_dense_factor_op-*")):
         if suffix not in path.name:
-            continue          # another TF version or arch: keep
+            continue  # another TF version or arch: keep
         if path.name.startswith(keep):
-            continue          # the build just resolved
+            continue  # the build just resolved
         try:
             path.unlink()
             removed.append(path.name)

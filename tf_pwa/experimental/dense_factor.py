@@ -163,9 +163,7 @@ class _DefaultTerms:
         if d is None:
             d = self.d
         q = tf.cast(q, m.dtype)
-        return q ** (2 * L + 1) / (
-            m * Bprime_polynomial(L, (q * d) ** 2)
-        )
+        return q ** (2 * L + 1) / (m * Bprime_polynomial(L, (q * d) ** 2))
 
     def get_term_basis(self, data, data_c=None, **kwargs):
         """Return the data-only basis of the rational terms."""
@@ -299,9 +297,7 @@ class _GSTerms:
         m = data["m"]
         g0 = self.get_width()
         if g0 is None:
-            return _DefaultTerms.get_term_basis(
-                self, data, data_c, **kwargs
-            )
+            return _DefaultTerms.get_term_basis(self, data, data_c, **kwargs)
         one = tf.ones_like(m)
         zero = tf.zeros_like(m)
         if not self.running_width:
@@ -314,9 +310,7 @@ class _GSTerms:
             ]
             return {"num": [one_c], "den": basis}
         if data_c is None:
-            return _DefaultTerms.get_term_basis(
-                self, data, data_c, **kwargs
-            )
+            return _DefaultTerms.get_term_basis(self, data, data_c, **kwargs)
         L = self.bw_l
         if L is None:
             L = min(self.decay[0].get_l_list())
@@ -368,14 +362,19 @@ class _GSTerms:
         b = -a * tf.cast(h0, dtype)
         c = c_g0 * c_m0**4 * tf.cast(dh0, dtype) / tf.cast(k0, dtype)
         d = -c_g0 * c_m0 * c_m0 * tf.cast(dh0, dtype) / tf.cast(k0, dtype)
-        num = 1.0 + tf.cast(
-            dFun(
-                tf.cast(m0 * m0, tf.float64),
-                c2,
-                c3,
-            ),
-            dtype,
-        ) * c_g0 / c_m0
+        num = (
+            1.0
+            + tf.cast(
+                dFun(
+                    tf.cast(m0 * m0, tf.float64),
+                    c2,
+                    c3,
+                ),
+                dtype,
+            )
+            * c_g0
+            / c_m0
+        )
         coeff = [
             c_m0 * c_m0 + c,
             tf.cast(-1.0, dtype) + d,
@@ -533,14 +532,11 @@ class _HelicityBasis:
         basis = self.get_factor_angle_amp(data, data_p, **kwargs)
         if self.has_barrier_factor:
             q = self.cache_relative_p(data, data_p)
-            bf = self.get_barrier_basis(
-                q, data_p[self.core]["m"], self.d
-            )
+            bf = self.get_barrier_basis(q, data_p[self.core]["m"], self.d)
             bf = tf.cast(bf, basis.dtype)
             bf = tf.reshape(
                 bf,
-                [bf.shape[0], bf.shape[1]]
-                + [1] * (len(basis.shape) - 2),
+                [bf.shape[0], bf.shape[1]] + [1] * (len(basis.shape) - 2),
             )
             basis = basis * bf
         return {"basis": basis, "transform": None}
@@ -595,14 +591,12 @@ class _DecayChainBasis:
             indices.append(tmp_idx)
             used_idx += next_map[0]
             amp_d.append(
-                i.get_amplitude_basis(
-                    data_c[i], data_p, all_data=all_data
-                )["basis"]
+                i.get_amplitude_basis(data_c[i], data_p, all_data=all_data)[
+                    "basis"
+                ]
             )
             next_map = next_map[1:]
-        final_indices = "".join(
-            iter_idx + list(used_idx) + final_indices
-        )
+        final_indices = "".join(iter_idx + list(used_idx) + final_indices)
 
         if self.aligned:
             from tf_pwa.dfun import get_D_matrix_lambda
@@ -712,9 +706,7 @@ class _DecayGroupBasis:
             data_c = rename_data_dict(data_decay_i, maps)
             data_p = rename_data_dict(data_particle, maps)
             ret.append(
-                decay_chain.get_particle_terms(
-                    data_p, data_c, all_data=data
-                )
+                decay_chain.get_particle_terms(data_p, data_c, all_data=data)
             )
         return ret
 
@@ -751,9 +743,7 @@ class _DecayGroupBasis:
         return ret
 
     def get_amplitude_coeff(self):
-        return [
-            self.chains[i].get_amplitude_coeff() for i in self.chains_idx
-        ]
+        return [self.chains[i].get_amplitude_coeff() for i in self.chains_idx]
 
     def build_dense_coeff(self, structure):
         """Build numerator and denominator coefficients for a term cache."""
@@ -764,14 +754,9 @@ class _DecayGroupBasis:
         num_vecs = []
         den_vecs = []
         for meta in structure["chain_meta"]:
-            chain_c.append(
-                tf.reshape(meta["chain"].get_amp_total(), (-1,))[0]
-            )
+            chain_c.append(tf.reshape(meta["chain"].get_amp_total(), (-1,))[0])
             ls_vecs.append(
-                [
-                    d.get_amplitude_coeff()["coeff"]
-                    for d in meta["decays"]
-                ]
+                [d.get_amplitude_coeff()["coeff"] for d in meta["decays"]]
             )
             term_coeffs = [p.get_term_coeff() for p in meta["lines"]]
             num_vecs.append([c["num"] for c in term_coeffs])
@@ -796,6 +781,7 @@ class _DecayGroupBasis:
         else:
             g = tf.zeros((0,), dtype=dtype)
         return C, g
+
 
 # ---------------------------------------------------------------------------
 # Amplitude model
@@ -875,9 +861,7 @@ class DenseFactorModel(BaseAmplitudeModel):
             den_sizes = [len(t["den"]) for t in terms]
 
             n_internal_lines = len(lines)
-            max_internal_lines = max(
-                max_internal_lines, n_internal_lines
-            )
+            max_internal_lines = max(max_internal_lines, n_internal_lines)
 
             chain_meta.append(
                 {
@@ -906,9 +890,7 @@ class DenseFactorModel(BaseAmplitudeModel):
                     u_ls.append(list(ls))
                     u_term.append(list(term))
 
-        n_param = sum(
-            sum(meta["den_sizes"]) for meta in chain_meta
-        )
+        n_param = sum(sum(meta["den_sizes"]) for meta in chain_meta)
         n_u = len(u_chain)
 
         off = 0
@@ -919,12 +901,8 @@ class DenseFactorModel(BaseAmplitudeModel):
                 off += size
             meta["param_offset"] = offsets
 
-        M1 = np.zeros(
-            (n_u, max_internal_lines, n_param), dtype=np.float64
-        )
-        line_mask = np.zeros(
-            (n_u, max_internal_lines), dtype=bool
-        )
+        M1 = np.zeros((n_u, max_internal_lines, n_param), dtype=np.float64)
+        line_mask = np.zeros((n_u, max_internal_lines), dtype=bool)
 
         for u, k in enumerate(u_chain):
             meta = chain_meta[k]
@@ -944,12 +922,8 @@ class DenseFactorModel(BaseAmplitudeModel):
             "max_internal_lines": max_internal_lines,
         }
         self.M1 = tf.constant(M1, dtype=tf.float64)
-        coo = np.nonzero(
-            M1.reshape(n_u * max_internal_lines, n_param)
-        )
-        self.sparse_index = tf.constant(
-            np.stack(coo, axis=1), dtype=tf.int64
-        )
+        coo = np.nonzero(M1.reshape(n_u * max_internal_lines, n_param))
+        self.sparse_index = tf.constant(np.stack(coo, axis=1), dtype=tf.int64)
         self.sparse_shape = (n_u * max_internal_lines, n_param)
         self.M1T = tf.reshape(
             tf.transpose(self.M1, [2, 0, 1]),
@@ -1009,9 +983,7 @@ class DenseFactorModel(BaseAmplitudeModel):
             n_ls_combo = int(np.prod(n_ls)) if n_ls else 1
             n_decay = len(decays)
             f_shape = list(F_chain.shape[1 + n_decay :])
-            F_ls = tf.reshape(
-                F_chain, [n_data, n_ls_combo] + f_shape
-            )
+            F_ls = tf.reshape(F_chain, [n_data, n_ls_combo] + f_shape)
 
             term_combos = (
                 list(itertools.product(*[range(i) for i in n_term]))
@@ -1050,9 +1022,7 @@ class DenseFactorModel(BaseAmplitudeModel):
         ]
         if B_cols:
             B = tf.stack(B_cols, axis=-1)
-            B = tf.matmul(
-                B, tf.cast(self.M2, B.dtype), transpose_b=True
-            )
+            B = tf.matmul(B, tf.cast(self.M2, B.dtype), transpose_b=True)
         else:
             B = tf.zeros((n_data, 0), dtype=F_chains[0].dtype)
         dtype = get_config("complex_dtype")
@@ -1099,10 +1069,7 @@ class DenseFactorModel(BaseAmplitudeModel):
         dtype = g.dtype
         used = set(dg.chains_idx)
         mask = tf.constant(
-            [
-                1.0 if k in used else 0.0
-                for k in structure["u_chain"]
-            ],
+            [1.0 if k in used else 0.0 for k in structure["u_chain"]],
             dtype=dtype,
         )
         C = C * mask
@@ -1125,9 +1092,7 @@ class DenseFactorModel(BaseAmplitudeModel):
                 D = tf.reshape(D, [tf.shape(F)[0], n_u])
             else:
                 D = tf.reshape(D, [tf.shape(F)[0], n_u, n_line])
-                D = tf.where(
-                    self.line_mask[None, :, :], D, tf.ones_like(D)
-                )
+                D = tf.where(self.line_mask[None, :, :], D, tf.ones_like(D))
                 D = tf.reduce_prod(D, axis=-1)
 
         W = tf.math.divide_no_nan(C[None, :], D)

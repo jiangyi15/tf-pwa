@@ -92,7 +92,7 @@ def _make_p(max_basis):
     @tf.custom_gradient
     def fn(f, bt, c, g, off, sz):
         if f.shape.rank == 2:
-            f = tf.expand_dims(f, 1)   # [ne, nu] -> [ne, 1, nu]
+            f = tf.expand_dims(f, 1)  # [ne, nu] -> [ne, 1, nu]
         a, p = _load().dense_factor_fwd(
             f, bt, c, g, off, sz, max_basis=max_basis
         )

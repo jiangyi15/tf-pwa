@@ -28,13 +28,16 @@ def _config(particle, top=None, decay_opts=None):
     }
 
 
-def _compare(particle, force_cpu=False, top=None, decay_opts=None,
-             amp_model="dense_factor"):
+def _compare(
+    particle,
+    force_cpu=False,
+    top=None,
+    decay_opts=None,
+    amp_model="dense_factor",
+):
     cfg = _config(particle, top=top, decay_opts=decay_opts)
     preprocessor = (
-        {"dense_factor": {"force_cpu": True}}
-        if force_cpu
-        else "dense_factor"
+        {"dense_factor": {"force_cpu": True}} if force_cpu else "dense_factor"
     )
     cfg2 = {
         **cfg,
@@ -150,9 +153,7 @@ def test_dense_factor_below_threshold_finite():
             "amp_model": "dense_factor",
         },
     }
-    (p_b, p_d), p_c = generate_phsp(
-        4.6, ((2.0, (1.0, 0.4)), 0.5), N=10
-    )
+    (p_b, p_d), p_c = generate_phsp(4.6, ((2.0, (1.0, 0.4)), 0.5), N=10)
     config = ConfigLoader(cfg2)
     data = config.data.cal_angle({"B": p_b, "D": p_d, "C": p_c})
     amp = config.get_amplitude()
@@ -268,7 +269,8 @@ def test_dense_factor_complex64():
         set_config("complex_dtype", old)
 
 
-def test_dense_factor_spline():    _compare(
+def test_dense_factor_spline():
+    _compare(
         {
             "J": 0,
             "P": 1,
@@ -317,9 +319,7 @@ def test_decay_amplitude_terms():
             basis = dec.get_amplitude_basis(data_c[dec], data_p)["basis"]
             coeff = tf.stack(dec.get_amplitude_coeff()["coeff"])
             shape = [1, -1] + [1] * (len(basis.shape) - 2)
-            recon = tf.reduce_sum(
-                tf.reshape(coeff, shape) * basis, axis=1
-            )
+            recon = tf.reduce_sum(tf.reshape(coeff, shape) * basis, axis=1)
             ref = dec.get_amp(data_c[dec], data_p)
             assert np.allclose(recon.numpy(), ref.numpy())
 
@@ -442,9 +442,7 @@ def test_dense_factor_unsupported_symmetry():
     config = ConfigLoader(cfg2)
     amp = config.get_amplitude()
 
-    with pytest.raises(
-        NotImplementedError, match="identical-particle"
-    ):
+    with pytest.raises(NotImplementedError, match="identical-particle"):
         amp.build_dense_terms({"id_swap": {"x": {}}})
 
     with pytest.raises(NotImplementedError, match="CP conjugation"):
