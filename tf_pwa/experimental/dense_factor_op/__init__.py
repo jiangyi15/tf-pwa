@@ -37,18 +37,25 @@ def _load():
     """Build/load the op on first use (never at import time)."""
     global _lib
     if _lib is None:
+        if not tf.config.list_physical_devices("GPU"):
+            raise RuntimeError(
+                "dense_factor_op has GPU kernels only; no GPU is visible "
+                "to TensorFlow"
+            )
         _lib = tf.load_op_library(build())
     return _lib
 
 
 def is_available():
-    """Return whether the op can be built and loaded on this machine.
+    """Return whether the op can be built, loaded and run on this machine.
 
     Importing this module never compiles anything; call this (or
     :func:`dense_factor_p`) to opt in.  Returns ``False`` instead of
-    raising when nvcc, g++, the CUDA toolkit or the abseil headers are
-    missing.
+    raising when there is no visible GPU, or when nvcc, g++, the CUDA
+    toolkit or the abseil headers are missing.
     """
+    if not tf.config.list_physical_devices("GPU"):
+        return False
     try:
         _load()
         return True
