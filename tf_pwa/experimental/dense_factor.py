@@ -554,8 +554,12 @@ class _HelicityBasis:
             or self.aligned
         ):
             return _AmpDecayBasis.get_amplitude_coeff(self)
-        q0 = self.get_relative_momentum({}, False)
-        q02 = self.get_relative_momentum2({}, False)
+        if self.no_q0:
+            q0 = tf.cast(1.0, get_config("dtype"))
+            q02 = q0
+        else:
+            q0 = self.get_relative_momentum({}, False)
+            q02 = self.get_relative_momentum2({}, False)
         c = self.get_barrier_coeff(q0, self.d, q02=q02)
         g = self.get_g_ls()
         coeff = g * tf.cast(c, g.dtype)
@@ -792,7 +796,6 @@ class _DecayGroupBasis:
         else:
             g = tf.zeros((0,), dtype=dtype)
         return C, g
-
 
 # ---------------------------------------------------------------------------
 # Amplitude model
@@ -1053,7 +1056,32 @@ class DenseFactorModel(BaseAmplitudeModel):
         else:
             B = tf.zeros((n_data, 0), dtype=F_chains[0].dtype)
         dtype = get_config("complex_dtype")
-        return tf.cast(F, dtype), tf.transpose(tf.cast(B, dtype))
+        # Event-first: (n_data, n_param).  Batching slices the event axis
+        # contiguously and the fused kernel reads one event's basis block
+        # without a transpose.  The sparse fallback below transposes it;
+        # that cost belongs to the fallback, not to the stored layout.
+        return tf.cast(F, dtype), tf.cast(B, dtype)
+
+    def _get_coeff(self):
+        """Return the numerator ``C`` and denominator ``g`` coefficients."""
+        dg = self.decay_group
+        structure = self.structure
+        C, g = None, None
+        if getattr(self, "coeff_on_cpu", False):
+            fn = self._coeff_cpu_fn()
+            try:
+                C, g = fn()
+            except Exception:
+                self.coeff_on_cpu = False
+                C, g = None, None
+        if C is None and self._coeff_fn is not None:
+            try:
+                C, g = self._coeff_fn()
+            except Exception:
+                self._coeff_fn = None
+        if C is None:
+            C, g = dg.build_dense_coeff(structure)
+        return C, g
 
     def pdf(self, data):
         dg = self.decay_group
@@ -1067,14 +1095,7 @@ class DenseFactorModel(BaseAmplitudeModel):
         if F is None or B is None:
             F, B = self.build_dense_terms(data)
 
-        C, g = None, None
-        if self._coeff_fn is not None:
-            try:
-                C, g = self._coeff_fn()
-            except Exception:
-                self._coeff_fn = None
-        if C is None:
-            C, g = dg.build_dense_coeff(structure)
+        C, g = self._get_coeff()
         dtype = g.dtype
         used = set(dg.chains_idx)
         mask = tf.constant(
@@ -1095,7 +1116,11 @@ class DenseFactorModel(BaseAmplitudeModel):
             sp = tf.sparse.SparseTensor(
                 self.sparse_index, values, self.sparse_shape
             )
-            D = tf.transpose(tf.sparse.sparse_dense_matmul(sp, B))
+            # B is stored event-first; the sparse matmul consumes it
+            # param-major, so the fallback pays the transpose.
+            D = tf.transpose(
+                tf.sparse.sparse_dense_matmul(sp, tf.transpose(B))
+            )
             if n_line == 1 and self.line_mask_all:
                 D = tf.reshape(D, [tf.shape(F)[0], n_u])
             else:
@@ -1108,6 +1133,55 @@ class DenseFactorModel(BaseAmplitudeModel):
         W = tf.math.divide_no_nan(C[None, :], D)
         amp = tf.linalg.matvec(F, W)
         return dg.sum_with_polarization(amp)
+
+    def _coeff_cpu_fn(self):
+        """Opt-in: build ``C``/``g`` and their VJP on CPU under XLA.
+
+        The device scope has to wrap the **tape**.  Putting it only inside
+        the coefficient builder leaves the generated backward on the GPU,
+        which is why the first attempt saw forward-only gains.
+        """
+        cached = getattr(self, "_coeff_cpu_fn_cached", None)
+        if cached is not None:
+            return cached
+        dg = self.decay_group
+        structure = self.structure
+        variables = list(self.vm.trainable_variables)
+
+        @tf.function(jit_compile=True)
+        def _fwd():
+            with tf.device("/CPU:0"):
+                return dg.build_dense_coeff(structure)
+
+        @tf.function(jit_compile=True)
+        def _vjp(dc, dgv):
+            with tf.device("/CPU:0"):
+                with tf.GradientTape() as tape:
+                    c, g = dg.build_dense_coeff(structure)
+                return tape.gradient(
+                    [c, g], variables, output_gradients=[dc, dgv]
+                )
+
+        @tf.custom_gradient
+        def fn():
+            c, g = _fwd()
+
+            def grad(dc, dgv, variables=None):
+                dc = tf.zeros_like(c) if dc is None else dc
+                dgv = tf.zeros_like(g) if dgv is None else dgv
+                grads = _vjp(dc, dgv)
+                if variables is None:
+                    return (), grads
+                by_id = {
+                    id(v): x
+                    for v, x in zip(self.vm.trainable_variables, grads)
+                }
+                return (), [by_id[id(v)] for v in variables]
+
+            return (c, g), grad
+
+        self._coeff_cpu_fn_cached = fn
+        return fn
 
 
 # ---------------------------------------------------------------------------

@@ -28,7 +28,8 @@ def _config(particle, top=None, decay_opts=None):
     }
 
 
-def _compare(particle, force_cpu=False, top=None, decay_opts=None):
+def _compare(particle, force_cpu=False, top=None, decay_opts=None,
+             amp_model="dense_factor"):
     cfg = _config(particle, top=top, decay_opts=decay_opts)
     preprocessor = (
         {"dense_factor": {"force_cpu": True}}
@@ -40,7 +41,7 @@ def _compare(particle, force_cpu=False, top=None, decay_opts=None):
         "data": {
             **cfg["data"],
             "preprocessor": preprocessor,
-            "amp_model": "dense_factor",
+            "amp_model": amp_model,
         },
     }
 
@@ -523,3 +524,28 @@ def test_dense_particle_subclass_guard():
         _NoOverride.__new__(_NoOverride), {"m": 1.0}
     )
     assert "den" in basis
+
+
+def test_dense_factor_op_model():
+    """The fused-op model must reproduce ``dense_factor`` exactly."""
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        import pytest
+
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BW",
+            "running_width": False,
+        },
+        force_cpu=True,
+        amp_model="dense_factor_op",
+    )
