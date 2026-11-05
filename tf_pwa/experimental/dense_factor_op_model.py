@@ -4,7 +4,11 @@ Registered as ``amp_model: dense_factor_op``.  It reuses the dense
 preprocessor (event-major ``F``/``B``, ``structure``, coefficient build)
 and replaces only the contraction
 
-    W = C / (g . B);  A = F . W;  P = |A|^2
+.. math::
+
+    W_u = \\frac{C_u}{\\sum_j g_j B_{u,j}},
+    \\qquad A = \\sum_u F_u W_u,
+    \\qquad P = |A|^2
 
 with :func:`tf_pwa.experimental.dense_factor_op.dense_factor_p`.
 
