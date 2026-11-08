@@ -12,8 +12,7 @@ REGISTER_OP("DenseFactorFwd")
     .Input("g: float64")        // [nparam], real by construction
     .Input("off: int32")        // [nu * nline]
     .Input("sz: int32")         // [nu * nline]
-    .Output("a: complex128")    // [ne * np]
-    .Output("p: float64")       // [ne]
+    .Output("a: complex128")    // [ne * np], the amplitude
     .Attr("max_basis: int = 16");
 
 REGISTER_OP("DenseFactorGrad")
@@ -23,8 +22,7 @@ REGISTER_OP("DenseFactorGrad")
     .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
-    .Input("dl_dp: float64")
-    .Input("a: complex128")
+    .Input("dl_da: complex128")  // dL/dA, [ne * np]
     .Output("dc: complex128")
     .Output("dg: float64")
     .Attr("max_basis: int = 16");
@@ -36,8 +34,7 @@ REGISTER_OP("DenseFactorFwdN")
     .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
-    .Output("a: complex128")
-    .Output("p: float64")
+    .Output("a: complex128")    // [ne * np], the amplitude
     .Output("d: complex128")    // [ne, nu]
     .Attr("max_basis: int = 16");
 
@@ -48,8 +45,7 @@ REGISTER_OP("DenseFactorGradN")
     .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
-    .Input("dl_dp: float64")
-    .Input("a: complex128")
+    .Input("dl_da: complex128")  // dL/dA, [ne * np]
     .Input("d: complex128")
     .Output("dc: complex128")
     .Output("dg: float64")
@@ -59,7 +55,7 @@ extern "C" void launch_dense_factor(
     const double*, const double*, const double*, const double*,
     const int*, const int*, const double*,
     int, int, int, int, int, int, int, int,
-    double*, double*, double*, double*,
+    double*, double*,
     double*, double*,
     double*, double*, cudaStream_t);
 
@@ -67,7 +63,7 @@ extern "C" void launch_dense_factor_n(
     const double*, const double*, const double*, const double*,
     const int*, const int*, const double*,
     int, int, int, int, int, int, int, int,
-    double*, double*, double*, double*,
+    double*, double*,
     double*, double*,
     double*, double*, cudaStream_t);
 
@@ -127,9 +123,8 @@ class DenseFactorFwdKernel : public OpKernel {
                 errors::InvalidArgument(
                     "nu > 3072 exceeds the shared-memory tile"));
     OP_REQUIRES(ctx, maxb_ <= 16, errors::InvalidArgument("max_basis must be <= 16"));
-    Tensor* a = nullptr; Tensor* p = nullptr;
+    Tensor* a = nullptr;
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({ne*np}), &a));
-    OP_REQUIRES_OK(ctx, ctx->allocate_output(1, TensorShape({ne}), &p));
     const int nblk = ne < 4096 ? 128 : 2048;
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor(
@@ -139,7 +134,6 @@ class DenseFactorFwdKernel : public OpKernel {
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(), nullptr,
         ne, nu, (int)nparam, np, /*nline=*/1, nblk, /*mode=*/1, maxb_,
-        nullptr, p->flat<double>().data(),
         reinterpret_cast<double*>(a->flat<complex128>().data()), nullptr,
         nullptr, nullptr, nullptr, nullptr, s);
   }
@@ -160,7 +154,6 @@ class DenseFactorGradKernel : public OpKernel {
     const Tensor& of = ctx->input(4);
     const Tensor& sz = ctx->input(5);
     const Tensor& dl = ctx->input(6);
-    const Tensor& a = ctx->input(7);
     int ne, np, nu, nline; int64 nparam;
     OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz,
                                      ne, np, nu, nline, nparam));
@@ -169,8 +162,8 @@ class DenseFactorGradKernel : public OpKernel {
                     "off/sz must be [nu]; use DenseFactorFwdN/GradN for "
                     "several lines"));
     OP_REQUIRES(ctx, maxb_ <= 16, errors::InvalidArgument("max_basis must be <= 16"));
-    OP_REQUIRES(ctx, a.NumElements() == (int64)ne*np, errors::InvalidArgument("a size"));
-    OP_REQUIRES(ctx, dl.NumElements() == ne, errors::InvalidArgument("dl_dp size"));
+    OP_REQUIRES(ctx, dl.NumElements() == (int64)ne*np,
+                errors::InvalidArgument("dl_da size"));
     Tensor* dc = nullptr; Tensor* dg = nullptr;
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({nu}), &dc));
     OP_REQUIRES_OK(ctx, ctx->allocate_output(1, TensorShape({nparam}), &dg));
@@ -186,11 +179,10 @@ class DenseFactorGradKernel : public OpKernel {
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
-        of.flat<int>().data(), sz.flat<int>().data(), dl.flat<double>().data(),
+        of.flat<int>().data(), sz.flat<int>().data(),
+        reinterpret_cast<const double*>(dl.flat<complex128>().data()),
         ne, nu, (int)nparam, np, /*nline=*/1, nblk, /*mode=*/2, maxb_,
         nullptr, nullptr,
-        reinterpret_cast<double*>(const_cast<complex128*>(a.flat<complex128>().data())),
-        nullptr,
         dcp.flat<double>().data(), dgp.flat<double>().data(),
         reinterpret_cast<double*>(dc->flat<complex128>().data()),
         dg->flat<double>().data(), s);
@@ -221,10 +213,9 @@ class DenseFactorFwdNKernel : public OpKernel {
                 errors::InvalidArgument(
                     "nu > 3072 exceeds the shared-memory tile"));
     OP_REQUIRES(ctx, maxb_ <= 16, errors::InvalidArgument("max_basis must be <= 16"));
-    Tensor* a = nullptr; Tensor* p = nullptr; Tensor* d = nullptr;
+    Tensor* a = nullptr; Tensor* d = nullptr;
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({ne*np}), &a));
-    OP_REQUIRES_OK(ctx, ctx->allocate_output(1, TensorShape({ne}), &p));
-    OP_REQUIRES_OK(ctx, ctx->allocate_output(2, TensorShape({ne, nu}), &d));
+    OP_REQUIRES_OK(ctx, ctx->allocate_output(1, TensorShape({ne, nu}), &d));
     const int nblk = ne < 4096 ? 128 : 2048;
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor_n(
@@ -234,7 +225,6 @@ class DenseFactorFwdNKernel : public OpKernel {
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(), nullptr,
         ne, nu, (int)nparam, np, nline, nblk, /*mode=*/1, maxb_,
-        nullptr, p->flat<double>().data(),
         reinterpret_cast<double*>(a->flat<complex128>().data()),
         reinterpret_cast<double*>(d->flat<complex128>().data()),
         nullptr, nullptr, nullptr, nullptr, s);
@@ -256,15 +246,14 @@ class DenseFactorGradNKernel : public OpKernel {
     const Tensor& of = ctx->input(4);
     const Tensor& sz = ctx->input(5);
     const Tensor& dl = ctx->input(6);
-    const Tensor& a = ctx->input(7);
-    const Tensor& d = ctx->input(8);
+    const Tensor& d = ctx->input(7);
     int ne, np, nu, nline; int64 nparam;
     OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz,
                                      ne, np, nu, nline, nparam));
     OP_REQUIRES(ctx, maxb_ <= 16, errors::InvalidArgument("max_basis must be <= 16"));
-    OP_REQUIRES(ctx, a.NumElements() == (int64)ne*np, errors::InvalidArgument("a size"));
     OP_REQUIRES(ctx, d.NumElements() == (int64)ne*nu, errors::InvalidArgument("d size"));
-    OP_REQUIRES(ctx, dl.NumElements() == ne, errors::InvalidArgument("dl_dp size"));
+    OP_REQUIRES(ctx, dl.NumElements() == (int64)ne*np,
+                errors::InvalidArgument("dl_da size"));
     Tensor* dc = nullptr; Tensor* dg = nullptr;
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({nu}), &dc));
     OP_REQUIRES_OK(ctx, ctx->allocate_output(1, TensorShape({nparam}), &dg));
@@ -280,10 +269,10 @@ class DenseFactorGradNKernel : public OpKernel {
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
-        of.flat<int>().data(), sz.flat<int>().data(), dl.flat<double>().data(),
+        of.flat<int>().data(), sz.flat<int>().data(),
+        reinterpret_cast<const double*>(dl.flat<complex128>().data()),
         ne, nu, (int)nparam, np, nline, nblk, /*mode=*/2, maxb_,
-        nullptr, nullptr,
-        reinterpret_cast<double*>(const_cast<complex128*>(a.flat<complex128>().data())),
+        nullptr,
         reinterpret_cast<double*>(const_cast<complex128*>(d.flat<complex128>().data())),
         dcp.flat<double>().data(), dgp.flat<double>().data(),
         reinterpret_cast<double*>(dc->flat<complex128>().data()),

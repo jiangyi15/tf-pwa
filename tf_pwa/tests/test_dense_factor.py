@@ -671,8 +671,8 @@ def test_dense_factor_op_gradient():
     import tensorflow as tf
 
     from tf_pwa.experimental.dense_factor_op import (
-        dense_factor_p,
-        dense_factor_pn,
+        dense_factor_a,
+        dense_factor_an,
         is_available,
     )
 
@@ -688,10 +688,10 @@ def test_dense_factor_op_gradient():
             tf.reduce_max(tf.abs(a - b)) / (tf.reduce_max(tf.abs(b)) + 1e-30)
         )
 
-    def check(nu, off, sz, nline, nparam):
+    def check(nu, off, sz, nline, nparam, np=1):
         ne = 7
-        f = rng.standard_normal((ne, 1, nu)) + 1j * rng.standard_normal(
-            (ne, 1, nu)
+        f = rng.standard_normal((ne, np, nu)) + 1j * rng.standard_normal(
+            (ne, np, nu)
         )
         bt = rng.standard_normal((ne, nparam)) + 1j * rng.standard_normal(
             (ne, nparam)
@@ -703,16 +703,17 @@ def test_dense_factor_op_gradient():
             tf_f, tf_bt, tf_c, tf_g = map(tf.constant, (f, bt, c, g))
             tf_off = tf.constant(off, tf.int32)
             tf_sz = tf.constant(sz, tf.int32)
-        fn = dense_factor_p if nline == 1 else dense_factor_pn
+        fn = dense_factor_a if nline == 1 else dense_factor_an
         with tf.GradientTape() as tape:
             tape.watch([tf_c, tf_g])
-            p = fn(tf_f, tf_bt, tf_c, tf_g, tf_off, tf_sz, max_basis=max(sz))
-            loss = -tf.reduce_sum(tf.math.log(tf.math.real(p)))
+            a = fn(tf_f, tf_bt, tf_c, tf_g, tf_off, tf_sz, max_basis=max(sz))
+            p = tf.reduce_sum(tf.math.real(a * tf.math.conj(a)), axis=-1)
+            loss = -tf.reduce_sum(tf.math.log(p))
         dc, dg = tape.gradient(loss, [tf_c, tf_g])
 
         with tf.GradientTape() as ref_tape:
             ref_tape.watch([tf_c, tf_g])
-            amp = 0
+            dens = []
             for u in range(nu):
                 den = 1
                 for l in range(nline):
@@ -724,10 +725,14 @@ def test_dense_factor_op_gradient():
                             * tf.cast(tf_g[None, o : o + s], tf_bt.dtype),
                             axis=1,
                         )
-                amp = amp + tf_f[:, 0, u] * tf_c[u] / den
-            ref_loss = -tf.reduce_sum(
-                tf.math.log(tf.math.real(amp * tf.math.conj(amp)))
-            )
+                dens.append(den)
+            amp = 0
+            for k in range(np):
+                ak = 0
+                for u in range(nu):
+                    ak = ak + tf_f[:, k, u] * tf_c[u] / dens[u]
+                amp = amp + tf.math.real(ak * tf.math.conj(ak))
+            ref_loss = -tf.reduce_sum(tf.math.log(amp))
         ref_dc, ref_dg = ref_tape.gradient(ref_loss, [tf_c, tf_g])
         assert rel(dc, ref_dc) < 1e-10
         assert rel(dg, ref_dg) < 1e-10
@@ -737,6 +742,10 @@ def test_dense_factor_op_gradient():
     # two lines, the second chain has only one
     check(2, [0, 2, 0, 0], [2, 2, 2, 0], 2, 4)
     check(2, [0, 2, 0, 2], [2, 2, 2, 2], 2, 4)
+    # a single-line layout with an absent line: den must multiply by one
+    check(2, [0, 2], [0, 2], 1, 4)
+    # several lines with more than one projection
+    check(3, [0, 2, 0, 2, 0, 4], [2, 2, 2, 2, 2, 2], 2, 6, np=2)
     # more chains than the block has threads
     check(300, [0] * 300, [2] * 300, 1, 2)
     # the register path spans four lane slots and the shared path takes over
@@ -1036,3 +1045,69 @@ def test_dense_factor_store_complex64(tmp_path, model):
         assert b["F"].dtype == tf.complex64
         assert b["B"].dtype == tf.complex64
     assert list(tmp_path.glob("s0_64*"))
+
+
+def test_dense_factor_op_polarization():
+    """The op returns A, so a polarized top uses sum_with_polarization."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {"dense_factor": {"force_cpu": True}},
+            },
+            "decay": {"B": [["R", "X"]], "R": ["A", "C"]},
+            "particle": {
+                "$top": {
+                    "B": {
+                        "J": 1,
+                        "P": -1,
+                        "mass": 5.0,
+                        "polarization": "vector",
+                    }
+                },
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.20},
+                    "A": {"J": 1, "P": -1, "mass": 0.30},
+                    "C": {"J": 1, "P": -1, "mass": 0.30},
+                },
+                "R": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.20, 0.30, 0.30])
+    p4 = dict(zip(["X", "A", "C"], ps.generate(100)))
+    c0 = ConfigLoader(cfg("dense_factor"))
+    c1 = ConfigLoader(cfg("dense_factor_op"))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert a0.decay_group.polarization == "vector"
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
+
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    with tf.GradientTape() as t0:
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+    with tf.GradientTape() as t1:
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    assert np.allclose(float(l0), float(l1), rtol=1e-10)
+    assert len(g0) == len(g1)
+    for x, y in zip(g0, g1):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)

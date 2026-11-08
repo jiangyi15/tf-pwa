@@ -3,11 +3,12 @@
 The op is a fused contraction for the dense-factor PWA model::
 
     den[u,e] = sum_i g[off[u]+i] * B_t[e, off[u]+i]
-    A[e]     = sum_u F[e,u] * C[u] / den[u,e]
-    Q        = sum_e w[e] * |A[e]|**2
+    A[e, p]  = sum_u F[e,p,u] * C[u] / den[u,e]
 
 It performs the forward pass and the analytic gradients with respect to
 ``C`` and ``g`` in two kernels, instead of a graph of small TensorFlow ops.
+The forward returns ``A``; the probability is a density-matrix contraction
+on top of it.
 
 The build is done once and cached next to this file.  It needs:
 

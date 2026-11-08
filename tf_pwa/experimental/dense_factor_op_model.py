@@ -10,16 +10,17 @@ and replaces only the contraction
     \\qquad A = \\sum_u F_u W_u,
     \\qquad P = |A|^2
 
-with :func:`tf_pwa.experimental.dense_factor_op.dense_factor_p`.
+with :func:`tf_pwa.experimental.dense_factor_op.dense_factor_a`.
 
 The kernels take the denominator coefficients as real, which every term
 in this plugin satisfies; a model whose lines build complex ones is
 rejected rather than silently truncated.
 
-Chains with one denominator line use :func:`dense_factor_p`; every other
-line count goes through :func:`dense_factor_pn`, which is not bounded by the
-number of lines.  A non-trivial polarization density matrix is still
-rejected, because it is a different contraction rather than a layout.
+The kernel returns the amplitude matrix ``A[e, p]``, so the model ends
+with the same ``DecayGroup.sum_with_polarization`` contraction as the dense
+path, polarization included.  Chains with one denominator line use
+:func:`dense_factor_a`; every other line count goes through
+:func:`dense_factor_an`, which is not bounded by the number of lines.
 
 The original ``dense_factor`` model is untouched; this module is opt-in
 and only becomes usable when the custom op can be built on the machine.
@@ -38,7 +39,7 @@ import tensorflow as tf
 from tf_pwa.amp.amp import register_amp_model
 
 from .dense_factor import DenseFactorModel
-from .dense_factor_op import dense_factor_p, dense_factor_pn
+from .dense_factor_op import dense_factor_a, dense_factor_an
 
 
 @register_amp_model("dense_factor_op")
@@ -78,12 +79,6 @@ class DenseFactorOpModel(DenseFactorModel):
             dg.get_particle_terms(data)
             raise NotImplementedError("dense_factor_op is not initialized")
 
-        if dg.polarization != "none":
-            raise NotImplementedError(
-                "dense_factor_op supports polarization='none' only, got %r"
-                % (dg.polarization,)
-            )
-
         F = data.get("F", None)
         B = data.get("B", None)
         if F is None or B is None:
@@ -114,8 +109,12 @@ class DenseFactorOpModel(DenseFactorModel):
             raise NotImplementedError(
                 "dense_factor_op needs at least one denominator line"
             )
-        # F is [ne, n_pol, n_u]; the kernels sum |A_p|^2 over the middle
-        # axis with one shared denominator.
+        # F is [ne, np, nu]; the op returns A[e, p] with one shared
+        # denominator per chain and sum_with_polarization contracts it.
         if n_line == 1:
-            return dense_factor_p(F, B, C, g, off, sz, max_basis=max_basis)
-        return dense_factor_pn(F, B, C, g, off, sz, max_basis=max_basis)
+            amp = dense_factor_a(F, B, C, g, off, sz, max_basis=max_basis)
+        else:
+            amp = dense_factor_an(F, B, C, g, off, sz, max_basis=max_basis)
+        # same contraction the dense path ends with, so a non-trivial
+        # polarization density matrix is supported rather than rejected
+        return dg.sum_with_polarization(amp)
