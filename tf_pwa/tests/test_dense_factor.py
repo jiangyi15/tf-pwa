@@ -4,7 +4,7 @@ import tf_pwa.amp  # noqa: F401  (register models)
 import tf_pwa.amp.interpolation  # noqa: F401
 import tf_pwa.experimental.dense_factor  # noqa: F401  (install dense plugin)
 from tf_pwa.config_loader import ConfigLoader
-from tf_pwa.phasespace import generate_phsp
+from tf_pwa.phasespace import PhaseSpaceGenerator, generate_phsp
 
 
 def _config(particle, top=None, decay_opts=None):
@@ -547,3 +547,252 @@ def test_dense_factor_op_model():
         force_cpu=True,
         amp_model="dense_factor_op",
     )
+
+
+def test_dense_factor_op_two_lines():
+    """Multi-line chains fall back to the dense path and stay exact."""
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        import pytest
+
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {"dense_factor": {"force_cpu": True}},
+            },
+            "decay": {
+                "B": [["R1", "X"]],
+                "R1": [["R2", "Y"]],
+                "R2": ["P", "Q"],
+            },
+            "particle": {
+                "$top": {"B": {"J": 1, "P": -1, "mass": 5.0}},
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.30},
+                    "Y": {"J": 0, "P": -1, "mass": 0.25},
+                    "P": {"J": 0, "P": -1, "mass": 0.20},
+                    "Q": {"J": 0, "P": -1, "mass": 0.20},
+                },
+                "R1": {"J": 1, "P": -1, "m0": 3.0, "g0": 0.10, "model": "BWR"},
+                "R2": {"J": 1, "P": -1, "m0": 1.5, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.30, 0.25, 0.20, 0.20])
+    p4 = dict(zip(["X", "Y", "P", "Q"], ps.generate(100)))
+    c0 = ConfigLoader(cfg("dense_factor"))
+    c1 = ConfigLoader(cfg("dense_factor_op"))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert a0.structure["max_internal_lines"] == 2
+    x0 = a0(d0).numpy()
+    x1 = a1(d1).numpy()
+    assert np.allclose(x0, x1, rtol=1e-10, atol=1e-12)
+
+    # Gradients are covered by test_dense_factor_op_gradient (shared
+    # offsets, padded lines, nu > block size); this config has no free
+    # couplings, so a tape here would be empty.
+
+
+def test_dense_factor_op_three_lines():
+    """Three denominator lines: the general op has no line-count bound."""
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        import pytest
+
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {"dense_factor": {"force_cpu": True}},
+            },
+            "decay": {
+                "B": [["R1", "X"]],
+                "R1": [["R2", "Y"]],
+                "R2": [["R3", "Z"]],
+                "R3": ["P", "Q"],
+            },
+            "particle": {
+                "$top": {"B": {"J": 1, "P": -1, "mass": 6.0}},
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.30},
+                    "Y": {"J": 0, "P": -1, "mass": 0.25},
+                    "Z": {"J": 0, "P": -1, "mass": 0.20},
+                    "P": {"J": 0, "P": -1, "mass": 0.20},
+                    "Q": {"J": 0, "P": -1, "mass": 0.20},
+                },
+                "R1": {"J": 1, "P": -1, "m0": 4.0, "g0": 0.10, "model": "BWR"},
+                "R2": {"J": 1, "P": -1, "m0": 3.0, "g0": 0.10, "model": "BWR"},
+                "R3": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(6.0, [0.30, 0.25, 0.20, 0.20, 0.20])
+    p4 = dict(zip(["X", "Y", "Z", "P", "Q"], ps.generate(100)))
+    c0 = ConfigLoader(cfg("dense_factor"))
+    c1 = ConfigLoader(cfg("dense_factor_op"))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert a0.structure["max_internal_lines"] == 3
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
+
+    # Gradients for the general path are covered by
+    # test_dense_factor_op_gradient; this config has no free couplings.
+
+
+def test_dense_factor_op_gradient():
+    """dC and dg with shared parameter blocks, padded lines, and nu > 256."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import (
+        dense_factor_p,
+        dense_factor_pn,
+        is_available,
+    )
+
+    if not is_available():
+        import pytest
+
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    rng = np.random.default_rng(0)
+
+    def rel(a, b):
+        return float(
+            tf.reduce_max(tf.abs(a - b)) / (tf.reduce_max(tf.abs(b)) + 1e-30)
+        )
+
+    def check(nu, off, sz, nline, nparam):
+        ne = 7
+        f = rng.standard_normal((ne, 1, nu)) + 1j * rng.standard_normal(
+            (ne, 1, nu)
+        )
+        bt = rng.standard_normal((ne, nparam)) + 1j * rng.standard_normal(
+            (ne, nparam)
+        )
+        c = rng.standard_normal(nu) + 1j * rng.standard_normal(nu)
+        g = rng.standard_normal(nparam) + 1j * rng.standard_normal(nparam)
+        with tf.device("/GPU:0"):
+            tf_f, tf_bt, tf_c, tf_g = map(tf.constant, (f, bt, c, g))
+            tf_off = tf.constant(off, tf.int32)
+            tf_sz = tf.constant(sz, tf.int32)
+        fn = dense_factor_p if nline == 1 else dense_factor_pn
+        with tf.GradientTape() as tape:
+            tape.watch([tf_c, tf_g])
+            p = fn(tf_f, tf_bt, tf_c, tf_g, tf_off, tf_sz, max_basis=max(sz))
+            loss = -tf.reduce_sum(tf.math.log(tf.math.real(p)))
+        dc, dg = tape.gradient(loss, [tf_c, tf_g])
+
+        with tf.GradientTape() as ref_tape:
+            ref_tape.watch([tf_c, tf_g])
+            amp = 0
+            for u in range(nu):
+                den = 1
+                for l in range(nline):
+                    o = off[u * nline + l]
+                    s = sz[u * nline + l]
+                    if s > 0:
+                        den = den * tf.reduce_sum(
+                            tf_bt[:, o : o + s] * tf_g[None, o : o + s], axis=1
+                        )
+                amp = amp + tf_f[:, 0, u] * tf_c[u] / den
+            ref_loss = -tf.reduce_sum(
+                tf.math.log(tf.math.real(amp * tf.math.conj(amp)))
+            )
+        ref_dc, ref_dg = ref_tape.gradient(ref_loss, [tf_c, tf_g])
+        assert rel(dc, ref_dc) < 1e-10
+        assert rel(dg, ref_dg) < 1e-10
+
+    # two chains sharing one coefficient block (the n_u > n_chains case)
+    check(2, [0, 0], [2, 2], 1, 2)
+    # two lines, the second chain has only one
+    check(2, [0, 2, 0, 0], [2, 2, 2, 0], 2, 4)
+    check(2, [0, 2, 0, 2], [2, 2, 2, 2], 2, 4)
+    # more chains than the block has threads
+    check(300, [0] * 300, [2] * 300, 1, 2)
+
+
+def test_dense_factor_op_shared_parameters():
+    """Two LS terms share one chain's parameter block; gradients must sum."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        import pytest
+
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {"dense_factor": {"force_cpu": True}},
+            },
+            "decay": {"B": [["R1", "X"]], "R1": ["P", "Q"]},
+            "particle": {
+                "$top": {"B": {"J": 2, "P": -1, "mass": 5.0}},
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.30},
+                    "P": {"J": 0, "P": -1, "mass": 0.20},
+                    "Q": {"J": 0, "P": -1, "mass": 0.20},
+                },
+                "R1": {"J": 1, "P": -1, "m0": 2.5, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.30, 0.20, 0.20])
+    p4 = dict(zip(["X", "P", "Q"], ps.generate(100)))
+    c0 = ConfigLoader(cfg("dense_factor"))
+    c1 = ConfigLoader(cfg("dense_factor_op"))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert a0.structure["n_u"] == 2  # two LS terms on one chain
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    assert len(v0) > 0
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
+
+    with tf.GradientTape() as t0:
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+    with tf.GradientTape() as t1:
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    assert np.allclose(float(l0), float(l1), rtol=1e-10)
+    for x, y in zip(g0, g1):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)

@@ -64,6 +64,7 @@ def is_available():
 
 
 _P_FNS = {}
+_P_FNS_N = {}
 
 
 def dense_factor_p(f, bt, c, g, off, sz, max_basis=None):
@@ -111,6 +112,50 @@ def _make_p(max_basis):
     return fn
 
 
+def dense_factor_pn(f, bt, c, g, off, sz, max_basis=None):
+    """Same as :func:`dense_factor_p` for chains with several lines.
+
+    ``off``/``sz`` hold ``n_chain * n_line`` entries (``n_line`` is inferred
+    from their length); a line with ``sz == 0`` is absent and multiplies the
+    denominator by one.  ``n_line`` is not bounded and may be zero.
+    """
+    if max_basis is None:
+        value = tf.get_static_value(sz)
+        if value is None:
+            raise ValueError(
+                "dense_factor_pn needs max_basis when sz is symbolic"
+            )
+        max_basis = int(np.max(np.asarray(value)))
+    max_basis = int(max_basis)
+    fn = _P_FNS_N.get(max_basis)
+    if fn is None:
+        fn = _make_pn(max_basis)
+        _P_FNS_N[max_basis] = fn
+    return fn(f, bt, c, g, off, sz)
+
+
+def _make_pn(max_basis):
+    @tf.custom_gradient
+    def fn(f, bt, c, g, off, sz):
+        if f.shape.rank == 2:
+            f = tf.expand_dims(f, 1)  # [ne, nu] -> [ne, 1, nu]
+        a, p, d = _load().dense_factor_fwd_n(
+            f, bt, c, g, off, sz, max_basis=max_basis
+        )
+
+        def grad(dp):
+            if dp is None:
+                return [None] * 6
+            dc, dg = _load().dense_factor_grad_n(
+                f, bt, c, g, off, sz, dp, a, d, max_basis=max_basis
+            )
+            return None, None, dc, dg, None, None
+
+        return p, grad
+
+    return fn
+
+
 def basis_event_major(b):
     """Transpose the dense ``B`` ``[n_param, n_event]`` to event-major.
 
@@ -137,6 +182,7 @@ def chain_layout(structure):
 
 __all__ = [
     "dense_factor_p",
+    "dense_factor_pn",
     "basis_event_major",
     "chain_layout",
     "is_available",
