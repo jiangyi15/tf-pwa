@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import tf_pwa.amp  # noqa: F401  (register models)
 import tf_pwa.amp.interpolation  # noqa: F401
@@ -871,3 +872,83 @@ def test_dense_factor_op_projections():
     assert np.allclose(float(l0), float(l1), rtol=1e-10)
     for x, y in zip(g0, g1):
         assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
+
+
+@pytest.mark.parametrize("model", ["dense_factor", "dense_factor_op"])
+def test_dense_factor_drop_decay_particle(tmp_path, model):
+    """The angle tree can be dropped, eagerly and through a lazy cache."""
+    import tensorflow as tf
+
+    if model != "dense_factor":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model, drop, lazy=False):
+        pre = {"force_cpu": True, "drop_decay_particle": drop}
+        data = {
+            "format": "simple",
+            "random_z": False,
+            "r_boost": False,
+            "amp_model": model,
+        }
+        if model != "default":
+            data["preprocessor"] = {"dense_factor": pre}
+        if lazy:
+            data["lazy_call"] = True
+            data["cached_lazy_call"] = str(tmp_path) + "/"
+        return {
+            "data": data,
+            "decay": {"B": [["R", "X"]], "R": ["A", "C"]},
+            "particle": {
+                "$top": {"B": {"J": 1, "P": -1, "mass": 5.0}},
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.20},
+                    "A": {"J": 1, "P": -1, "mass": 0.30},
+                    "C": {"J": 1, "P": -1, "mass": 0.30},
+                },
+                "R": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.20, 0.30, 0.30])
+    p4 = dict(zip(["X", "A", "C"], ps.generate(200)))
+    pmc = dict(zip(["X", "A", "C"], ps.generate(400)))
+
+    def evaluate(c, d):
+        phsp = c.data.cal_angle(pmc, data_type="phsp")
+        if not isinstance(d, dict):
+            phsp.as_dataset(128)
+        fcn = c.get_fcn(all_data=([d], [phsp], None, None), batch=64)
+        nll, grad = fcn.nll_grad()
+        return float(nll), [np.asarray(g) for g in grad]
+
+    # reference: the dense path, angle tree kept, eager
+    c_ref = ConfigLoader(cfg("dense_factor", drop=False))
+    params = c_ref.get_params()
+    c_ref.set_params(params)
+    l_ref, g_ref = evaluate(c_ref, c_ref.data.cal_angle(p4))
+
+    for lazy in (False, True):
+        c = ConfigLoader(cfg(model, drop=True, lazy=lazy))
+        c.set_params(params)
+        d = c.data.cal_angle(p4)
+        if lazy:
+            c.data.set_lazy_call(d, "s0")
+            d.as_dataset(64)
+            batches = list(d)
+            assert len(batches) > 1
+            for b in batches:
+                assert "decay" not in b and "particle" not in b
+                assert "F" in b and "B" in b
+            assert list(tmp_path.glob("s0_64*"))
+        else:
+            assert "decay" not in d and "particle" not in d
+            assert "F" in d and "B" in d
+        nll, grad = evaluate(c, d)
+        assert np.allclose(nll, l_ref, rtol=1e-10)
+        assert len(grad) == len(g_ref)
+        for x, y in zip(grad, g_ref):
+            assert np.allclose(x, y, rtol=1e-8, atol=1e-10)

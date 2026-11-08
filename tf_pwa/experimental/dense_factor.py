@@ -536,7 +536,7 @@ class _HelicityBasis:
             bf = tf.cast(bf, basis.dtype)
             bf = tf.reshape(
                 bf,
-                [bf.shape[0], bf.shape[1]] + [1] * (len(basis.shape) - 2),
+                [-1, bf.shape[1]] + [1] * (len(basis.shape) - 2),
             )
             basis = basis * bf
         return {"basis": basis, "transform": None}
@@ -798,15 +798,27 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
           preprocessor:
             dense_factor:
               force_cpu: true
+              drop_decay_particle: false
 
     With ``force_cpu``, the angle pre-processing and the ``F``/``B``
     construction run on CPU.  Only the final ``F`` and ``B`` tensors are
     copied to GPU, using ``tf.identity``.
+
+    With ``drop_decay_particle``, the ``"decay"`` and ``"particle"`` entries
+    are removed from the returned dict once ``F`` and ``B`` exist.  ``pdf``
+    reads only those two, and a lazy cache stores the whole returned dict,
+    so dropping the angle tree makes the cache smaller.  It is opt-in
+    because everything that indexes the angles directly
+    (``partial_weight``, ``plot_partial_wave``, the fit fractions) needs
+    them.
     """
 
-    def __init__(self, *args, force_cpu=False, **kwargs):
+    def __init__(
+        self, *args, force_cpu=False, drop_decay_particle=False, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.force_cpu = force_cpu
+        self.drop_decay_particle = drop_decay_particle
         self.gpu_device = None
         if tf.config.list_physical_devices("GPU"):
             self.gpu_device = "/GPU:0"
@@ -832,6 +844,9 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
 
         x["F"] = F
         x["B"] = B
+        if self.drop_decay_particle:
+            x.pop("decay", None)
+            x.pop("particle", None)
         return x
 
 
