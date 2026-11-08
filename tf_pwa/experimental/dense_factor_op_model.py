@@ -12,6 +12,10 @@ and replaces only the contraction
 
 with :func:`tf_pwa.experimental.dense_factor_op.dense_factor_p`.
 
+The kernels take the denominator coefficients as real, which every term
+in this plugin satisfies; a model whose lines build complex ones is
+rejected rather than silently truncated.
+
 Chains with one denominator line use :func:`dense_factor_p`; every other
 line count goes through :func:`dense_factor_pn`, which is not bounded by the
 number of lines.  A non-trivial polarization density matrix is still
@@ -86,6 +90,18 @@ class DenseFactorOpModel(DenseFactorModel):
             F, B = self.build_dense_terms(data)
 
         C, g = self._get_coeff()
+        # F and B may be stored at lower precision; the kernels take the
+        # coefficient dtype, and casting before the op keeps the gradients
+        # with respect to C and g in that same precision.  C is complex by
+        # construction while g only happens to be.
+        if g.dtype.is_complex:
+            raise NotImplementedError(
+                "dense_factor_op needs real denominator coefficients; "
+                "use the dense_factor model for this one"
+            )
+        dtype = C.dtype
+        F = tf.cast(F, dtype)
+        B = tf.cast(B, dtype)
         used = set(dg.chains_idx)
         mask = tf.constant(
             [1.0 if k in used else 0.0 for k in structure["u_chain"]],
@@ -100,8 +116,6 @@ class DenseFactorOpModel(DenseFactorModel):
             )
         # F is [ne, n_pol, n_u]; the kernels sum |A_p|^2 over the middle
         # axis with one shared denominator.
-        f = tf.cast(F, g.dtype)
-        b = tf.cast(B, g.dtype)
         if n_line == 1:
-            return dense_factor_p(f, b, C, g, off, sz, max_basis=max_basis)
-        return dense_factor_pn(f, b, C, g, off, sz, max_basis=max_basis)
+            return dense_factor_p(F, B, C, g, off, sz, max_basis=max_basis)
+        return dense_factor_pn(F, B, C, g, off, sz, max_basis=max_basis)

@@ -73,6 +73,10 @@ def dense_factor_p(f, bt, c, g, off, sz, max_basis=None):
     The backward receives whatever ``dL/dP`` the surrounding loss produces
     and passes it to the gradient kernel, so any TensorFlow loss built on
     the per-event probability works.
+
+    ``g`` is the denominator coefficient vector and is real: it must be
+    float64.  Passing a complex tensor raises instead of silently dropping
+    its imaginary part.
     """
     if max_basis is None:
         value = tf.get_static_value(sz)
@@ -82,6 +86,8 @@ def dense_factor_p(f, bt, c, g, off, sz, max_basis=None):
             )
         max_basis = int(np.max(np.asarray(value)))
     max_basis = int(max_basis)
+    if g.dtype.is_complex:
+        raise TypeError("g must be real, e.g. tf.math.real(g)")
     fn = _P_FNS.get(max_basis)
     if fn is None:
         fn = _make_p(max_basis)
@@ -90,19 +96,19 @@ def dense_factor_p(f, bt, c, g, off, sz, max_basis=None):
 
 
 def _make_p(max_basis):
+    lib = _load()
+
     @tf.custom_gradient
     def fn(f, bt, c, g, off, sz):
         if f.shape.rank == 2:
             f = tf.expand_dims(f, 1)  # [ne, nu] -> [ne, 1, nu]
-        a, p = _load().dense_factor_fwd(
-            f, bt, c, g, off, sz, max_basis=max_basis
-        )
+        a, p = lib.dense_factor_fwd(f, bt, c, g, off, sz, max_basis=max_basis)
 
         def grad(dp):
             if dp is None:
                 return [None] * 6
             # d(sum dp_e P_e)/dC, /dg is exactly the VJP of the loss.
-            dc, dg = _load().dense_factor_grad(
+            dc, dg = lib.dense_factor_grad(
                 f, bt, c, g, off, sz, dp, a, max_basis=max_basis
             )
             return None, None, dc, dg, None, None
@@ -127,6 +133,8 @@ def dense_factor_pn(f, bt, c, g, off, sz, max_basis=None):
             )
         max_basis = int(np.max(np.asarray(value)))
     max_basis = int(max_basis)
+    if g.dtype.is_complex:
+        raise TypeError("g must be real, e.g. tf.math.real(g)")
     fn = _P_FNS_N.get(max_basis)
     if fn is None:
         fn = _make_pn(max_basis)
@@ -135,18 +143,20 @@ def dense_factor_pn(f, bt, c, g, off, sz, max_basis=None):
 
 
 def _make_pn(max_basis):
+    lib = _load()
+
     @tf.custom_gradient
     def fn(f, bt, c, g, off, sz):
         if f.shape.rank == 2:
             f = tf.expand_dims(f, 1)  # [ne, nu] -> [ne, 1, nu]
-        a, p, d = _load().dense_factor_fwd_n(
+        a, p, d = lib.dense_factor_fwd_n(
             f, bt, c, g, off, sz, max_basis=max_basis
         )
 
         def grad(dp):
             if dp is None:
                 return [None] * 6
-            dc, dg = _load().dense_factor_grad_n(
+            dc, dg = lib.dense_factor_grad_n(
                 f, bt, c, g, off, sz, dp, a, d, max_basis=max_basis
             )
             return None, None, dc, dg, None, None

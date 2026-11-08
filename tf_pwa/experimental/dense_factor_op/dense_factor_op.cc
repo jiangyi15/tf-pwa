@@ -9,7 +9,7 @@ REGISTER_OP("DenseFactorFwd")
     .Input("f: complex128")     // [ne, np, nu]
     .Input("bt: complex128")    // [ne, nparam]
     .Input("c: complex128")     // [nu]
-    .Input("g: complex128")     // [nparam]
+    .Input("g: float64")        // [nparam], real by construction
     .Input("off: int32")        // [nu * nline]
     .Input("sz: int32")         // [nu * nline]
     .Output("a: complex128")    // [ne * np]
@@ -20,20 +20,20 @@ REGISTER_OP("DenseFactorGrad")
     .Input("f: complex128")
     .Input("bt: complex128")
     .Input("c: complex128")
-    .Input("g: complex128")
+    .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
     .Input("dl_dp: float64")
     .Input("a: complex128")
     .Output("dc: complex128")
-    .Output("dg: complex128")
+    .Output("dg: float64")
     .Attr("max_basis: int = 16");
 
 REGISTER_OP("DenseFactorFwdN")
     .Input("f: complex128")
     .Input("bt: complex128")
     .Input("c: complex128")
-    .Input("g: complex128")
+    .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
     .Output("a: complex128")
@@ -45,14 +45,14 @@ REGISTER_OP("DenseFactorGradN")
     .Input("f: complex128")
     .Input("bt: complex128")
     .Input("c: complex128")
-    .Input("g: complex128")
+    .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
     .Input("dl_dp: float64")
     .Input("a: complex128")
     .Input("d: complex128")
     .Output("dc: complex128")
-    .Output("dg: complex128")
+    .Output("dg: float64")
     .Attr("max_basis: int = 16");
 
 extern "C" void launch_dense_factor(
@@ -136,7 +136,7 @@ class DenseFactorFwdKernel : public OpKernel {
         reinterpret_cast<const double*>(f.flat<complex128>().data()),
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
-        reinterpret_cast<const double*>(gg.flat<complex128>().data()),
+        gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(), nullptr,
         ne, nu, (int)nparam, np, /*nline=*/1, nblk, /*mode=*/1, maxb_,
         nullptr, p->flat<double>().data(),
@@ -179,13 +179,13 @@ class DenseFactorGradKernel : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_DOUBLE,
         TensorShape({(int64)nblk*2*nu}), &dcp));
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_DOUBLE,
-        TensorShape({(int64)nblk*2*nparam}), &dgp));
+        TensorShape({(int64)nblk*nparam}), &dgp));
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor(
         reinterpret_cast<const double*>(f.flat<complex128>().data()),
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
-        reinterpret_cast<const double*>(gg.flat<complex128>().data()),
+        gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(), dl.flat<double>().data(),
         ne, nu, (int)nparam, np, /*nline=*/1, nblk, /*mode=*/2, maxb_,
         nullptr, nullptr,
@@ -193,7 +193,7 @@ class DenseFactorGradKernel : public OpKernel {
         nullptr,
         dcp.flat<double>().data(), dgp.flat<double>().data(),
         reinterpret_cast<double*>(dc->flat<complex128>().data()),
-        reinterpret_cast<double*>(dg->flat<complex128>().data()), s);
+        dg->flat<double>().data(), s);
   }
   int maxb_ = 16;
 };
@@ -231,7 +231,7 @@ class DenseFactorFwdNKernel : public OpKernel {
         reinterpret_cast<const double*>(f.flat<complex128>().data()),
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
-        reinterpret_cast<const double*>(gg.flat<complex128>().data()),
+        gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(), nullptr,
         ne, nu, (int)nparam, np, nline, nblk, /*mode=*/1, maxb_,
         nullptr, p->flat<double>().data(),
@@ -273,13 +273,13 @@ class DenseFactorGradNKernel : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_DOUBLE,
         TensorShape({(int64)nblk*2*nu}), &dcp));
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_DOUBLE,
-        TensorShape({(int64)nblk*2*nparam}), &dgp));
+        TensorShape({(int64)nblk*nparam}), &dgp));
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor_n(
         reinterpret_cast<const double*>(f.flat<complex128>().data()),
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
-        reinterpret_cast<const double*>(gg.flat<complex128>().data()),
+        gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(), dl.flat<double>().data(),
         ne, nu, (int)nparam, np, nline, nblk, /*mode=*/2, maxb_,
         nullptr, nullptr,
@@ -287,7 +287,7 @@ class DenseFactorGradNKernel : public OpKernel {
         reinterpret_cast<double*>(const_cast<complex128*>(d.flat<complex128>().data())),
         dcp.flat<double>().data(), dgp.flat<double>().data(),
         reinterpret_cast<double*>(dc->flat<complex128>().data()),
-        reinterpret_cast<double*>(dg->flat<complex128>().data()), s);
+        dg->flat<double>().data(), s);
   }
   int maxb_ = 16;
 };

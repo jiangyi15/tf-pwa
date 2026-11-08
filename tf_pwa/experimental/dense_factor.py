@@ -107,7 +107,9 @@ def terms(name, requires=("get_amp",)):
             return cls
         refs = {attr: getattr(target, attr) for attr in requires}
         for attr, value in vars(cls).items():
-            if attr.startswith("__") or not callable(value):
+            if attr.startswith("__"):
+                continue
+            if not callable(value):
                 continue
             if attr.startswith("_"):
                 setattr(target, attr, value)
@@ -150,6 +152,7 @@ def _attach(target, source):
 
 @terms("default")
 class _DefaultTerms:
+
     def _get_bw_l(self):
         L = self.bw_l
         if L is None:
@@ -207,7 +210,7 @@ class _DefaultTerms:
             )
         m0 = self.get_mass()
         dtype = get_config("complex_dtype")
-        c_m0 = tf.cast(m0, dtype)
+        rtype = get_config("dtype")
         c_g0 = tf.cast(g0, dtype)
         if self.running_width:
             L = self._get_bw_l()
@@ -219,12 +222,14 @@ class _DefaultTerms:
                 f0,
                 tf.where(f0 < 0, -eps, eps),
             )
-            f0 = tf.cast(f0, dtype)
+            f0 = tf.cast(f0, rtype)
         else:
-            f0 = tf.cast(1.0, dtype)
-        c0 = c_m0 * c_m0
-        c1 = tf.cast(-1.0, dtype)
-        c2 = c_m0 * c_g0 / f0
+            f0 = tf.cast(1.0, rtype)
+        r_m0 = tf.cast(m0, rtype)
+        r_g0 = tf.cast(g0, rtype)
+        c0 = r_m0 * r_m0
+        c1 = tf.cast(-1.0, rtype)
+        c2 = r_m0 * r_g0 / f0
         num = c_g0 if self.width_norm else tf.cast(1.0, dtype)
         return {
             "num": [num],
@@ -234,6 +239,7 @@ class _DefaultTerms:
 
 @terms("BW")
 class _BWTerms:
+
     def get_term_basis(self, data, data_c=None, **kwargs):
         m = data["m"]
         one = tf.ones_like(m)
@@ -255,16 +261,16 @@ class _BWTerms:
                 )
             )
         m0 = self.get_mass()
-        dtype = get_config("complex_dtype")
-        c_m0 = tf.cast(m0, dtype)
-        c_g0 = tf.cast(g0, dtype)
+        rtype = get_config("dtype")
+        r_m0 = tf.cast(m0, rtype)
+        r_g0 = tf.cast(g0, rtype)
         # ``get_amp`` always uses ``BW`` and ignores ``width_norm``,
         # so the decomposition must ignore it as well.
-        c0 = c_m0 * c_m0
-        c1 = tf.cast(-1.0, dtype)
-        c2 = c_m0 * c_g0
+        c0 = r_m0 * r_m0
+        c1 = tf.cast(-1.0, rtype)
+        c2 = r_m0 * r_g0
         return {
-            "num": [tf.cast(1.0, dtype)],
+            "num": [tf.cast(1.0, get_config("complex_dtype"))],
             "den": [c0, c1, c2],
         }
 
@@ -276,6 +282,7 @@ class _BWTerms:
 
 @terms("one")
 class _OneTerms:
+
     def get_term_basis(self, data, data_c=None, **kwargs):
         m = data["m"]
         one = tf.ones_like(m)
@@ -287,12 +294,13 @@ class _OneTerms:
         dtype = get_config("complex_dtype")
         return {
             "num": [tf.cast(1.0, dtype)],
-            "den": [tf.cast(1.0, dtype)],
+            "den": [tf.cast(1.0, get_config("dtype"))],
         }
 
 
 @terms("GS_rho")
 class _GSTerms:
+
     def get_term_basis(self, data, data_c=None, **kwargs):
         m = data["m"]
         g0 = self.get_width()
@@ -335,18 +343,21 @@ class _GSTerms:
             return _DefaultTerms.get_term_coeff(self)
         m0 = self.get_mass()
         dtype = get_config("complex_dtype")
+        rtype = get_config("dtype")
         if not self.running_width:
             # ``get_amp`` falls back to the constant-width ``BW``.
             return {
                 "num": [tf.cast(1.0, dtype)],
                 "den": [
-                    tf.cast(m0 * m0, dtype),
-                    tf.cast(-1.0, dtype),
-                    tf.cast(m0 * g0, dtype),
+                    tf.cast(m0 * m0, rtype),
+                    tf.cast(-1.0, rtype),
+                    tf.cast(m0 * g0, rtype),
                 ],
             }
         c_m0 = tf.cast(m0, dtype)
         c_g0 = tf.cast(g0, dtype)
+        r_m0 = tf.cast(m0, rtype)
+        r_g0 = tf.cast(g0, rtype)
         c2 = self.c_daug2Mass
         c3 = self.c_daug3Mass
         L = self.bw_l
@@ -357,11 +368,11 @@ class _GSTerms:
         dh0 = dh_dsFun(m0 * m0, c2, c3)
         q0 = self._get_q0()
         f0 = self._F_shape(q0, tf.cast(m0, q0.dtype), L)
-        f0 = tf.cast(f0, dtype)
-        a = c_g0 * c_m0 * c_m0 / tf.cast(k0**3, dtype)
-        b = -a * tf.cast(h0, dtype)
-        c = c_g0 * c_m0**4 * tf.cast(dh0, dtype) / tf.cast(k0, dtype)
-        d = -c_g0 * c_m0 * c_m0 * tf.cast(dh0, dtype) / tf.cast(k0, dtype)
+        f0 = tf.cast(f0, rtype)
+        a = r_g0 * r_m0 * r_m0 / tf.cast(k0**3, rtype)
+        b = -a * tf.cast(h0, rtype)
+        c = r_g0 * r_m0**4 * tf.cast(dh0, rtype) / tf.cast(k0, rtype)
+        d = -r_g0 * r_m0 * r_m0 * tf.cast(dh0, rtype) / tf.cast(k0, rtype)
         num = (
             1.0
             + tf.cast(
@@ -376,17 +387,18 @@ class _GSTerms:
             / c_m0
         )
         coeff = [
-            c_m0 * c_m0 + c,
-            tf.cast(-1.0, dtype) + d,
+            r_m0 * r_m0 + c,
+            tf.cast(-1.0, rtype) + d,
             a,
             b,
-            c_m0 * c_g0 / f0,
+            r_m0 * r_g0 / f0,
         ]
         return {"num": [num], "den": coeff}
 
 
 @terms("Flatte")
 class _FlatteTerms:
+
     def get_term_basis(self, data, data_c=None, **kwargs):
         m = data["m"]
         one = tf.ones_like(m)
@@ -404,15 +416,17 @@ class _FlatteTerms:
 
     def get_term_coeff(self):
         dtype = get_config("complex_dtype")
-        m0 = tf.cast(self.get_mass(), dtype)
-        coeff = [m0 * m0, tf.cast(-1.0, dtype)]
+        rtype = get_config("dtype")
+        m0 = tf.cast(self.get_mass(), rtype)
+        coeff = [m0 * m0, tf.cast(-1.0, rtype)]
         for i in range(len(self.mass_list)):
-            coeff.append(m0 * tf.cast(self.g_value[i](), dtype))
+            coeff.append(m0 * tf.cast(self.g_value[i](), rtype))
         return {"num": [tf.cast(1.0, dtype)], "den": coeff}
 
 
 @terms("spline_c_idx", requires=("get_amp", "interp"))
 class _SplineTerms:
+
     def spline_basis(self, m):
         """Return the spline basis matrix ``phi_i(m)``."""
         idx = self.get_bin_index(m)
@@ -435,7 +449,7 @@ class _SplineTerms:
     def get_term_coeff(self):
         p = self.point_value()
         n_term = p.shape[0]
-        one = tf.ones((), dtype=p.dtype)
+        one = tf.ones((), dtype=get_config("dtype"))
         return {
             "num": [p[i] for i in range(n_term)],
             "den": [one],
@@ -776,10 +790,12 @@ class _DecayGroupBasis:
             C = tf.stack(C)
         else:
             C = tf.zeros((0,), dtype=dtype)
+        # the denominator coefficients are real; only C is complex
+        rtype = get_config("dtype")
         if g_blocks:
-            g = tf.cast(tf.stack(g_blocks), dtype)
+            g = tf.cast(tf.stack(g_blocks), rtype)
         else:
-            g = tf.zeros((0,), dtype=dtype)
+            g = tf.zeros((0,), dtype=rtype)
         return C, g
 
 
@@ -799,6 +815,7 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
             dense_factor:
               force_cpu: true
               drop_decay_particle: false
+              store_complex64: false
 
     With ``force_cpu``, the angle pre-processing and the ``F``/``B``
     construction run on CPU.  Only the final ``F`` and ``B`` tensors are
@@ -811,14 +828,28 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     because everything that indexes the angles directly
     (``partial_weight``, ``plot_partial_wave``, the fit fractions) needs
     them.
+
+    With ``store_complex64``, ``F`` and ``B`` are stored as complex64.  They
+    are cast back to the coefficient dtype as soon as ``pdf`` reads them,
+    before any product, so the graph the gradients traverse stays at full
+    precision.
+    That halves the cached payload and the host-to-device copy; the price is
+    complex64 rounding of the two tensors (about 1e-7 relative), not of the
+    arithmetic, which still runs in complex128.
     """
 
     def __init__(
-        self, *args, force_cpu=False, drop_decay_particle=False, **kwargs
+        self,
+        *args,
+        force_cpu=False,
+        drop_decay_particle=False,
+        store_complex64=False,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.force_cpu = force_cpu
         self.drop_decay_particle = drop_decay_particle
+        self.store_complex64 = store_complex64
         self.gpu_device = None
         if tf.config.list_physical_devices("GPU"):
             self.gpu_device = "/GPU:0"
@@ -836,6 +867,11 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
                 self.decay_group.get_particle_terms(x)
                 return x
             F, B = self.amp.build_dense_terms(x)
+            if self.store_complex64:
+                # Still inside the CPU scope, so the copy below moves half
+                # the bytes.
+                F = tf.cast(F, tf.complex64)
+                B = tf.cast(B, tf.complex64)
 
         if self.force_cpu and self.gpu_device is not None:
             # Only the final cached F and B are moved to the GPU.
@@ -1081,20 +1117,26 @@ class DenseFactorModel(BaseAmplitudeModel):
             F, B = self.build_dense_terms(data)
 
         C, g = self._get_coeff()
-        dtype = g.dtype
+        # The preprocessor may store F and B at lower precision.  Cast before
+        # any product, so the graph the gradients traverse stays at full
+        # precision; _get_coeff does not read F or B, so the order is free.
+        # C is complex by construction while g only happens to be, so the
+        # numerator decides the dtype.
+        dtype = C.dtype
+        F = tf.cast(F, dtype)
+        B = tf.cast(B, dtype)
         used = set(dg.chains_idx)
         mask = tf.constant(
             [1.0 if k in used else 0.0 for k in structure["u_chain"]],
             dtype=dtype,
         )
         C = C * mask
-        B = tf.cast(B, dtype)
         n_u = structure["n_u"]
         n_line = structure["max_internal_lines"]
         if n_line == 0:
-            D = tf.ones((tf.shape(F)[0], n_u), dtype=g.dtype)
+            D = tf.ones((tf.shape(F)[0], n_u), dtype=dtype)
         else:
-            values = tf.gather(g, self.sparse_index[:, 1])
+            values = tf.gather(tf.cast(g, B.dtype), self.sparse_index[:, 1])
             sp = tf.sparse.SparseTensor(
                 self.sparse_index, values, self.sparse_shape
             )

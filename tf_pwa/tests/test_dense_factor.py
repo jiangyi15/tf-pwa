@@ -697,7 +697,8 @@ def test_dense_factor_op_gradient():
             (ne, nparam)
         )
         c = rng.standard_normal(nu) + 1j * rng.standard_normal(nu)
-        g = rng.standard_normal(nparam) + 1j * rng.standard_normal(nparam)
+        # the denominator coefficients are real; the op refuses complex ones
+        g = rng.standard_normal(nparam)
         with tf.device("/GPU:0"):
             tf_f, tf_bt, tf_c, tf_g = map(tf.constant, (f, bt, c, g))
             tf_off = tf.constant(off, tf.int32)
@@ -719,7 +720,9 @@ def test_dense_factor_op_gradient():
                     s = sz[u * nline + l]
                     if s > 0:
                         den = den * tf.reduce_sum(
-                            tf_bt[:, o : o + s] * tf_g[None, o : o + s], axis=1
+                            tf_bt[:, o : o + s]
+                            * tf.cast(tf_g[None, o : o + s], tf_bt.dtype),
+                            axis=1,
                         )
                 amp = amp + tf_f[:, 0, u] * tf_c[u] / den
             ref_loss = -tf.reduce_sum(
@@ -741,6 +744,7 @@ def test_dense_factor_op_gradient():
     check(33, [0] * 33, [2] * 33, 1, 2)
     check(128, [0] * 128, [2] * 128, 1, 2)
     check(129, [0] * 129, [2] * 129, 1, 2)
+    check(2, [0, 2, 0, 0], [2, 2, 2, 0], 2, 4)
 
 
 def test_dense_factor_op_shared_parameters():
@@ -952,3 +956,83 @@ def test_dense_factor_drop_decay_particle(tmp_path, model):
         assert len(grad) == len(g_ref)
         for x, y in zip(grad, g_ref):
             assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+
+@pytest.mark.parametrize("model", ["dense_factor", "dense_factor_op"])
+def test_dense_factor_store_complex64(tmp_path, model):
+    """F and B can be stored in complex64; pdf casts them back."""
+    import tensorflow as tf
+
+    if model != "dense_factor":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model, low, lazy=False):
+        pre = {"force_cpu": True, "store_complex64": low}
+        data = {
+            "format": "simple",
+            "random_z": False,
+            "r_boost": False,
+            "amp_model": model,
+            "preprocessor": {"dense_factor": pre},
+        }
+        if lazy:
+            data["lazy_call"] = True
+            data["cached_lazy_call"] = str(tmp_path) + "/"
+        return {
+            "data": data,
+            "decay": {"B": [["R", "X"]], "R": ["A", "C"]},
+            "particle": {
+                "$top": {"B": {"J": 1, "P": -1, "mass": 5.0}},
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.20},
+                    "A": {"J": 1, "P": -1, "mass": 0.30},
+                    "C": {"J": 1, "P": -1, "mass": 0.30},
+                },
+                "R": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.20, 0.30, 0.30])
+    p4 = dict(zip(["X", "A", "C"], ps.generate(100)))
+
+    c0 = ConfigLoader(cfg("dense_factor", False))
+    params = c0.get_params()
+    c0.set_params(params)
+    d0 = c0.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    v0 = a0.vm.trainable_variables
+    with tf.GradientTape() as t0:
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+
+    c1 = ConfigLoader(cfg(model, True))
+    c1.set_params(params)
+    d1 = c1.data.cal_angle(p4)
+    assert d1["F"].dtype == tf.complex64
+    assert d1["B"].dtype == tf.complex64
+    a1 = c1.get_amplitude()
+    v1 = a1.vm.trainable_variables
+    with tf.GradientTape() as t1:
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    # nothing leaks the storage dtype into the result or the gradients
+    assert l1.dtype == tf.float64
+    assert all(g.dtype == v.dtype for g, v in zip(g1, v1))
+    assert np.allclose(float(l1), float(l0), rtol=1e-5)
+    for x, y in zip(g1, g0):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-5, atol=1e-5)
+
+    # the cache keeps the compact dtype, which is the point of the option
+    c2 = ConfigLoader(cfg(model, True, lazy=True))
+    c2.set_params(params)
+    d2 = c2.data.cal_angle(p4)
+    c2.data.set_lazy_call(d2, "s0")
+    d2.as_dataset(64)
+    for b in d2:
+        assert b["F"].dtype == tf.complex64
+        assert b["B"].dtype == tf.complex64
+    assert list(tmp_path.glob("s0_64*"))

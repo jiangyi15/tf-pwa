@@ -12,14 +12,22 @@
 // the projections with a scalar accumulator, so the projection count is a
 // runtime value and costs no per-projection register state.
 //
+// c is complex, g is real: every term in the plugin builds real denominator
+// coefficients, so the kernels take g as doubles and return a real dg.  A
+// complex g would only add an always-zero imaginary product.
+//
 // W is kept in registers as MAXUPW values per lane (u = lane + 32*k) while
 // the chains fit, i.e. nu <= 32*MAXUPW = 128, and in a per-warp shared slice
 // (wpb*nu*double2) beyond that.  The register variant avoids re-reading W
 // from shared memory for every projection; dispatch picks it from nu.
 
+// ``g`` is the denominator coefficient vector and is real by construction
+// for every term in the plugin: the mass, the width and the Flatte/GS
+// couplings are real, and the complex content lives in ``c`` and in the
+// spline numerator.
 template <int S>
 __device__ __forceinline__ void line_den(
-    const double2* __restrict__ B, const double2* __restrict__ G,
+    const double2* __restrict__ B, const double* __restrict__ G,
     long long bo, int o, int s, double& dr, double& di)
 {
     dr = 0.0; di = 0.0;
@@ -27,9 +35,9 @@ __device__ __forceinline__ void line_den(
     for (int i = 0; i < S; i++) {
         if (i < s) {
             const double2 b = B[bo+o+i];
-            const double2 gg = G[o+i];
-            dr += gg.x*b.x - gg.y*b.y;
-            di += gg.x*b.y + gg.y*b.x;
+            const double g = G[o+i];
+            dr += g*b.x;
+            di += g*b.y;
         }
     }
 }
@@ -49,7 +57,7 @@ __global__ void dense_fwd_kernel(
     const double2* __restrict__ F,   // [ne * np * nu]
     const double2* __restrict__ B,
     const double2* __restrict__ C,
-    const double2* __restrict__ G,
+    const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz,
     const double* __restrict__ w, int ne, int nu, int nparam, int np,
     double2* __restrict__ A_out,     // [ne * np]
@@ -77,16 +85,8 @@ __global__ void dense_fwd_kernel(
                 const int u = lane + 32*k;
                 if (u < nu) {
                     const int o = off[u], s = sz[u];
-                    double dr = 0.0, di = 0.0;
-                    #pragma unroll
-                    for (int i = 0; i < S; i++) {
-                        if (i < s) {
-                            const double2 b = B[bo+o+i];
-                            const double2 gg = G[o+i];
-                            dr += gg.x*b.x - gg.y*b.y;
-                            di += gg.x*b.y + gg.y*b.x;
-                        }
-                    }
+                    double dr, di;
+                    line_den<S>(B, G, bo, o, s, dr, di);
                     const double den = dr*dr + di*di;
                     const double2 c = C[u];
                     wc[k] = make_double2((c.x*dr + c.y*di) / den,
@@ -113,16 +113,8 @@ __global__ void dense_fwd_kernel(
         } else {
             for (int u = lane; u < nu; u += 32) {
                 const int o = off[u], s = sz[u];
-                double dr = 0.0, di = 0.0;
-                #pragma unroll
-                for (int i = 0; i < S; i++) {
-                    if (i < s) {
-                        const double2 b = B[bo+o+i];
-                        const double2 gg = G[o+i];
-                        dr += gg.x*b.x - gg.y*b.y;
-                        di += gg.x*b.y + gg.y*b.x;
-                    }
-                }
+                double dr, di;
+                line_den<S>(B, G, bo, o, s, dr, di);
                 const double den = dr*dr + di*di;
                 const double2 c = C[u];
                 Wl[u] = make_double2((c.x*dr + c.y*di) / den,
@@ -158,7 +150,7 @@ __global__ void dense_grad_kernel(
     const double2* __restrict__ F,
     const double2* __restrict__ B,
     const double2* __restrict__ C,
-    const double2* __restrict__ G,
+    const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz,
     const double* __restrict__ w,
     const double2* __restrict__ A,   // [ne * np]
@@ -169,9 +161,9 @@ __global__ void dense_grad_kernel(
         const int o = off[u], s = sz[u];
         const double2 c = C[u];
         double dcr = 0.0, dci = 0.0;
-        double dgr[S], dgi[S];
+        double dgr[S];
         #pragma unroll
-        for (int i = 0; i < S; i++) { dgr[i] = dgi[i] = 0.0; }
+        for (int i = 0; i < S; i++) { dgr[i] = 0.0; }
 
         for (int e = blockIdx.x; e < ne; e += gridDim.x) {
             const double we = w[e];
@@ -179,16 +171,11 @@ __global__ void dense_grad_kernel(
             const long long fo = (long long)e * (long long)np * nu;
             const long long ao = (long long)e * np;
             double2 bv[S];
-            double dr = 0.0, di = 0.0;
             #pragma unroll
-            for (int i = 0; i < S; i++) {
-                if (i < s) {
-                    bv[i] = B[bo+o+i];
-                    const double2 gg = G[o+i];
-                    dr += gg.x*bv[i].x - gg.y*bv[i].y;
-                    di += gg.x*bv[i].y + gg.y*bv[i].x;
-                }
-            }
+            for (int i = 0; i < S; i++)
+                if (i < s) bv[i] = B[bo+o+i];
+            double dr, di;
+            line_den<S>(B, G, bo, o, s, dr, di);
             double gwr = 0.0, gwi = 0.0;
             for (int p = 0; p < np; p++) {
                 const double2 a = A[ao+p];
@@ -211,7 +198,6 @@ __global__ void dense_grad_kernel(
             for (int i = 0; i < S; i++) {
                 if (i < s) {
                     dgr[i] += gdr*bv[i].x + gdi*bv[i].y;
-                    dgi[i] += gdi*bv[i].x - gdr*bv[i].y;
                 }
             }
         }
@@ -221,8 +207,8 @@ __global__ void dense_grad_kernel(
         #pragma unroll
         for (int i = 0; i < S; i++) {
             if (i < s) {
-                atomicAdd(&dg_part[(long long)blockIdx.x*2*nparam + 2*(o+i)],     dgr[i]);
-                atomicAdd(&dg_part[(long long)blockIdx.x*2*nparam + 2*(o+i) + 1], dgi[i]);
+                atomicAdd(&dg_part[(long long)blockIdx.x*nparam + (o+i)],
+                          dgr[i]);
             }
         }
     }
@@ -246,7 +232,7 @@ __global__ void reduce_k(const double* __restrict__ part, int nb, int row, int o
 template <int S, bool REG>
 __global__ void dense_fwd_kernel_n(
     const double2* __restrict__ F, const double2* __restrict__ B,
-    const double2* __restrict__ C, const double2* __restrict__ G,
+    const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
     const double* __restrict__ w, int ne, int nu, int nparam, int np,
     double2* __restrict__ A_out, double* __restrict__ p_out,
@@ -354,7 +340,7 @@ __global__ void dense_fwd_kernel_n(
 template <int S>
 __global__ void dense_grad_kernel_n(
     const double2* __restrict__ F, const double2* __restrict__ B,
-    const double2* __restrict__ C, const double2* __restrict__ G,
+    const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
     const double* __restrict__ w, const double2* __restrict__ A,
     const double2* __restrict__ D, int ne, int nu, int nparam, int np,
@@ -363,13 +349,13 @@ __global__ void dense_grad_kernel_n(
     for (int u = threadIdx.x; u < nu; u += blockDim.x) {
         const double2 c = C[u];
         double dcr = 0.0, dci = 0.0;
-        double dgr[S], dgi[S];
+        double dgr[S];
 
         for (int l = 0; l < nline; l++) {
             const int o = off[u*nline + l], s = sz[u*nline + l];
             const int has = s > 0;
             #pragma unroll
-            for (int i = 0; i < S; i++) { dgr[i] = dgi[i] = 0.0; }
+            for (int i = 0; i < S; i++) { dgr[i] = 0.0; }
 
             for (int e = blockIdx.x; e < ne; e += gridDim.x) {
                 const double we = w[e];
@@ -420,7 +406,6 @@ __global__ void dense_grad_kernel_n(
                     for (int i = 0; i < S; i++) {
                         if (i < s) {
                             dgr[i] += glr*bv[i].x + gli*bv[i].y;
-                            dgi[i] += gli*bv[i].x - glr*bv[i].y;
                         }
                     }
                 }
@@ -430,8 +415,8 @@ __global__ void dense_grad_kernel_n(
                 #pragma unroll
                 for (int i = 0; i < S; i++) {
                     if (i < s) {
-                        atomicAdd(&dg_part[(long long)blockIdx.x*2*nparam + 2*(o+i)],     dgr[i]);
-                        atomicAdd(&dg_part[(long long)blockIdx.x*2*nparam + 2*(o+i) + 1], dgi[i]);
+                        atomicAdd(&dg_part[(long long)blockIdx.x*nparam + (o+i)],
+                                  dgr[i]);
                     }
                 }
             }
@@ -460,7 +445,7 @@ static void run(const Args& a, int mode) {
     const double2* F = reinterpret_cast<const double2*>(a.fr);
     const double2* B = reinterpret_cast<const double2*>(a.btr);
     const double2* C = reinterpret_cast<const double2*>(a.cr);
-    const double2* G = reinterpret_cast<const double2*>(a.gtr);
+    const double* G = a.gtr;
     double2* A = reinterpret_cast<double2*>(a.a_out);
     int wpb = REG ? NWARP : pick_wpb(a.nu);
     size_t shmem = REG ? 0 : (size_t)wpb * a.nu * sizeof(double2);
@@ -472,15 +457,15 @@ static void run(const Args& a, int mode) {
             A, a.p_out, a.q_out);
     if (mode != 1) {
         cudaMemsetAsync(a.dg_part, 0,
-                        (size_t)a.nblk * 2 * a.nparam * sizeof(double), a.s);
+                        (size_t)a.nblk * a.nparam * sizeof(double), a.s);
         int gb = a.nu <= 128 ? 128 : 256;
         dense_grad_kernel<S><<<a.nblk, gb, 0, a.s>>>(
             F, B, C, G, a.off, a.sz, a.w, A, a.ne, a.nu, a.nparam, a.np,
             a.dc_part, a.dg_part);
         reduce_k<<<(2*a.nu+255)/256, 256, 0, a.s>>>(
             a.dc_part, a.nblk, 2*a.nu, 0, 2*a.nu, a.dc_out);
-        reduce_k<<<(2*a.nparam+255)/256, 256, 0, a.s>>>(
-            a.dg_part, a.nblk, 2*a.nparam, 0, 2*a.nparam, a.dg_out);
+        reduce_k<<<(a.nparam+255)/256, 256, 0, a.s>>>(
+            a.dg_part, a.nblk, a.nparam, 0, a.nparam, a.dg_out);
     }
 }
 
@@ -489,7 +474,7 @@ static void run_n(const Args& a, int mode) {
     const double2* F = reinterpret_cast<const double2*>(a.fr);
     const double2* B = reinterpret_cast<const double2*>(a.btr);
     const double2* C = reinterpret_cast<const double2*>(a.cr);
-    const double2* G = reinterpret_cast<const double2*>(a.gtr);
+    const double* G = a.gtr;
     double2* A = reinterpret_cast<double2*>(a.a_out);
     double2* D = reinterpret_cast<double2*>(a.d_out);
     int wpb = REG ? NWARP : pick_wpb(a.nu);
@@ -502,15 +487,15 @@ static void run_n(const Args& a, int mode) {
             A, a.p_out, a.q_out, D);
     if (mode != 1) {
         cudaMemsetAsync(a.dg_part, 0,
-                        (size_t)a.nblk * 2 * a.nparam * sizeof(double), a.s);
+                        (size_t)a.nblk * a.nparam * sizeof(double), a.s);
         int gb = a.nu <= 128 ? 128 : 256;
         dense_grad_kernel_n<S><<<a.nblk, gb, 0, a.s>>>(
             F, B, C, G, a.off, a.sz, a.nline, a.w, A, D, a.ne, a.nu, a.nparam,
             a.np, a.dc_part, a.dg_part);
         reduce_k<<<(2*a.nu+255)/256, 256, 0, a.s>>>(
             a.dc_part, a.nblk, 2*a.nu, 0, 2*a.nu, a.dc_out);
-        reduce_k<<<(2*a.nparam+255)/256, 256, 0, a.s>>>(
-            a.dg_part, a.nblk, 2*a.nparam, 0, 2*a.nparam, a.dg_out);
+        reduce_k<<<(a.nparam+255)/256, 256, 0, a.s>>>(
+            a.dg_part, a.nblk, a.nparam, 0, a.nparam, a.dg_out);
     }
 }
 
