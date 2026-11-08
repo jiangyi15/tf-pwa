@@ -51,6 +51,7 @@ from tf_pwa.breit_wigner import (
     twoBodyCMmom,
 )
 from tf_pwa.config import get_config
+from tf_pwa.particle import cp_charge_group
 
 # ---------------------------------------------------------------------------
 # Registration helpers
@@ -829,6 +830,10 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     (``partial_weight``, ``plot_partial_wave``, the fit fractions) needs
     them.
 
+    The same rule applies to every block the preprocessor builds for
+    ``id_swap`` / ``cp_swap``, so the option governs the whole returned
+    dict.
+
     With ``store_complex64``, ``F`` and ``B`` are stored as complex64.  They
     are cast back to the coefficient dtype as soon as ``pdf`` reads them,
     before any product, so the graph the gradients traverse stays at full
@@ -866,24 +871,56 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
                 # Trigger the particle-specific NotImplementedError.
                 self.decay_group.get_particle_terms(x)
                 return x
-            F, B = self.amp.build_dense_terms(x)
-            if self.store_complex64:
-                # Still inside the CPU scope, so the copy below moves half
-                # the bytes.
-                F = tf.cast(F, tf.complex64)
-                B = tf.cast(B, tf.complex64)
+            x["F"], x["B"] = self.amp.build_dense_terms(x)
+            self._fill_blocks(x)
+            cp = x.get("cp_swap", None)
+            blocks = list((x.get("id_swap") or {}).values())
+            if cp is not None:
+                cp["F"], cp["B"] = self.amp.build_dense_terms(cp)
+                self._fill_blocks(cp)
+                self._strip(cp)
+                blocks += [cp] + list((cp.get("id_swap") or {}).values())
+            # every block follows the same two rules as the base dict
+            x["F"], x["B"] = self._cast(x["F"], x["B"])
+            for d in blocks:
+                d["F"], d["B"] = self._cast(d["F"], d["B"])
 
-        if self.force_cpu and self.gpu_device is not None:
-            # Only the final cached F and B are moved to the GPU.
-            F = tf.identity(F)
-            B = tf.identity(B)
-
-        x["F"] = F
-        x["B"] = B
-        if self.drop_decay_particle:
-            x.pop("decay", None)
-            x.pop("particle", None)
+        x["F"], x["B"] = self._move(x["F"], x["B"])
+        for d in blocks:
+            d["F"], d["B"] = self._move(d["F"], d["B"])
+        self._strip(x)
         return x
+
+    def _cast(self, F, B):
+        """Lower the stored precision, inside the CPU scope."""
+        if self.store_complex64:
+            return tf.cast(F, tf.complex64), tf.cast(B, tf.complex64)
+        return F, B
+
+    def _move(self, F, B):
+        """Move the final tensors to the GPU when ``force_cpu`` asks for it."""
+        if self.force_cpu and self.gpu_device is not None:
+            return tf.identity(F), tf.identity(B)
+        return F, B
+
+    def _strip(self, d):
+        """Drop the angle tree when the option asks for it."""
+        if self.drop_decay_particle:
+            d.pop("particle", None)
+            d.pop("decay", None)
+
+    def _fill_blocks(self, d):
+        """Build ``F``/``B`` for every ``id_swap`` block of ``d``, in place.
+
+        Applies the parity factor and the particle-axis transpose, so the
+        model only has to sum the prepared blocks.  ``cp_swap`` is handled
+        by the caller, which calls this again on that dict.
+        """
+        for key, sub in (d.get("id_swap") or {}).items():
+            Fs, Bs = self.amp.build_dense_terms({**d, **sub})
+            sub["F"] = self.amp.swap_terms(Fs, key)
+            sub["B"] = Bs
+            self._strip(sub)
 
 
 @register_amp_model("dense_factor")
@@ -997,20 +1034,72 @@ class DenseFactorModel(BaseAmplitudeModel):
             except Exception:
                 self._coeff_fn = None
 
+    def cp_transform(self):
+        """``(frac, change)`` for the CP-conjugate amplitude, like get_amp3.
+
+        ``frac`` is the product of the C parities of the particles that the
+        CP map leaves in place; ``change`` is the particle permutation of the
+        ones that move.
+        """
+        structure = self.structure
+        dg = self.decay_group
+        if not getattr(dg, "cp_particles", None):
+            return 1.0, ()
+        if "cp" not in structure:
+            name_map = {str(i): i for i in dg.outs}
+            frac = 1.0
+            change = []
+            for a, b in cp_charge_group(
+                [str(i) for i in dg.outs],
+                dg.identical_particles,
+                dg.cp_particles,
+            ):
+                for i, j in zip(a, b):
+                    if i == j:
+                        frac = frac * getattr(name_map[i], "C", -1)
+                    else:
+                        change.append((i, j))
+            structure["cp"] = (float(frac), tuple(change))
+        return structure["cp"]
+
+    def cp_amplitude(self, amp_cp):
+        """Transpose and helicity-reverse the CP block, times ``frac``."""
+        dg = self.decay_group
+        structure = self.structure
+        f_shape = list(structure["f_shape"])
+        n_axis = 1 + len(f_shape)
+        frac, change = self.cp_transform()
+        shape = tf.shape(amp_cp)
+        out = tf.reshape(amp_cp, [shape[0]] + f_shape)
+        out = tf.transpose(out, list(dg.get_swap_transpose(change, n_axis)))
+        if dg.inverse_helicity_cp:
+            out = tf.reverse(out, axis=list(range(1, n_axis)))
+        out = tf.reshape(out, shape)
+        return out * tf.cast(frac, amp_cp.dtype)
+
+    def swap_terms(self, F, key):
+        """Sign and particle-axis transpose of one swap's ``F`` block.
+
+        ``get_amp2`` adds ``factor * transpose(amp_swapped)``, permuting the
+        particle (helicity) axes.  ``F`` is ``[ne, prod(f_shape), nu]``, so
+        the permutation is applied to ``np`` with the chain axis kept last;
+        transposing the basis transposes the contraction.  The preprocessor
+        stores the result, so ``pdf`` only sums prepared blocks.
+        """
+        dg = self.decay_group
+        f_shape = list(self.structure["f_shape"])
+        n_axis = 1 + len(f_shape)
+        perm = list(dg.get_id_swap_transpose(key, n_axis)) + [n_axis]
+        shape = tf.shape(F)
+        out = tf.reshape(F, [shape[0]] + f_shape + [shape[2]])
+        out = tf.transpose(out, perm)
+        out = tf.reshape(out, shape)
+        factor = tf.cast(float(dg.get_swap_factor(key)), F.dtype)
+        return out * factor
+
     def build_dense_terms(self, data):
         structure = self.structure
         dg = self.decay_group
-        if data.get("id_swap") or getattr(dg, "identical_particles", None):
-            raise NotImplementedError(
-                "dense_factor does not support identical-particle "
-                "symmetrization yet"
-            )
-        if data.get("cp_swap") is not None or getattr(
-            dg, "cp_particles", None
-        ):
-            raise NotImplementedError(
-                "dense_factor does not support CP conjugation yet"
-            )
 
         old_chains_idx = dg.chains_idx
         dg.chains_idx = list(range(len(dg.chains)))
@@ -1034,6 +1123,22 @@ class DenseFactorModel(BaseAmplitudeModel):
             n_ls_combo = int(np.prod(n_ls)) if n_ls else 1
             n_decay = len(decays)
             f_shape = list(F_chain.shape[1 + n_decay :])
+            if any(i is None for i in f_shape):
+                raise NotImplementedError(
+                    "dense_factor needs a static helicity shape"
+                )
+            shape_t = tuple(int(i) for i in f_shape)
+            if "f_shape" not in structure:
+                structure["f_shape"] = shape_t
+            elif structure["f_shape"] != shape_t:
+                raise NotImplementedError(
+                    "dense_factor needs one helicity shape for every chain"
+                )
+            if len(shape_t) != 1 + len(dg.outs):
+                raise NotImplementedError(
+                    "dense_factor needs one helicity axis per particle "
+                    "({} for {})".format(1 + len(dg.outs), shape_t)
+                )
             F_ls = tf.reshape(F_chain, [n_data, n_ls_combo] + f_shape)
 
             term_combos = (
@@ -1111,11 +1216,6 @@ class DenseFactorModel(BaseAmplitudeModel):
             dg.get_particle_terms(data)
             raise NotImplementedError("dense_factor is not initialized")
 
-        F = data.get("F", None)
-        B = data.get("B", None)
-        if F is None or B is None:
-            F, B = self.build_dense_terms(data)
-
         C, g = self._get_coeff()
         # The preprocessor may store F and B at lower precision.  Cast before
         # any product, so the graph the gradients traverse stays at full
@@ -1123,14 +1223,53 @@ class DenseFactorModel(BaseAmplitudeModel):
         # C is complex by construction while g only happens to be, so the
         # numerator decides the dtype.
         dtype = C.dtype
-        F = tf.cast(F, dtype)
-        B = tf.cast(B, dtype)
         used = set(dg.chains_idx)
         mask = tf.constant(
             [1.0 if k in used else 0.0 for k in structure["u_chain"]],
             dtype=dtype,
         )
         C = C * mask
+
+        def block(d):
+            F, B = d.get("F", None), d.get("B", None)
+            if F is None or B is None:
+                F, B = self.build_dense_terms(d)
+            return self._amplitude(F, B, C, g, dtype)
+
+        return self.sum_amplitude(data, block)
+
+    def sum_amplitude(self, data, block):
+        """Total amplitude: the swap sum plus the CP-conjugate block.
+
+        ``block(d)`` contracts one cached dict; the identical-particle sum
+        and the CP term are the same for the dense and the fused model.
+        """
+        dg = self.decay_group
+
+        def sum_swaps(d):
+            amp = block(d)
+            for key, sub in (d.get("id_swap") or {}).items():
+                if sub.get("F") is None or sub.get("B") is None:
+                    raise ValueError(
+                        "identical-particle block {} has no F/B; the "
+                        "dense_factor preprocessor must build it".format(key)
+                    )
+                amp = amp + block(sub)
+            return amp
+
+        amp = sum_swaps(data)
+        cp = data.get("cp_swap", None)
+        if cp is not None and dg.cp_particles:
+            # the conjugated kinematics carry their own identical-particle
+            # swaps, so it is the same sum on the cp_swap dict
+            amp = amp + self.cp_amplitude(sum_swaps(cp))
+        return dg.sum_with_polarization(amp)
+
+    def _amplitude(self, F, B, C, g, dtype):
+        """``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` for one block."""
+        structure = self.structure
+        F = tf.cast(F, dtype)
+        B = tf.cast(B, dtype)
         n_u = structure["n_u"]
         n_line = structure["max_internal_lines"]
         if n_line == 0:
@@ -1153,8 +1292,7 @@ class DenseFactorModel(BaseAmplitudeModel):
                 D = tf.reduce_prod(D, axis=-1)
 
         W = tf.math.divide_no_nan(C[None, :], D)
-        amp = tf.linalg.matvec(F, W)
-        return dg.sum_with_polarization(amp)
+        return tf.linalg.matvec(F, W)
 
     def _coeff_cpu_fn(self):
         """Opt-in: build ``C``/``g`` and their VJP on CPU under XLA.

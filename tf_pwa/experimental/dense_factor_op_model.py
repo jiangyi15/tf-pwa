@@ -79,11 +79,6 @@ class DenseFactorOpModel(DenseFactorModel):
             dg.get_particle_terms(data)
             raise NotImplementedError("dense_factor_op is not initialized")
 
-        F = data.get("F", None)
-        B = data.get("B", None)
-        if F is None or B is None:
-            F, B = self.build_dense_terms(data)
-
         C, g = self._get_coeff()
         # F and B may be stored at lower precision; the kernels take the
         # coefficient dtype, and casting before the op keeps the gradients
@@ -95,8 +90,6 @@ class DenseFactorOpModel(DenseFactorModel):
                 "use the dense_factor model for this one"
             )
         dtype = C.dtype
-        F = tf.cast(F, dtype)
-        B = tf.cast(B, dtype)
         used = set(dg.chains_idx)
         mask = tf.constant(
             [1.0 if k in used else 0.0 for k in structure["u_chain"]],
@@ -109,12 +102,23 @@ class DenseFactorOpModel(DenseFactorModel):
             raise NotImplementedError(
                 "dense_factor_op needs at least one denominator line"
             )
+
         # F is [ne, np, nu]; the op returns A[e, p] with one shared
         # denominator per chain and sum_with_polarization contracts it.
-        if n_line == 1:
-            amp = dense_factor_a(F, B, C, g, off, sz, max_basis=max_basis)
-        else:
-            amp = dense_factor_an(F, B, C, g, off, sz, max_basis=max_basis)
-        # same contraction the dense path ends with, so a non-trivial
-        # polarization density matrix is supported rather than rejected
-        return dg.sum_with_polarization(amp)
+        def block(d):
+            f_b, b_b = d.get("F", None), d.get("B", None)
+            if f_b is None or b_b is None:
+                f_b, b_b = self.build_dense_terms(d)
+            # the preprocessor may store F and B at lower precision
+            f_b = tf.cast(f_b, dtype)
+            b_b = tf.cast(b_b, dtype)
+            if n_line == 1:
+                return dense_factor_a(
+                    f_b, b_b, C, g, off, sz, max_basis=max_basis
+                )
+            return dense_factor_an(
+                f_b, b_b, C, g, off, sz, max_basis=max_basis
+            )
+
+        # the swap sum and the CP term are shared with the dense model
+        return self.sum_amplitude(data, block)

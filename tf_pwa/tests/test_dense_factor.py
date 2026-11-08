@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pytest
 
@@ -417,37 +419,6 @@ def test_dense_factor_used_chains():
         x1 = a1(data1).numpy()
         x2 = a2(data2).numpy()
         assert np.allclose(x1, x2, rtol=1e-6, atol=1e-8)
-
-
-def test_dense_factor_unsupported_symmetry():
-    import pytest
-
-    cfg = _config(
-        {
-            "J": 0,
-            "P": 1,
-            "m0": 2.0,
-            "g0": 0.1,
-            "model": "BW",
-            "running_width": False,
-        }
-    )
-    cfg2 = {
-        **cfg,
-        "data": {
-            **cfg["data"],
-            "preprocessor": "dense_factor",
-            "amp_model": "dense_factor",
-        },
-    }
-    config = ConfigLoader(cfg2)
-    amp = config.get_amplitude()
-
-    with pytest.raises(NotImplementedError, match="identical-particle"):
-        amp.build_dense_terms({"id_swap": {"x": {}}})
-
-    with pytest.raises(NotImplementedError, match="CP conjugation"):
-        amp.build_dense_terms({"cp_swap": {}})
 
 
 def test_dense_rejects_custom_chain_and_decay():
@@ -1109,5 +1080,159 @@ def test_dense_factor_op_polarization():
     g1 = t1.gradient(l1, v1)
     assert np.allclose(float(l0), float(l1), rtol=1e-10)
     assert len(g0) == len(g1)
+    for x, y in zip(g0, g1):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
+
+
+@pytest.mark.parametrize("model", ["dense_factor", "dense_factor_op"])
+@pytest.mark.parametrize("spin", [0, 1])
+def test_dense_factor_identical_particles(model, spin):
+    """Two identical finals: the swapped amplitude is summed, as upstream.
+
+    ``spin = 1`` makes the particle-axis transpose a real permutation and
+    gives a non-trivial ``get_swap_factor``.
+    """
+    import tensorflow as tf
+
+    if model != "dense_factor":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(amp_model):
+        data = {
+            "dat_order": ["B", "C", "D"],
+            "center_mass": True,
+            "identical_particles": [["C", "D"]],
+            "format": "simple",
+            "random_z": False,
+            "r_boost": False,
+            "amp_model": amp_model,
+        }
+        if amp_model != "default":
+            data["preprocessor"] = {"dense_factor": {}}
+        return {
+            "data": data,
+            "decay": {"A": ["BC", "D"], "BC": ["B", "C"]},
+            "particle": {
+                "$top": "A",
+                "$finals": ["B", "C", "D"],
+                "A": {"J": 0.5, "P": -1, "mass": 3.0},
+                "B": {"J": 0.5, "P": -1, "mass": 0.1},
+                "C": {"J": spin, "P": -1, "mass": 0.1},
+                "D": {"J": spin, "P": -1, "mass": 0.1},
+                "BC": {
+                    "J": 0.5,
+                    "P": -1,
+                    "mass": 2.0,
+                    "width": 0.5,
+                    "model": "BWR",
+                },
+            },
+        }
+
+    ps = PhaseSpaceGenerator(3.0, [0.1, 0.1, 0.1])
+    p4 = dict(zip(["B", "C", "D"], ps.generate(50)))
+    c0 = ConfigLoader(cfg("default"))
+    c1 = ConfigLoader(cfg(model))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert len(d0["id_swap"]) == 1
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
+
+    v0 = a0.vm.variables
+    v1 = a1.vm.variables
+    if isinstance(v0, dict):
+        v0, v1 = list(v0.values()), list(v1.values())
+    with tf.GradientTape() as t0:
+        t0.watch(v0)
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+    with tf.GradientTape() as t1:
+        t1.watch(v1)
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    assert np.allclose(float(l0), float(l1), rtol=1e-10)
+    # the fused model differentiates trainable variables only (coeff_on_cpu),
+    # so compare the pairs that carry a gradient on both sides
+    pairs = [(x, y) for x, y in zip(g0, g1) if x is not None and y is not None]
+    assert len(pairs) > 0
+    for x, y in pairs:
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
+
+
+@pytest.mark.parametrize("model", ["dense_factor", "dense_factor_op"])
+@pytest.mark.parametrize("spin", [0, 1])
+def test_dense_factor_cp_particles(model, spin):
+    """A CP pair: the conjugated kinematics are added with the C parities.
+
+    ``spin = 1`` makes the CP particle permutation a real transpose and
+    keeps the ``frac`` parity factor non-trivial.
+    """
+    import tensorflow as tf
+    import yaml
+
+    if model != "dense_factor":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, "config_self_cp.yml")) as f:
+        base = yaml.full_load(f)
+    if spin:
+        finals = base["particle"]["$finals"]
+        finals["pip"] = {**finals["pip"], "J": spin}
+        finals["pim"] = {**finals["pim"], "J": spin}
+
+    def cfg(amp_model):
+        data = {
+            **base["data"],
+            "format": "simple",
+            "r_boost": False,
+            "amp_model": amp_model,
+        }
+        if amp_model != "default":
+            data["preprocessor"] = {"dense_factor": {}}
+        return {**base, "data": data}
+
+    ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+    p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(30)))
+    c0 = ConfigLoader(cfg("default"))
+    c1 = ConfigLoader(cfg(model))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert "cp_swap" in d0
+    assert a0.decay_group.cp_particles
+
+    # the op model differentiates trainable_variables only (coeff_on_cpu),
+    # so the comparison is over those
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    assert len(v0) == len(v1) > 0
+    if isinstance(v0, dict):
+        v0, v1 = list(v0.values()), list(v1.values())
+    with tf.GradientTape() as t0:
+        t0.watch(v0)
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+    with tf.GradientTape() as t1:
+        t1.watch(v1)
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    assert np.allclose(float(l0), float(l1), rtol=1e-10)
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
     for x, y in zip(g0, g1):
         assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
