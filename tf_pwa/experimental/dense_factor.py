@@ -880,6 +880,9 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
                 self._fill_blocks(cp)
                 self._strip(cp)
                 blocks += [cp] + list((cp.get("id_swap") or {}).values())
+            # a subclass may reduce the blocks here, while they are still
+            # on the CPU at full precision
+            self._after_blocks(x, blocks)
             # every block follows the same two rules as the base dict
             x["F"], x["B"] = self._cast(x["F"], x["B"])
             for d in blocks:
@@ -890,6 +893,9 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
             d["F"], d["B"] = self._move(d["F"], d["B"])
         self._strip(x)
         return x
+
+    def _after_blocks(self, x, blocks):
+        """Hook for subclasses, called before the cast and the GPU move."""
 
     def _cast(self, F, B):
         """Lower the stored precision, inside the CPU scope."""
@@ -1342,6 +1348,148 @@ class DenseFactorModel(BaseAmplitudeModel):
 
         self._coeff_cpu_fn_cached = fn
         return fn
+
+
+# ---------------------------------------------------------------------------
+# Merge identical basis blocks.  Many-wave models repeat the same kinematic
+# basis once per wave: F depends only on the final-state kinematics and the
+# quantum numbers, while m0, g0 and the couplings live in C and g.  The
+# preprocessor finds the duplicates on the first batch, stores the maps in the
+# structure and keeps one representative per group, so F and B are stored once
+# per distinct basis block.  pdf expands them with the index and then runs the
+# plain contraction, so the saving is the stored size (a lazy cache, the
+# host-to-device copies), not the arithmetic.
+# ---------------------------------------------------------------------------
+
+
+def _axis_groups(X, axis, probe=2048, rtol=1e-13, atol=0.0):
+    """Group equal slices of ``X`` along ``axis``, using ``probe`` rows.
+
+    Returns ``(map, reps)``: the group of every slice and one representative
+    index per group.  The test is element-wise, ``|a - b| <= atol + rtol *
+    max(|a|, |b|)``: a byte comparison is wrong for complex floats (the same
+    basis reached through a different order of operations differs in the last
+    bits), a purely absolute one merges columns that are small but genuinely
+    different, and a column-level scale would merge functions that disagree
+    near a zero crossing.  Non-finite slices are only merged when they agree
+    exactly, since an ``Inf`` would make the tolerance itself infinite.
+    """
+    rows = np.asarray(X)
+    step = max(1, rows.shape[0] // probe) if probe else 1
+    A = np.moveaxis(rows[::step][:probe], axis, -1)
+    flat = np.ascontiguousarray(A).reshape(-1, A.shape[-1])
+    reps, mapping = [], []
+    for c in range(flat.shape[1]):
+        col = flat[:, c]
+        group = None
+        for g, r in enumerate(reps):
+            ref = flat[:, r]
+            if np.array_equal(col, ref):
+                group = g
+                break
+            if not (np.all(np.isfinite(col)) and np.all(np.isfinite(ref))):
+                continue
+            with np.errstate(invalid="ignore"):
+                tol = atol + rtol * np.maximum(np.abs(col), np.abs(ref))
+                same = np.all(np.abs(col - ref) <= tol)
+            if same:
+                group = g
+                break
+        if group is None:
+            group = len(reps)
+            reps.append(c)
+        mapping.append(group)
+    return mapping, reps
+
+
+def _find_merge(F, B, probe=2048, rtol=1e-13, atol=0.0):
+    """Maps of the duplicate basis slices of ``F`` and ``B``."""
+    map_u, rep_u = _axis_groups(F, 2, probe, rtol, atol)
+    map_i, rep_k = _axis_groups(B, 1, probe, rtol, atol)
+    return {
+        "map_u": tf.constant(map_u, tf.int32),
+        "map_i": tf.constant(map_i, tf.int32),
+        "rep_u": rep_u,
+        "rep_k": rep_k,
+    }
+
+
+def _expand_block(structure, F, B):
+    """Expand a stored block with the merge index.
+
+    Group ids index the reduced tensors, so only a reduced block is gathered;
+    a full-width one is passed through unchanged.
+    """
+    merge = structure.get("merge")
+    if merge is None:
+        raise ValueError(
+            "dense_factor_merge needs the dense_factor_merge preprocessor "
+            "to build the basis maps"
+        )
+    if int(F.shape[2]) != int(structure["n_u"]):
+        F = tf.gather(F, merge["map_u"], axis=2)
+    if int(B.shape[1]) != int(structure["n_param"]):
+        B = tf.gather(B, merge["map_i"], axis=1)
+    return F, B
+
+
+@register_preprocessor("dense_factor_merge")
+class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
+    """``dense_factor`` preprocessor that merges identical basis blocks.
+
+    Config::
+
+        data:
+          preprocessor:
+            dense_factor_merge:
+              merge_rtol: 1e-13
+              merge_atol: 0.0
+
+    The maps are found from the first batch (F's wave axis and B's parameter
+    axis) and cached in ``structure["merge"]``; every later batch and every
+    swapped block is reduced with the same maps, since the grouping depends
+    only on the decay structure.  The discovery samples the batch with a
+    stride, but it is still a sample: a dataset whose first events fall in a
+    narrow kinematic region can hide a difference, so the structural key
+    (J^PC, channel, LS list, term model) is the safer grouping if that ever
+    matters.  Set ``merge_rtol: 0`` for a fixed tolerance, ``merge_atol: 0``
+    for the purely relative one.
+    """
+
+    def __init__(self, *args, merge_rtol=1e-13, merge_atol=0.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.merge_rtol = float(merge_rtol)
+        self.merge_atol = float(merge_atol)
+
+    def _after_blocks(self, x, blocks):
+        merge = self.amp.structure.get("merge")
+        if merge is None:
+            merge = _find_merge(
+                x["F"], x["B"], rtol=self.merge_rtol, atol=self.merge_atol
+            )
+            self.amp.structure["merge"] = merge
+
+        def reduce(d):
+            if d.get("F") is not None:
+                d["F"] = tf.gather(d["F"], merge["rep_u"], axis=2)
+            if d.get("B") is not None:
+                d["B"] = tf.gather(d["B"], merge["rep_k"], axis=1)
+
+        reduce(x)
+        for d in blocks:
+            reduce(d)
+
+
+@register_amp_model("dense_factor_merge")
+class DenseFactorMergeModel(DenseFactorModel):
+    """``dense_factor`` amplitude whose basis blocks are stored merged."""
+
+    def expand_block(self, F, B):
+        return _expand_block(self.structure, F, B)
+
+    def _amplitude(self, F, B, C, g, dtype):
+        F, B = self.expand_block(F, B)
+        return super()._amplitude(F, B, C, g, dtype)
 
 
 # ---------------------------------------------------------------------------

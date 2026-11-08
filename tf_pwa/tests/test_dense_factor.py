@@ -1236,3 +1236,144 @@ def test_dense_factor_cp_particles(model, spin):
     assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
     for x, y in zip(g0, g1):
         assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_merge():
+    """Identical basis blocks are stored once and expanded by the index."""
+    import tensorflow as tf
+
+    waves = 3
+    part = {
+        "$top": "X",
+        "$finals": ["a", "b", "c"],
+        "X": {"J": 1, "P": -1, "mass": 5.0},
+        "a": {"J": 0, "P": -1, "mass": 0.2},
+        "b": {"J": 0, "P": -1, "mass": 0.2},
+        "c": {"J": 0, "P": -1, "mass": 0.2},
+    }
+    decay = {"X": [[f"R{i}", "c"] for i in range(waves)]}
+    for i in range(waves):
+        decay[f"R{i}"] = ["a", "b"]
+        part[f"R{i}"] = {
+            "J": 1,
+            "P": -1,
+            "mass": 2.0 + 0.01 * i,
+            "width": 0.1,
+            "model": "BWR",
+        }
+
+    def cfg(model):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {model: {"force_cpu": True}},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.2, 0.2, 0.2])
+    p4 = dict(zip(["a", "b", "c"], ps.generate(200)))
+    c0 = ConfigLoader(cfg("dense_factor"))
+    c1 = ConfigLoader(cfg("dense_factor_merge"))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    # one wave-equivalent block, one set of den columns
+    assert d0["F"].shape[2] == waves
+    assert d1["F"].shape[2] == 1
+    assert d0["B"].shape[1] == 3 * waves
+    assert d1["B"].shape[1] == 3
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-12, atol=1e-14)
+
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    with tf.GradientTape() as t0:
+        t0.watch(v0)
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+    with tf.GradientTape() as t1:
+        t1.watch(v1)
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    assert np.allclose(float(l0), float(l1), rtol=1e-12)
+    for x, y in zip(g0, g1):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-10, atol=1e-12)
+
+
+def test_dense_factor_op_merge():
+    """The fused contraction works on the merged basis, expanded by index."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    waves = 3
+    part = {
+        "$top": "X",
+        "$finals": ["a", "b", "c"],
+        "X": {"J": 1, "P": -1, "mass": 5.0},
+        "a": {"J": 0, "P": -1, "mass": 0.2},
+        "b": {"J": 0, "P": -1, "mass": 0.2},
+        "c": {"J": 0, "P": -1, "mass": 0.2},
+    }
+    decay = {"X": [[f"R{i}", "c"] for i in range(waves)]}
+    for i in range(waves):
+        decay[f"R{i}"] = ["a", "b"]
+        part[f"R{i}"] = {
+            "J": 1,
+            "P": -1,
+            "mass": 2.0 + 0.01 * i,
+            "width": 0.1,
+            "model": "BWR",
+        }
+
+    def cfg(model, pre):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {pre: {"force_cpu": True}},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.2, 0.2, 0.2])
+    p4 = dict(zip(["a", "b", "c"], ps.generate(200)))
+    c0 = ConfigLoader(cfg("dense_factor", "dense_factor"))
+    c1 = ConfigLoader(cfg("dense_factor_op_merge", "dense_factor_merge"))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert d1["F"].shape[2] == 1 and d1["B"].shape[1] == 3
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
+
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    with tf.GradientTape() as t0:
+        t0.watch(v0)
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+    with tf.GradientTape() as t1:
+        t1.watch(v1)
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    assert np.allclose(float(l0), float(l1), rtol=1e-10)
+    for x, y in zip(g0, g1):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)

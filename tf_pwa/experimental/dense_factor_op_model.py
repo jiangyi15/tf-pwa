@@ -38,7 +38,7 @@ import tensorflow as tf
 
 from tf_pwa.amp.amp import register_amp_model
 
-from .dense_factor import DenseFactorModel
+from .dense_factor import DenseFactorModel, _expand_block
 from .dense_factor_op import dense_factor_a, dense_factor_an
 
 
@@ -49,6 +49,10 @@ class DenseFactorOpModel(DenseFactorModel):
     #: The coefficient build is 300 scalars and is much cheaper on CPU/XLA
     #: than as ~200 tiny GPU kernels; this pairing is the measured optimum.
     coeff_on_cpu = True
+
+    def expand_block(self, F, B):
+        """Hook for subclasses that store the basis merged."""
+        return F, B
 
     def _op_layout(self):
         structure = self.structure
@@ -109,6 +113,8 @@ class DenseFactorOpModel(DenseFactorModel):
             f_b, b_b = d.get("F", None), d.get("B", None)
             if f_b is None or b_b is None:
                 f_b, b_b = self.build_dense_terms(d)
+            # merged storage expands back here, so the op is unchanged
+            f_b, b_b = self.expand_block(f_b, b_b)
             # the preprocessor may store F and B at lower precision
             f_b = tf.cast(f_b, dtype)
             b_b = tf.cast(b_b, dtype)
@@ -122,3 +128,23 @@ class DenseFactorOpModel(DenseFactorModel):
 
         # the swap sum and the CP term are shared with the dense model
         return self.sum_amplitude(data, block)
+
+
+@register_amp_model("dense_factor_op_merge")
+class DenseFactorOpMergeModel(DenseFactorOpModel):
+    """Fused contraction whose basis blocks are stored merged.
+
+    Config::
+
+        data:
+          amp_model: dense_factor_op_merge
+          preprocessor:
+            dense_factor_merge: {}
+
+    Only ``expand_block`` is overridden, so no multiple inheritance is
+    involved: the fused ``pdf`` is the plain one, and the merged tensors are
+    expanded just before the op call.
+    """
+
+    def expand_block(self, F, B):
+        return _expand_block(self.structure, F, B)
