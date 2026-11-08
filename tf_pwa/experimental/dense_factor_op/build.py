@@ -28,18 +28,16 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 _DIR = Path(__file__).resolve().parent
 _CC = _DIR / "dense_factor_op.cc"
 _CU = _DIR / "dense_factor_op.cu"
 
-#: Flags used for both the device and host compilation.
-COMPILE_FLAGS = (
-    "-std=c++17",
-    "-O3",
-    "-D_GLIBCXX_USE_CXX11_ABI=1",
-)
+#: Flags used for both the device and host compilation, on top of the ones
+#: reported by ``tf.sysconfig`` (see :func:`_tf_flags`).
+COMPILE_FLAGS = ("-O3",)
 
 
 CACHE_ENV = "TF_PWA_CACHE_DIR"
@@ -127,6 +125,32 @@ def _absl_include():
     return _first_dir(*cands, marker="absl/base/config.h")
 
 
+def _tf_flags():
+    """Compile and link flags reported by the installed TensorFlow.
+
+    Taken from ``tf.sysconfig`` instead of being hard-coded so that the
+    build follows the wheel it links against.  The libstdc++ ABI
+    (``_GLIBCXX_USE_CXX11_ABI``), the C++ standard, Eigen's alignment
+    define and the extra include roots are all release-specific.  Pinning
+    ``-D_GLIBCXX_USE_CXX11_ABI=1`` compiles cleanly against a wheel built
+    with the pre-C++11 ABI and then fails to link; that is the failure an
+    older GPU stack (sm_70 with TensorFlow 2.9 and CUDA 11, say) would hit.
+
+    Returns ``(compile_flags, link_flags)``.
+    """
+    import tensorflow as tf
+
+    compile_flags = [
+        str(f).replace("--std=", "-std=")
+        for f in tf.sysconfig.get_compile_flags()
+    ]
+    link_flags = [str(f) for f in tf.sysconfig.get_link_flags()]
+    # The wheel states its own standard; only pick a default when it does not.
+    if not any(f.startswith("-std=") for f in compile_flags):
+        compile_flags.append("-std=c++17")
+    return compile_flags, link_flags
+
+
 def _arch():
     """Compute capability of the visible GPU, e.g. ``sm_120``."""
     r = _run(
@@ -199,15 +223,34 @@ def build(force=False):
             "(conda: `conda install -c conda-forge libabseil`)"
         )
 
-    inc = [
-        f"-I{cuda_inc}",
-        f"-I{tf_inc}",
-        f"-I{absl_inc}",
-        *COMPILE_FLAGS,
-        "-w",
-    ]
-    cc_obj = cache / f"_dense_factor_op-{tag}.cc.o"
-    cu_obj = cache / f"_dense_factor_op-{tag}.cu.o"
+    tf_cc, tf_ld = _tf_flags()
+    inc = list(
+        dict.fromkeys(
+            [
+                f"-I{cuda_inc}",
+                f"-I{tf_inc}",
+                f"-I{absl_inc}",
+                *tf_cc,
+                *COMPILE_FLAGS,
+                "-w",
+            ]
+        )
+    )
+    link = list(tf_ld) or [f"-L{tf_lib}", "-l:libtensorflow_framework.so.2"]
+    if not any(f.startswith("-Wl,-rpath") for f in link):
+        link.append(f"-Wl,-rpath,{tf_lib}")
+    # The device translation unit uses `if constexpr` and includes only CUDA
+    # headers, so its dialect is pinned instead of inherited from the wheel:
+    # nvcc otherwise gets the wheel's standard (c++14 on older releases) and
+    # takes the REG branch as a non-standard extension.
+    cu_inc = [f for f in inc if not f.startswith("-std=")] + ["-std=c++17"]
+    # Intermediates carry the pid: two processes may build the same digest at
+    # once, and the objects are not reused anyway (a cached digest is found by
+    # its ``.so``), so they are deleted once the library is in place.
+    stem = f"_dense_factor_op-{tag}.{os.getpid()}"
+    cc_obj = cache / f"{stem}.cc.o"
+    cu_obj = cache / f"{stem}.cu.o"
+    tmp_so = cache / f"{stem}.tmp.so"
 
     cmds = [
         [
@@ -216,7 +259,7 @@ def build(force=False):
             str(_CU),
             "-o",
             str(cu_obj),
-            *inc,
+            *cu_inc,
             f"-arch={arch}",
             "--expt-relaxed-constexpr",
             "-Xcompiler",
@@ -237,31 +280,41 @@ def build(force=False):
             str(cc_obj),
             str(cu_obj),
             "-o",
-            str(so),
-            f"-L{tf_lib}",
-            "-l:libtensorflow_framework.so.2",
-            f"-Wl,-rpath,{tf_lib}",
+            str(tmp_so),
+            *link,
         ],
     ]
-    for cmd in cmds:
-        r = _run(cmd)
-        if r.returncode != 0:
-            raise RuntimeError(
-                "dense_factor_op build failed:\n"
-                + " ".join(map(str, cmd))
-                + "\n"
-                + r.stdout
-                + r.stderr
-            )
+    try:
+        for cmd in cmds:
+            r = _run(cmd)
+            if r.returncode != 0:
+                raise RuntimeError(
+                    "dense_factor_op build failed:\n"
+                    + " ".join(map(str, cmd))
+                    + "\n"
+                    + r.stdout
+                    + r.stderr
+                )
+        # Publish atomically: a build that dies mid-link must not leave a
+        # truncated library that the existence check would then accept.
+        os.replace(tmp_so, so)
+    finally:
+        for path in (cc_obj, cu_obj, tmp_so):
+            try:
+                path.unlink()
+            except OSError:
+                pass
     return str(so)
 
 
 def _prune_cache(cache, so_path):
-    """Remove stale libraries for the *same* TF version and arch.
+    """Drop stale libraries and the leftovers of dead builds.
 
-    Builds for a different ``-tf<version>-sm<XX>`` suffix are kept, so a
-    shared cache can hold several targets.  Files that are not
-    ``_dense_factor_op-*`` are never touched.
+    Libraries for a different ``-tf<version>-sm<XX>`` suffix are kept, so a
+    shared cache can hold several targets, but objects and half-written
+    libraries are transient for every target and always removed.  Fresh
+    transients are left alone: they belong to a build running right now.
+    Files that are not ``_dense_factor_op-*`` are never touched.
     """
     name = Path(so_path).name
     match = re.match(r"_dense_factor_op-(.*)(-tf.+-sm[\d_]+)\.so$", name)
@@ -271,10 +324,19 @@ def _prune_cache(cache, so_path):
     suffix = match.group(2)  # -tf2.21.0-sm_120
 
     removed = []
+    now = time.time()
     for path in sorted(Path(cache).glob("_dense_factor_op-*")):
-        if suffix not in path.name:
+        # Objects and half-written libraries are transient: they are never
+        # reused and are only here because a build died before cleaning up.
+        if path.suffix == ".o" or ".tmp." in path.name:
+            try:
+                if now - path.stat().st_mtime < 300:
+                    continue  # a build is writing it
+            except OSError:
+                continue
+        elif suffix not in path.name:
             continue  # another TF version or arch: keep
-        if path.name.startswith(keep):
+        elif path.name.startswith(keep):
             continue  # the build just resolved
         try:
             path.unlink()

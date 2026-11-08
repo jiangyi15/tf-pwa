@@ -735,6 +735,11 @@ def test_dense_factor_op_gradient():
     check(2, [0, 2, 0, 2], [2, 2, 2, 2], 2, 4)
     # more chains than the block has threads
     check(300, [0] * 300, [2] * 300, 1, 2)
+    # the register path spans four lane slots and the shared path takes over
+    # above 128: 33 is the second slot, 128/129 the dispatch boundary
+    check(33, [0] * 33, [2] * 33, 1, 2)
+    check(128, [0] * 128, [2] * 128, 1, 2)
+    check(129, [0] * 129, [2] * 129, 1, 2)
 
 
 def test_dense_factor_op_shared_parameters():
@@ -787,6 +792,76 @@ def test_dense_factor_op_shared_parameters():
     assert len(v0) > 0
     assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
 
+    with tf.GradientTape() as t0:
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    g0 = t0.gradient(l0, v0)
+    with tf.GradientTape() as t1:
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g1 = t1.gradient(l1, v1)
+    assert np.allclose(float(l0), float(l1), rtol=1e-10)
+    for x, y in zip(g0, g1):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_op_projections():
+    """The projection axis is the product of helicity dims, not the top spin."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        import pytest
+
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {"dense_factor": {"force_cpu": True}},
+            },
+            "decay": {"B": [["R", "X"]], "R": ["A", "C"]},
+            "particle": {
+                "$top": {
+                    "B": {
+                        "J": 1,
+                        "P": -1,
+                        "mass": 5.0,
+                        "spins": [-1, 1],
+                    }
+                },
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.20},
+                    "A": {"J": 1, "P": -1, "mass": 0.30},
+                    "C": {"J": 1, "P": -1, "mass": 0.30},
+                },
+                "R": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.20, 0.30, 0.30])
+    p4 = dict(zip(["X", "A", "C"], ps.generate(100)))
+    c0 = ConfigLoader(cfg("dense_factor"))
+    c1 = ConfigLoader(cfg("dense_factor_op"))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    # 2 top spins x 3 x 3 helicities; the old op refused anything above 8
+    assert d0["F"].shape[1] == 18
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
+
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    assert len(v0) > 0
+    assert len(v0) == len(v1)
     with tf.GradientTape() as t0:
         l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
     g0 = t0.gradient(l0, v0)
