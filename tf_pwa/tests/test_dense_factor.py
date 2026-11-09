@@ -339,14 +339,61 @@ def test_dense_factor_unsupported():
             "amp_model": "dense_factor",
         },
     }
-    (p_b, p_d), p_c = generate_phsp(4.6, ((2.0, (1.0, 0.4)), 0.5), N=10)
-    p4 = {"B": p_b, "D": p_d, "C": p_c}
-    c2 = ConfigLoader(cfg2)
+    # the preprocessor pulls the amplitude when the data is built, so an
+    # unsupported term model fails as soon as the config is loaded
     with pytest.raises(
         NotImplementedError,
-        match=r"R .*does not implement get_term_basis",
+        match=r"R .*does not implement get_term_coeff",
     ):
-        c2.data.cal_angle(p4)
+        ConfigLoader(cfg2)
+
+
+def test_dense_preprocessor_with_default_model():
+    """Another amp_model still gets complete data from the preprocessor."""
+    cfg = _config({"J": 0, "P": 1, "model": "one"})
+    base = {**cfg, "data": {**cfg["data"], "amp_model": "default"}}
+    dense = {
+        **cfg,
+        "data": {
+            **base["data"],
+            "preprocessor": "dense_factor",
+        },
+    }
+    (p_b, p_d), p_c = generate_phsp(4.6, ((2.0, (1.0, 0.4)), 0.5), N=10)
+    p4 = {"B": p_b, "D": p_d, "C": p_c}
+
+    c0 = ConfigLoader(base)
+    c1 = ConfigLoader(dense)
+    a0 = c0.get_amplitude()
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    data1 = c1.data.cal_angle(p4)
+    # the basis comes from the decay group, not from the amplitude model
+    assert "F" in data1 and "B" in data1
+    x0 = a0(c0.data.cal_angle(p4)).numpy()
+    x1 = a1(data1).numpy()
+    assert np.allclose(x0, x1, rtol=1e-10, atol=1e-12)
+
+
+def test_group_dense_structure():
+    """Attaching the plugin gives DecayGroup a lazy basis getter."""
+    from tf_pwa.amp.core import DecayGroup
+
+    cfg = _config({"J": 0, "P": 1, "model": "one"})
+    cfg = {**cfg, "data": {**cfg["data"], "amp_model": "default"}}
+    dg = ConfigLoader(cfg).full_decay
+
+    assert hasattr(DecayGroup, "get_dense_structure")
+    structure = dg.get_dense_structure()
+    assert isinstance(structure, dict)
+    assert structure["n_u"] > 0
+    # the particle-derived entries are there before any event is seen
+    assert structure["f_shape"] == (len(dg.top.spins),) + tuple(
+        len(p.spins) for p in dg.outs
+    )
+    assert structure["cp"] == (1.0, ())
+    assert dg.get_dense_structure() is structure  # built once, no amp involved
 
 
 def test_dense_factor_used_chains():
@@ -569,7 +616,6 @@ def test_dense_factor_op_two_lines():
     a1 = c1.get_amplitude()
     a1.set_params(a0.get_params())
 
-    assert a0.structure["max_internal_lines"] == 2
     x0 = a0(d0).numpy()
     x1 = a1(d1).numpy()
     assert np.allclose(x0, x1, rtol=1e-10, atol=1e-12)
@@ -630,7 +676,6 @@ def test_dense_factor_op_three_lines():
     a1 = c1.get_amplitude()
     a1.set_params(a0.get_params())
 
-    assert a0.structure["max_internal_lines"] == 3
     assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
 
     # Gradients for the general path are covered by
@@ -771,7 +816,6 @@ def test_dense_factor_op_shared_parameters():
     a1 = c1.get_amplitude()
     a1.set_params(a0.get_params())
 
-    assert a0.structure["n_u"] == 2  # two LS terms on one chain
     v0 = a0.vm.trainable_variables
     v1 = a1.vm.trainable_variables
     assert len(v0) > 0
@@ -1446,8 +1490,8 @@ def test_dense_factor_merge_lazy(tmp_path):
     )
 
 
-def test_dense_factor_merge_unsupported_model():
-    """A model whose init_params bails must not break the merge preprocessor."""
+def test_dense_factor_merge_unsupported_model_raises():
+    """A model with no rational basis must fail when the config is loaded."""
     part = {
         "$top": "X",
         "$finals": ["a", "b", "c"],
@@ -1455,8 +1499,7 @@ def test_dense_factor_merge_unsupported_model():
         "a": {"J": 0, "P": -1, "mass": 0.2},
         "b": {"J": 0, "P": -1, "mass": 0.2},
         "c": {"J": 0, "P": -1, "mass": 0.2},
-        # no width: get_term_coeff raises, so init_params returns before the
-        # structure is built
+        # no width: get_term_coeff raises at construction
         "R": {"J": 1, "P": -1, "mass": 2.0},
     }
     cfg = {
@@ -1468,8 +1511,11 @@ def test_dense_factor_merge_unsupported_model():
         "decay": {"X": [["R", "c"]], "R": ["a", "b"]},
         "particle": part,
     }
-    loader = ConfigLoader(cfg)  # must not raise
-    assert loader.get_amplitude().structure is None
+    # the term model names the particle in its own message, and the merge
+    # preprocessor builds the amplitude at construction, so this raises here
+    # instead of leaving a husk that fails at the first batch
+    with pytest.raises(NotImplementedError, match="no width"):
+        ConfigLoader(cfg)
 
 
 def test_merge_axis_groups_tolerance():
@@ -1494,3 +1540,241 @@ def test_merge_axis_groups_tolerance():
     assert groups[2] == groups[3]
     groups, reps = _axis_groups(tf.constant(X), 1, rtol=1e-10)
     assert groups[2] == groups[3]
+
+
+def test_chain_layout_pads_absent_lines():
+    """The layout holds one ``(off, sz)`` pair per line slot, not per line."""
+    from tf_pwa.experimental.dense_factor_op import chain_layout
+
+    structure = {
+        "u_chain": [0, 0, 1],
+        "den_sizes": [[2, 1], [3]],
+        "param_offset": [[0, 2], [3]],
+        "max_internal_lines": 2,
+    }
+    off, sz = chain_layout(structure)
+    # chain 0 appears twice and has both lines; chain 1 has one line and is
+    # padded, so its second slot is (0, 0)
+    assert off.numpy().tolist() == [0, 2, 0, 2, 3, 0]
+    assert sz.numpy().tolist() == [2, 1, 2, 1, 3, 0]
+    assert len(off) == len(structure["u_chain"]) * 2
+
+
+def test_dense_factor_op_retrace():
+    """A retrace and a later eager call must not reuse graph constants."""
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tensorflow as tf
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    cfg = _config(
+        {"J": 1, "P": -1, "mass": 1.5, "width": 0.1, "model": "BWR"},
+        top={"J": 1, "P": -1, "mass": 4.6},
+    )
+    cfg = {**cfg, "data": {**cfg["data"], "amp_model": "dense_factor_op"}}
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+
+    @tf.function
+    def call(data):
+        return amp(data)
+
+    sizes = []
+    for n in (10, 4):  # the second batch shape forces a retrace
+        (p_b, p_d), p_c = generate_phsp(4.6, ((2.0, (1.0, 0.4)), 0.5), N=n)
+        data = c.data.cal_angle({"B": p_b, "D": p_d, "C": p_c})
+        sizes.append(call(data).numpy().shape[0])
+
+    # eager after tracing used to be the same failure
+    (p_b, p_d), p_c = generate_phsp(4.6, ((2.0, (1.0, 0.4)), 0.5), N=3)
+    data = c.data.cal_angle({"B": p_b, "D": p_d, "C": p_c})
+    sizes.append(amp(data).numpy().shape[0])
+    assert sizes == [10, 4, 3]
+
+
+def _one_wave():
+    part = {
+        "$top": "X",
+        "$finals": ["a", "b", "c"],
+        "X": {"J": 1, "P": -1, "mass": 5.0},
+        "a": {"J": 0, "P": -1, "mass": 0.2},
+        "b": {"J": 0, "P": -1, "mass": 0.2},
+        "c": {"J": 0, "P": -1, "mass": 0.2},
+        "R": {"J": 1, "P": -1, "mass": 2.0, "width": 0.1, "model": "BWR"},
+    }
+    return {"X": [["R", "c"]], "R": ["a", "b"]}, part
+
+
+def test_dense_preprocessor_with_wrapper_model():
+    """A wrapper amp_model shares the group but builds F/B in its own pdf."""
+    decay, part = _one_wave()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": {"dense_factor": {}, "default": {}},
+            "preprocessor": "dense_factor",
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+    assert type(amp).__name__ == "ProdPDF"
+
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+    data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    # the group builds F/B whatever the wrapper is; the dense component
+    # reads them, the other components ignore them
+    assert "F" in data
+    assert amp(data).numpy().shape == (10,)
+
+
+def test_dense_merge_preprocessor_with_default_model():
+    """The default model gets the merged F/B built from the group."""
+    decay, part = _one_wave()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "default",
+            # forcing the init-time preparation exercises its guard
+            "preprocessor": {"dense_factor_merge": {"merge_prepare": True}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+    data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    assert "F" in data and "B" in data
+    assert isinstance(amp.merge, dict)
+    assert amp(data).numpy().shape == (10,)
+
+
+def test_dense_factor_merge_disabled_falls_back():
+    """A sample that cannot be built disables merging, not the model."""
+    import tf_pwa.experimental.dense_factor as df
+
+    decay, part = _one_wave()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_merge",
+            "preprocessor": {"dense_factor_merge": {}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+
+    real = df.PhaseSpaceGenerator
+
+    class _Boom:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("no sample")
+
+    df.PhaseSpaceGenerator = _Boom
+    try:
+        with pytest.warns(UserWarning, match="disabled"):
+            data = c.data.cal_angle(p4)
+    finally:
+        df.PhaseSpaceGenerator = real
+
+    assert amp.merge is False
+    # the blocks are stored at full width and expand_block passes them on
+    assert amp(data).numpy().shape == (10,)
+
+
+def test_dense_preprocessor_wrapper_keeps_angles():
+    """drop_decay_particle must not strip data a wrapper still reads."""
+    decay, part = _one_wave()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": {"dense_factor": {}, "default": {}},
+            "preprocessor": {"dense_factor": {"drop_decay_particle": True}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+    data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    assert "particle" in data and "decay" in data
+    assert amp(data).numpy().shape == (10,)
+
+
+def _identical_waves(n=3):
+    decay = {"X": [[f"R{i}", "c"] for i in range(n)]}
+    part = {
+        "$top": "X",
+        "$finals": ["a", "b", "c"],
+        "X": {"J": 1, "P": -1, "mass": 5.0},
+        "a": {"J": 0, "P": -1, "mass": 0.2},
+        "b": {"J": 0, "P": -1, "mass": 0.2},
+        "c": {"J": 0, "P": -1, "mass": 0.2},
+    }
+    for i in range(n):
+        decay[f"R{i}"] = ["a", "b"]
+        part[f"R{i}"] = {
+            "J": 1,
+            "P": -1,
+            "mass": 2.0 + 0.01 * i,
+            "width": 0.1,
+            "model": "BWR",
+        }
+    return decay, part
+
+
+def test_dense_merge_preprocessor_with_plain_model_fails():
+    """The reduced widths reach a model that cannot expand them: mismatch."""
+    import tensorflow as tf
+
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor",
+            "preprocessor": {"dense_factor_merge": {}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+    data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    assert isinstance(amp.merge, dict)
+    assert int(data["F"].shape[2]) == 1
+    with pytest.raises(tf.errors.InvalidArgumentError):
+        amp(data)
+
+
+def test_dense_merge_preprocessor_wrapper_fails():
+    """A wrapper cannot expand the reduced blocks either."""
+    import tensorflow as tf
+
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": {"dense_factor_merge": {}, "default": {}},
+            "preprocessor": {"dense_factor_merge": {}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+    data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    with pytest.raises(tf.errors.InvalidArgumentError):
+        amp(data)

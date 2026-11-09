@@ -39,7 +39,7 @@ import tensorflow as tf
 from tf_pwa.amp.amp import register_amp_model
 
 from .dense_factor import DenseFactorModel, _expand_block
-from .dense_factor_op import dense_factor_a, dense_factor_an
+from .dense_factor_op import chain_layout, dense_factor_a, dense_factor_an
 
 
 @register_amp_model("dense_factor_op")
@@ -50,84 +50,60 @@ class DenseFactorOpModel(DenseFactorModel):
     #: than as ~200 tiny GPU kernels; this pairing is the measured optimum.
     coeff_on_cpu = True
 
-    def expand_block(self, F, B):
-        """Hook for subclasses that store the basis merged."""
-        return F, B
+    #: ``(off, sz, n_line, max_basis)``, filled by ``init_params``
+    _layout = None
+
+    def init_params(self, name=""):
+        # the base init builds the group's basis, or raises for an
+        # unsupported term model, so it exists from here on
+        super().init_params(name)
+        self._layout = self._op_layout()
 
     def _op_layout(self):
-        structure = self.structure
-        metas = structure["chain_meta"]
-        n_line = structure["max_internal_lines"]
-        off, sz = [], []
-        for k in structure["u_chain"]:
-            meta = metas[k]
-            sizes, offsets = meta["den_sizes"], meta["param_offset"]
-            for l in range(n_line):
-                if l < len(sizes):
-                    off.append(offsets[l])
-                    sz.append(sizes[l])
-                else:  # absent line: multiply the product by 1
-                    off.append(0)
-                    sz.append(0)
+        """``(off, sz, n_line, max_basis)``, built once in ``init_params``.
+
+        The layout depends only on the structure, which is fixed there, so
+        it is built eagerly: eager tensors are captured as constants by any
+        graph that uses them, while a ``tf.constant`` created during a trace
+        belongs to that ``FuncGraph`` and breaks the next trace or a later
+        eager call with "tensor is out of scope".
+        """
+        structure = self.decay_group.get_dense_structure()
+        off, sz = chain_layout(structure)
+        # max_basis is the kernel template S, an unrolled loop bound, so it
+        # is taken over the entries u_chain actually sends to the kernel: a
+        # chain with no term combination contributes no column at all
+        sizes = [
+            size
+            for k in structure["u_chain"]
+            for size in structure["den_sizes"][k]
+        ]
         return (
-            tf.constant(off, dtype=tf.int32),
-            tf.constant(sz, dtype=tf.int32),
-            n_line,
-            int(max(sz)) if sz else 0,
+            off,
+            sz,
+            structure["max_internal_lines"],
+            max(sizes) if sizes else 0,
         )
 
-    def pdf(self, data):
-        dg = self.decay_group
-        structure = self.structure
-        if structure is None:
-            dg.get_particle_terms(data)
-            raise NotImplementedError("dense_factor_op is not initialized")
-
-        C, g = self._get_coeff()
-        # F and B may be stored at lower precision; the kernels take the
-        # coefficient dtype, and casting before the op keeps the gradients
-        # with respect to C and g in that same precision.  C is complex by
-        # construction while g only happens to be.
+    def _amplitude(self, F, B, C, g, dtype):
+        """``A`` through the fused op; the rest of ``pdf`` is shared."""
         if g.dtype.is_complex:
             raise NotImplementedError(
                 "dense_factor_op needs real denominator coefficients; "
                 "use the dense_factor model for this one"
             )
-        dtype = C.dtype
-        used = set(dg.chains_idx)
-        mask = tf.constant(
-            [1.0 if k in used else 0.0 for k in structure["u_chain"]],
-            dtype=C.dtype,
-        )
-        C = C * mask
-
-        off, sz, n_line, max_basis = self._op_layout()
+        off, sz, n_line, max_basis = self._layout
         if n_line < 1:
             raise NotImplementedError(
                 "dense_factor_op needs at least one denominator line"
             )
-
-        # F is [ne, np, nu]; the op returns A[e, p] with one shared
-        # denominator per chain and sum_with_polarization contracts it.
-        def block(d):
-            f_b, b_b = d.get("F", None), d.get("B", None)
-            if f_b is None or b_b is None:
-                f_b, b_b = self.build_dense_terms(d)
-            # merged storage expands back here, so the op is unchanged
-            f_b, b_b = self.expand_block(f_b, b_b)
-            # the preprocessor may store F and B at lower precision
-            f_b = tf.cast(f_b, dtype)
-            b_b = tf.cast(b_b, dtype)
-            if n_line == 1:
-                return dense_factor_a(
-                    f_b, b_b, C, g, off, sz, max_basis=max_basis
-                )
-            return dense_factor_an(
-                f_b, b_b, C, g, off, sz, max_basis=max_basis
-            )
-
-        # the swap sum and the CP term are shared with the dense model
-        return self.sum_amplitude(data, block)
+        F, B = self.expand_block(F, B)
+        # the preprocessor may store F and B at lower precision
+        F = tf.cast(F, dtype)
+        B = tf.cast(B, dtype)
+        if n_line == 1:
+            return dense_factor_a(F, B, C, g, off, sz, max_basis=max_basis)
+        return dense_factor_an(F, B, C, g, off, sz, max_basis=max_basis)
 
 
 @register_amp_model("dense_factor_op_merge")
@@ -141,10 +117,14 @@ class DenseFactorOpMergeModel(DenseFactorOpModel):
           preprocessor:
             dense_factor_merge: {}
 
-    Only ``expand_block`` is overridden, so no multiple inheritance is
-    involved: the fused ``pdf`` is the plain one, and the merged tensors are
-    expanded just before the op call.
+    Only ``expand_block`` is overridden: the op itself is unchanged and the
+    reduced blocks are gathered back to the widths its layout was built for.
     """
 
+    #: ``_find_merge`` record, set by the preprocessor
+    merge = None
+
     def expand_block(self, F, B):
-        return _expand_block(self.structure, F, B)
+        if self.merge is None:  # nothing was reduced
+            return F, B
+        return _expand_block(self.merge, F, B)

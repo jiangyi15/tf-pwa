@@ -184,14 +184,28 @@ def basis_event_major(b):
 
 
 def chain_layout(structure):
-    """Build ``(off, sz)`` for the used chains of a dense structure."""
-    metas = structure["chain_meta"]
+    """Build the ``(off, sz)`` layout of a dense structure.
+
+    ``off``/``sz`` hold ``n_chain * n_line`` entries: one pair per line
+    slot, ``max_internal_lines`` slots for every used chain, which is what
+    ``dense_factor_an`` expects (it takes ``n_line`` from their length).  A
+    chain with fewer lines is padded with ``sz == 0``, so the pairs of the
+    following chains stay at ``k * n_line``.
+    """
+    den_sizes = structure["den_sizes"]
+    param_offset = structure["param_offset"]
     off = []
     sz = []
     for k in structure["u_chain"]:
-        meta = metas[k]
-        off.append(meta["param_offset"][0])
-        sz.append(meta["den_sizes"][0])
+        sizes = den_sizes[k]
+        offsets = param_offset[k]
+        for l in range(structure["max_internal_lines"]):
+            if l < len(sizes):
+                off.append(offsets[l])
+                sz.append(sizes[l])
+            else:  # absent line: multiply the product by 1
+                off.append(0)
+                sz.append(0)
     return (
         tf.constant(np.asarray(off, dtype=np.int32)),
         tf.constant(np.asarray(sz, dtype=np.int32)),

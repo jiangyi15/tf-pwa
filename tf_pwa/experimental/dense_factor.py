@@ -12,9 +12,10 @@ The amplitude is written as
     A_{ij} = \\sum_u C_u \\frac{F_{u,ij}(x)}
              {\\prod_l \\sum_{m,n} M1_{u,l,m} g_m M2_{m,n} B_{l,n}(x)}
 
-The preprocessor produces the data-only ``F`` and ``B`` tensors.  The
-amplitude model builds the structural ``M1`` and ``M2`` matrices in
-``init_params``.  All coefficients are rebuilt on every call.
+The decay group builds the data-only ``F`` and ``B`` tensors, together
+with the structural ``M2``, in ``get_dense_structure`` on first use.  The amplitude
+model builds its contraction layout ``M1`` in ``init_params``.  All
+coefficients are rebuilt on every call.
 
 This module must be imported before the amplitude is created, because the
 ``dense_factor`` preprocessor and amplitude model are registered on import.
@@ -697,6 +698,21 @@ class _DecayChainBasis:
 
 @basis("DecayGroup")
 class _DecayGroupBasis:
+    def get_dense_structure(self):
+        """Return the dense basis description, building it on first use.
+
+        It follows from the chains and their term models only, so the data
+        side can ask for it whatever amplitude model is loaded.  There is no
+        separate init: the first caller builds it, everyone afterwards gets
+        the same dict, and a failure propagates to that caller without
+        leaving a half-built basis behind.
+        """
+        structure = getattr(self, "_dense_structure", None)
+        if structure is None:
+            structure = self._build_dense_structure()
+            self._dense_structure = structure
+        return structure
+
     def get_particle_terms(self, data):
         """Return per-chain particle term basis and coefficients."""
         from tf_pwa.amp.core import rename_data_dict
@@ -763,6 +779,213 @@ class _DecayGroupBasis:
     def get_amplitude_coeff(self):
         return [self.chains[i].get_amplitude_coeff() for i in self.chains_idx]
 
+    def _build_dense_structure(self):
+        """Build the dense basis description; called once, from the getter.
+
+        Everything here follows from the chains and their term models, so it
+        is the group's data, shared by every model over this group.  Only the
+        first dense model (or the preprocessor) pays for it, and an
+        unsupported term model is rejected there rather than on behalf of a
+        stock model that never asks.
+        """
+        chains = list(self.chains)
+
+        u_chain = []
+        u_ls = []
+        u_term = []
+        # the chains themselves stay on the decay group; only the layout of
+        # the denominator-coefficient vector is stored
+        den_sizes = []
+        param_offset = []
+        max_internal_lines = 0
+
+        off = 0
+        for k, chain in enumerate(chains):
+            decays = list(chain)
+            lines = list(chain.inner)
+            n_ls = [len(d.get_ls_list()) for d in decays]
+            # a line whose model has no rational basis makes the whole
+            # model unsupported, so fail here with the term's own message
+            # instead of leaving a husk that raises "not initialized" only
+            # when the first batch arrives
+            terms = [p.get_term_coeff() for p in lines]
+            n_term = [len(t["num"]) for t in terms]
+            sizes = [len(t["den"]) for t in terms]
+            offsets = []
+            for size in sizes:
+                offsets.append(off)
+                off += size
+            den_sizes.append(sizes)
+            param_offset.append(offsets)
+
+            max_internal_lines = max(max_internal_lines, len(lines))
+
+            ls_combos = (
+                list(itertools.product(*[range(i) for i in n_ls]))
+                if n_ls
+                else [()]
+            )
+            term_combos = (
+                list(itertools.product(*[range(i) for i in n_term]))
+                if n_term
+                else [()]
+            )
+            for ls in ls_combos:
+                for term in term_combos:
+                    u_chain.append(k)
+                    u_ls.append(list(ls))
+                    u_term.append(list(term))
+
+        structure = {
+            "den_sizes": den_sizes,
+            "param_offset": param_offset,
+            "u_chain": u_chain,
+            "u_ls": u_ls,
+            "u_term": u_term,
+            "n_param": off,
+            "n_u": len(u_chain),
+            "max_internal_lines": max_internal_lines,
+            # the helicity axes are a particle property, one per top/final,
+            # so they are known here rather than when the first F is built
+            "f_shape": (len(self.top.spins),)
+            + tuple(len(p.spins) for p in self.outs),
+            # likewise the CP transform, which only walks the group
+            "cp": self._cp_transform(),
+        }
+        # the basis transform of B; kept next to the terms that apply it
+        self.M2 = tf.eye(off, dtype=tf.float64)
+        return structure
+
+    def swap_terms(self, F, key):
+        """Sign and particle-axis transpose of one swap's ``F`` block.
+
+        ``get_amp2`` adds ``factor * transpose(amp_swapped)``, permuting the
+        particle (helicity) axes.  ``F`` is ``[ne, prod(f_shape), nu]``, so
+        the permutation is applied to ``np`` with the chain axis kept last;
+        transposing the basis transposes the contraction.  The preprocessor
+        stores the result, so ``pdf`` only sums prepared blocks.
+        """
+        f_shape = list(self.get_dense_structure()["f_shape"])
+        n_axis = 1 + len(f_shape)
+        perm = list(self.get_id_swap_transpose(key, n_axis)) + [n_axis]
+        shape = tf.shape(F)
+        out = tf.reshape(F, [shape[0]] + f_shape + [shape[2]])
+        out = tf.transpose(out, perm)
+        out = tf.reshape(out, shape)
+        factor = tf.cast(float(self.get_swap_factor(key)), F.dtype)
+        return out * factor
+
+    def build_dense_terms(self, data):
+        structure = self.get_dense_structure()
+        old_chains_idx = self.chains_idx
+        self.chains_idx = list(range(len(self.chains)))
+        try:
+            F_chains = self.get_amplitude_basis(data)
+            particle_terms = self.get_particle_terms(data)
+        finally:
+            self.chains_idx = old_chains_idx
+
+        F_list = []
+        B_blocks = []
+        n_data = tf.shape(F_chains[0])[0]
+
+        for idx, chain in enumerate(self.chains):
+            F_chain = F_chains[idx]
+            decays = list(chain)
+            lines = list(chain.inner)
+            n_ls = [len(d.get_ls_list()) for d in decays]
+            n_term = [len(term[1]["num"]) for term in particle_terms[idx]]
+
+            n_ls_combo = int(np.prod(n_ls)) if n_ls else 1
+            n_decay = len(decays)
+            f_shape = list(F_chain.shape[1 + n_decay :])
+            if any(i is None for i in f_shape):
+                raise NotImplementedError(
+                    "dense_factor needs a static helicity shape"
+                )
+            shape_t = tuple(int(i) for i in f_shape)
+            if structure["f_shape"] != shape_t:
+                raise NotImplementedError(
+                    "dense_factor needs one helicity shape for every chain"
+                )
+            if len(shape_t) != 1 + len(self.outs):
+                raise NotImplementedError(
+                    "dense_factor needs one helicity axis per particle "
+                    "({} for {})".format(1 + len(self.outs), shape_t)
+                )
+            F_ls = tf.reshape(F_chain, [n_data, n_ls_combo] + f_shape)
+
+            term_combos = (
+                list(itertools.product(*[range(i) for i in n_term]))
+                if n_term
+                else [()]
+            )
+            F_num = []
+            for combo in term_combos:
+                f = tf.ones((n_data,), dtype=F_chain.dtype)
+                for l, t in enumerate(combo):
+                    f = f * tf.cast(
+                        particle_terms[idx][l][1]["num"][t],
+                        F_chain.dtype,
+                    )
+                F_num.append(f)
+
+            for ls_idx in range(n_ls_combo):
+                base = F_ls[:, ls_idx]
+                shape = [n_data] + [1] * (len(base.shape) - 1)
+                for f in F_num:
+                    F_list.append(base * tf.reshape(f, shape))
+
+            for l in range(len(lines)):
+                B_blocks.append(particle_terms[idx][l][1]["den"])
+
+        if F_list:
+            F = tf.stack(F_list, axis=1)
+            F = tf.reshape(F, [n_data, len(F_list), -1])
+            F = tf.transpose(F, [0, 2, 1])
+        else:
+            F = tf.zeros((n_data, 0, 0), dtype=F_chains[0].dtype)
+        B_cols = [
+            tf.cast(col, F_chains[0].dtype)
+            for block in B_blocks
+            for col in block
+        ]
+        if B_cols:
+            B = tf.stack(B_cols, axis=-1)
+            B = tf.matmul(B, tf.cast(self.M2, B.dtype), transpose_b=True)
+        else:
+            B = tf.zeros((n_data, 0), dtype=F_chains[0].dtype)
+        dtype = get_config("complex_dtype")
+        # Event-first: (n_data, n_param).  Batching slices the event axis
+        # contiguously and the fused kernel reads one event's basis block
+        # without a transpose.  The sparse fallback below transposes it;
+        # that cost belongs to the fallback, not to the stored layout.
+        return tf.cast(F, dtype), tf.cast(B, dtype)
+
+    def _cp_transform(self):
+        """``(frac, change)`` for the CP-conjugate amplitude, like get_amp3.
+
+        ``frac`` is the product of the C parities of the particles that the
+        CP map leaves in place; ``change`` is the particle permutation of the
+        ones that move.
+        """
+        if not getattr(self, "cp_particles", None):
+            return 1.0, ()
+        name_map = {str(i): i for i in self.outs}
+        frac = 1.0
+        change = []
+        for a, b in cp_charge_group(
+            [str(i) for i in self.outs],
+            self.identical_particles,
+            self.cp_particles,
+        ):
+            for i, j in zip(a, b):
+                if i == j:
+                    frac = frac * getattr(name_map[i], "C", -1)
+                else:
+                    change.append((i, j))
+        return float(frac), tuple(change)
+
     def build_dense_coeff(self, structure):
         """Build numerator and denominator coefficients for a term cache."""
         C = []
@@ -771,12 +994,12 @@ class _DecayGroupBasis:
         ls_vecs = []
         num_vecs = []
         den_vecs = []
-        for meta in structure["chain_meta"]:
-            chain_c.append(tf.reshape(meta["chain"].get_amp_total(), (-1,))[0])
-            ls_vecs.append(
-                [d.get_amplitude_coeff()["coeff"] for d in meta["decays"]]
-            )
-            term_coeffs = [p.get_term_coeff() for p in meta["lines"]]
+        for chain in self.chains:
+            decays = list(chain)
+            lines = list(chain.inner)
+            chain_c.append(tf.reshape(chain.get_amp_total(), (-1,))[0])
+            ls_vecs.append([d.get_amplitude_coeff()["coeff"] for d in decays])
+            term_coeffs = [p.get_term_coeff() for p in lines]
             num_vecs.append([c["num"] for c in term_coeffs])
             den_vecs.append([c["den"] for c in term_coeffs])
 
@@ -837,6 +1060,14 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     ``id_swap`` / ``cp_swap``, so the option governs the whole returned
     dict.
 
+    What it always produces is the angle data (``"decay"``, ``"particle"``),
+    which comes from the decay group and is what every consumer reads: the
+    AmplitudeModel, ``partial_weight``, plotting and the fit fractions.
+    ``F``/``B`` are an additional representation of the same event, built
+    only when a dense structure is available; without one the dict keeps
+    the angles and is returned untouched, so a plotting-only or non-dense
+    workflow is unaffected.
+
     With ``store_complex64``, ``F`` and ``B`` are stored as complex64.  They
     are cast back to the coefficient dtype as soon as ``pdf`` reads them,
     before any product, so the graph the gradients traverse stays at full
@@ -855,6 +1086,10 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        # the basis belongs to the group, so the data carries F/B even when
+        # the amplitude model is not a dense one (the default model reads
+        # only the angles, but plots, checks and the merge do use them)
+        self.decay_group.get_dense_structure()
         self.force_cpu = force_cpu
         self.drop_decay_particle = drop_decay_particle
         self.store_complex64 = store_complex64
@@ -869,17 +1104,12 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
             ctx = contextlib.nullcontext()
         with ctx:
             x = BasePreProcessor.call(self, x, **kwargs)
-            structure = getattr(self.amp, "structure", None)
-            if structure is None:
-                # Trigger the particle-specific NotImplementedError.
-                self.decay_group.get_particle_terms(x)
-                return x
-            x["F"], x["B"] = self.amp.build_dense_terms(x)
+            x["F"], x["B"] = self.decay_group.build_dense_terms(x)
             self._fill_blocks(x)
             cp = x.get("cp_swap", None)
             blocks = list((x.get("id_swap") or {}).values())
             if cp is not None:
-                cp["F"], cp["B"] = self.amp.build_dense_terms(cp)
+                cp["F"], cp["B"] = self.decay_group.build_dense_terms(cp)
                 self._fill_blocks(cp)
                 self._strip(cp)
                 blocks += [cp] + list((cp.get("id_swap") or {}).values())
@@ -913,10 +1143,17 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         return F, B
 
     def _strip(self, d):
-        """Drop the angle tree when the option asks for it."""
-        if self.drop_decay_particle:
-            d.pop("particle", None)
-            d.pop("decay", None)
+        """Drop the angle tree when the option asks for it.
+
+        Only the model that reads ``F``/``B`` can give the angles up; a
+        wrapper around it keeps them for its other components.
+        """
+        if not self.drop_decay_particle:
+            return
+        if not isinstance(self.amp, DenseFactorModel):
+            return
+        d.pop("particle", None)
+        d.pop("decay", None)
 
     def _fill_blocks(self, d):
         """Build ``F``/``B`` for every ``id_swap`` block of ``d``, in place.
@@ -926,8 +1163,8 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         by the caller, which calls this again on that dict.
         """
         for key, sub in (d.get("id_swap") or {}).items():
-            Fs, Bs = self.amp.build_dense_terms({**d, **sub})
-            sub["F"] = self.amp.swap_terms(Fs, key)
+            Fs, Bs = self.decay_group.build_dense_terms({**d, **sub})
+            sub["F"] = self.decay_group.swap_terms(Fs, key)
             sub["B"] = Bs
             self._strip(sub)
 
@@ -936,88 +1173,25 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
 class DenseFactorModel(BaseAmplitudeModel):
     def init_params(self, name=""):
         super().init_params(name)
-        self.structure = None
         dg = self.decay_group
-        chains = list(dg.chains)
-
-        chain_meta = []
-        u_chain = []
-        u_ls = []
-        u_term = []
-        max_internal_lines = 0
-
-        for k, chain in enumerate(chains):
-            decays = list(chain)
-            lines = list(chain.inner)
-            n_ls = [len(d.get_ls_list()) for d in decays]
-            try:
-                terms = [p.get_term_coeff() for p in lines]
-            except NotImplementedError:
-                return
-            n_term = [len(t["num"]) for t in terms]
-            den_sizes = [len(t["den"]) for t in terms]
-
-            n_internal_lines = len(lines)
-            max_internal_lines = max(max_internal_lines, n_internal_lines)
-
-            chain_meta.append(
-                {
-                    "chain": chain,
-                    "decays": decays,
-                    "lines": lines,
-                    "n_ls": n_ls,
-                    "n_term": n_term,
-                    "den_sizes": den_sizes,
-                }
-            )
-
-            ls_combos = (
-                list(itertools.product(*[range(i) for i in n_ls]))
-                if n_ls
-                else [()]
-            )
-            term_combos = (
-                list(itertools.product(*[range(i) for i in n_term]))
-                if n_term
-                else [()]
-            )
-            for ls in ls_combos:
-                for term in term_combos:
-                    u_chain.append(k)
-                    u_ls.append(list(ls))
-                    u_term.append(list(term))
-
-        n_param = sum(sum(meta["den_sizes"]) for meta in chain_meta)
-        n_u = len(u_chain)
-
-        off = 0
-        for meta in chain_meta:
-            offsets = []
-            for size in meta["den_sizes"]:
-                offsets.append(off)
-                off += size
-            meta["param_offset"] = offsets
+        structure = dg.get_dense_structure()
+        n_u = structure["n_u"]
+        n_param = structure["n_param"]
+        max_internal_lines = structure["max_internal_lines"]
+        den_sizes = structure["den_sizes"]
+        param_offset = structure["param_offset"]
+        u_chain = structure["u_chain"]
 
         M1 = np.zeros((n_u, max_internal_lines, n_param), dtype=np.float64)
         line_mask = np.zeros((n_u, max_internal_lines), dtype=bool)
 
         for u, k in enumerate(u_chain):
-            meta = chain_meta[k]
             for l, (size, poff) in enumerate(
-                zip(meta["den_sizes"], meta["param_offset"])
+                zip(den_sizes[k], param_offset[k])
             ):
                 M1[u, l, poff : poff + size] = 1.0
                 line_mask[u, l] = True
 
-        self.structure = {
-            "chain_meta": chain_meta,
-            "u_chain": u_chain,
-            "u_ls": u_ls,
-            "u_term": u_term,
-            "n_param": n_param,
-            "n_u": n_u,
-            "max_internal_lines": max_internal_lines,
-        }
         self.M1 = tf.constant(M1, dtype=tf.float64)
         coo = np.nonzero(M1.reshape(n_u * max_internal_lines, n_param))
         self.sparse_index = tf.constant(np.stack(coo, axis=1), dtype=tf.int64)
@@ -1026,14 +1200,11 @@ class DenseFactorModel(BaseAmplitudeModel):
             tf.transpose(self.M1, [2, 0, 1]),
             [n_param, n_u * max_internal_lines],
         )
-        self.M2 = tf.eye(n_param, dtype=tf.float64)
         self.line_mask = tf.constant(line_mask)
         self.line_mask_all = bool(np.all(line_mask))
 
         self._coeff_fn = None
         if n_u > 0 and n_param > 0:
-            dg = self.decay_group
-            structure = self.structure
 
             def _build_coeff():
                 return dg.build_dense_coeff(structure)
@@ -1044,37 +1215,13 @@ class DenseFactorModel(BaseAmplitudeModel):
                 self._coeff_fn = None
 
     def cp_transform(self):
-        """``(frac, change)`` for the CP-conjugate amplitude, like get_amp3.
-
-        ``frac`` is the product of the C parities of the particles that the
-        CP map leaves in place; ``change`` is the particle permutation of the
-        ones that move.
-        """
-        structure = self.structure
-        dg = self.decay_group
-        if not getattr(dg, "cp_particles", None):
-            return 1.0, ()
-        if "cp" not in structure:
-            name_map = {str(i): i for i in dg.outs}
-            frac = 1.0
-            change = []
-            for a, b in cp_charge_group(
-                [str(i) for i in dg.outs],
-                dg.identical_particles,
-                dg.cp_particles,
-            ):
-                for i, j in zip(a, b):
-                    if i == j:
-                        frac = frac * getattr(name_map[i], "C", -1)
-                    else:
-                        change.append((i, j))
-            structure["cp"] = (float(frac), tuple(change))
-        return structure["cp"]
+        """``(frac, change)`` for the CP-conjugate amplitude, like get_amp3."""
+        return self.decay_group.get_dense_structure()["cp"]
 
     def cp_amplitude(self, amp_cp):
         """Transpose and helicity-reverse the CP block, times ``frac``."""
         dg = self.decay_group
-        structure = self.structure
+        structure = self.decay_group.get_dense_structure()
         f_shape = list(structure["f_shape"])
         n_axis = 1 + len(f_shape)
         frac, change = self.cp_transform()
@@ -1086,121 +1233,10 @@ class DenseFactorModel(BaseAmplitudeModel):
         out = tf.reshape(out, shape)
         return out * tf.cast(frac, amp_cp.dtype)
 
-    def swap_terms(self, F, key):
-        """Sign and particle-axis transpose of one swap's ``F`` block.
-
-        ``get_amp2`` adds ``factor * transpose(amp_swapped)``, permuting the
-        particle (helicity) axes.  ``F`` is ``[ne, prod(f_shape), nu]``, so
-        the permutation is applied to ``np`` with the chain axis kept last;
-        transposing the basis transposes the contraction.  The preprocessor
-        stores the result, so ``pdf`` only sums prepared blocks.
-        """
-        dg = self.decay_group
-        f_shape = list(self.structure["f_shape"])
-        n_axis = 1 + len(f_shape)
-        perm = list(dg.get_id_swap_transpose(key, n_axis)) + [n_axis]
-        shape = tf.shape(F)
-        out = tf.reshape(F, [shape[0]] + f_shape + [shape[2]])
-        out = tf.transpose(out, perm)
-        out = tf.reshape(out, shape)
-        factor = tf.cast(float(dg.get_swap_factor(key)), F.dtype)
-        return out * factor
-
-    def build_dense_terms(self, data):
-        structure = self.structure
-        dg = self.decay_group
-
-        old_chains_idx = dg.chains_idx
-        dg.chains_idx = list(range(len(dg.chains)))
-        try:
-            F_chains = dg.get_amplitude_basis(data)
-            particle_terms = dg.get_particle_terms(data)
-        finally:
-            dg.chains_idx = old_chains_idx
-
-        F_list = []
-        B_blocks = []
-        n_data = tf.shape(F_chains[0])[0]
-
-        for idx, meta in enumerate(structure["chain_meta"]):
-            F_chain = F_chains[idx]
-            decays = meta["decays"]
-            lines = meta["lines"]
-            n_ls = meta["n_ls"]
-            n_term = meta["n_term"]
-
-            n_ls_combo = int(np.prod(n_ls)) if n_ls else 1
-            n_decay = len(decays)
-            f_shape = list(F_chain.shape[1 + n_decay :])
-            if any(i is None for i in f_shape):
-                raise NotImplementedError(
-                    "dense_factor needs a static helicity shape"
-                )
-            shape_t = tuple(int(i) for i in f_shape)
-            if "f_shape" not in structure:
-                structure["f_shape"] = shape_t
-            elif structure["f_shape"] != shape_t:
-                raise NotImplementedError(
-                    "dense_factor needs one helicity shape for every chain"
-                )
-            if len(shape_t) != 1 + len(dg.outs):
-                raise NotImplementedError(
-                    "dense_factor needs one helicity axis per particle "
-                    "({} for {})".format(1 + len(dg.outs), shape_t)
-                )
-            F_ls = tf.reshape(F_chain, [n_data, n_ls_combo] + f_shape)
-
-            term_combos = (
-                list(itertools.product(*[range(i) for i in n_term]))
-                if n_term
-                else [()]
-            )
-            F_num = []
-            for combo in term_combos:
-                f = tf.ones((n_data,), dtype=F_chain.dtype)
-                for l, t in enumerate(combo):
-                    f = f * tf.cast(
-                        particle_terms[idx][l][1]["num"][t],
-                        F_chain.dtype,
-                    )
-                F_num.append(f)
-
-            for ls_idx in range(n_ls_combo):
-                base = F_ls[:, ls_idx]
-                shape = [n_data] + [1] * (len(base.shape) - 1)
-                for f in F_num:
-                    F_list.append(base * tf.reshape(f, shape))
-
-            for l in range(len(lines)):
-                B_blocks.append(particle_terms[idx][l][1]["den"])
-
-        if F_list:
-            F = tf.stack(F_list, axis=1)
-            F = tf.reshape(F, [n_data, len(F_list), -1])
-            F = tf.transpose(F, [0, 2, 1])
-        else:
-            F = tf.zeros((n_data, 0, 0), dtype=F_chains[0].dtype)
-        B_cols = [
-            tf.cast(col, F_chains[0].dtype)
-            for block in B_blocks
-            for col in block
-        ]
-        if B_cols:
-            B = tf.stack(B_cols, axis=-1)
-            B = tf.matmul(B, tf.cast(self.M2, B.dtype), transpose_b=True)
-        else:
-            B = tf.zeros((n_data, 0), dtype=F_chains[0].dtype)
-        dtype = get_config("complex_dtype")
-        # Event-first: (n_data, n_param).  Batching slices the event axis
-        # contiguously and the fused kernel reads one event's basis block
-        # without a transpose.  The sparse fallback below transposes it;
-        # that cost belongs to the fallback, not to the stored layout.
-        return tf.cast(F, dtype), tf.cast(B, dtype)
-
     def _get_coeff(self):
         """Return the numerator ``C`` and denominator ``g`` coefficients."""
         dg = self.decay_group
-        structure = self.structure
+        structure = self.decay_group.get_dense_structure()
         C, g = None, None
         if getattr(self, "coeff_on_cpu", False):
             fn = self._coeff_cpu_fn()
@@ -1218,31 +1254,32 @@ class DenseFactorModel(BaseAmplitudeModel):
             C, g = dg.build_dense_coeff(structure)
         return C, g
 
-    def pdf(self, data):
-        dg = self.decay_group
-        structure = self.structure
-        if structure is None:
-            dg.get_particle_terms(data)
-            raise NotImplementedError("dense_factor is not initialized")
+    def _coefficients(self, data):
+        """Structure check, coefficient build and the used-chain mask.
 
+        Returns ``(C, g, dtype)`` with ``C`` already masked.  The
+        models that contract differently share this preamble: the product
+        runs at the coefficient dtype, and ``_get_coeff`` does not read F or
+        B, so the preprocessor may store them at lower precision.
+        """
+        dg = self.decay_group
+        structure = self.decay_group.get_dense_structure()
         C, g = self._get_coeff()
-        # The preprocessor may store F and B at lower precision.  Cast before
-        # any product, so the graph the gradients traverse stays at full
-        # precision; _get_coeff does not read F or B, so the order is free.
-        # C is complex by construction while g only happens to be, so the
-        # numerator decides the dtype.
         dtype = C.dtype
         used = set(dg.chains_idx)
         mask = tf.constant(
             [1.0 if k in used else 0.0 for k in structure["u_chain"]],
             dtype=dtype,
         )
-        C = C * mask
+        return C * mask, g, dtype
+
+    def pdf(self, data):
+        C, g, dtype = self._coefficients(data)
 
         def block(d):
             F, B = d.get("F", None), d.get("B", None)
             if F is None or B is None:
-                F, B = self.build_dense_terms(d)
+                F, B = self.decay_group.build_dense_terms(d)
             return self._amplitude(F, B, C, g, dtype)
 
         return self.sum_amplitude(data, block)
@@ -1274,9 +1311,14 @@ class DenseFactorModel(BaseAmplitudeModel):
             amp = amp + self.cp_amplitude(sum_swaps(cp))
         return dg.sum_with_polarization(amp)
 
+    def expand_block(self, F, B):
+        """Hook for models that store the basis merged."""
+        return F, B
+
     def _amplitude(self, F, B, C, g, dtype):
         """``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` for one block."""
-        structure = self.structure
+        structure = self.decay_group.get_dense_structure()
+        F, B = self.expand_block(F, B)
         F = tf.cast(F, dtype)
         B = tf.cast(B, dtype)
         n_u = structure["n_u"]
@@ -1314,7 +1356,7 @@ class DenseFactorModel(BaseAmplitudeModel):
         if cached is not None:
             return cached
         dg = self.decay_group
-        structure = self.structure
+        structure = self.decay_group.get_dense_structure()
         variables = list(self.vm.trainable_variables)
 
         @tf.function(jit_compile=True)
@@ -1422,24 +1464,26 @@ def _find_merge(F, B, probe=2048, rtol=1e-13, atol=0.0):
         "map_i": tf.constant(map_i, tf.int32),
         "rep_u": rep_u,
         "rep_k": rep_k,
+        # the full widths, so the record says whether a block is reduced
+        "n_u": int(F.shape[2]),
+        "n_param": int(B.shape[1]),
     }
 
 
-def _expand_block(structure, F, B):
+def _expand_block(merge, F, B):
     """Expand a stored block with the merge index.
 
-    Group ids index the reduced tensors, so only a reduced block is gathered;
-    a full-width one is passed through unchanged.
+    ``merge`` is the model's map record.  Group ids index the reduced
+    tensors, so only a reduced block is gathered; a full-width one is passed
+    through unchanged.
     """
-    merge = structure.get("merge")
-    if merge is None:
-        raise ValueError(
-            "dense_factor_merge needs the dense_factor_merge preprocessor "
-            "to build the basis maps"
-        )
-    if int(F.shape[2]) != int(structure["n_u"]):
+    if not merge:
+        # no maps: no merge preprocessor, or its sample could not be built,
+        # so the blocks are stored at full width and are used as they are
+        return F, B
+    if int(F.shape[2]) != int(merge["n_u"]):
         F = tf.gather(F, merge["map_u"], axis=2)
-    if int(B.shape[1]) != int(structure["n_param"]):
+    if int(B.shape[1]) != int(merge["n_param"]):
         B = tf.gather(B, merge["map_i"], axis=1)
     return F, B
 
@@ -1512,13 +1556,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         with a fixed seed is shifted relative to a model without this
         preprocessor.
         """
-        amp = self.amp
-        structure = getattr(amp, "structure", None)
-        if not isinstance(structure, dict):
-            # init_params bailed on an unsupported model; that is reported
-            # by the model itself at use time
-            return
-        if structure.get("merge") is not None:
+        if getattr(self.amp, "merge", None) is not None:
             return
         if self.merge_sample < 1:
             raise ValueError("merge_sample must be >= 1")
@@ -1544,30 +1582,21 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             warnings.warn(
                 "dense_factor_merge disabled for this model: {}".format(exc)
             )
-            structure["merge"] = False
+            self.amp.merge = False
             return
-        F, B = amp.build_dense_terms(data)
-        # the comparison can only be as fine as the stored precision: with
-        # complex64 the rounding floor is ~1e-7, so the automatic tolerance
-        # follows the dtype; an explicit merge_rtol is used as given
-        if self.merge_rtol is None:
-            eps = np.finfo(tf.as_dtype(F.dtype).as_numpy_dtype).eps
-            rtol = max(1e-8, 8 * eps)  # 1e-8 / ~1e-6
-        else:
-            rtol = self.merge_rtol
-        structure["merge"] = _find_merge(
+        F, B = self.decay_group.build_dense_terms(data)
+        # merge_rtol is fixed at init from store_complex64, i.e. from the
+        # precision the comparison has to resolve, not from this sample
+        self.amp.merge = _find_merge(
             F,
             B,
             probe=self.merge_sample,
-            rtol=rtol,
+            rtol=self.merge_rtol,
             atol=self.merge_atol,
         )
 
     def _after_blocks(self, x, blocks):
-        structure = self.amp.structure
-        if not isinstance(structure, dict):
-            return
-        merge = structure.get("merge")
+        merge = getattr(self.amp, "merge", None)
         if merge is None:
             if not tf.executing_eagerly():
                 raise RuntimeError(
@@ -1575,7 +1604,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                     "was traced; construct the preprocessor eagerly"
                 )
             self._prepare_merge()
-            merge = structure.get("merge")
+            merge = self.amp.merge
         if not merge:
             return
 
@@ -1592,14 +1621,21 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
 
 @register_amp_model("dense_factor_merge")
 class DenseFactorMergeModel(DenseFactorModel):
-    """``dense_factor`` amplitude whose basis blocks are stored merged."""
+    """``dense_factor`` amplitude that expands the merged basis blocks.
+
+    The preprocessor reduces what is stored; this model expands it back with
+    its map record.  A model that does not expand (a plain ``dense_factor``)
+    paired with the merge preprocessor is left with the reduced widths and
+    fails at evaluation instead of being rejected here.
+    """
+
+    #: ``_find_merge`` record, set by the preprocessor
+    merge = None
 
     def expand_block(self, F, B):
-        return _expand_block(self.structure, F, B)
-
-    def _amplitude(self, F, B, C, g, dtype):
-        F, B = self.expand_block(F, B)
-        return super()._amplitude(F, B, C, g, dtype)
+        if self.merge is None:  # nothing was reduced
+            return F, B
+        return _expand_block(self.merge, F, B)
 
 
 # ---------------------------------------------------------------------------
