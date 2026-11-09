@@ -1406,6 +1406,11 @@ def test_dense_factor_op_merge():
     a1.set_params(a0.get_params())
 
     assert d1["F"].shape[2] == 1 and d1["B"].shape[1] == 3
+    # the reduced basis goes to the kernel with its index; nothing expands
+    assert a1.op_maps() == (a1.merge["map_u"], a1.merge["map_i"])
+    from tf_pwa.experimental.dense_factor import DenseFactorModel
+
+    assert type(a1).expand_block is DenseFactorModel.expand_block
     assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
 
     v0 = a0.vm.trainable_variables

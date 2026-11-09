@@ -12,8 +12,11 @@ REGISTER_OP("DenseFactorFwd")
     .Input("g: float64")        // [nparam], real by construction
     .Input("off: int32")        // [nu * nline]
     .Input("sz: int32")         // [nu * nline]
+    .Input("mu: int32")         // [nu], full -> reduced F column
+    .Input("mi: int32")         // [nparam], full -> reduced B column
     .Output("a: complex128")    // [ne * np], the amplitude
-    .Attr("max_basis: int = 16");
+    .Attr("max_basis: int = 16")
+    .Attr("merged: bool = false");
 
 REGISTER_OP("DenseFactorGrad")
     .Input("f: complex128")
@@ -22,10 +25,13 @@ REGISTER_OP("DenseFactorGrad")
     .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
+    .Input("mu: int32")         // [nu], full -> reduced F column
+    .Input("mi: int32")         // [nparam], full -> reduced B column
     .Input("dl_da: complex128")  // dL/dA, [ne * np]
     .Output("dc: complex128")
     .Output("dg: float64")
-    .Attr("max_basis: int = 16");
+    .Attr("max_basis: int = 16")
+    .Attr("merged: bool = false");
 
 REGISTER_OP("DenseFactorFwdN")
     .Input("f: complex128")
@@ -34,9 +40,12 @@ REGISTER_OP("DenseFactorFwdN")
     .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
+    .Input("mu: int32")         // [nu], full -> reduced F column
+    .Input("mi: int32")         // [nparam], full -> reduced B column
     .Output("a: complex128")    // [ne * np], the amplitude
     .Output("d: complex128")    // [ne, nu]
-    .Attr("max_basis: int = 16");
+    .Attr("max_basis: int = 16")
+    .Attr("merged: bool = false");
 
 REGISTER_OP("DenseFactorGradN")
     .Input("f: complex128")
@@ -45,24 +54,27 @@ REGISTER_OP("DenseFactorGradN")
     .Input("g: float64")
     .Input("off: int32")
     .Input("sz: int32")
+    .Input("mu: int32")         // [nu], full -> reduced F column
+    .Input("mi: int32")         // [nparam], full -> reduced B column
     .Input("dl_da: complex128")  // dL/dA, [ne * np]
     .Input("d: complex128")
     .Output("dc: complex128")
     .Output("dg: float64")
-    .Attr("max_basis: int = 16");
+    .Attr("max_basis: int = 16")
+    .Attr("merged: bool = false");
 
 extern "C" void launch_dense_factor(
     const double*, const double*, const double*, const double*,
-    const int*, const int*, const double*,
-    int, int, int, int, int, int, int, int,
+    const int*, const int*, const int*, const int*, const double*,
+    int, int, int, int, int, int, int, int, int, int, int,
     double*, double*,
     double*, double*,
     double*, double*, cudaStream_t);
 
 extern "C" void launch_dense_factor_n(
     const double*, const double*, const double*, const double*,
-    const int*, const int*, const double*,
-    int, int, int, int, int, int, int, int,
+    const int*, const int*, const int*, const int*, const double*,
+    int, int, int, int, int, int, int, int, int, int, int,
     double*, double*,
     double*, double*,
     double*, double*, cudaStream_t);
@@ -75,25 +87,40 @@ extern "C" void launch_dense_factor_n(
 static Status check_shapes(const Tensor& f, const Tensor& bt,
                            const Tensor& cc, const Tensor& gg,
                            const Tensor& of, const Tensor& sz,
-                           int& ne, int& np, int& nu, int& nline,
-                           int64& nparam) {
+                           const Tensor& mu, const Tensor& mi, bool merged,
+                           int& ne, int& np, int& nu, int& nu_red,
+                           int& nline, int64& nparam, int64& nparam_red) {
   if (f.dims() != 3) return errors::InvalidArgument("f must be [ne,np,nu]");
   ne = (int)f.dim_size(0);
   np = (int)f.dim_size(1);
-  nu = (int)f.dim_size(2);
+  nu_red = (int)f.dim_size(2);
   if (bt.dims() != 2 || bt.dim_size(0) != ne)
     return errors::InvalidArgument("bt must be [ne,nparam]");
-  nparam = bt.dim_size(1);
+  nparam_red = bt.dim_size(1);
+  // c and g are the full coefficient vectors; f/bt may be reduced when the
+  // basis is stored merged, and (mu, mi) map a full index to the stored one
+  nu = (int)cc.NumElements();
+  nparam = gg.NumElements();
   if (np < 1) return errors::InvalidArgument("np must be >= 1");
-  if (nu < 1) return errors::InvalidArgument("nu must be > 0");
-  if (cc.NumElements() != nu) return errors::InvalidArgument("c must be [nu]");
-  if (gg.NumElements() != nparam) return errors::InvalidArgument("g must be [nparam]");
+  if (nu < 1) return errors::InvalidArgument("c must be non-empty");
+  if (nu_red < 1 || nu_red > nu)
+    return errors::InvalidArgument("f has ", nu_red, " columns for ", nu,
+                                   " chains");
+  if (nparam_red < 1 || nparam_red > nparam)
+    return errors::InvalidArgument("bt has ", nparam_red, " columns for ",
+                                   nparam, " coefficients");
   if (of.NumElements() != sz.NumElements())
     return errors::InvalidArgument("off and sz must match");
   nline = (int)(of.NumElements() / nu);
   if (nline < 1) return errors::InvalidArgument("nline must be >= 1");
   if (of.NumElements() != (int64)nu * nline)
     return errors::InvalidArgument("off must be [nu*nline]");
+  if (merged) {
+    if (mu.NumElements() != (int64)nu)
+      return errors::InvalidArgument("mu must be [nu]");
+    if (mi.NumElements() != nparam)
+      return errors::InvalidArgument("mi must be [nparam]");
+  }
   return OkStatus();
 }
 
@@ -101,6 +128,7 @@ class DenseFactorFwdKernel : public OpKernel {
  public:
   explicit DenseFactorFwdKernel(OpKernelConstruction* c) : OpKernel(c) {
     OP_REQUIRES_OK(c, c->GetAttr("max_basis", &maxb_));
+    OP_REQUIRES_OK(c, c->GetAttr("merged", &merged_));
   }
   void Compute(OpKernelContext* ctx) override {
     const Tensor& f = ctx->input(0);
@@ -109,9 +137,12 @@ class DenseFactorFwdKernel : public OpKernel {
     const Tensor& gg = ctx->input(3);
     const Tensor& of = ctx->input(4);
     const Tensor& sz = ctx->input(5);
-    int ne, np, nu, nline; int64 nparam;
-    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz,
-                                     ne, np, nu, nline, nparam));
+    const Tensor& mu = ctx->input(6);
+    const Tensor& mi = ctx->input(7);
+    int ne, np, nu, nu_red, nline; int64 nparam, nparam_red;
+    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz, mu, mi, merged_,
+                                     ne, np, nu, nu_red, nline,
+                                     nparam, nparam_red));
     OP_REQUIRES(ctx, nline == 1,
                 errors::InvalidArgument(
                     "off/sz must be [nu]; use DenseFactorFwdN/GradN for "
@@ -132,12 +163,15 @@ class DenseFactorFwdKernel : public OpKernel {
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
-        of.flat<int>().data(), sz.flat<int>().data(), nullptr,
-        ne, nu, (int)nparam, np, /*nline=*/1, nblk, /*mode=*/1, maxb_,
+        of.flat<int>().data(), sz.flat<int>().data(),
+        mu.flat<int>().data(), mi.flat<int>().data(), nullptr,
+        ne, nu, nu_red, (int)nparam, (int)nparam_red, np, /*nline=*/1, nblk,
+        /*mode=*/1, maxb_, merged_ ? 1 : 0,
         reinterpret_cast<double*>(a->flat<complex128>().data()), nullptr,
         nullptr, nullptr, nullptr, nullptr, s);
   }
   int maxb_ = 16;
+  bool merged_ = false;
 };
 REGISTER_KERNEL_BUILDER(Name("DenseFactorFwd").Device(DEVICE_GPU), DenseFactorFwdKernel);
 
@@ -145,6 +179,7 @@ class DenseFactorGradKernel : public OpKernel {
  public:
   explicit DenseFactorGradKernel(OpKernelConstruction* c) : OpKernel(c) {
     OP_REQUIRES_OK(c, c->GetAttr("max_basis", &maxb_));
+    OP_REQUIRES_OK(c, c->GetAttr("merged", &merged_));
   }
   void Compute(OpKernelContext* ctx) override {
     const Tensor& f = ctx->input(0);
@@ -153,10 +188,13 @@ class DenseFactorGradKernel : public OpKernel {
     const Tensor& gg = ctx->input(3);
     const Tensor& of = ctx->input(4);
     const Tensor& sz = ctx->input(5);
-    const Tensor& dl = ctx->input(6);
-    int ne, np, nu, nline; int64 nparam;
-    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz,
-                                     ne, np, nu, nline, nparam));
+    const Tensor& mu = ctx->input(6);
+    const Tensor& mi = ctx->input(7);
+    const Tensor& dl = ctx->input(8);
+    int ne, np, nu, nu_red, nline; int64 nparam, nparam_red;
+    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz, mu, mi, merged_,
+                                     ne, np, nu, nu_red, nline,
+                                     nparam, nparam_red));
     OP_REQUIRES(ctx, nline == 1,
                 errors::InvalidArgument(
                     "off/sz must be [nu]; use DenseFactorFwdN/GradN for "
@@ -180,14 +218,17 @@ class DenseFactorGradKernel : public OpKernel {
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(),
+        mu.flat<int>().data(), mi.flat<int>().data(),
         reinterpret_cast<const double*>(dl.flat<complex128>().data()),
-        ne, nu, (int)nparam, np, /*nline=*/1, nblk, /*mode=*/2, maxb_,
+        ne, nu, nu_red, (int)nparam, (int)nparam_red, np, /*nline=*/1, nblk,
+        /*mode=*/2, maxb_, merged_ ? 1 : 0,
         nullptr, nullptr,
         dcp.flat<double>().data(), dgp.flat<double>().data(),
         reinterpret_cast<double*>(dc->flat<complex128>().data()),
         dg->flat<double>().data(), s);
   }
   int maxb_ = 16;
+  bool merged_ = false;
 };
 REGISTER_KERNEL_BUILDER(Name("DenseFactorGrad").Device(DEVICE_GPU), DenseFactorGradKernel);
 
@@ -195,6 +236,7 @@ class DenseFactorFwdNKernel : public OpKernel {
  public:
   explicit DenseFactorFwdNKernel(OpKernelConstruction* c) : OpKernel(c) {
     OP_REQUIRES_OK(c, c->GetAttr("max_basis", &maxb_));
+    OP_REQUIRES_OK(c, c->GetAttr("merged", &merged_));
   }
   void Compute(OpKernelContext* ctx) override {
     const Tensor& f = ctx->input(0);
@@ -203,9 +245,12 @@ class DenseFactorFwdNKernel : public OpKernel {
     const Tensor& gg = ctx->input(3);
     const Tensor& of = ctx->input(4);
     const Tensor& sz = ctx->input(5);
-    int ne, np, nu, nline; int64 nparam;
-    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz,
-                                     ne, np, nu, nline, nparam));
+    const Tensor& mu = ctx->input(6);
+    const Tensor& mi = ctx->input(7);
+    int ne, np, nu, nu_red, nline; int64 nparam, nparam_red;
+    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz, mu, mi, merged_,
+                                     ne, np, nu, nu_red, nline,
+                                     nparam, nparam_red));
     // Only the forward caches the denominator in shared memory, and only
     // when the chains do not fit in registers (nu > 128); 49152 is
     // SHMEM_LIMIT and 16 is sizeof(double2) in the .cu.
@@ -223,13 +268,16 @@ class DenseFactorFwdNKernel : public OpKernel {
         reinterpret_cast<const double*>(bt.flat<complex128>().data()),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
-        of.flat<int>().data(), sz.flat<int>().data(), nullptr,
-        ne, nu, (int)nparam, np, nline, nblk, /*mode=*/1, maxb_,
+        of.flat<int>().data(), sz.flat<int>().data(),
+        mu.flat<int>().data(), mi.flat<int>().data(), nullptr,
+        ne, nu, nu_red, (int)nparam, (int)nparam_red, np, nline, nblk,
+        /*mode=*/1, maxb_, merged_ ? 1 : 0,
         reinterpret_cast<double*>(a->flat<complex128>().data()),
         reinterpret_cast<double*>(d->flat<complex128>().data()),
         nullptr, nullptr, nullptr, nullptr, s);
   }
   int maxb_ = 16;
+  bool merged_ = false;
 };
 REGISTER_KERNEL_BUILDER(Name("DenseFactorFwdN").Device(DEVICE_GPU), DenseFactorFwdNKernel);
 
@@ -237,6 +285,7 @@ class DenseFactorGradNKernel : public OpKernel {
  public:
   explicit DenseFactorGradNKernel(OpKernelConstruction* c) : OpKernel(c) {
     OP_REQUIRES_OK(c, c->GetAttr("max_basis", &maxb_));
+    OP_REQUIRES_OK(c, c->GetAttr("merged", &merged_));
   }
   void Compute(OpKernelContext* ctx) override {
     const Tensor& f = ctx->input(0);
@@ -245,11 +294,14 @@ class DenseFactorGradNKernel : public OpKernel {
     const Tensor& gg = ctx->input(3);
     const Tensor& of = ctx->input(4);
     const Tensor& sz = ctx->input(5);
-    const Tensor& dl = ctx->input(6);
-    const Tensor& d = ctx->input(7);
-    int ne, np, nu, nline; int64 nparam;
-    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz,
-                                     ne, np, nu, nline, nparam));
+    const Tensor& mu = ctx->input(6);
+    const Tensor& mi = ctx->input(7);
+    const Tensor& dl = ctx->input(8);
+    const Tensor& d = ctx->input(9);
+    int ne, np, nu, nu_red, nline; int64 nparam, nparam_red;
+    OP_REQUIRES_OK(ctx, check_shapes(f, bt, cc, gg, of, sz, mu, mi, merged_,
+                                     ne, np, nu, nu_red, nline,
+                                     nparam, nparam_red));
     OP_REQUIRES(ctx, maxb_ <= 16, errors::InvalidArgument("max_basis must be <= 16"));
     OP_REQUIRES(ctx, d.NumElements() == (int64)ne*nu, errors::InvalidArgument("d size"));
     OP_REQUIRES(ctx, dl.NumElements() == (int64)ne*np,
@@ -270,8 +322,10 @@ class DenseFactorGradNKernel : public OpKernel {
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(),
+        mu.flat<int>().data(), mi.flat<int>().data(),
         reinterpret_cast<const double*>(dl.flat<complex128>().data()),
-        ne, nu, (int)nparam, np, nline, nblk, /*mode=*/2, maxb_,
+        ne, nu, nu_red, (int)nparam, (int)nparam_red, np, nline, nblk,
+        /*mode=*/2, maxb_, merged_ ? 1 : 0,
         nullptr,
         reinterpret_cast<double*>(const_cast<complex128*>(d.flat<complex128>().data())),
         dcp.flat<double>().data(), dgp.flat<double>().data(),
@@ -279,5 +333,6 @@ class DenseFactorGradNKernel : public OpKernel {
         dg->flat<double>().data(), s);
   }
   int maxb_ = 16;
+  bool merged_ = false;
 };
 REGISTER_KERNEL_BUILDER(Name("DenseFactorGradN").Device(DEVICE_GPU), DenseFactorGradNKernel);

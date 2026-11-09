@@ -41,6 +41,26 @@ __device__ __forceinline__ void line_den(
     }
 }
 
+// Same sum when the basis columns are stored merged: column i lives at
+// MI[o+i] in the reduced basis, so no expanded copy is needed.
+template <int S>
+__device__ __forceinline__ void line_den_merge(
+    const double2* __restrict__ B, const int* __restrict__ MI,
+    const double* __restrict__ G,
+    long long bo, int o, int s, double& dr, double& di)
+{
+    dr = 0.0; di = 0.0;
+    #pragma unroll
+    for (int i = 0; i < S; i++) {
+        if (i < s) {
+            const double2 b = B[bo + MI[o+i]];
+            const double g = G[o+i];
+            dr += g*b.x;
+            di += g*b.y;
+        }
+    }
+}
+
 __device__ __forceinline__ double2 warp_sum2(double ar, double ai)
 {
     for (int o = 16; o > 0; o >>= 1) {
@@ -58,7 +78,9 @@ __global__ void dense_fwd_kernel(
     const double2* __restrict__ C,
     const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz,
-    int ne, int nu, int nparam, int np,
+    const int* __restrict__ MU, const int* __restrict__ MI,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
+    int merged,
     double2* __restrict__ A_out)     // [ne * np], the amplitude
 {
     extern __shared__ double2 wsh[];
@@ -70,17 +92,22 @@ __global__ void dense_fwd_kernel(
     double2* Wl = wsh + (size_t)wid * nu;
 
     for (int e = gwarp; e < ne; e += nwarp) {
-        const long long bo = (long long)e * nparam;
-        const long long fo = (long long)e * (long long)np * nu;
+        const long long bo = (long long)e * nparam_red;
+        const long long fo = (long long)e * (long long)np * nu_red;
         if constexpr (REG) {
             double2 wc[MAXUPW];
+            int fu[MAXUPW];
             #pragma unroll
             for (int k = 0; k < MAXUPW; k++) {
                 const int u = lane + 32*k;
                 if (u < nu) {
+                    fu[k] = merged ? MU[u] : u;
                     const int o = off[u], s = sz[u];
                     double dr = 1.0, di = 0.0;
-                    if (s > 0) line_den<S>(B, G, bo, o, s, dr, di);
+                    if (s > 0) {
+                        if (merged) line_den_merge<S>(B, MI, G, bo, o, s, dr, di);
+                        else line_den<S>(B, G, bo, o, s, dr, di);
+                    }
                     const double den = dr*dr + di*di;
                     const double2 c = C[u];
                     wc[k] = make_double2((c.x*dr + c.y*di) / den,
@@ -93,7 +120,8 @@ __global__ void dense_fwd_kernel(
                 for (int k = 0; k < MAXUPW; k++) {
                     const int u = lane + 32*k;
                     if (u < nu) {
-                        const double2 f = F[fo + (long long)p*nu + u];
+                        const double2 f =
+                            F[fo + (long long)p*nu_red + fu[k]];
                         ar += f.x*wc[k].x - f.y*wc[k].y;
                         ai += f.x*wc[k].y + f.y*wc[k].x;
                     }
@@ -105,7 +133,10 @@ __global__ void dense_fwd_kernel(
             for (int u = lane; u < nu; u += 32) {
                 const int o = off[u], s = sz[u];
                 double dr = 1.0, di = 0.0;
-                if (s > 0) line_den<S>(B, G, bo, o, s, dr, di);
+                if (s > 0) {
+                    if (merged) line_den_merge<S>(B, MI, G, bo, o, s, dr, di);
+                    else line_den<S>(B, G, bo, o, s, dr, di);
+                }
                 const double den = dr*dr + di*di;
                 const double2 c = C[u];
                 Wl[u] = make_double2((c.x*dr + c.y*di) / den,
@@ -115,7 +146,8 @@ __global__ void dense_fwd_kernel(
             for (int p = 0; p < np; p++) {
                 double ar = 0.0, ai = 0.0;
                 for (int u = lane; u < nu; u += 32) {
-                    const double2 f = F[fo + (long long)p*nu + u];
+                    const int fu = merged ? MU[u] : u;
+                    const double2 f = F[fo + (long long)p*nu_red + fu];
                     const double2 wv = Wl[u];
                     ar += f.x*wv.x - f.y*wv.y;
                     ai += f.x*wv.y + f.y*wv.x;
@@ -135,13 +167,16 @@ __global__ void dense_grad_kernel(
     const double2* __restrict__ C,
     const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz,
+    const int* __restrict__ MU, const int* __restrict__ MI,
     const double* __restrict__ dla,  // dL/dA, [ne * np] complex
-    int ne, int nu, int nparam, int np,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
+    int merged,
     double* __restrict__ dc_part, double* __restrict__ dg_part)
 {
     const double2* DLA = reinterpret_cast<const double2*>(dla);
     for (int u = threadIdx.x; u < nu; u += blockDim.x) {
         const int o = off[u], s = sz[u];
+        const int fu = merged ? MU[u] : u;
         const double2 c = C[u];
         double dcr = 0.0, dci = 0.0;
         double dgr[S];
@@ -149,19 +184,22 @@ __global__ void dense_grad_kernel(
         for (int i = 0; i < S; i++) { dgr[i] = 0.0; }
 
         for (int e = blockIdx.x; e < ne; e += gridDim.x) {
-            const long long bo = (long long)e * nparam;
-            const long long fo = (long long)e * (long long)np * nu;
+            const long long bo = (long long)e * nparam_red;
+            const long long fo = (long long)e * (long long)np * nu_red;
             const long long ao = (long long)e * np;
             double2 bv[S];
             #pragma unroll
             for (int i = 0; i < S; i++)
-                if (i < s) bv[i] = B[bo+o+i];
+                if (i < s) bv[i] = B[bo + (merged ? MI[o+i] : o+i)];
             double dr = 1.0, di = 0.0;
-            if (s > 0) line_den<S>(B, G, bo, o, s, dr, di);
+            if (s > 0) {
+                if (merged) line_den_merge<S>(B, MI, G, bo, o, s, dr, di);
+                else line_den<S>(B, G, bo, o, s, dr, di);
+            }
             double gwr = 0.0, gwi = 0.0;
             for (int p = 0; p < np; p++) {
                 const double2 da = DLA[ao+p];
-                const double2 f = F[fo + (long long)p*nu + u];
+                const double2 f = F[fo + (long long)p*nu_red + fu];
                 gwr += da.x*f.x + da.y*f.y;
                 gwi += da.y*f.x - da.x*f.y;
             }
@@ -216,7 +254,9 @@ __global__ void dense_fwd_kernel_n(
     const double2* __restrict__ F, const double2* __restrict__ B,
     const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
-    int ne, int nu, int nparam, int np,
+    const int* __restrict__ MU, const int* __restrict__ MI,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
+    int merged,
     double2* __restrict__ A_out, double2* __restrict__ D_out)
 {
     extern __shared__ double2 wsh[];
@@ -228,20 +268,23 @@ __global__ void dense_fwd_kernel_n(
     double2* Wl = wsh + (size_t)wid * nu;
 
     for (int e = gwarp; e < ne; e += nwarp) {
-        const long long bo = (long long)e * nparam;
-        const long long fo = (long long)e * (long long)np * nu;
+        const long long bo = (long long)e * nparam_red;
+        const long long fo = (long long)e * (long long)np * nu_red;
         if constexpr (REG) {
             double2 wc[MAXUPW];
+            int fu[MAXUPW];
             #pragma unroll
             for (int k = 0; k < MAXUPW; k++) {
                 const int u = lane + 32*k;
                 if (u < nu) {
+                    fu[k] = merged ? MU[u] : u;
                     double dr = 1.0, di = 0.0;
                     for (int l = 0; l < nline; l++) {
                         const int o = off[u*nline + l], s = sz[u*nline + l];
                         if (s > 0) {
                             double fr, fi;
-                            line_den<S>(B, G, bo, o, s, fr, fi);
+                            if (merged) line_den_merge<S>(B, MI, G, bo, o, s, fr, fi);
+                            else line_den<S>(B, G, bo, o, s, fr, fi);
                             const double nr = dr*fr - di*fi;
                             const double ni = dr*fi + di*fr;
                             dr = nr; di = ni;
@@ -260,7 +303,8 @@ __global__ void dense_fwd_kernel_n(
                 for (int k = 0; k < MAXUPW; k++) {
                     const int u = lane + 32*k;
                     if (u < nu) {
-                        const double2 f = F[fo + (long long)p*nu + u];
+                        const double2 f =
+                            F[fo + (long long)p*nu_red + fu[k]];
                         ar += f.x*wc[k].x - f.y*wc[k].y;
                         ai += f.x*wc[k].y + f.y*wc[k].x;
                     }
@@ -276,7 +320,8 @@ __global__ void dense_fwd_kernel_n(
                     const int o = off[u*nline + l], s = sz[u*nline + l];
                     if (s > 0) {
                         double fr, fi;
-                        line_den<S>(B, G, bo, o, s, fr, fi);
+                        if (merged) line_den_merge<S>(B, MI, G, bo, o, s, fr, fi);
+                        else line_den<S>(B, G, bo, o, s, fr, fi);
                         const double nr = dr*fr - di*fi;
                         const double ni = dr*fi + di*fr;
                         dr = nr; di = ni;
@@ -291,7 +336,8 @@ __global__ void dense_fwd_kernel_n(
             for (int p = 0; p < np; p++) {
                 double ar = 0.0, ai = 0.0;
                 for (int u = lane; u < nu; u += 32) {
-                    const double2 f = F[fo + (long long)p*nu + u];
+                    const int fu = merged ? MU[u] : u;
+                    const double2 f = F[fo + (long long)p*nu_red + fu];
                     const double2 wv = Wl[u];
                     ar += f.x*wv.x - f.y*wv.y;
                     ai += f.x*wv.y + f.y*wv.x;
@@ -309,12 +355,15 @@ __global__ void dense_grad_kernel_n(
     const double2* __restrict__ F, const double2* __restrict__ B,
     const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
+    const int* __restrict__ MU, const int* __restrict__ MI,
     const double* __restrict__ dla, const double2* __restrict__ D,
-    int ne, int nu, int nparam, int np,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
+    int merged,
     double* __restrict__ dc_part, double* __restrict__ dg_part)
 {
     const double2* DLA = reinterpret_cast<const double2*>(dla);
     for (int u = threadIdx.x; u < nu; u += blockDim.x) {
+        const int fu = merged ? MU[u] : u;
         const double2 c = C[u];
         double dcr = 0.0, dci = 0.0;
         double dgr[S];
@@ -326,8 +375,8 @@ __global__ void dense_grad_kernel_n(
             for (int i = 0; i < S; i++) { dgr[i] = 0.0; }
 
             for (int e = blockIdx.x; e < ne; e += gridDim.x) {
-                const long long bo = (long long)e * nparam;
-                const long long fo = (long long)e * (long long)np * nu;
+                const long long bo = (long long)e * nparam_red;
+                const long long fo = (long long)e * (long long)np * nu_red;
                 const long long ao = (long long)e * np;
                 const double2 dv = D[(long long)e*nu + u];
                 const double tr = dv.x, ti = dv.y;
@@ -336,10 +385,11 @@ __global__ void dense_grad_kernel_n(
                 double orr = 1.0, oi = 0.0;
                 if (has) {
                     double dr, di;
-                    line_den<S>(B, G, bo, o, s, dr, di);
+                    if (merged) line_den_merge<S>(B, MI, G, bo, o, s, dr, di);
+                    else line_den<S>(B, G, bo, o, s, dr, di);
                     #pragma unroll
                     for (int i = 0; i < S; i++)
-                        if (i < s) bv[i] = B[bo+o+i];
+                        if (i < s) bv[i] = B[bo + (merged ? MI[o+i] : o+i)];
                     const double dn = dr*dr + di*di;
                     orr = (dv.x*dr + dv.y*di) / dn;
                     oi = (dv.y*dr - dv.x*di) / dn;
@@ -348,7 +398,7 @@ __global__ void dense_grad_kernel_n(
                 double gwr = 0.0, gwi = 0.0;
                 for (int p = 0; p < np; p++) {
                     const double2 da = DLA[ao+p];
-                    const double2 f = F[fo + (long long)p*nu + u];
+                    const double2 f = F[fo + (long long)p*nu_red + fu];
                     gwr += da.x*f.x + da.y*f.y;
                     gwi += da.y*f.x - da.x*f.y;
                 }
@@ -396,8 +446,9 @@ __global__ void dense_grad_kernel_n(
 
 struct Args {
     // ``dla`` is dL/dA (complex) in gradient mode and null in forward mode.
-    const double *fr, *btr, *cr, *gtr; const int *off, *sz; const double *dla;
-    int ne, nu, nparam, np, nline, nblk;
+    const double *fr, *btr, *cr, *gtr; const int *off, *sz;
+    const int *mur, *mir; const double *dla;
+    int ne, nu, nu_red, nparam, nparam_red, np, nline, nblk, merged;
     double *a_out, *d_out, *dc_part, *dg_part, *dc_out, *dg_out;
     cudaStream_t s;
 };
@@ -421,13 +472,15 @@ static void run(const Args& a, int mode) {
     if (nb_f < 1) nb_f = 1;
     if (mode != 2)
         dense_fwd_kernel<S, REG><<<nb_f, wpb*32, shmem, a.s>>>(
-            F, B, C, G, a.off, a.sz, a.ne, a.nu, a.nparam, a.np, A);
+            F, B, C, G, a.off, a.sz, a.mur, a.mir,
+            a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.merged, A);
     if (mode != 1) {
         cudaMemsetAsync(a.dg_part, 0,
                         (size_t)a.nblk * a.nparam * sizeof(double), a.s);
         int gb = a.nu <= 128 ? 128 : 256;
         dense_grad_kernel<S><<<a.nblk, gb, 0, a.s>>>(
-            F, B, C, G, a.off, a.sz, a.dla, a.ne, a.nu, a.nparam, a.np,
+            F, B, C, G, a.off, a.sz, a.mur, a.mir, a.dla,
+            a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.merged,
             a.dc_part, a.dg_part);
         reduce_k<<<(2*a.nu+255)/256, 256, 0, a.s>>>(
             a.dc_part, a.nblk, 2*a.nu, 0, 2*a.nu, a.dc_out);
@@ -450,15 +503,17 @@ static void run_n(const Args& a, int mode) {
     if (nb_f < 1) nb_f = 1;
     if (mode != 2)
         dense_fwd_kernel_n<S, REG><<<nb_f, wpb*32, shmem, a.s>>>(
-            F, B, C, G, a.off, a.sz, a.nline, a.ne, a.nu, a.nparam, a.np,
+            F, B, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
+            a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.merged,
             A, D);
     if (mode != 1) {
         cudaMemsetAsync(a.dg_part, 0,
                         (size_t)a.nblk * a.nparam * sizeof(double), a.s);
         int gb = a.nu <= 128 ? 128 : 256;
         dense_grad_kernel_n<S><<<a.nblk, gb, 0, a.s>>>(
-            F, B, C, G, a.off, a.sz, a.nline, a.dla, D, a.ne, a.nu, a.nparam,
-            a.np, a.dc_part, a.dg_part);
+            F, B, C, G, a.off, a.sz, a.nline, a.mur, a.mir, a.dla, D,
+            a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.merged,
+            a.dc_part, a.dg_part);
         reduce_k<<<(2*a.nu+255)/256, 256, 0, a.s>>>(
             a.dc_part, a.nblk, 2*a.nu, 0, 2*a.nu, a.dc_out);
         reduce_k<<<(a.nparam+255)/256, 256, 0, a.s>>>(
@@ -492,26 +547,32 @@ static void dispatch(const Args& a, int mode, int maxs, bool general) {
 
 extern "C" void launch_dense_factor(
     const double* fr, const double* btr, const double* cr, const double* gtr,
-    const int* off, const int* sz, const double* dla,
-    int ne, int nu, int nparam, int np, int nline, int nblk, int mode, int maxs,
+    const int* off, const int* sz, const int* mur, const int* mir,
+    const double* dla,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np, int nline,
+    int nblk, int mode, int maxs, int merged,
     double* a_out, double* d_out,
     double* dc_part, double* dg_part,
     double* dc_out, double* dg_out, cudaStream_t s)
 {
-    Args a{fr, btr, cr, gtr, off, sz, dla, ne, nu, nparam, np, nline, nblk,
+    Args a{fr, btr, cr, gtr, off, sz, mur, mir, dla,
+           ne, nu, nu_red, nparam, nparam_red, np, nline, nblk, merged,
            a_out, d_out, dc_part, dg_part, dc_out, dg_out, s};
     dispatch(a, mode, maxs, false);
 }
 
 extern "C" void launch_dense_factor_n(
     const double* fr, const double* btr, const double* cr, const double* gtr,
-    const int* off, const int* sz, const double* dla,
-    int ne, int nu, int nparam, int np, int nline, int nblk, int mode, int maxs,
+    const int* off, const int* sz, const int* mur, const int* mir,
+    const double* dla,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np, int nline,
+    int nblk, int mode, int maxs, int merged,
     double* a_out, double* d_out,
     double* dc_part, double* dg_part,
     double* dc_out, double* dg_out, cudaStream_t s)
 {
-    Args a{fr, btr, cr, gtr, off, sz, dla, ne, nu, nparam, np, nline, nblk,
+    Args a{fr, btr, cr, gtr, off, sz, mur, mir, dla,
+           ne, nu, nu_red, nparam, nparam_red, np, nline, nblk, merged,
            a_out, d_out, dc_part, dg_part, dc_out, dg_out, s};
     dispatch(a, mode, maxs, true);
 }

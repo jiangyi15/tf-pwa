@@ -38,7 +38,7 @@ import tensorflow as tf
 
 from tf_pwa.amp.amp import register_amp_model
 
-from .dense_factor import DenseFactorModel, _expand_block
+from .dense_factor import DenseFactorModel
 from .dense_factor_op import chain_layout, dense_factor_a, dense_factor_an
 
 
@@ -97,13 +97,38 @@ class DenseFactorOpModel(DenseFactorModel):
             raise NotImplementedError(
                 "dense_factor_op needs at least one denominator line"
             )
-        F, B = self.expand_block(F, B)
         # the preprocessor may store F and B at lower precision
         F = tf.cast(F, dtype)
         B = tf.cast(B, dtype)
+        maps = self.op_maps()
+        map_u, map_i = maps if maps is not None else (None, None)
         if n_line == 1:
-            return dense_factor_a(F, B, C, g, off, sz, max_basis=max_basis)
-        return dense_factor_an(F, B, C, g, off, sz, max_basis=max_basis)
+            return dense_factor_a(
+                F,
+                B,
+                C,
+                g,
+                off,
+                sz,
+                max_basis=max_basis,
+                map_u=map_u,
+                map_i=map_i,
+            )
+        return dense_factor_an(
+            F,
+            B,
+            C,
+            g,
+            off,
+            sz,
+            max_basis=max_basis,
+            map_u=map_u,
+            map_i=map_i,
+        )
+
+    def op_maps(self):
+        """Merge index ``(map_u, map_i)`` for the op, or ``None``."""
+        return None
 
 
 @register_amp_model("dense_factor_op_merge")
@@ -117,14 +142,16 @@ class DenseFactorOpMergeModel(DenseFactorOpModel):
           preprocessor:
             dense_factor_merge: {}
 
-    Only ``expand_block`` is overridden: the op itself is unchanged and the
-    reduced blocks are gathered back to the widths its layout was built for.
+    Nothing is expanded: the reduced ``F``/``B`` go straight to the kernel
+    together with the merge index, so the contraction never materialises a
+    full-width copy of the basis.
     """
 
     #: ``_find_merge`` record, set by the preprocessor
     merge = None
 
-    def expand_block(self, F, B):
-        if self.merge is None:  # nothing was reduced
-            return F, B
-        return _expand_block(self.merge, F, B)
+    def op_maps(self):
+        merge = self.merge
+        if isinstance(merge, dict):
+            return merge["map_u"], merge["map_i"]
+        return None
