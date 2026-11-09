@@ -42,6 +42,8 @@ from .dense_factor import (
     DenseFactorModel,
     _compression_of,
     _unpack_terms,
+    basis_key,
+    merge_record,
 )
 from .dense_factor_op import chain_layout
 
@@ -102,7 +104,7 @@ class DenseFactorOpModel(DenseFactorModel):
                 "dense_factor_op needs at least one denominator line"
             )
         # the strategy owns the stored representation and the call
-        c = getattr(self, "merge", None)
+        c = self.merge if hasattr(self, "merge_id") else None
         # the preprocessor may also store F and B at lower precision
         F = _unpack_terms(F, dtype)
         B = _unpack_terms(B, dtype)
@@ -124,8 +126,15 @@ class DenseFactorOpMergeModel(DenseFactorOpModel):
 
     Nothing is expanded: the reduced ``F``/``B`` go straight to the kernel
     together with the merge index, so the contraction never materialises a
-    full-width copy of the basis.
+    full-width copy of the basis.  ``merge_key`` names the shared record and
+    must match the preprocessor's.
     """
 
-    #: compression record, set by the preprocessor
-    merge = None
+    def __init__(self, *args, merge_key=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.merge_id = merge_key or basis_key(self.decay_group)
+
+    @property
+    def merge(self):
+        """The compression record of this basis, in the shared space."""
+        return merge_record(self)

@@ -1719,7 +1719,11 @@ def test_dense_merge_preprocessor_with_default_model():
     (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
     data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
     assert "F" in data and "B" in data
-    assert isinstance(amp.merge, dict)
+    # the record is keyed, not an attribute of whatever amp is configured
+    from tf_pwa.experimental.dense_factor import get_merge_record
+
+    assert isinstance(get_merge_record(c.data.preprocessor.merge_id), dict)
+    assert not hasattr(amp, "merge")
     assert amp(data).numpy().shape == (10,)
 
 
@@ -1930,32 +1934,103 @@ def test_dense_merge_preprocessor_with_plain_model_fails():
     amp = c.get_amplitude()
     (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
     data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
-    assert isinstance(amp.merge, dict)
+    # the record lives in the shared space, not on the model, and the plain
+    # model has no hook to expand the reduced widths
+    from tf_pwa.experimental.dense_factor import get_merge_record
+
+    assert not hasattr(amp, "merge")
+    assert isinstance(get_merge_record(c.data.preprocessor.merge_id), dict)
     assert int(data["F"].shape[2]) == 1
     with pytest.raises(tf.errors.InvalidArgumentError):
         amp(data)
 
 
-def test_dense_merge_preprocessor_wrapper_fails():
-    """A wrapper cannot expand the reduced blocks either."""
-    import tensorflow as tf
+def test_dense_merge_record_reaches_prod_pdf_submodel():
+    """The preprocessor sees a ``ProdPDF``; the dense sub-model still finds it.
 
+    ``self.amp`` is the composed PDF returned by ``get_amplitude``, not the
+    model that evaluates the reduced blocks, so the record cannot be an
+    attribute on that object.
+    """
     decay, part = _identical_waves()
-    cfg = {
-        "data": {
-            "format": "simple",
-            "amp_model": {"dense_factor_merge": {}, "default": {}},
-            "preprocessor": {"dense_factor_merge": {}},
-        },
-        "decay": decay,
-        "particle": part,
-    }
-    c = ConfigLoader(cfg)
-    amp = c.get_amplitude()
-    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+
+    def cfg(amp_model):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": amp_model,
+                "preprocessor": {"dense_factor_merge": {}},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c_prod = ConfigLoader(cfg({"dense_factor_merge": {}, "default": {}}))
+    c_one = ConfigLoader(cfg("dense_factor_merge"))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=30)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d_prod = c_prod.data.cal_angle(p4)
+    d_one = c_one.data.cal_angle(p4)
+
+    a_prod = c_prod.get_amplitude()
+    sub = a_prod.pdfs["dense_factor_merge"]
+    assert sub is not a_prod
+    assert isinstance(sub.merge, dict)
+
+    a_one = c_one.get_amplitude()
+    a_one.set_params(sub.get_params())
+    assert np.allclose(
+        sub(d_prod).numpy(), a_one(d_one).numpy(), rtol=1e-8, atol=1e-10
+    )
+    # the wrapper as a whole still evaluates
+    assert a_prod(d_prod).numpy().shape == (30,)
+
+
+def test_dense_factor_merge_key_is_shared_by_both_sides():
+    """``merge_key`` is an input option of the preprocessor and the model."""
+    from tf_pwa.config import get_config
+    from tf_pwa.experimental.dense_factor import (
+        MERGE_RECORDS,
+        get_merge_record,
+        set_merge_record,
+    )
+
+    key = "test_dense_factor_merge_key"
+    decay, part = _identical_waves()
+
+    def cfg():
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": {"dense_factor_merge": {"merge_key": key}},
+                "preprocessor": {"dense_factor_merge": {"merge_key": key}},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c = ConfigLoader(cfg())
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=20)
     data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
-    with pytest.raises(tf.errors.InvalidArgumentError):
-        amp(data)
+    amp = c.get_amplitude()
+    assert c.data.preprocessor.merge_id == key
+    assert amp.merge_id == key
+    assert amp.merge is get_merge_record(key)
+    assert amp(data).numpy().shape == (20,)
+
+    # a second config on the same key reads the same record object
+    other = ConfigLoader(cfg()).get_amplitude()
+    assert other.merge is amp.merge
+
+    # reusing the key with another method is rejected instead of mixing them
+    bad = cfg()
+    bad["data"]["preprocessor"]["dense_factor_merge"]["method"] = "svd"
+    with pytest.raises(ValueError, match="already holds"):
+        ConfigLoader(bad).data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+
+    set_merge_record(key, None)
+    assert get_merge_record(key) is None
+    assert key not in get_config(MERGE_RECORDS)
 
 
 def test_dense_factor_merge_svd_rank_invalid():
@@ -2053,3 +2128,194 @@ def test_dense_factor_op_rejects_reduced_basis():
     sz = tf.constant([3, 3, 3], tf.int32)
     with pytest.raises(tf.errors.InvalidArgumentError, match="unmerged op"):
         dense_factor_a(f, bt, c, g, off, sz, max_basis=3)
+
+
+def test_dense_factor_build_batch():
+    """build_batch chunks the construction and gives the same basis."""
+    decay, part = _identical_waves()
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": "dense_factor",
+                "preprocessor": {"dense_factor": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=50)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+
+    c0 = ConfigLoader(cfg({}))
+    c1 = ConfigLoader(cfg({"build_batch": 16}))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    assert d0["F"].shape == d1["F"].shape
+    assert np.allclose(d0["F"], d1["F"], rtol=1e-12, atol=0)
+    assert np.allclose(d0["B"], d1["B"], rtol=1e-12, atol=0)
+
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-10, atol=1e-12)
+
+    # a chunk larger than the event count is a single build
+    c2 = ConfigLoader(cfg({"build_batch": 1000}))
+    d2 = c2.data.cal_angle(p4)
+    assert np.allclose(d0["F"], d2["F"], rtol=1e-12, atol=0)
+
+    with pytest.raises(ValueError, match="build_batch"):
+        ConfigLoader(cfg({"build_batch": 0}))
+
+
+@pytest.mark.parametrize(
+    "model", ["dense_factor_merge", "dense_factor_op_merge"]
+)
+@pytest.mark.parametrize(
+    "method,merge_sample,build_batch",
+    [("index", 16, 16), ("svd", 16, 16)],
+)
+def test_dense_factor_merge_build_batch(
+    model, method, merge_sample, build_batch
+):
+    """Chunked build+compression equals the unchunked result."""
+    if model == "dense_factor_op_merge":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": model,
+                "preprocessor": {"dense_factor_merge": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    base = {"method": method, "merge_sample": merge_sample}
+    c0 = ConfigLoader(cfg(base))
+    c1 = ConfigLoader(cfg({**base, "build_batch": build_batch}))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=50)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
+
+    if method == "index":
+        # the same maps: the stored tensors are identical
+        assert np.allclose(d0["F"], d1["F"], rtol=1e-10, atol=0)
+        assert np.allclose(d0["B"], d1["B"], rtol=1e-10, atol=0)
+    elif model == "dense_factor_merge":
+        # a different fit gives a different (equivalent) basis: compare the
+        # rebuilt one; the fused model keeps the reduced basis on purpose
+        F0, B0 = a0.expand_block(d0["F"], d0["B"])
+        F1, B1 = a1.expand_block(d1["F"], d1["B"])
+        assert np.allclose(F0, F1, rtol=1e-8, atol=1e-10)
+        assert np.allclose(B0, B1, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_merge_build_batch_too_small():
+    """A chunk smaller than the fit sample is rejected, for any method."""
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_merge",
+            "preprocessor": {
+                "dense_factor_merge": {
+                    "method": "index",
+                    "merge_sample": 32,
+                    "build_batch": 16,
+                }
+            },
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    with pytest.raises(ValueError, match="build_batch"):
+        ConfigLoader(cfg).get_amplitude()
+
+
+def test_dense_factor_build_batch_lazy_rejected():
+    """lazy_call already batches; an inner batch would double it."""
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor",
+            "lazy_call": True,
+            "preprocessor": {"dense_factor": {"build_batch": 8}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    with pytest.raises(ValueError, match="lazy_call"):
+        ConfigLoader(cfg).get_amplitude()
+
+
+def test_dense_factor_merge_build_batch_svd_narrow_chunk_raises():
+    """A chunk that only spans its own rows would truncate the basis.
+
+    ``rank(F)`` here is bounded by the chunk size, so later chunks would be
+    projected onto a basis that never saw their directions: fail loudly
+    instead of silently changing the amplitude.
+    """
+    decay, part = _identical_waves()
+    # a spin-2 top widens the basis past the chunk size
+    part["X"]["J"] = 2
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": "dense_factor_merge",
+                "preprocessor": {"dense_factor_merge": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    base = {"method": "svd", "merge_sample": 8}
+    c = ConfigLoader(cfg({**base, "build_batch": 8}))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=50)
+    with pytest.raises(ValueError, match="first chunk"):
+        c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+
+
+def test_dense_factor_merge_build_batch_svd_rank():
+    """An explicit rank below the chunk size is honoured, not guarded."""
+    decay, part = _identical_waves()
+    part["X"]["J"] = 2
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": "dense_factor_merge",
+                "preprocessor": {"dense_factor_merge": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    base = {"method": "svd", "merge_sample": 8, "svd_rank": 4}
+    c = ConfigLoader(cfg({**base, "build_batch": 8}))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=50)
+    d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    amp = c.get_amplitude()
+    # a truncated rank is an approximation chosen on the first chunk; it is
+    # stored as asked and the model contracts it, no guard involved
+    assert amp.merge["rank_f"] == 4
+    assert int(d["F"].shape[-1]) == 4
+    assert amp(d).numpy().shape == (50,)

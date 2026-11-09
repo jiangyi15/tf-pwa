@@ -25,6 +25,7 @@ import contextlib
 import functools
 import itertools
 import warnings
+import weakref
 
 import numpy as np
 import tensorflow as tf
@@ -53,7 +54,8 @@ from tf_pwa.breit_wigner import (
     twoBodyCMmom,
 )
 from tf_pwa.cal_angle import cal_angle_from_momentum
-from tf_pwa.config import get_config
+from tf_pwa.config import get_config, regist_config
+from tf_pwa.data import data_merge, split_generator
 from tf_pwa.particle import cp_charge_group
 from tf_pwa.phasespace import PhaseSpaceGenerator
 
@@ -1068,6 +1070,21 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     the angles and is returned untouched, so a plotting-only or non-dense
     workflow is unaffected.
 
+    ``build_batch`` builds and compresses the event axis in chunks, so a
+    merge preprocessor never holds the full-width basis as one tensor: the
+    peak is one chunk's terms plus the reduced result.  The angle leaves are
+    sliced first (they are eager tensors, so that is a second copy of the
+    angle data).  ``None`` (the default) does one pass, and
+    with ``lazy_call`` it should stay ``None`` so the outer batching is not
+    split again.  It must be at least ``merge_sample``.
+
+    With ``method: svd`` the first chunk is the fit sample: at a real batch
+    size its rank is ``np*nu``, the same as the whole set's, so the chunked
+    and one-shot bases agree.  A deliberately truncated ``svd_rank`` or
+    ``merge_rtol`` is fitted on that first chunk, so it can differ from a
+    one-shot fit; a chunk whose rank only reaches its own row count raises
+    instead of silently truncating the later ones.
+
     ``store_dtype`` picks the precision the two tensors are cached in:
     ``complex128`` (default), ``complex64`` (about 1e-7 relative) or
     ``complex32`` (two fp16 halves, about 5e-4).  They are converted back to
@@ -1082,6 +1099,7 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         force_cpu=False,
         drop_decay_particle=False,
         store_dtype="complex128",
+        build_batch=None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -1097,9 +1115,25 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         self.force_cpu = force_cpu
         self.drop_decay_particle = drop_decay_particle
         self.store_dtype = store_dtype
+        #: chunk the event axis while building F/B; None means one call
+        self.build_batch = None if build_batch is None else int(build_batch)
+        if self.build_batch is not None and self.build_batch < 1:
+            raise ValueError("build_batch must be >= 1 or null")
+        if self.build_batch is not None:
+            config = getattr(self.root_config, "config", None) or {}
+            if config.get("data", {}).get("lazy_call"):
+                raise ValueError(
+                    "build_batch cannot be used with lazy_call: the outer "
+                    "batching already runs per batch and the batch axis is "
+                    "dynamic"
+                )
         self.gpu_device = None
         if tf.config.list_physical_devices("GPU"):
             self.gpu_device = "/GPU:0"
+
+    def _build_terms(self, d):
+        """Build ``F``/``B`` for one dict; the caller sets the chunking."""
+        return self.decay_group.build_dense_terms(d)
 
     def call(self, x, **kwargs):
         if self.force_cpu:
@@ -1108,18 +1142,16 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
             ctx = contextlib.nullcontext()
         with ctx:
             x = BasePreProcessor.call(self, x, **kwargs)
-            x["F"], x["B"] = self.decay_group.build_dense_terms(x)
-            self._fill_blocks(x)
-            cp = x.get("cp_swap", None)
-            blocks = list((x.get("id_swap") or {}).values())
-            if cp is not None:
-                cp["F"], cp["B"] = self.decay_group.build_dense_terms(cp)
-                self._fill_blocks(cp)
-                self._strip(cp)
-                blocks += [cp] + list((cp.get("id_swap") or {}).values())
-            # a subclass may reduce the blocks here, while they are still
-            # on the CPU at full precision
-            self._after_blocks(x, blocks)
+            if self.build_batch is None:
+                self._process(x)
+            else:
+                # build and compress chunk by chunk, so the full-width basis
+                # never exists as one tensor
+                chunks = list(split_generator(x, self.build_batch))
+                for chunk in chunks:
+                    self._process(chunk)
+                x = data_merge(*chunks)
+            blocks = self._blocks(x)
             # every block follows the same two rules as the base dict
             x["F"], x["B"] = self._cast(x["F"], x["B"])
             for d in blocks:
@@ -1130,6 +1162,29 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
             d["F"], d["B"] = self._move(d["F"], d["B"])
         self._strip(x)
         return x
+
+    def _blocks(self, d):
+        """The ``cp_swap`` block and every nested ``id_swap`` block."""
+        blocks = list((d.get("id_swap") or {}).values())
+        cp = d.get("cp_swap", None)
+        if cp is not None:
+            blocks += [cp] + list((cp.get("id_swap") or {}).values())
+        return blocks
+
+    def _process(self, d):
+        """Build ``F``/``B`` for one dict and compress it."""
+        d["F"], d["B"] = self._build_terms(d)
+        self._fill_blocks(d)
+        cp = d.get("cp_swap", None)
+        blocks = list((d.get("id_swap") or {}).values())
+        if cp is not None:
+            cp["F"], cp["B"] = self._build_terms(cp)
+            self._fill_blocks(cp)
+            self._strip(cp)
+            blocks += [cp] + list((cp.get("id_swap") or {}).values())
+        # a subclass may reduce the blocks here, while they are still on
+        # the CPU at full precision
+        self._after_blocks(d, blocks)
 
     def _after_blocks(self, x, blocks):
         """Hook for subclasses, called before the cast and the GPU move."""
@@ -1169,10 +1224,62 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         by the caller, which calls this again on that dict.
         """
         for key, sub in (d.get("id_swap") or {}).items():
-            Fs, Bs = self.decay_group.build_dense_terms({**d, **sub})
+            Fs, Bs = self._build_terms({**d, **sub})
             sub["F"] = self.decay_group.swap_terms(Fs, key)
             sub["B"] = Bs
             self._strip(sub)
+
+
+#: name of the shared record store in the config registry
+MERGE_RECORDS = "dense_factor_merge_records"
+
+if get_config(MERGE_RECORDS, None) is None:
+    regist_config(MERGE_RECORDS, {})
+
+_MERGE_KEY_COUNTER = itertools.count()
+
+
+def basis_key(group):
+    """Fallback key: one per decay group, shared by its preprocessor/models.
+
+    It is stored on the group, so a copy of the group keeps it and every
+    model built on that basis (including the sub-models of a ``ProdPDF``,
+    which are not what ``get_amplitude`` returns) finds the same record.
+    Pass ``merge_key`` to the preprocessor and the model to choose it.
+    """
+    key = getattr(group, "_dense_factor_merge_key", None)
+    if key is None:
+        key = "dense_factor_merge:{}".format(next(_MERGE_KEY_COUNTER))
+        group._dense_factor_merge_key = key
+        # nothing can look the record up once the basis is gone; an explicit
+        # merge_key is the caller's to clear.  A copied group keeps the key
+        # but not this finalizer, so it refits after the original dies.
+        weakref.finalize(group, set_merge_record, key, None)
+    return key
+
+
+def set_merge_record(key, record):
+    """Publish (or clear, with ``None``) the record under one key."""
+    records = get_config(MERGE_RECORDS)
+    if record is None:
+        records.pop(key, None)
+    else:
+        records[key] = record
+
+
+def get_merge_record(key):
+    """The record for one key: ``None`` if none, ``False`` if disabled."""
+    return get_config(MERGE_RECORDS).get(key, None)
+
+
+def merge_record(amp):
+    """The compression record of a model's basis, found by its key.
+
+    Read from the shared space instead of an attribute set by the
+    preprocessor, so a model reached through a composed PDF (which need not
+    be the object ``get_amplitude`` returned) still finds it.
+    """
+    return get_merge_record(amp.merge_id)
 
 
 @register_amp_model("dense_factor")
@@ -1662,6 +1769,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
               store_dtype: complex128   # complex64 | complex32 (fp16 halves)
               method: index             # or svd
               svd_rank: null
+              merge_key: null   # shared record name; the model needs it too
 
     ``method`` picks what is stored: ``index`` keeps one representative per
     group of identical blocks (``merge_rtol``/``merge_atol``), ``svd`` keeps
@@ -1683,7 +1791,18 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
     does not consume the RNG.  ``merge_prepare`` overrides that choice:
     ``true`` always builds at init, ``false`` always waits for the data.
     If the sample cannot be built the merge is disabled with a warning
-    rather than failing.  ``merge_rtol`` defaults to null, i.e. automatic and
+    rather than failing.  The record is not attached to the configured
+    amplitude: it is stored in the shared record space under ``merge_key``,
+    and the amplitude models read it there, so a composed PDF - whose
+    sub-model is not the object ``get_amplitude`` returns - still finds it.
+    The key is only a name: this preprocessor cannot know which model will
+    consume the blocks, and the model need not be reachable from its own
+    ``amp``.  Give the same ``merge_key`` to the preprocessor and to
+    ``amp_model``; without it each decay group gets its own key and both
+    sides agree by construction.  A record already under the key is checked
+    against this basis and method before it is reused.
+
+    ``merge_rtol`` defaults to null, i.e. automatic and
     fixed at init from ``store_dtype``: ``1e-8``, or ``8*eps`` when the
     tensors are stored in complex64 (about ``1e-6``) or complex32 (about
     ``8e-3``), because the comparison can only be as fine as the stored
@@ -1702,6 +1821,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         merge_prepare=None,
         method="index",
         svd_rank=None,
+        merge_key=None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -1730,8 +1850,20 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             # traced; eager data can discover them from its first batch
             config = getattr(self.root_config, "config", None) or {}
             merge_prepare = bool(config.get("data", {}).get("lazy_call"))
+        if (
+            self.build_batch is not None
+            and self.build_batch < self.merge_sample
+        ):
+            raise ValueError(
+                "build_batch must be >= merge_sample: a chunk smaller than "
+                "the fit sample makes the index probe unstable and is not a "
+                "useful slice of the basis"
+            )
+        self.merge_prepare = bool(merge_prepare)
+        #: names the shared record; must match the amplitude model's
+        self.merge_id = merge_key or basis_key(self.decay_group)
         self.compression = self._make_compression()
-        if merge_prepare:
+        if self.merge_prepare:
             self._prepare_merge()
 
     def _make_compression(self):
@@ -1740,6 +1872,41 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                 self.merge_rtol, self.merge_atol, self.merge_sample
             )
         return _SvdCompression(self.merge_rtol, self.svd_rank)
+
+    def _check_record(self, record):
+        """A record reused under a key must describe this same basis."""
+        structure = self.decay_group.get_dense_structure()
+        method = record.get("method")
+        if method != self.compression.name:
+            raise ValueError(
+                "merge_key {!r} already holds a {!r} record, but this "
+                "preprocessor uses {!r}".format(
+                    self.merge_id, method, self.compression.name
+                )
+            )
+        if method == "index":
+            width, nparam = record["n_u"], record["n_param"]
+        else:
+            width, nparam = record["nu"], record["nparam"]
+        if int(width) != int(structure["n_u"]):
+            raise ValueError(
+                "merge_key {!r} was fitted for a basis of width {}, not "
+                "{}".format(self.merge_id, int(width), int(structure["n_u"]))
+            )
+        if int(nparam) != int(structure["n_param"]):
+            raise ValueError(
+                "merge_key {!r} was fitted for {} parameters, not {}".format(
+                    self.merge_id, int(nparam), int(structure["n_param"])
+                )
+            )
+        return record
+
+    def _existing_record(self):
+        """The record already published under this key, if compatible."""
+        record = get_merge_record(self.merge_id)
+        if record:
+            self._check_record(record)
+        return record
 
     def _sample_terms(self, sample):
         """F/B of a generated phase-space sample."""
@@ -1759,7 +1926,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         mom = gen.generate(sample)
         p4 = {str(p): m for p, m in zip(outs, mom)}
         data = cal_angle_from_momentum(p4, self.decay_struct)
-        return self.decay_group.build_dense_terms(data)
+        return self._build_terms(data)
 
     def _prepare_merge(self, F=None, B=None):
         """Find the compression record, once.
@@ -1773,7 +1940,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         generation with a fixed seed is shifted relative to a model without
         this preprocessor.
         """
-        if getattr(self.amp, "merge", None) is not None:
+        if self._existing_record() is not None:
             return
         sample = self.merge_sample
         if sample < 1:
@@ -1786,12 +1953,29 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             warnings.warn(
                 "dense_factor_merge disabled for this model: {}".format(exc)
             )
-            self.amp.merge = False
+            set_merge_record(self.merge_id, False)
             return
-        self.amp.merge = self.compression.prepare(F, B)
+        record = self.compression.prepare(F, B)
+        if (
+            F is not None
+            and self.build_batch is not None
+            and record.get("method") == "svd"
+            and (
+                record["rank_f"] >= int(F.shape[0])
+                or record["rank_b"] >= int(B.shape[0])
+            )
+        ):
+            # a chunk with rank == its own row count spans no more than the
+            # events it holds; later chunks would hit unseen directions
+            raise ValueError(
+                "the first chunk spans the SVD basis only for its own "
+                "events (rank == chunk size); later chunks may need unseen "
+                "directions - increase build_batch or use method: 'index'"
+            )
+        set_merge_record(self.merge_id, record)
 
     def _after_blocks(self, x, blocks):
-        merge = getattr(self.amp, "merge", None)
+        merge = self._existing_record()
         if merge is None:
             if not tf.executing_eagerly():
                 raise RuntimeError(
@@ -1799,7 +1983,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                     "was traced; construct the preprocessor eagerly"
                 )
             self._prepare_merge(x.get("F"), x.get("B"))
-            merge = self.amp.merge
+            merge = get_merge_record(self.merge_id)
         if not merge:
             return
 
@@ -1823,10 +2007,18 @@ class DenseFactorMergeModel(DenseFactorModel):
     its map record.  A model that does not expand (a plain ``dense_factor``)
     paired with the merge preprocessor is left with the reduced widths and
     fails at evaluation instead of being rejected here.
+
+    ``merge_key`` names the shared record; it must match the preprocessor's.
     """
 
-    #: compression record, set by the preprocessor
-    merge = None
+    def __init__(self, *args, merge_key=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.merge_id = merge_key or basis_key(self.decay_group)
+
+    @property
+    def merge(self):
+        """The compression record of this basis, in the shared space."""
+        return merge_record(self)
 
     def expand_block(self, F, B):
         c = self.merge
