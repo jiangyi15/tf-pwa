@@ -1377,3 +1377,120 @@ def test_dense_factor_op_merge():
     assert np.allclose(float(l0), float(l1), rtol=1e-10)
     for x, y in zip(g0, g1):
         assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_merge_lazy(tmp_path):
+    """The merged basis works under lazy_call, with a reduced cache."""
+    import tensorflow as tf
+
+    waves = 3
+    part = {
+        "$top": "X",
+        "$finals": ["a", "b", "c"],
+        "X": {"J": 1, "P": -1, "mass": 5.0},
+        "a": {"J": 0, "P": -1, "mass": 0.2},
+        "b": {"J": 0, "P": -1, "mass": 0.2},
+        "c": {"J": 0, "P": -1, "mass": 0.2},
+    }
+    decay = {"X": [[f"R{i}", "c"] for i in range(waves)]}
+    for i in range(waves):
+        decay[f"R{i}"] = ["a", "b"]
+        part[f"R{i}"] = {
+            "J": 1,
+            "P": -1,
+            "mass": 2.0 + 0.1 * i,
+            "width": 0.1,
+            "model": "BWR",
+        }
+
+    def cfg(model, lazy=False):
+        data = {
+            "format": "simple",
+            "random_z": False,
+            "r_boost": False,
+            "amp_model": model,
+        }
+        pre = (
+            "dense_factor" if model == "dense_factor" else "dense_factor_merge"
+        )
+        data["preprocessor"] = {pre: {"force_cpu": True}}
+        if lazy:
+            data["lazy_call"] = True
+            data["cached_lazy_call"] = str(tmp_path) + "/"
+        return {"data": data, "decay": decay, "particle": part}
+
+    ps = PhaseSpaceGenerator(5.0, [0.2, 0.2, 0.2])
+    p4 = dict(zip(["a", "b", "c"], ps.generate(200)))
+    c0 = ConfigLoader(cfg("dense_factor"))
+    a0 = c0.get_amplitude()
+    ref = a0(c0.data.cal_angle(p4)).numpy()
+
+    c1 = ConfigLoader(cfg("dense_factor_merge", lazy=True))
+    d1 = c1.data.cal_angle(p4)
+    c1.data.set_lazy_call(d1, "s0")
+    d1.as_dataset(64)
+    batches = list(d1)
+    assert len(batches) > 1
+    for b in batches:
+        assert b["F"].shape[2] == 1 and b["B"].shape[1] == 3
+
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    got = np.concatenate([a1(b).numpy() for b in batches])
+    assert got.shape == ref.shape
+    assert np.allclose(got, ref, rtol=1e-12, atol=1e-14)
+    assert list(tmp_path.glob("s0_64*"))
+    saved = dict(tf.train.list_variables(str(tmp_path / "s0_64")))
+    assert any(
+        1 in shape or list(shape) == [64, 1] for shape in saved.values()
+    )
+
+
+def test_dense_factor_merge_unsupported_model():
+    """A model whose init_params bails must not break the merge preprocessor."""
+    part = {
+        "$top": "X",
+        "$finals": ["a", "b", "c"],
+        "X": {"J": 1, "P": -1, "mass": 5.0},
+        "a": {"J": 0, "P": -1, "mass": 0.2},
+        "b": {"J": 0, "P": -1, "mass": 0.2},
+        "c": {"J": 0, "P": -1, "mass": 0.2},
+        # no width: get_term_coeff raises, so init_params returns before the
+        # structure is built
+        "R": {"J": 1, "P": -1, "mass": 2.0},
+    }
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_merge",
+            "preprocessor": {"dense_factor_merge": {}},
+        },
+        "decay": {"X": [["R", "c"]], "R": ["a", "b"]},
+        "particle": part,
+    }
+    loader = ConfigLoader(cfg)  # must not raise
+    assert loader.get_amplitude().structure is None
+
+
+def test_merge_axis_groups_tolerance():
+    """The grouping tolerates cancellation-limited columns, not tiny ones."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import _axis_groups
+
+    X = np.zeros((60, 4), np.complex128)
+    X[:, 0] = 1e-20  # tiny but distinct from zero
+    X[:, 1] = 0.0
+    X[:, 2] = 25.0
+    X[::7, 2] = (
+        25.0 - 1e-9
+    )  # a cancellation-limited difference, 4e-11 relative
+    X[:, 3] = 25.0
+
+    groups, reps = _axis_groups(tf.constant(X), 1, rtol=1e-12)
+    assert groups[0] != groups[1]  # tiny stays apart from zero
+    assert groups[2] != groups[3]  # 1e-12 is too tight for 4e-11
+    groups, reps = _axis_groups(tf.constant(X), 1)  # the loose default
+    assert groups[2] == groups[3]
+    groups, reps = _axis_groups(tf.constant(X), 1, rtol=1e-10)
+    assert groups[2] == groups[3]
