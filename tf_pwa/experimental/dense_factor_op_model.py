@@ -38,8 +38,12 @@ import tensorflow as tf
 
 from tf_pwa.amp.amp import register_amp_model
 
-from .dense_factor import DenseFactorModel
-from .dense_factor_op import chain_layout, dense_factor_a, dense_factor_an
+from .dense_factor import (
+    DenseFactorModel,
+    _compression_of,
+    _unpack_terms,
+)
+from .dense_factor_op import chain_layout
 
 
 @register_amp_model("dense_factor_op")
@@ -97,38 +101,14 @@ class DenseFactorOpModel(DenseFactorModel):
             raise NotImplementedError(
                 "dense_factor_op needs at least one denominator line"
             )
-        # the preprocessor may store F and B at lower precision
-        F = tf.cast(F, dtype)
-        B = tf.cast(B, dtype)
-        maps = self.op_maps()
-        map_u, map_i = maps if maps is not None else (None, None)
-        if n_line == 1:
-            return dense_factor_a(
-                F,
-                B,
-                C,
-                g,
-                off,
-                sz,
-                max_basis=max_basis,
-                map_u=map_u,
-                map_i=map_i,
-            )
-        return dense_factor_an(
-            F,
-            B,
-            C,
-            g,
-            off,
-            sz,
-            max_basis=max_basis,
-            map_u=map_u,
-            map_i=map_i,
+        # the strategy owns the stored representation and the call
+        c = getattr(self, "merge", None)
+        # the preprocessor may also store F and B at lower precision
+        F = _unpack_terms(F, dtype)
+        B = _unpack_terms(B, dtype)
+        return _compression_of(c).contract(
+            c, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis
         )
-
-    def op_maps(self):
-        """Merge index ``(map_u, map_i)`` for the op, or ``None``."""
-        return None
 
 
 @register_amp_model("dense_factor_op_merge")
@@ -147,11 +127,5 @@ class DenseFactorOpMergeModel(DenseFactorOpModel):
     full-width copy of the basis.
     """
 
-    #: ``_find_merge`` record, set by the preprocessor
+    #: compression record, set by the preprocessor
     merge = None
-
-    def op_maps(self):
-        merge = self.merge
-        if isinstance(merge, dict):
-            return merge["map_u"], merge["map_i"]
-        return None

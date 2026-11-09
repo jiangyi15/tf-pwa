@@ -983,7 +983,7 @@ def test_dense_factor_drop_decay_particle(tmp_path, model):
 
 
 @pytest.mark.parametrize("model", ["dense_factor", "dense_factor_op"])
-def test_dense_factor_store_complex64(tmp_path, model):
+def test_dense_factor_store_dtype(tmp_path, model):
     """F and B can be stored in complex64; pdf casts them back."""
     import tensorflow as tf
 
@@ -995,7 +995,10 @@ def test_dense_factor_store_complex64(tmp_path, model):
         import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
 
     def cfg(model, low, lazy=False):
-        pre = {"force_cpu": True, "store_complex64": low}
+        pre = {
+            "force_cpu": True,
+            "store_dtype": "complex64" if low else "complex128",
+        }
         data = {
             "format": "simple",
             "random_z": False,
@@ -1060,6 +1063,65 @@ def test_dense_factor_store_complex64(tmp_path, model):
         assert b["F"].dtype == tf.complex64
         assert b["B"].dtype == tf.complex64
     assert list(tmp_path.glob("s0_64*"))
+
+
+def test_dense_factor_store_complex32():
+    """F/B can be cached as fp16 halves; pdf reads them back as complex."""
+    import tensorflow as tf
+
+    cfg = {
+        "data": {
+            "format": "simple",
+            "random_z": False,
+            "r_boost": False,
+            "amp_model": "dense_factor",
+            "preprocessor": {
+                "dense_factor": {"force_cpu": True, "store_dtype": "complex32"}
+            },
+        },
+        "decay": {"B": [["R", "X"]], "R": ["A", "C"]},
+        "particle": {
+            "$top": {"B": {"J": 1, "P": -1, "mass": 5.0}},
+            "$finals": {
+                "X": {"J": 0, "P": -1, "mass": 0.20},
+                "A": {"J": 1, "P": -1, "mass": 0.30},
+                "C": {"J": 1, "P": -1, "mass": 0.30},
+            },
+            "R": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+        },
+    }
+    exact = {
+        **cfg,
+        "data": {**cfg["data"], "preprocessor": {"dense_factor": {}}},
+    }
+    ps = PhaseSpaceGenerator(5.0, [0.20, 0.30, 0.30])
+    p4 = dict(zip(["X", "A", "C"], ps.generate(100)))
+
+    c0 = ConfigLoader(exact)
+    d0 = c0.data.cal_angle(p4)
+    a0 = c0.get_amplitude()
+    c1 = ConfigLoader(cfg)
+    c1.set_params(c0.get_params())
+    d1 = c1.data.cal_angle(p4)
+    a1 = c1.get_amplitude()
+
+    assert d1["F"].dtype == tf.float16 and d1["F"].shape[-1] == 2
+    assert d1["B"].dtype == tf.float16 and d1["B"].shape[-1] == 2
+    assert np.allclose(a1(d1).numpy(), a0(d0).numpy(), rtol=1e-2, atol=1e-3)
+
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    with tf.GradientTape() as t0:
+        t0.watch(v0)
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    with tf.GradientTape() as t1:
+        t1.watch(v1)
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g0 = t0.gradient(l0, v0)
+    g1 = t1.gradient(l1, v1)
+    assert all(g.dtype == v.dtype for g, v in zip(g1, v1))
+    for x, y in zip(g1, g0):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=2e-2, atol=2e-3)
 
 
 def test_dense_factor_op_polarization():
@@ -1407,7 +1469,8 @@ def test_dense_factor_op_merge():
 
     assert d1["F"].shape[2] == 1 and d1["B"].shape[1] == 3
     # the reduced basis goes to the kernel with its index; nothing expands
-    assert a1.op_maps() == (a1.merge["map_u"], a1.merge["map_i"])
+    assert a1.merge["method"] == "index"
+    assert a1.merge["map_u"].shape[0] == a1.merge["n_u"]
     from tf_pwa.experimental.dense_factor import DenseFactorModel
 
     assert type(a1).expand_block is DenseFactorModel.expand_block
@@ -1660,24 +1723,87 @@ def test_dense_merge_preprocessor_with_default_model():
     assert amp(data).numpy().shape == (10,)
 
 
-def test_dense_factor_merge_disabled_falls_back():
-    """A sample that cannot be built disables merging, not the model."""
+@pytest.mark.parametrize(
+    "model", ["dense_factor_merge", "dense_factor_op_merge"]
+)
+def test_dense_factor_merge_svd(model):
+    """method: svd stores low-rank coefficients and rebuilds the basis."""
+    if model == "dense_factor_op_merge":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    import tensorflow as tf
+
+    decay, part = _identical_waves()
+
+    def cfg(amp_model, pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": amp_model,
+                "preprocessor": pre,
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c0 = ConfigLoader(cfg("dense_factor", "dense_factor"))
+    c1 = ConfigLoader(cfg(model, {"dense_factor_merge": {"method": "svd"}}))
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+
+    assert a1.merge["method"] == "svd"
+    assert d1["F"].shape == (100, a1.merge["rank_f"])
+    assert d1["B"].shape[1] == a1.merge["rank_b"]
+    assert np.allclose(a1(d1).numpy(), a0(d0).numpy(), rtol=1e-8, atol=1e-10)
+
+    v0 = a0.vm.trainable_variables
+    v1 = a1.vm.trainable_variables
+    with tf.GradientTape() as t0:
+        t0.watch(v0)
+        l0 = -tf.reduce_sum(tf.math.log(a0(d0)))
+    with tf.GradientTape() as t1:
+        t1.watch(v1)
+        l1 = -tf.reduce_sum(tf.math.log(a1(d1)))
+    g0 = t0.gradient(l0, v0)
+    g1 = t1.gradient(l1, v1)
+    for x, y in zip(g1, g0):
+        assert np.allclose(x.numpy(), y.numpy(), rtol=1e-8, atol=1e-10)
+
+
+@pytest.mark.parametrize(
+    "model", ["dense_factor_merge", "dense_factor_op_merge"]
+)
+def test_dense_factor_merge_disabled_falls_back(model):
+    """A sample that cannot be built disables compression, not the model."""
     import tf_pwa.experimental.dense_factor as df
+
+    if model == "dense_factor_op_merge":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
 
     decay, part = _one_wave()
     cfg = {
         "data": {
             "format": "simple",
-            "amp_model": "dense_factor_merge",
-            "preprocessor": {"dense_factor_merge": {}},
+            "amp_model": model,
+            # preparation at init is where the sample is generated; eager
+            # data would otherwise be fitted from its first batch
+            "preprocessor": {"dense_factor_merge": {"merge_prepare": True}},
         },
         "decay": decay,
         "particle": part,
     }
-    c = ConfigLoader(cfg)
-    amp = c.get_amplitude()
-    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
-    p4 = {"a": p_a, "b": p_b, "c": p_c}
 
     real = df.PhaseSpaceGenerator
 
@@ -1688,13 +1814,60 @@ def test_dense_factor_merge_disabled_falls_back():
     df.PhaseSpaceGenerator = _Boom
     try:
         with pytest.warns(UserWarning, match="disabled"):
-            data = c.data.cal_angle(p4)
+            c = ConfigLoader(cfg)
+            amp = c.get_amplitude()
     finally:
         df.PhaseSpaceGenerator = real
 
     assert amp.merge is False
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)
+    data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
     # the blocks are stored at full width and expand_block passes them on
+    F, B = data["F"], data["B"]
+    assert int(F.shape[2]) == amp.decay_group.get_dense_structure()["n_u"]
+    assert amp.expand_block(F, B)[0] is F
     assert amp(data).numpy().shape == (10,)
+
+
+def test_dense_factor_no_merge_side_effects():
+    """The plain preprocessor leaves no merge state on the model or data."""
+    decay, part = _one_wave()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=20)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+
+    for model in ("dense_factor", "dense_factor_op"):
+        if model == "dense_factor_op":
+            from tf_pwa.experimental.dense_factor_op import is_available
+
+            if not is_available():
+                continue
+            import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+        cfg = {
+            "data": {
+                "format": "simple",
+                "amp_model": model,
+                "preprocessor": "dense_factor",
+            },
+            "decay": decay,
+            "particle": part,
+        }
+        c = ConfigLoader(cfg)
+        amp = c.get_amplitude()
+        pre = c.data.preprocessor
+        data = c.data.cal_angle(p4)
+
+        # nothing merge-shaped on the model, the preprocessor or the basis
+        assert not hasattr(amp, "merge") and not hasattr(amp, "compress")
+        assert [k for k in vars(pre) if "merge" in k or "compress" in k] == []
+        assert [
+            k for k in amp.decay_group.get_dense_structure() if "merge" in k
+        ] == []
+
+        # the hook is a pure identity, not a gather
+        F, B = data["F"], data["B"]
+        out = amp.expand_block(F, B)
+        assert out[0] is F and out[1] is B
 
 
 def test_dense_preprocessor_wrapper_keeps_angles():
@@ -1783,3 +1956,100 @@ def test_dense_merge_preprocessor_wrapper_fails():
     data = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
     with pytest.raises(tf.errors.InvalidArgumentError):
         amp(data)
+
+
+def test_dense_factor_merge_svd_rank_invalid():
+    """svd_rank must keep at least one direction."""
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_merge",
+            "preprocessor": {
+                "dense_factor_merge": {"method": "svd", "svd_rank": 0}
+            },
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    with pytest.raises(ValueError, match="svd_rank"):
+        ConfigLoader(cfg).get_amplitude()
+
+
+@pytest.mark.parametrize(
+    "store_dtype,method,tol",
+    [
+        ("complex32", "index", 5e-3),
+        ("complex32", "svd", 5e-3),
+        ("complex64", "svd", 1e-4),
+    ],
+)
+def test_dense_factor_merge_in_complex64_build(store_dtype, method, tol):
+    """The stored dtype and the SVD must follow complex_dtype: complex64."""
+    import tensorflow as tf
+
+    from tf_pwa.config import get_config, set_config
+
+    decay, part = _identical_waves()
+    old = get_config("complex_dtype")
+    set_config("complex_dtype", "complex64")
+    try:
+
+        def cfg(model, pre):
+            return {
+                "data": {
+                    "format": "simple",
+                    "amp_model": model,
+                    "preprocessor": pre,
+                },
+                "decay": decay,
+                "particle": part,
+            }
+
+        c0 = ConfigLoader(cfg("dense_factor", "dense_factor"))
+        c1 = ConfigLoader(
+            cfg(
+                "dense_factor_merge",
+                {
+                    "dense_factor_merge": {
+                        "method": method,
+                        "store_dtype": store_dtype,
+                    }
+                },
+            )
+        )
+        a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+        a1.set_params(a0.get_params())
+        (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=50)
+        p4 = {"a": p_a, "b": p_b, "c": p_c}
+        d0 = c0.data.cal_angle(p4)
+        d1 = c1.data.cal_angle(p4)
+        x0 = a0(d0).numpy()
+        x1 = a1(d1).numpy()
+        assert x1.dtype == x0.dtype
+        assert np.allclose(x1, x0, rtol=tol, atol=10 * tol)
+        assert tf.reduce_all(tf.math.is_finite(x1))
+    finally:
+        set_config("complex_dtype", old)
+
+
+def test_dense_factor_op_rejects_reduced_basis():
+    """The unmerged op must not read past a reduced basis."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import (
+        dense_factor_a,
+        is_available,
+    )
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    f = tf.zeros([4, 2, 1], tf.complex128)  # one stored chain
+    bt = tf.zeros([4, 3], tf.complex128)  # three stored coefficients
+    c = tf.zeros([3], tf.complex128)  # three full chains
+    g = tf.zeros([9], tf.float64)  # nine full coefficients
+    off = tf.zeros([3], tf.int32)
+    sz = tf.constant([3, 3, 3], tf.int32)
+    with pytest.raises(tf.errors.InvalidArgumentError, match="unmerged op"):
+        dense_factor_a(f, bt, c, g, off, sz, max_basis=3)

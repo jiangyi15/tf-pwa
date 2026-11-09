@@ -1042,7 +1042,7 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
             dense_factor:
               force_cpu: true
               drop_decay_particle: false
-              store_complex64: false
+              store_dtype: complex128   # complex64 | complex32
 
     With ``force_cpu``, the angle pre-processing and the ``F``/``B``
     construction run on CPU.  Only the final ``F`` and ``B`` tensors are
@@ -1068,13 +1068,12 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     the angles and is returned untouched, so a plotting-only or non-dense
     workflow is unaffected.
 
-    With ``store_complex64``, ``F`` and ``B`` are stored as complex64.  They
-    are cast back to the coefficient dtype as soon as ``pdf`` reads them,
-    before any product, so the graph the gradients traverse stays at full
-    precision.
-    That halves the cached payload and the host-to-device copy; the price is
-    complex64 rounding of the two tensors (about 1e-7 relative), not of the
-    arithmetic, which still runs in complex128.
+    ``store_dtype`` picks the precision the two tensors are cached in:
+    ``complex128`` (default), ``complex64`` (about 1e-7 relative) or
+    ``complex32`` (two fp16 halves, about 5e-4).  They are converted back to
+    the coefficient dtype as soon as ``pdf`` reads them, before any product,
+    so the graph the gradients traverse stays at full precision and the
+    arithmetic is always complex128.
     """
 
     def __init__(
@@ -1082,17 +1081,22 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         *args,
         force_cpu=False,
         drop_decay_particle=False,
-        store_complex64=False,
+        store_dtype="complex128",
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        if store_dtype not in ("complex128", "complex64", "complex32"):
+            raise ValueError(
+                "store_dtype must be complex128, complex64 or complex32 "
+                "(fp16 halves), got {!r}".format(store_dtype)
+            )
         # the basis belongs to the group, so the data carries F/B even when
         # the amplitude model is not a dense one (the default model reads
         # only the angles, but plots, checks and the merge do use them)
         self.decay_group.get_dense_structure()
         self.force_cpu = force_cpu
         self.drop_decay_particle = drop_decay_particle
-        self.store_complex64 = store_complex64
+        self.store_dtype = store_dtype
         self.gpu_device = None
         if tf.config.list_physical_devices("GPU"):
             self.gpu_device = "/GPU:0"
@@ -1132,8 +1136,10 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
 
     def _cast(self, F, B):
         """Lower the stored precision, inside the CPU scope."""
-        if self.store_complex64:
+        if self.store_dtype == "complex64":
             return tf.cast(F, tf.complex64), tf.cast(B, tf.complex64)
+        if self.store_dtype == "complex32":
+            return _pack_complex16(F), _pack_complex16(B)
         return F, B
 
     def _move(self, F, B):
@@ -1319,8 +1325,8 @@ class DenseFactorModel(BaseAmplitudeModel):
         """``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` for one block."""
         structure = self.decay_group.get_dense_structure()
         F, B = self.expand_block(F, B)
-        F = tf.cast(F, dtype)
-        B = tf.cast(B, dtype)
+        F = _unpack_terms(F, dtype)
+        B = _unpack_terms(B, dtype)
         n_u = structure["n_u"]
         n_line = structure["max_internal_lines"]
         if n_line == 0:
@@ -1470,6 +1476,30 @@ def _find_merge(F, B, probe=2048, rtol=1e-13, atol=0.0):
     }
 
 
+def _pack_complex16(x):
+    """Store a complex tensor as a pair of float16 halves (complex32)."""
+    return tf.cast(
+        tf.stack([tf.math.real(x), tf.math.imag(x)], axis=-1), tf.float16
+    )
+
+
+def _unpack_terms(x, dtype):
+    """Read a stored ``F``/``B`` as complex, whatever ``store_dtype`` is."""
+    if x.dtype == tf.float16:  # complex32: last axis holds (real, imag)
+        part = tf.float32 if dtype == tf.complex64 else tf.float64
+        return tf.complex(tf.cast(x[..., 0], part), tf.cast(x[..., 1], part))
+    return tf.cast(x, dtype)
+
+
+def _expand_svd(c, F, B):
+    """Rebuild the full basis from the stored low-rank coefficients."""
+    F = _unpack_terms(F, c["Vf"].dtype)
+    B = _unpack_terms(B, c["Vb"].dtype)
+    M = tf.matmul(F, c["Vf"])  # [ne,k] x [k,np*nu]
+    M = tf.reshape(M, (tf.shape(M)[0], c["np"], c["nu"]))
+    return M, tf.matmul(B, c["Vb"])
+
+
 def _expand_block(merge, F, B):
     """Expand a stored block with the merge index.
 
@@ -1488,6 +1518,134 @@ def _expand_block(merge, F, B):
     return F, B
 
 
+class _IndexCompression:
+    """Store one representative per group of identical blocks."""
+
+    name = "index"
+
+    def __init__(self, rtol=0.0, atol=0.0, sample=0):
+        self.rtol = rtol
+        self.atol = atol
+        self.sample = sample
+
+    def prepare(self, F, B):
+        record = _find_merge(
+            F, B, probe=self.sample, rtol=self.rtol, atol=self.atol
+        )
+        record["method"] = self.name
+        return record
+
+    def compress(self, record, F, B):
+        if F is not None:
+            F = tf.gather(F, record["rep_u"], axis=2)
+        if B is not None:
+            B = tf.gather(B, record["rep_k"], axis=1)
+        return F, B
+
+    def expand(self, record, F, B):
+        return _expand_block(record, F, B)
+
+    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
+        from .dense_factor_op import (
+            dense_factor_merge_a,
+            dense_factor_merge_an,
+        )
+
+        fn = dense_factor_merge_a if n_line == 1 else dense_factor_merge_an
+        return fn(
+            F,
+            B,
+            C,
+            g,
+            off,
+            sz,
+            record["map_u"],
+            record["map_i"],
+            max_basis=max_basis,
+        )
+
+
+class _SvdCompression:
+    """Store the low-rank coefficients ``U = F V^H``."""
+
+    name = "svd"
+
+    def __init__(self, rtol=0.0, rank=None):
+        self.rtol = rtol
+        self.rank = rank
+
+    def _basis(self, M):
+        """Right singular vectors above ``rtol`` (or the first ``rank``)."""
+        s, u, v = tf.linalg.svd(M, full_matrices=False)
+        if self.rank is not None:
+            k = min(self.rank, int(s.shape[0]))
+        else:
+            k = int(tf.reduce_sum(tf.cast(s > self.rtol * s[0], tf.int32)))
+            k = max(k, 1)
+        # tf.linalg.svd returns v = V for complex (M = u s v^H); store V^H so
+        # "row j is the j-th right singular vector" everywhere else
+        return tf.linalg.adjoint(v)[:k], k
+
+    def prepare(self, F, B):
+        Vf, rf = self._basis(tf.reshape(F, (tf.shape(F)[0], -1)))
+        Vb, rb = self._basis(B)
+        return {
+            "method": self.name,
+            "Vf": Vf,
+            "Vb": Vb,
+            "np": int(F.shape[1]),
+            "nu": int(F.shape[2]),
+            "nparam": int(B.shape[1]),
+            "rank_f": rf,
+            "rank_b": rb,
+        }
+
+    def compress(self, record, F, B):
+        if F is not None:
+            M = tf.reshape(F, (tf.shape(F)[0], -1))
+            F = tf.matmul(M, tf.linalg.adjoint(record["Vf"]))
+        if B is not None:
+            B = tf.matmul(B, tf.linalg.adjoint(record["Vb"]))
+        return F, B
+
+    def expand(self, record, F, B):
+        return _expand_svd(record, F, B)
+
+    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
+        # the stored coefficients are rebuilt here, then the plain op runs
+        F, B = _expand_svd(record, F, B)
+        from .dense_factor_op import dense_factor_a, dense_factor_an
+
+        fn = dense_factor_a if n_line == 1 else dense_factor_an
+        return fn(F, B, C, g, off, sz, max_basis=max_basis)
+
+
+class _NoCompression:
+    """Nothing stored reduced: the basis is already full width."""
+
+    name = None
+
+    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
+        from .dense_factor_op import dense_factor_a, dense_factor_an
+
+        fn = dense_factor_a if n_line == 1 else dense_factor_an
+        return fn(F, B, C, g, off, sz, max_basis=max_basis)
+
+
+_COMPRESSIONS = {
+    None: _NoCompression,
+    "index": _IndexCompression,
+    "svd": _SvdCompression,
+}
+
+
+def _compression_of(record):
+    """The strategy that owns a record; ``None``/``False`` mean none."""
+    if not record:  # no record, or the failure sentinel
+        return _NoCompression()
+    return _COMPRESSIONS[record["method"]]()
+
+
 @register_preprocessor("dense_factor_merge")
 class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
     """``dense_factor`` preprocessor that merges identical basis blocks.
@@ -1501,9 +1659,24 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
               merge_atol: 0.0
               merge_sample: 256
               merge_prepare: null
+              store_dtype: complex128   # complex64 | complex32 (fp16 halves)
+              method: index             # or svd
+              svd_rank: null
 
-    The maps are found from a phase-space sample generated by this
-    preprocessor (``merge_sample`` events, default 256).  With
+    ``method`` picks what is stored: ``index`` keeps one representative per
+    group of identical blocks (``merge_rtol``/``merge_atol``), ``svd`` keeps
+    the low-rank coefficients ``U = F V^H`` with the rank taken from
+    ``merge_rtol`` (relative singular value) or ``svd_rank``.  The SVD is exact
+    at its numerical rank and is rebuilt before the contraction; a tolerance
+    that drops real directions must be validated on the amplitude, because
+    ``1/den`` amplifies the discarded ones.
+
+    The record is fitted on the first real batch when the data is eager -
+    the barrier factors depend on the event, so a generic sample need not
+    span the data's basis for the SVD.  With ``lazy_call`` the widths are
+    fixed when the map function is traced, so the record must exist first;
+    it is then fitted on a phase-space sample generated by this preprocessor
+    (``merge_sample`` events, default 256).  With
     ``lazy_call`` they are built in ``__init__``, because the tensor widths
     are fixed when the map function is traced; with eager data they are
     built from the first batch instead, so construction stays cheap and
@@ -1511,11 +1684,13 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
     ``true`` always builds at init, ``false`` always waits for the data.
     If the sample cannot be built the merge is disabled with a warning
     rather than failing.  ``merge_rtol`` defaults to null, i.e. automatic and
-    fixed at init from ``store_complex64``: ``1e-8``, or ``8*eps`` (about
-    ``1e-6``) when the tensors will be stored as complex64, because the
-    comparison can only be as fine as the stored values.  Give a number to
-    override it, e.g. for a basis limited by cancellation; ``merge_atol``
-    adds a fixed floor.
+    fixed at init from ``store_dtype``: ``1e-8``, or ``8*eps`` when the
+    tensors are stored in complex64 (about ``1e-6``) or complex32 (about
+    ``8e-3``), because the comparison can only be as fine as the stored
+    values.  Give a number to override it, e.g. for a basis limited by
+    cancellation; ``merge_atol`` adds a fixed floor to the index comparison
+    (it does not affect the SVD cut).  ``store_dtype`` caches the merged
+    blocks at that precision and converts them back before any product.
     """
 
     def __init__(
@@ -1525,16 +1700,28 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         merge_atol=0.0,
         merge_sample=256,
         merge_prepare=None,
+        method="index",
+        svd_rank=None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         if merge_rtol is None:
             # the comparison can only be as fine as what will be stored; the
             # flag, not the tensor, decides that, so this is fixed at init
-            if self.store_complex64:
+            if self.store_dtype == "complex32":
+                merge_rtol = 8 * float(np.finfo(np.float16).eps)
+            elif self.store_dtype == "complex64":
                 merge_rtol = 8 * float(np.finfo(np.complex64).eps)
             else:
                 merge_rtol = 1e-8
+        if method not in ("index", "svd"):
+            raise ValueError(
+                "method must be 'index' or 'svd', got {!r}".format(method)
+            )
+        self.method = method
+        if svd_rank is not None and int(svd_rank) < 1:
+            raise ValueError("svd_rank must be >= 1")
+        self.svd_rank = None if svd_rank is None else int(svd_rank)
         self.merge_rtol = float(merge_rtol)
         self.merge_atol = float(merge_atol)
         self.merge_sample = int(merge_sample)
@@ -1543,57 +1730,65 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             # traced; eager data can discover them from its first batch
             config = getattr(self.root_config, "config", None) or {}
             merge_prepare = bool(config.get("data", {}).get("lazy_call"))
+        self.compression = self._make_compression()
         if merge_prepare:
             self._prepare_merge()
 
-    def _prepare_merge(self):
-        """Discover the maps from a small generated sample, once.
+    def _make_compression(self):
+        if self.method == "index":
+            return _IndexCompression(
+                self.merge_rtol, self.merge_atol, self.merge_sample
+            )
+        return _SvdCompression(self.merge_rtol, self.svd_rank)
 
-        A generated phase-space sample is eager and well spread, unlike the
-        head of the data, and it needs no real events - which is what makes
-        the maps available before ``lazy_call`` traces its map function.  It
-        draws from the global TensorFlow RNG, so a later event generation
-        with a fixed seed is shifted relative to a model without this
-        preprocessor.
+    def _sample_terms(self, sample):
+        """F/B of a generated phase-space sample."""
+        dg = self.decay_group
+        outs = list(dg.outs)
+        masses = []
+        for p in outs:
+            m = p.get_mass() if hasattr(p, "get_mass") else p.mass
+            if m is None:
+                m = getattr(p, "data_mass", None)
+            if m is None:
+                raise ValueError("mass is required for {}".format(p))
+            masses.append(float(m))
+        top = dg.top
+        top_mass = top.get_mass() if hasattr(top, "get_mass") else top.mass
+        gen = PhaseSpaceGenerator(float(top_mass), masses)
+        mom = gen.generate(sample)
+        p4 = {str(p): m for p, m in zip(outs, mom)}
+        data = cal_angle_from_momentum(p4, self.decay_struct)
+        return self.decay_group.build_dense_terms(data)
+
+    def _prepare_merge(self, F=None, B=None):
+        """Find the compression record, once.
+
+        With real terms (``F``/``B`` of the first batch) it is fitted on
+        data-like kinematics, which matters for the SVD: the barrier factors
+        depend on the event, so a generic phase-space sample need not span
+        the data's basis.  Without them - the lazy case, where the record
+        must exist before the map function is traced - a sample is generated
+        here.  It draws from the global TensorFlow RNG, so a later event
+        generation with a fixed seed is shifted relative to a model without
+        this preprocessor.
         """
         if getattr(self.amp, "merge", None) is not None:
             return
-        if self.merge_sample < 1:
-            raise ValueError("merge_sample must be >= 1")
-        dg = self.decay_group
+        sample = self.merge_sample
+        if sample < 1:
+            raise ValueError("the compression sample must be >= 1")
         try:
-            outs = list(dg.outs)
-            masses = []
-            for p in outs:
-                m = p.get_mass() if hasattr(p, "get_mass") else p.mass
-                if m is None:
-                    m = getattr(p, "data_mass", None)
-                if m is None:
-                    raise ValueError("mass is required for {}".format(p))
-                masses.append(float(m))
-            top = dg.top
-            top_mass = top.get_mass() if hasattr(top, "get_mass") else top.mass
-            gen = PhaseSpaceGenerator(float(top_mass), masses)
-            mom = gen.generate(self.merge_sample)
-            p4 = {str(p): m for p, m in zip(outs, mom)}
-            data = cal_angle_from_momentum(p4, self.decay_struct)
+            if F is None or B is None:
+                F, B = self._sample_terms(sample)
         except Exception as exc:
-            # the merge is an optimisation: leave it off and say why
+            # compression is an optimisation: leave it off and say why
             warnings.warn(
                 "dense_factor_merge disabled for this model: {}".format(exc)
             )
             self.amp.merge = False
             return
-        F, B = self.decay_group.build_dense_terms(data)
-        # merge_rtol is fixed at init from store_complex64, i.e. from the
-        # precision the comparison has to resolve, not from this sample
-        self.amp.merge = _find_merge(
-            F,
-            B,
-            probe=self.merge_sample,
-            rtol=self.merge_rtol,
-            atol=self.merge_atol,
-        )
+        self.amp.merge = self.compression.prepare(F, B)
 
     def _after_blocks(self, x, blocks):
         merge = getattr(self.amp, "merge", None)
@@ -1603,20 +1798,21 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                     "dense_factor_merge maps were not built before the graph "
                     "was traced; construct the preprocessor eagerly"
                 )
-            self._prepare_merge()
+            self._prepare_merge(x.get("F"), x.get("B"))
             merge = self.amp.merge
         if not merge:
             return
 
-        def reduce(d):
-            if d.get("F") is not None:
-                d["F"] = tf.gather(d["F"], merge["rep_u"], axis=2)
-            if d.get("B") is not None:
-                d["B"] = tf.gather(d["B"], merge["rep_k"], axis=1)
+        def compress(d):
+            F, B = self.compression.compress(merge, d.get("F"), d.get("B"))
+            if F is not None:
+                d["F"] = F
+            if B is not None:
+                d["B"] = B
 
-        reduce(x)
+        compress(x)
         for d in blocks:
-            reduce(d)
+            compress(d)
 
 
 @register_amp_model("dense_factor_merge")
@@ -1629,13 +1825,14 @@ class DenseFactorMergeModel(DenseFactorModel):
     fails at evaluation instead of being rejected here.
     """
 
-    #: ``_find_merge`` record, set by the preprocessor
+    #: compression record, set by the preprocessor
     merge = None
 
     def expand_block(self, F, B):
-        if self.merge is None:  # nothing was reduced
+        c = self.merge
+        if not c:  # nothing was reduced
             return F, B
-        return _expand_block(self.merge, F, B)
+        return _compression_of(c).expand(c, F, B)
 
 
 # ---------------------------------------------------------------------------

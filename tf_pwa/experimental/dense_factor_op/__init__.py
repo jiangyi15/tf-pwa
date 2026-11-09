@@ -65,6 +65,8 @@ def is_available():
 
 _A_FNS = {}
 _A_FNS_N = {}
+_A_FNS_M = {}
+_A_FNS_NM = {}
 
 
 def _resolve(sz, max_basis, who):
@@ -95,20 +97,16 @@ def _event_shape(f):
     return tf.shape(f)[:2]
 
 
-def dense_factor_a(
-    f, bt, c, g, off, sz, max_basis=None, map_u=None, map_i=None
-):
+def dense_factor_a(f, bt, c, g, off, sz, max_basis=None):
     """Per-event amplitude matrix ``A[e, p]``, shape ``[ne, np]``.
 
     This is the fused contraction's natural output::
 
         W_u = C_u / den_u,    A_p = sum_u F[p,u] W_u
 
-    ``c`` and ``g`` are the full coefficient vectors.  When the basis is
-    stored with duplicate blocks merged, ``f`` and ``bt`` are the reduced
-    tensors and ``map_u``/``map_i`` give the stored column of every full
-    index, so the kernel reads the reduced basis directly instead of an
-    expanded copy.
+    ``c`` and ``g`` are the full coefficient vectors and ``f``/``bt`` the
+    full basis; :func:`dense_factor_merge_a` is the same for a basis stored
+    with duplicate blocks merged.
 
     The backward takes an arbitrary complex ``dL/dA``, so any loss built on
     the amplitudes works — including the polarization contraction
@@ -120,111 +118,124 @@ def dense_factor_a(
     """
     max_basis = _resolve(sz, max_basis, "dense_factor_a")
     _check_g(g)
-    mu, mi, merged = _maps(map_u, map_i)
-    fn = _cached(_A_FNS, (max_basis, merged), _make_a)
-    return fn(f, bt, c, g, off, sz, mu, mi)
+    fn = _cached(_A_FNS, max_basis, _make_a)
+    return fn(f, bt, c, g, off, sz)
 
 
-def dense_factor_an(
-    f, bt, c, g, off, sz, max_basis=None, map_u=None, map_i=None
-):
+def dense_factor_merge_a(f, bt, c, g, off, sz, map_u, map_i, max_basis=None):
+    """Like :func:`dense_factor_a` for a merged basis.
+
+    ``f`` and ``bt`` are the reduced tensors; ``map_u`` (length ``nu``) and
+    ``map_i`` (length ``nparam``) give the stored column of every full
+    index, so the kernel reads the reduced basis directly instead of an
+    expanded copy.
+    """
+    max_basis = _resolve(sz, max_basis, "dense_factor_merge_a")
+    _check_g(g)
+    fn = _cached(_A_FNS_M, max_basis, _make_a_merge)
+    return fn(f, bt, c, g, off, sz, map_u, map_i)
+
+
+def dense_factor_an(f, bt, c, g, off, sz, max_basis=None):
     """Same as :func:`dense_factor_a` for chains with several lines.
 
-    ``off``/``sz`` hold ``n_chain * n_line`` entries (``n_line`` is inferred
-    from their length); a line with ``sz == 0`` is absent and multiplies the
-    denominator by one.  ``n_line`` is not bounded and may be zero.
+    ``off``/``sz`` hold ``n_chain * n_line`` entries (``n_line`` is
+    inferred from their length); a line with ``sz == 0`` is absent and
+    multiplies the denominator by one.  ``n_line`` is not bounded and may be
+    zero.
     """
     max_basis = _resolve(sz, max_basis, "dense_factor_an")
     _check_g(g)
-    mu, mi, merged = _maps(map_u, map_i)
-    fn = _cached(_A_FNS_N, (max_basis, merged), _make_an)
-    return fn(f, bt, c, g, off, sz, mu, mi)
+    fn = _cached(_A_FNS_N, max_basis, _make_an)
+    return fn(f, bt, c, g, off, sz)
 
 
-_EMPTY = tf.constant([], tf.int32)
+def dense_factor_merge_an(f, bt, c, g, off, sz, map_u, map_i, max_basis=None):
+    """Same as :func:`dense_factor_merge_a` for several lines."""
+    max_basis = _resolve(sz, max_basis, "dense_factor_merge_an")
+    _check_g(g)
+    fn = _cached(_A_FNS_NM, max_basis, _make_an_merge)
+    return fn(f, bt, c, g, off, sz, map_u, map_i)
 
 
-def _maps(map_u, map_i):
-    """(map_u, map_i, merged) with empty tensors on the unmerged path."""
-    if map_u is None or map_i is None:
-        return _EMPTY, _EMPTY, False
-    return map_u, map_i, True
-
-
-def _fwd(f, bt, c, g, off, sz, mu, mi, merged, max_basis, general):
+def _fwd(f, bt, c, g, off, sz, max_basis, general):
     lib = _load()
     if f.shape.rank == 2:
         f = tf.expand_dims(f, 1)  # [ne, nu] -> [ne, 1, nu]
     if general:
         a, d = lib.dense_factor_fwd_n(
-            f, bt, c, g, off, sz, mu, mi, max_basis=max_basis, merged=merged
+            f, bt, c, g, off, sz, max_basis=max_basis
         )
     else:
-        a = lib.dense_factor_fwd(
-            f, bt, c, g, off, sz, mu, mi, max_basis=max_basis, merged=merged
+        a = lib.dense_factor_fwd(f, bt, c, g, off, sz, max_basis=max_basis)
+        d = None
+    return f, tf.reshape(a, _event_shape(f)), d
+
+
+def _fwd_merge(f, bt, c, g, off, sz, mu, mi, max_basis, general):
+    lib = _load()
+    if f.shape.rank == 2:
+        f = tf.expand_dims(f, 1)
+    if general:
+        a, d = lib.dense_factor_fwd_n_merge(
+            f, bt, c, g, off, sz, mu, mi, max_basis=max_basis
+        )
+    else:
+        a = lib.dense_factor_fwd_merge(
+            f, bt, c, g, off, sz, mu, mi, max_basis=max_basis
         )
         d = None
     return f, tf.reshape(a, _event_shape(f)), d
 
 
-def _grad(f, bt, c, g, off, sz, dla, d, mu, mi, merged, max_basis, general):
+def _grad(f, bt, c, g, off, sz, dla, d, max_basis, general):
     lib = _load()
     if general:
         return lib.dense_factor_grad_n(
-            f,
-            bt,
-            c,
-            g,
-            off,
-            sz,
-            mu,
-            mi,
-            dla,
-            d,
-            max_basis=max_basis,
-            merged=merged,
+            f, bt, c, g, off, sz, dla, d, max_basis=max_basis
         )
     return lib.dense_factor_grad(
-        f,
-        bt,
-        c,
-        g,
-        off,
-        sz,
-        mu,
-        mi,
-        dla,
-        max_basis=max_basis,
-        merged=merged,
+        f, bt, c, g, off, sz, dla, max_basis=max_basis
     )
 
 
-def _make_a(key, general=False):
-    max_basis, merged = key
+def _grad_merge(f, bt, c, g, off, sz, dla, d, mu, mi, max_basis, general):
+    lib = _load()
+    if general:
+        return lib.dense_factor_grad_n_merge(
+            f, bt, c, g, off, sz, mu, mi, dla, d, max_basis=max_basis
+        )
+    return lib.dense_factor_grad_merge(
+        f, bt, c, g, off, sz, mu, mi, dla, max_basis=max_basis
+    )
 
+
+def _make_a(max_basis, general=False):
+    @tf.custom_gradient
+    def fn(f, bt, c, g, off, sz):
+        f, a, d = _fwd(f, bt, c, g, off, sz, max_basis, general)
+
+        def grad(dla):
+            if dla is None:
+                return [None] * 6
+            dc, dg = _grad(f, bt, c, g, off, sz, dla, d, max_basis, general)
+            return None, None, dc, dg, None, None
+
+        return a, grad
+
+    return fn
+
+
+def _make_a_merge(max_basis, general=False):
     @tf.custom_gradient
     def fn(f, bt, c, g, off, sz, mu, mi):
-        f, a, d = _fwd(
-            f, bt, c, g, off, sz, mu, mi, merged, max_basis, general
-        )
+        f, a, d = _fwd_merge(f, bt, c, g, off, sz, mu, mi, max_basis, general)
 
         def grad(dla):
             if dla is None:
                 return [None] * 8
-            dc, dg = _grad(
-                f,
-                bt,
-                c,
-                g,
-                off,
-                sz,
-                dla,
-                d,
-                mu,
-                mi,
-                merged,
-                max_basis,
-                general,
+            dc, dg = _grad_merge(
+                f, bt, c, g, off, sz, dla, d, mu, mi, max_basis, general
             )
             return None, None, dc, dg, None, None, None, None
 
@@ -233,8 +244,12 @@ def _make_a(key, general=False):
     return fn
 
 
-def _make_an(key):
-    return _make_a(key, general=True)
+def _make_an(max_basis):
+    return _make_a(max_basis, general=True)
+
+
+def _make_an_merge(max_basis):
+    return _make_a_merge(max_basis, general=True)
 
 
 def basis_event_major(b):
@@ -278,6 +293,8 @@ def chain_layout(structure):
 __all__ = [
     "dense_factor_a",
     "dense_factor_an",
+    "dense_factor_merge_a",
+    "dense_factor_merge_an",
     "basis_event_major",
     "chain_layout",
     "is_available",
