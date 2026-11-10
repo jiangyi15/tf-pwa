@@ -118,8 +118,18 @@ def _cuda_include():
 
 
 def _absl_include():
-    """Locate the abseil headers TensorFlow's headers include."""
-    cands = []
+    """Locate the abseil headers TensorFlow's headers include.
+
+    The wheel's own tree is tried first: some releases bundle ``absl`` under
+    ``include/`` or ``include/external/com_google_absl``, and that copy is
+    the one the headers were built against.  The Linux wheels do not ship
+    the C++ abseil headers, so this usually falls back to the environment
+    (conda, then the system).
+    """
+    import tensorflow as tf
+
+    tf_inc = Path(tf.sysconfig.get_include())
+    cands = [tf_inc, tf_inc / "external" / "com_google_absl"]
     if os.environ.get("CONDA_PREFIX"):
         cands.append(Path(os.environ["CONDA_PREFIX"]) / "include")
     cands += [Path("/usr/include"), Path("/usr/local/include")]

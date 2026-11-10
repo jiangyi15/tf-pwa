@@ -2056,7 +2056,11 @@ def test_dense_factor_merge_svd_rank_invalid():
     [
         ("complex32", "index", 5e-3),
         ("complex32", "svd", 5e-3),
+        ("complex32", "real_svd", 5e-3),
         ("complex64", "svd", 1e-4),
+        # real coefficients reconstruct with a float32 matmul, whose GPU
+        # (TF32) floor is ~5e-4; complex64 does not take that kernel
+        ("complex64", "real_svd", 2e-3),
     ],
 )
 def test_dense_factor_merge_in_complex64_build(store_dtype, method, tol):
@@ -2174,7 +2178,7 @@ def test_dense_factor_build_batch():
 )
 @pytest.mark.parametrize(
     "method,merge_sample,build_batch",
-    [("index", 16, 16), ("svd", 16, 16)],
+    [("index", 16, 16), ("svd", 16, 16), ("real_svd", 16, 16)],
 )
 def test_dense_factor_merge_build_batch(
     model, method, merge_sample, build_batch
@@ -2216,7 +2220,7 @@ def test_dense_factor_merge_build_batch(
         # the same maps: the stored tensors are identical
         assert np.allclose(d0["F"], d1["F"], rtol=1e-10, atol=0)
         assert np.allclose(d0["B"], d1["B"], rtol=1e-10, atol=0)
-    elif model == "dense_factor_merge":
+    elif model == "dense_factor_merge":  # svd and real_svd
         # a different fit gives a different (equivalent) basis: compare the
         # rebuilt one; the fused model keeps the reduced basis on purpose
         F0, B0 = a0.expand_block(d0["F"], d0["B"])
@@ -2319,3 +2323,93 @@ def test_dense_factor_merge_build_batch_svd_rank():
     assert amp.merge["rank_f"] == 4
     assert int(d["F"].shape[-1]) == 4
     assert amp(d).numpy().shape == (50,)
+
+
+@pytest.mark.parametrize(
+    "model", ["dense_factor_merge", "dense_factor_op_merge"]
+)
+def test_dense_factor_merge_real_svd(model):
+    """`real_svd` stores a real basis and reconstructs the same amplitude."""
+    if model == "dense_factor_op_merge":
+        from tf_pwa.experimental.dense_factor_op import is_available
+
+        if not is_available():
+            pytest.skip("dense_factor_op cannot be built on this machine")
+        import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": model,
+                "preprocessor": {"dense_factor_merge": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c0 = ConfigLoader(cfg({"method": "svd"}))
+    c1 = ConfigLoader(cfg({"method": "real_svd"}))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert a1.merge["method"] == "real_svd"
+    assert not a1.merge["Vf"].dtype.is_complex
+    assert not d1["F"].dtype.is_complex
+    # the wide F keeps its complex rank; B may double it when its surviving
+    # direction is genuinely complex (its coefficients then double too)
+    assert a1.merge["rank_f"] == a0.merge["rank_f"]
+    assert a1.merge["rank_b"] >= a0.merge["rank_b"]
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
+
+    if model == "dense_factor_merge":
+        # the fused model keeps the reduced basis on purpose
+        F0, B0 = a0.expand_block(d0["F"], d0["B"])
+        F1, B1 = a1.expand_block(d1["F"], d1["B"])
+        assert np.allclose(F0, F1, rtol=1e-8, atol=1e-10)
+        assert np.allclose(B0, B1, rtol=1e-8, atol=1e-10)
+
+    # a reduced rank truncates both fits identically
+    rank = 2
+    c2 = ConfigLoader(cfg({"method": "svd", "svd_rank": rank}))
+    c3 = ConfigLoader(cfg({"method": "real_svd", "svd_rank": rank}))
+    d2 = c2.data.cal_angle(p4)
+    d3 = c3.data.cal_angle(p4)
+    a2, a3 = c2.get_amplitude(), c3.get_amplitude()
+    a3.set_params(a2.get_params())
+    assert a2.merge["rank_f"] == a3.merge["rank_f"] == rank
+    x2, x3 = a2(d2).numpy(), a3(d3).numpy()
+    assert np.allclose(x2, x3, rtol=1e-8, atol=1e-10)
+
+
+def test_real_svd_strategy_full_rank_generic():
+    """A generic complex matrix (M M^H not real) is still exact at full rank.
+
+    Layers only stay equivalent under truncation while M M^H is real; the
+    full-rank reconstruction must not depend on that.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import (
+        _expand_svd,
+        _RealSvdCompression,
+    )
+
+    rng = np.random.default_rng(0)
+    F = tf.constant(
+        (rng.normal(size=(40, 3, 4)) + 1j * rng.normal(size=(40, 3, 4)))
+    )
+    B = tf.constant(rng.normal(size=(40, 5)))
+    comp = _RealSvdCompression(rtol=0.0)
+    record = comp.prepare(F, B)
+    Fc, Bc = comp.compress(record, F, B)
+    assert not Fc.dtype.is_complex and not Bc.dtype.is_complex
+    Fh, Bh = _expand_svd(record, Fc, Bc)
+    assert np.allclose(Fh.numpy(), F.numpy(), rtol=1e-10, atol=1e-12)
+    assert np.allclose(Bh.numpy(), B.numpy(), rtol=1e-10, atol=1e-12)

@@ -1190,11 +1190,19 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         """Hook for subclasses, called before the cast and the GPU move."""
 
     def _cast(self, F, B):
-        """Lower the stored precision, inside the CPU scope."""
+        """Lower the stored precision, inside the CPU scope.
+
+        An SVD record with a split basis stores real coefficients, so those
+        are cast to float32 under either option instead of being turned
+        complex; fp16 is reserved for the packed complex form.
+        """
         if self.store_dtype == "complex64":
-            return tf.cast(F, tf.complex64), tf.cast(B, tf.complex64)
+            return (
+                _cast_like(F, tf.complex64, tf.float32),
+                _cast_like(B, tf.complex64, tf.float32),
+            )
         if self.store_dtype == "complex32":
-            return _pack_complex16(F), _pack_complex16(B)
+            return _pack_like(F), _pack_like(B)
         return F, B
 
     def _move(self, F, B):
@@ -1590,21 +1598,106 @@ def _pack_complex16(x):
     )
 
 
+def _cast_like(x, complex_dtype, real_dtype):
+    """Lower a stored block to ``complex_dtype``, or to ``real_dtype`` if
+    it is real coefficients."""
+    return tf.cast(x, complex_dtype if x.dtype.is_complex else real_dtype)
+
+
+def _pack_like(x):
+    """``_cast_like`` for complex32.
+
+    fp16 is reserved for the packed complex form, so a real block is kept at
+    float32 - still half of complex64, and unambiguous when unpacked.
+    """
+    return _pack_complex16(x) if x.dtype.is_complex else tf.cast(x, tf.float32)
+
+
 def _unpack_terms(x, dtype):
-    """Read a stored ``F``/``B`` as complex, whatever ``store_dtype`` is."""
+    """Read a stored ``F``/``B`` as complex, whatever ``store_dtype`` is.
+
+    A real block (``real_svd`` coefficients) is already real and is passed
+    through; only the packed complex32 form uses float16, so it cannot be
+    confused with a real block.
+    """
     if x.dtype == tf.float16:  # complex32: last axis holds (real, imag)
         part = tf.float32 if dtype == tf.complex64 else tf.float64
         return tf.complex(tf.cast(x[..., 0], part), tf.cast(x[..., 1], part))
+    if not x.dtype.is_complex:
+        return x
     return tf.cast(x, dtype)
+
+
+def _split_complex(M):
+    """``[Re(M) | Im(M)]``: the real matrix with the same singular values.
+
+    ``[A | B] = U S V^T`` gives ``M = A + iB = U S (V1 + i V2)^T``, so the
+    coefficients are real and the basis is complex.  The singular values are
+    those of the complex ``M`` whenever ``M M^H`` is real, which holds for
+    this plugin's bases (``|Im(M M^H)| / |M M^H|`` is at the round-off).
+    """
+    if M.dtype.is_complex:
+        return tf.concat([tf.math.real(M), tf.math.imag(M)], axis=1)
+    return tf.concat([M, tf.zeros_like(M)], axis=1)
+
+
+def _join_complex(Z, n, dtype):
+    """Inverse of ``_split_complex`` on the reconstructed columns."""
+    if dtype.is_complex:
+        return tf.complex(Z[:, :n], Z[:, n:])
+    return Z[:, :n]
+
+
+def _real_dtype(dtype):
+    """The real dtype that stores coefficients for this arithmetic dtype."""
+    if dtype == tf.complex128:
+        return tf.float64
+    if dtype == tf.complex64:
+        return tf.float32
+    return dtype
+
+
+def _unpack_real(x, dtype):
+    """Read a stored real coefficient block at the arithmetic precision."""
+    return tf.cast(x, _real_dtype(dtype))
+
+
+def _project(M, Vt):
+    """``M @ V`` for a basis stored as rows, ``Vt = V^H``."""
+    V = tf.linalg.adjoint(Vt)
+    if M.dtype.is_complex and not V.dtype.is_complex:
+        return tf.complex(
+            tf.matmul(tf.math.real(M), V), tf.matmul(tf.math.imag(M), V)
+        )
+    return tf.matmul(M, V)
+
+
+def _reconstruct(C, Vt):
+    """``C @ V^H`` for a basis stored as rows, ``Vt = V^H``."""
+    if C.dtype.is_complex and not Vt.dtype.is_complex:
+        return tf.complex(
+            tf.matmul(tf.math.real(C), Vt), tf.matmul(tf.math.imag(C), Vt)
+        )
+    return tf.matmul(C, Vt)
 
 
 def _expand_svd(c, F, B):
     """Rebuild the full basis from the stored low-rank coefficients."""
-    F = _unpack_terms(F, c["Vf"].dtype)
-    B = _unpack_terms(B, c["Vb"].dtype)
-    M = tf.matmul(F, c["Vf"])  # [ne,k] x [k,np*nu]
+    if c.get("split"):
+        F = _unpack_real(F, c["dtype"])
+        B = _unpack_real(B, c["dtype_b"])
+        n = int(c["np"]) * int(c["nu"])
+        M = tf.matmul(F, c["Vf"])
+        M = _join_complex(M, n, c["dtype"])
+        M = tf.reshape(M, (tf.shape(M)[0], c["np"], c["nu"]))
+        return M, _join_complex(
+            tf.matmul(B, c["Vb"]), int(c["nparam"]), c["dtype_b"]
+        )
+    F = _unpack_terms(F, c["dtype"])
+    B = _unpack_terms(B, c["dtype_b"])
+    M = _reconstruct(F, c["Vf"])  # [ne,k] x [k,np*nu]
     M = tf.reshape(M, (tf.shape(M)[0], c["np"], c["nu"]))
-    return M, tf.matmul(B, c["Vb"])
+    return M, _reconstruct(B, c["Vb"])
 
 
 def _expand_block(merge, F, B):
@@ -1673,7 +1766,13 @@ class _IndexCompression:
 
 
 class _SvdCompression:
-    """Store the low-rank coefficients ``U = F V^H``."""
+    """Store the low-rank coefficients ``U = F V^H`` (complex SVD).
+
+    ``method: real_svd`` is ``M = C W^T`` fitted with the real SVD of
+    ``[Re(M) | Im(M)]`` (see ``_split_complex``): the same singular values
+    and truncation error for this plugin's bases, real coefficients (half
+    the payload) and a complex basis rebuilt from the two halves.
+    """
 
     name = "svd"
 
@@ -1681,16 +1780,21 @@ class _SvdCompression:
         self.rtol = rtol
         self.rank = rank
 
-    def _basis(self, M):
-        """Right singular vectors above ``rtol`` (or the first ``rank``)."""
-        s, u, v = tf.linalg.svd(M, full_matrices=False)
+    def _cut(self, s):
+        """How many directions ``rtol``/``rank`` keep."""
         if self.rank is not None:
-            k = min(self.rank, int(s.shape[0]))
-        else:
-            k = int(tf.reduce_sum(tf.cast(s > self.rtol * s[0], tf.int32)))
-            k = max(k, 1)
-        # tf.linalg.svd returns v = V for complex (M = u s v^H); store V^H so
-        # "row j is the j-th right singular vector" everywhere else
+            return min(self.rank, int(s.shape[0]))
+        k = int(tf.reduce_sum(tf.cast(s > self.rtol * s[0], tf.int32)))
+        return max(k, 1)
+
+    def _basis(self, M):
+        """Right singular vectors above ``rtol`` (or the first ``rank``).
+
+        ``tf.linalg.svd`` returns ``v = V`` for complex (``M = u s v^H``);
+        store ``V^H`` so "row j is the j-th right singular vector".
+        """
+        s, u, v = tf.linalg.svd(M, full_matrices=False)
+        k = self._cut(s)
         return tf.linalg.adjoint(v)[:k], k
 
     def prepare(self, F, B):
@@ -1700,6 +1804,8 @@ class _SvdCompression:
             "method": self.name,
             "Vf": Vf,
             "Vb": Vb,
+            "dtype": F.dtype,
+            "dtype_b": B.dtype,
             "np": int(F.shape[1]),
             "nu": int(F.shape[2]),
             "nparam": int(B.shape[1]),
@@ -1710,9 +1816,9 @@ class _SvdCompression:
     def compress(self, record, F, B):
         if F is not None:
             M = tf.reshape(F, (tf.shape(F)[0], -1))
-            F = tf.matmul(M, tf.linalg.adjoint(record["Vf"]))
+            F = _project(M, record["Vf"])
         if B is not None:
-            B = tf.matmul(B, tf.linalg.adjoint(record["Vb"]))
+            B = _project(B, record["Vb"])
         return F, B
 
     def expand(self, record, F, B):
@@ -1725,6 +1831,51 @@ class _SvdCompression:
 
         fn = dense_factor_a if n_line == 1 else dense_factor_an
         return fn(F, B, C, g, off, sz, max_basis=max_basis)
+
+
+class _RealSvdCompression(_SvdCompression):
+    """``svd`` with ``M = C W^T``: real coefficients, complex basis.
+
+    The fit is the real SVD of ``[Re(M) | Im(M)]``.  Its singular values are
+    the complex ones for this plugin's bases (``M M^H`` is real), so the
+    truncation error is identical to ``svd`` while the stored coefficients
+    are real - half the payload - and the projection is real arithmetic.
+    ``W = V1 + i V2`` is rebuilt from the two halves of the basis on demand.
+
+    The rebuild runs at the arithmetic dtype (``_real_dtype(record["dtype"])``),
+    not at the storage dtype: coefficients stored as float32 are upcast to
+    float64 for a complex128 model (measured 5e-8), while a complex64 model
+    rebuilds in float32 and inherits the GPU float32 matmul floor (about
+    5e-4, TF32).  Real coefficients are stored as float32 under both complex64
+    and complex32 storage - fp16 is reserved for the packed complex form, so
+    ``_unpack_terms`` can tell them apart.  "Half the payload" therefore holds
+    for complex128/complex64 storage; under complex32 a real float32 is the
+    same size as the packed complex form, and more precise.
+
+    A real tensor (``B`` in most models) contributes an exact zero imaginary
+    half; with ``merge_rtol: 0`` those zero singular values count as
+    directions, so keep the default tolerance there.
+    """
+
+    name = "real_svd"
+
+    def _basis(self, M):
+        s, u, v = tf.linalg.svd(_split_complex(M), full_matrices=False)
+        k = self._cut(s)
+        return tf.transpose(v[:, :k]), k
+
+    def prepare(self, F, B):
+        record = super().prepare(F, B)
+        record["split"] = True
+        return record
+
+    def compress(self, record, F, B):
+        if F is not None:
+            M = tf.reshape(F, (tf.shape(F)[0], -1))
+            F = tf.matmul(_split_complex(M), tf.transpose(record["Vf"]))
+        if B is not None:
+            B = tf.matmul(_split_complex(B), tf.transpose(record["Vb"]))
+        return F, B
 
 
 class _NoCompression:
@@ -1743,6 +1894,7 @@ _COMPRESSIONS = {
     None: _NoCompression,
     "index": _IndexCompression,
     "svd": _SvdCompression,
+    "real_svd": _RealSvdCompression,
 }
 
 
@@ -1767,7 +1919,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
               merge_sample: 256
               merge_prepare: null
               store_dtype: complex128   # complex64 | complex32 (fp16 halves)
-              method: index             # or svd
+              method: index             # svd | real_svd
               svd_rank: null
               merge_key: null   # shared record name; the model needs it too
 
@@ -1777,7 +1929,15 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
     ``merge_rtol`` (relative singular value) or ``svd_rank``.  The SVD is exact
     at its numerical rank and is rebuilt before the contraction; a tolerance
     that drops real directions must be validated on the amplitude, because
-    ``1/den`` amplifies the discarded ones.
+    ``1/den`` amplifies the discarded ones.  ``real_svd`` fits ``F = C W^T``
+    with the real SVD of ``[Re(F) | Im(F)]``: while ``F F^H`` is real - true
+    for every basis in this plugin, where the complex part is a per-event
+    factor times a real ``(p, u)`` structure - the singular values and the
+    truncation error are those of ``svd``, while the stored coefficients are
+    real (half the payload) and the basis is complex.  A basis that mixes
+    real and imaginary parts inside a column has a different truncation under
+    ``real_svd``; full rank is still exact, but validate a cut on the
+    amplitude there.
 
     The record is fitted on the first real batch when the data is eager -
     the barrier factors depend on the event, so a generic sample need not
@@ -1834,9 +1994,11 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                 merge_rtol = 8 * float(np.finfo(np.complex64).eps)
             else:
                 merge_rtol = 1e-8
-        if method not in ("index", "svd"):
+        if method not in ("index", "svd", "real_svd"):
             raise ValueError(
-                "method must be 'index' or 'svd', got {!r}".format(method)
+                "method must be 'index', 'svd' or 'real_svd', got {!r}".format(
+                    method
+                )
             )
         self.method = method
         if svd_rank is not None and int(svd_rank) < 1:
@@ -1871,6 +2033,8 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             return _IndexCompression(
                 self.merge_rtol, self.merge_atol, self.merge_sample
             )
+        if self.method == "real_svd":
+            return _RealSvdCompression(self.merge_rtol, self.svd_rank)
         return _SvdCompression(self.merge_rtol, self.svd_rank)
 
     def _check_record(self, record):
@@ -1959,7 +2123,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         if (
             F is not None
             and self.build_batch is not None
-            and record.get("method") == "svd"
+            and record.get("method") in ("svd", "real_svd")
             and (
                 record["rank_f"] >= int(F.shape[0])
                 or record["rank_b"] >= int(B.shape[0])
