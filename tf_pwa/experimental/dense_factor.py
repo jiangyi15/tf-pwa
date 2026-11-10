@@ -2294,7 +2294,11 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         gen = PhaseSpaceGenerator(float(top_mass), masses)
         mom = gen.generate(sample)
         p4 = {str(p): m for p, m in zip(outs, mom)}
-        data = cal_angle_from_momentum(p4, self.decay_struct)
+        # go through the base preprocessor so the sample follows the data's
+        # angle conventions (center_mass, r_boost, ...) exactly; with
+        # cp_trans and no per-event charges it leaves the momenta unchanged,
+        # and the conjugated directions span the same row space here
+        data = BasePreProcessor.call(self, {"p4": p4})
         return self._build_terms(data)
 
     def _prepare_merge(self, F=None, B=None):

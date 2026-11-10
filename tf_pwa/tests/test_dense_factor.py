@@ -2600,3 +2600,46 @@ def test_dense_factor_real_index_op_matches_rebuild(monkeypatch):
     assert len(g_op) == len(g_rb) and g_op
     for x, y in zip(g_op, g_rb):
         assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+
+@pytest.mark.parametrize("method", ["svd", "real_svd"])
+def test_dense_factor_merge_sample_matches_angle_options(method):
+    """A sample fit must use the data's angle conventions.
+
+    ``r_boost: false`` changes the kinematics; a sample built with the default
+    (r_boost true) has a different basis and the SVD truncates real
+    directions, so the amplitude would differ from the uncompressed model.
+    """
+    decay, part = _identical_waves()
+
+    def cfg(model, pre):
+        return {
+            "data": {
+                "format": "simple",
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": pre,
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c0 = ConfigLoader(cfg("dense_factor", "dense_factor"))
+    c1 = ConfigLoader(
+        cfg(
+            "dense_factor_merge",
+            {
+                "dense_factor_merge": {
+                    "method": method,
+                    "merge_prepare": True,
+                }
+            },
+        )
+    )
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
