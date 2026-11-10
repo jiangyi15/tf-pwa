@@ -2413,3 +2413,70 @@ def test_real_svd_strategy_full_rank_generic():
     Fh, Bh = _expand_svd(record, Fc, Bc)
     assert np.allclose(Fh.numpy(), F.numpy(), rtol=1e-10, atol=1e-12)
     assert np.allclose(Bh.numpy(), B.numpy(), rtol=1e-10, atol=1e-12)
+
+
+def test_dense_factor_build_batch_drop_decay_particle():
+    """A chunked build drops each chunk's angles before the next slice."""
+    decay, part = _identical_waves()
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": "dense_factor",
+                "preprocessor": {"dense_factor": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c0 = ConfigLoader(cfg({"drop_decay_particle": True}))
+    c1 = ConfigLoader(cfg({"drop_decay_particle": True, "build_batch": 8}))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=50)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+
+    for d in (d0, d1):
+        assert "particle" not in d and "decay" not in d
+        assert "F" in d and "B" in d
+    assert np.allclose(d0["F"], d1["F"], rtol=1e-12, atol=0)
+    assert np.allclose(d0["B"], d1["B"], rtol=1e-12, atol=0)
+
+
+def test_dense_factor_build_batch_streams_the_input(monkeypatch):
+    """The slices are transformed one at a time, not after a whole pass."""
+    import tf_pwa.experimental.dense_factor as df
+    from tf_pwa.data import data_shape
+
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor",
+            "preprocessor": {"dense_factor": {"build_batch": 8}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=50)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+
+    sizes = []
+    original = df.BasePreProcessor.call
+
+    def spy(self, x, **kwargs):
+        sizes.append(int(data_shape(x)))
+        return original(self, x, **kwargs)
+
+    monkeypatch.setattr(df.BasePreProcessor, "call", spy)
+    d1 = c.data.cal_angle(p4)
+    assert sizes == [8] * 6 + [2]
+
+    # and the chunked result is the one-shot build
+    cfg["data"]["preprocessor"] = {"dense_factor": {}}
+    c0 = ConfigLoader(cfg)
+    d0 = c0.data.cal_angle(p4)
+    assert np.allclose(d0["F"], d1["F"], rtol=1e-12, atol=0)
+    assert np.allclose(d0["B"], d1["B"], rtol=1e-12, atol=0)

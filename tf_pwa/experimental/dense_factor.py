@@ -1070,13 +1070,18 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     the angles and is returned untouched, so a plotting-only or non-dense
     workflow is unaffected.
 
-    ``build_batch`` builds and compresses the event axis in chunks, so a
-    merge preprocessor never holds the full-width basis as one tensor: the
-    peak is one chunk's terms plus the reduced result.  The angle leaves are
-    sliced first (they are eager tensors, so that is a second copy of the
-    angle data).  ``None`` (the default) does one pass, and
-    with ``lazy_call`` it should stay ``None`` so the outer batching is not
-    split again.  It must be at least ``merge_sample``.
+    ``build_batch`` builds the event axis in chunks: the input is sliced, the
+    angle transform and the ``F``/``B`` build run on each slice, and the
+    processed chunks are merged.  A merge preprocessor therefore never holds
+    the full-width basis as one tensor (the peak is one chunk's terms plus the
+    reduced result).  A chunk's angle leaves are released before the next
+    slice only when ``drop_decay_particle`` lets the model give them up (and
+    the input was the raw momentum dict, not an already-cal-angled one);
+    otherwise they are kept and merged, because they are part of the result.
+    ``None`` (the default) does one pass.  With ``lazy_call`` the outer
+    batching already runs per batch, so the option is rejected there.  It must
+    be at least ``merge_sample``, and the ``extra`` values must be event-major
+    arrays so that they can be sliced.
 
     With ``method: svd`` the first chunk is the fit sample: at a real batch
     size its rank is ``np*nu``, the same as the whole set's, so the chunked
@@ -1141,16 +1146,24 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
         else:
             ctx = contextlib.nullcontext()
         with ctx:
-            x = BasePreProcessor.call(self, x, **kwargs)
             if self.build_batch is None:
+                x = BasePreProcessor.call(self, x, **kwargs)
                 self._process(x)
             else:
-                # build and compress chunk by chunk, so the full-width basis
-                # never exists as one tensor
-                chunks = list(split_generator(x, self.build_batch))
-                for chunk in chunks:
+                # stream the input: a chunk's angles are computed and used,
+                # and with drop_decay_particle released before the next slice,
+                # so neither the basis nor those angles are alive twice;
+                # without it the angles are part of the result and are kept
+                chunks = []
+                for chunk in split_generator(x, self.build_batch):
+                    chunk = BasePreProcessor.call(self, chunk, **kwargs)
                     self._process(chunk)
-                x = data_merge(*chunks)
+                    self._strip(chunk)
+                    chunks.append(chunk)
+                if len(chunks) == 1:
+                    x = chunks[0]
+                else:
+                    x = data_merge(*chunks)
             blocks = self._blocks(x)
             # every block follows the same two rules as the base dict
             x["F"], x["B"] = self._cast(x["F"], x["B"])
