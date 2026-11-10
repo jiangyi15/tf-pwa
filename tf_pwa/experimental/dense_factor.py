@@ -1804,11 +1804,20 @@ class _RealIndexCompression(_IndexCompression):
     The payload is ``len(reps)`` reals per event instead of ``2 * width``
     (measured: 17-20% less for ``F`` and 33% for ``B`` on J=1/J=2 bases, 50%
     to 94% for ``F`` when the basis is real, amplitude unchanged at 1e-16);
-    the complex tensor is rebuilt by two gathers per batch, and the index
-    maps and the fused op are unchanged.
+    the fused op model contracts the real block directly through the split
+    ``DenseFactorFwdRi``/``GradRi`` pair (measured 2.7 ms against 11.9 ms
+    for the rebuild and 3.0 ms for ``index`` at 20k events), so only the dense
+    model, which needs a complex basis, pays for the two gathers per batch.
     """
 
     name = "real_index"
+
+    #: Use the fused split op; False keeps the reconstruct path (a test knob
+    #: that also proves the two agree).
+    use_op = True
+
+    #: ``None`` until the op has been probed once (see ``_contract_op``)
+    _op_ready = None
 
     def prepare(self, F, B):
         record = super().prepare(F, B)
@@ -1827,8 +1836,8 @@ class _RealIndexCompression(_IndexCompression):
                 both, 1, self.sample, self.rtol, self.atol
             )
             record[key + "_reps"] = reps
-            record[key + "_re_map"] = mapping[:width]
-            record[key + "_im_map"] = mapping[width:]
+            record[key + "_re_map"] = tf.constant(mapping[:width], tf.int32)
+            record[key + "_im_map"] = tf.constant(mapping[width:], tf.int32)
             record[key + "_width"] = width
         return record
 
@@ -1859,12 +1868,25 @@ class _RealIndexCompression(_IndexCompression):
                 continue
             dtype = record["dtype" if key == "f" else "dtype_b"]
             part = tf.float32 if dtype == tf.complex64 else tf.float64
+            # one flat gather per half: linear in ne*width, unlike an
+            # axis=1 gather or a selection matmul (which is ne*width^2)
             X = tf.cast(X, part)
-            re = tf.gather(
-                X, tf.constant(record[key + "_re_map"], tf.int32), axis=1
+            flat = tf.reshape(X, (-1,))
+            base = tf.range(tf.shape(X)[0])[:, None] * tf.shape(X)[1]
+            width = record[key + "_width"]
+            re = tf.reshape(
+                tf.gather(
+                    flat,
+                    tf.reshape(base + record[key + "_re_map"][None, :], (-1,)),
+                ),
+                (-1, width),
             )
-            im = tf.gather(
-                X, tf.constant(record[key + "_im_map"], tf.int32), axis=1
+            im = tf.reshape(
+                tf.gather(
+                    flat,
+                    tf.reshape(base + record[key + "_im_map"][None, :], (-1,)),
+                ),
+                (-1, width),
             )
             comp = tf.complex(re, im)
             if not dtype.is_complex:
@@ -1880,7 +1902,66 @@ class _RealIndexCompression(_IndexCompression):
         F, B = self._reconstruct(record, F, B)
         return _expand_block(record, F, B)
 
+    def _contract_op(self, record, F, B, C, g, off, sz, n_line, max_basis):
+        """The fused contraction on the stored real blocks, or ``None``.
+
+        ``None`` means the caller should rebuild the complex basis and use
+        the general Merge op: the op is not built on this machine, the
+        blocks are not the stored real pair (a complex one was passed in),
+        or there is no denominator line for the general kernel.
+        """
+        from . import dense_factor_op
+
+        if n_line < 1:
+            return None
+        # probed once: is_available() builds (and caches) the library, so
+        # only the first call pays for it
+        if _RealIndexCompression._op_ready is None:
+            ready = bool(dense_factor_op.is_available())
+            _RealIndexCompression._op_ready = ready
+            if not ready:
+                warnings.warn(
+                    "the dense_factor real-index op is not available; "
+                    "real_index rebuilds the complex basis instead"
+                )
+        if not _RealIndexCompression._op_ready:
+            return None
+        if F.dtype.is_complex or B.dtype.is_complex:
+            return None
+        if F.shape.rank != 2 or B.shape.rank != 2:
+            return None
+        try:
+            return dense_factor_op.dense_factor_ri(
+                F,
+                B,
+                C,
+                g,
+                off,
+                sz,
+                record["map_u"],
+                record["map_i"],
+                record["f_re_map"],
+                record["f_im_map"],
+                record["b_re_map"],
+                record["b_im_map"],
+                max_basis=max_basis,
+            )
+        except Exception as exc:  # environment or map mismatch
+            # a failed op must not break the model: fall back once, noisily
+            _RealIndexCompression._op_ready = False
+            warnings.warn(
+                "the dense_factor real-index op failed ({}); "
+                "real_index rebuilds the complex basis instead".format(exc)
+            )
+            return None
+
     def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
+        if self.use_op:
+            amp = self._contract_op(
+                record, F, B, C, g, off, sz, n_line, max_basis
+            )
+            if amp is not None:
+                return amp
         F, B = self._reconstruct(record, F, B)
         return super().contract(
             record, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis

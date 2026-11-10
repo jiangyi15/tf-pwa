@@ -444,6 +444,248 @@ __global__ void dense_grad_kernel_n(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Real-index case: the basis is stored merged *and* as one real block per
+// event, ``[Re | Im]`` split by the index maps (method: real_index).  Same
+// arithmetic and layout as the general kernels above; only the F/B reads are
+// replaced, so the complex basis never has to be rebuilt.
+// ---------------------------------------------------------------------------
+
+// One complex basis column of the real block: FS[e, RE[j]] + i FS[e, IM[j]].
+__device__ __forceinline__ double2 ri_col(
+    const double* __restrict__ FS, long long fo,
+    const int* __restrict__ RE, const int* __restrict__ IM, long long j)
+{
+    return make_double2(FS[fo + (long long)RE[j]], FS[fo + (long long)IM[j]]);
+}
+
+// ``line_den_merge`` on a real block: the reduced column ``MI[o+i]`` is a
+// pair of stored real columns, one for each half.
+template <int S>
+__device__ __forceinline__ void line_den_merge_ri(
+    const double* __restrict__ BS, const int* __restrict__ MI,
+    const int* __restrict__ BRE, const int* __restrict__ BIM,
+    const double* __restrict__ G,
+    long long bo, int o, int s, double& dr, double& di)
+{
+    dr = 0.0; di = 0.0;
+    #pragma unroll
+    for (int i = 0; i < S; i++) {
+        if (i < s) {
+            const int r = MI[o+i];
+            const double g = G[o+i];
+            dr += g*BS[bo + BRE[r]];
+            di += g*BS[bo + BIM[r]];
+        }
+    }
+}
+
+template <int S, bool REG>
+__global__ void dense_fwd_ri_kernel(
+    const double* __restrict__ FS,   // [ne, nf], the real F block
+    const double* __restrict__ BS,   // [ne, nb], the real B block
+    const double2* __restrict__ C, const double* __restrict__ G,
+    const int* __restrict__ off, const int* __restrict__ sz, int nline,
+    const int* __restrict__ MU, const int* __restrict__ MI,
+    const int* __restrict__ FRE, const int* __restrict__ FIM,
+    const int* __restrict__ BRE, const int* __restrict__ BIM,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
+    int nf, int nb,
+    double2* __restrict__ A_out, double2* __restrict__ D_out)
+{
+    extern __shared__ double2 wsh[];
+    const int lane  = threadIdx.x & 31;
+    const int wid   = threadIdx.x >> 5;
+    const int wpb   = blockDim.x >> 5;
+    const int gwarp = blockIdx.x * wpb + wid;
+    const int nwarp = gridDim.x * wpb;
+    double2* Wl = wsh + (size_t)wid * nu;
+
+    for (int e = gwarp; e < ne; e += nwarp) {
+        const long long bo = (long long)e * nb;
+        const long long fo = (long long)e * nf;
+        if constexpr (REG) {
+            double2 wc[MAXUPW];
+            int fu[MAXUPW];
+            #pragma unroll
+            for (int k = 0; k < MAXUPW; k++) {
+                const int u = lane + 32*k;
+                if (u < nu) {
+                    fu[k] = MU[u];
+                    double dr = 1.0, di = 0.0;
+                    for (int l = 0; l < nline; l++) {
+                        const int o = off[u*nline + l], s = sz[u*nline + l];
+                        if (s > 0) {
+                            double fr, fi;
+                            line_den_merge_ri<S>(BS, MI, BRE, BIM, G,
+                                                   bo, o, s, fr, fi);
+                            const double nr = dr*fr - di*fi;
+                            const double ni = dr*fi + di*fr;
+                            dr = nr; di = ni;
+                        }
+                    }
+                    if (D_out) D_out[(long long)e*nu + u] = make_double2(dr, di);
+                    const double den = dr*dr + di*di;
+                    const double2 c = C[u];
+                    wc[k] = make_double2((c.x*dr + c.y*di) / den,
+                                         (c.y*dr - c.x*di) / den);
+                }
+            }
+            for (int p = 0; p < np; p++) {
+                double ar = 0.0, ai = 0.0;
+                #pragma unroll
+                for (int k = 0; k < MAXUPW; k++) {
+                    const int u = lane + 32*k;
+                    if (u < nu) {
+                        const double2 f = ri_col(
+                            FS, fo, FRE, FIM,
+                            (long long)p*nu_red + fu[k]);
+                        ar += f.x*wc[k].x - f.y*wc[k].y;
+                        ai += f.x*wc[k].y + f.y*wc[k].x;
+                    }
+                }
+                const double2 A = warp_sum2(ar, ai);
+                if (lane == 0) A_out[(long long)e*np + p] = A;
+            }
+        } else {
+            for (int u = lane; u < nu; u += 32) {
+                const double2 c = C[u];
+                double dr = 1.0, di = 0.0;
+                for (int l = 0; l < nline; l++) {
+                    const int o = off[u*nline + l], s = sz[u*nline + l];
+                    if (s > 0) {
+                        double fr, fi;
+                        line_den_merge_ri<S>(BS, MI, BRE, BIM, G,
+                                               bo, o, s, fr, fi);
+                        const double nr = dr*fr - di*fi;
+                        const double ni = dr*fi + di*fr;
+                        dr = nr; di = ni;
+                    }
+                }
+                if (D_out) D_out[(long long)e*nu + u] = make_double2(dr, di);
+                const double den = dr*dr + di*di;
+                Wl[u] = make_double2((c.x*dr + c.y*di) / den,
+                                     (c.y*dr - c.x*di) / den);
+            }
+            __syncwarp();
+            for (int p = 0; p < np; p++) {
+                double ar = 0.0, ai = 0.0;
+                for (int u = lane; u < nu; u += 32) {
+                    const double2 f = ri_col(
+                        FS, fo, FRE, FIM, (long long)p*nu_red + MU[u]);
+                    const double2 wv = Wl[u];
+                    ar += f.x*wv.x - f.y*wv.y;
+                    ai += f.x*wv.y + f.y*wv.x;
+                }
+                const double2 A = warp_sum2(ar, ai);
+                if (lane == 0) A_out[(long long)e*np + p] = A;
+            }
+        }
+
+    }
+}
+
+template <int S>
+__global__ void dense_grad_ri_kernel(
+    const double* __restrict__ FS, const double* __restrict__ BS,
+    const double2* __restrict__ C, const double* __restrict__ G,
+    const int* __restrict__ off, const int* __restrict__ sz, int nline,
+    const int* __restrict__ MU, const int* __restrict__ MI,
+    const int* __restrict__ FRE, const int* __restrict__ FIM,
+    const int* __restrict__ BRE, const int* __restrict__ BIM,
+    const double* __restrict__ dla, const double2* __restrict__ D,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
+    int nf, int nb,
+    double* __restrict__ dc_part, double* __restrict__ dg_part)
+{
+    const double2* DLA = reinterpret_cast<const double2*>(dla);
+    for (int u = threadIdx.x; u < nu; u += blockDim.x) {
+        const int fu = MU[u];
+        const double2 c = C[u];
+        double dcr = 0.0, dci = 0.0;
+        double dgr[S];
+
+        for (int l = 0; l < nline; l++) {
+            const int o = off[u*nline + l], s = sz[u*nline + l];
+            const int has = s > 0;
+            #pragma unroll
+            for (int i = 0; i < S; i++) { dgr[i] = 0.0; }
+
+            for (int e = blockIdx.x; e < ne; e += gridDim.x) {
+                const long long bo = (long long)e * nb;
+                const long long fo = (long long)e * nf;
+                const long long ao = (long long)e * np;
+                const double2 dv = D[(long long)e*nu + u];
+                const double tr = dv.x, ti = dv.y;
+
+                double bvr[S], bvi[S];
+                double orr = 1.0, oi = 0.0;
+                if (has) {
+                    double dr, di;
+                    line_den_merge_ri<S>(BS, MI, BRE, BIM, G,
+                                           bo, o, s, dr, di);
+                    #pragma unroll
+                    for (int i = 0; i < S; i++)
+                        if (i < s) {
+                            const int r = MI[o+i];
+                            bvr[i] = BS[bo + BRE[r]];
+                            bvi[i] = BS[bo + BIM[r]];
+                        }
+                    const double dn = dr*dr + di*di;
+                    orr = (dv.x*dr + dv.y*di) / dn;
+                    oi = (dv.y*dr - dv.x*di) / dn;
+                }
+
+                double gwr = 0.0, gwi = 0.0;
+                for (int p = 0; p < np; p++) {
+                    const double2 da = DLA[ao+p];
+                    const double2 f = ri_col(
+                        FS, fo, FRE, FIM, (long long)p*nu_red + fu);
+                    gwr += da.x*f.x + da.y*f.y;
+                    gwi += da.y*f.x - da.x*f.y;
+                }
+                const double den = tr*tr + ti*ti;
+                const double icr = tr/den, ici = ti/den;
+                if (l == 0) {
+                    dcr += gwr*icr - gwi*ici;
+                    dci += gwr*ici + gwi*icr;
+                }
+                const double gir = c.x*gwr + c.y*gwi;
+                const double gii = c.x*gwi - c.y*gwr;
+                const double pr = tr*tr - ti*ti, pi = -2.0*tr*ti;
+                const double pn = pr*pr + pi*pi;
+                const double ipr = pr/pn, ipi = -pi/pn;
+                const double gdenr = -(gir*ipr - gii*ipi);
+                const double gdeni = -(gir*ipi + gii*ipr);
+
+                if (has) {
+                    const double glr = gdenr*orr + gdeni*oi;
+                    const double gli = gdeni*orr - gdenr*oi;
+                    #pragma unroll
+                    for (int i = 0; i < S; i++) {
+                        if (i < s) {
+                            dgr[i] += glr*bvr[i] + gli*bvi[i];
+                        }
+                    }
+                }
+            }
+
+            if (has) {
+                #pragma unroll
+                for (int i = 0; i < S; i++) {
+                    if (i < s) {
+                        atomicAdd(&dg_part[(long long)blockIdx.x*nparam + (o+i)],
+                                  dgr[i]);
+                    }
+                }
+            }
+        }
+
+        dc_part[(long long)blockIdx.x*2*nu + 2*u]     = dcr;
+        dc_part[(long long)blockIdx.x*2*nu + 2*u + 1] = dci;
+    }
+}
+
 struct Args {
     // ``dla`` is dL/dA (complex) in gradient mode and null in forward mode.
     const double *fr, *btr, *cr, *gtr; const int *off, *sz;
@@ -575,4 +817,89 @@ extern "C" void launch_dense_factor_n(
            ne, nu, nu_red, nparam, nparam_red, np, nline, nblk, merged,
            a_out, d_out, dc_part, dg_part, dc_out, dg_out, s};
     dispatch(a, mode, maxs, true);
+}
+
+// ---------------------------------------------------------------------------
+// Real-index entry point: the same general launch, with the split F/B blocks
+// and their read maps in place of the complex ones.
+// ---------------------------------------------------------------------------
+
+struct RiArgs {
+    const double *fs, *bs, *cr, *gtr; const int *off, *sz;
+    const int *mur, *mir, *fre, *fim, *bre, *bim; const double *dla;
+    int ne, nu, nu_red, nparam, nparam_red, np, nf, nb, nline, nblk;
+    double *a_out, *d_out, *dc_part, *dg_part, *dc_out, *dg_out;
+    cudaStream_t s;
+};
+
+template <int S, bool REG>
+static void run_ri(const RiArgs& a, int mode) {
+    const double2* C = reinterpret_cast<const double2*>(a.cr);
+    const double* G = a.gtr;
+    double2* A = reinterpret_cast<double2*>(a.a_out);
+    double2* D = reinterpret_cast<double2*>(a.d_out);
+    int wpb = REG ? NWARP : pick_wpb(a.nu);
+    size_t shmem = REG ? 0 : (size_t)wpb * a.nu * sizeof(double2);
+    int nb_f = a.ne < 4096 ? (a.ne + wpb - 1) / wpb : 2048;
+    if (nb_f < 1) nb_f = 1;
+    if (mode != 2)
+        dense_fwd_ri_kernel<S, REG><<<nb_f, wpb*32, shmem, a.s>>>(
+            a.fs, a.bs, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
+            a.fre, a.fim, a.bre, a.bim,
+            a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.nf, a.nb,
+            A, D);
+    if (mode != 1) {
+        cudaMemsetAsync(a.dg_part, 0,
+                        (size_t)a.nblk * a.nparam * sizeof(double), a.s);
+        int gb = a.nu <= 128 ? 128 : 256;
+        dense_grad_ri_kernel<S><<<a.nblk, gb, 0, a.s>>>(
+            a.fs, a.bs, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
+            a.fre, a.fim, a.bre, a.bim, a.dla, D,
+            a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.nf, a.nb,
+            a.dc_part, a.dg_part);
+        reduce_k<<<(2*a.nu+255)/256, 256, 0, a.s>>>(
+            a.dc_part, a.nblk, 2*a.nu, 0, 2*a.nu, a.dc_out);
+        reduce_k<<<(a.nparam+255)/256, 256, 0, a.s>>>(
+            a.dg_part, a.nblk, a.nparam, 0, a.nparam, a.dg_out);
+    }
+}
+
+template <bool REG>
+static void dispatch_ri_s(const RiArgs& a, int mode, int maxs) {
+    switch (maxs) {
+        case 1: run_ri<1, REG>(a, mode); break;
+        case 2: run_ri<2, REG>(a, mode); break;
+        case 3: run_ri<3, REG>(a, mode); break;
+        case 4: run_ri<4, REG>(a, mode); break;
+        case 5: run_ri<5, REG>(a, mode); break;
+        case 6: run_ri<6, REG>(a, mode); break;
+        case 7: run_ri<7, REG>(a, mode); break;
+        case 8: run_ri<8, REG>(a, mode); break;
+        default: run_ri<16, REG>(a, mode); break;
+    }
+}
+
+static void dispatch_ri(const RiArgs& a, int mode, int maxs) {
+    if (a.nu <= 32 * MAXUPW)
+        dispatch_ri_s<true>(a, mode, maxs);
+    else
+        dispatch_ri_s<false>(a, mode, maxs);
+}
+
+extern "C" void launch_dense_factor_ri(
+    const double* fs, const double* bs, const double* cr, const double* gtr,
+    const int* off, const int* sz, const int* mur, const int* mir,
+    const int* fre, const int* fim, const int* bre, const int* bim,
+    const double* dla,
+    int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
+    int nf, int nb, int nline,
+    int nblk, int mode, int maxs,
+    double* a_out, double* d_out,
+    double* dc_part, double* dg_part,
+    double* dc_out, double* dg_out, cudaStream_t s)
+{
+    RiArgs a{fs, bs, cr, gtr, off, sz, mur, mir, fre, fim, bre, bim, dla,
+               ne, nu, nu_red, nparam, nparam_red, np, nf, nb, nline, nblk,
+               a_out, d_out, dc_part, dg_part, dc_out, dg_out, s};
+    dispatch_ri(a, mode, maxs);
 }

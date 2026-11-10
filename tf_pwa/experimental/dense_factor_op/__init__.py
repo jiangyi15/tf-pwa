@@ -67,6 +67,7 @@ _A_FNS = {}
 _A_FNS_N = {}
 _A_FNS_M = {}
 _A_FNS_NM = {}
+_A_FNS_RI = {}
 
 
 def _resolve(sz, max_basis, who):
@@ -158,6 +159,54 @@ def dense_factor_merge_an(f, bt, c, g, off, sz, map_u, map_i, max_basis=None):
     return fn(f, bt, c, g, off, sz, map_u, map_i)
 
 
+def dense_factor_ri(
+    fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim, max_basis=None
+):
+    """Like :func:`dense_factor_merge_an` on the stored real blocks.
+
+    This is the fused contraction for ``method: real_index``: ``fs`` and
+    ``bs`` are the blocks as they are stored (``[ne, nf]`` / ``[ne, nb]``
+    real, the merged columns of ``[Re | Im]``), and ``(fre, fim)`` /
+    ``(bre, bim)`` say which stored columns hold the real and imaginary part
+    of every reduced column, so the complex basis is never rebuilt.  The
+    index merge is the one of the Merge ops (``mu``/``mi``); any number of
+    denominator lines is accepted, like :func:`dense_factor_an`.
+
+    ``np`` (the projection axis of the flattened F block) is recovered from
+    the map lengths, so the maps must be constants - they are when they come
+    from a merge record.
+    """
+    max_basis = _resolve(sz, max_basis, "dense_factor_ri")
+    _check_g(g)
+    nproj = _ri_nproj(fre, mu)
+    fn = _cached(_A_FNS_RI, (max_basis, nproj), _make_ri)
+    return fn(fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim)
+
+
+def _ri_nproj(fre, mu):
+    """``np`` of the flattened real F block, from the record maps.
+
+    ``fre`` has one entry per reduced column and projection
+    (``np * n_u``), while the reduced chain ids in ``mu`` show ``n_u``: no
+    reduced group can be empty, so ``n_u`` is one more than their largest
+    id.  Both are constants of a merge record, so this needs no device read.
+    """
+    m = tf.get_static_value(mu)
+    f = tf.get_static_value(fre)
+    if m is None or f is None:
+        raise ValueError(
+            "dense_factor_ri needs constant mu/fre maps to infer np"
+        )
+    m = np.asarray(m)
+    total = np.asarray(f).size
+    n_u = int(np.max(m)) + 1 if m.size else 0
+    if n_u < 1 or total % n_u:
+        raise ValueError(
+            "fre has {} entries for {} reduced chains".format(total, n_u)
+        )
+    return total // n_u
+
+
 def _fwd(f, bt, c, g, off, sz, max_basis, general):
     lib = _load()
     if f.shape.rank == 2:
@@ -210,6 +259,55 @@ def _grad_merge(f, bt, c, g, off, sz, dla, d, mu, mi, max_basis, general):
     )
 
 
+def _fwd_ri(
+    fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim, nproj, max_basis
+):
+    lib = _load()
+    fs = tf.cast(fs, tf.float64)
+    bs = tf.cast(bs, tf.float64)
+    a, d = lib.dense_factor_fwd_ri(
+        fs,
+        bs,
+        c,
+        g,
+        off,
+        sz,
+        mu,
+        mi,
+        fre,
+        fim,
+        bre,
+        bim,
+        max_basis=max_basis,
+        np=nproj,
+    )
+    return tf.reshape(a, tf.stack([tf.shape(fs)[0], nproj])), d
+
+
+def _grad_ri(
+    fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim, dla, d, nproj, max_basis
+):
+    lib = _load()
+    return lib.dense_factor_grad_ri(
+        tf.cast(fs, tf.float64),
+        tf.cast(bs, tf.float64),
+        c,
+        g,
+        off,
+        sz,
+        mu,
+        mi,
+        fre,
+        fim,
+        bre,
+        bim,
+        dla,
+        d,
+        max_basis=max_basis,
+        np=nproj,
+    )
+
+
 def _make_a(max_basis, general=False):
     @tf.custom_gradient
     def fn(f, bt, c, g, off, sz):
@@ -250,6 +348,56 @@ def _make_an(max_basis):
 
 def _make_an_merge(max_basis):
     return _make_a_merge(max_basis, general=True)
+
+
+def _make_ri(key):
+    max_basis, nproj = key
+
+    @tf.custom_gradient
+    def fn(fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim):
+        a, d = _fwd_ri(
+            fs,
+            bs,
+            c,
+            g,
+            off,
+            sz,
+            mu,
+            mi,
+            fre,
+            fim,
+            bre,
+            bim,
+            nproj,
+            max_basis,
+        )
+
+        def grad(dla):
+            if dla is None:
+                return [None] * 12
+            dc, dg = _grad_ri(
+                fs,
+                bs,
+                c,
+                g,
+                off,
+                sz,
+                mu,
+                mi,
+                fre,
+                fim,
+                bre,
+                bim,
+                dla,
+                d,
+                nproj,
+                max_basis,
+            )
+            return [None, None, dc, dg] + [None] * 8
+
+        return a, grad
+
+    return fn
 
 
 def basis_event_major(b):
@@ -295,6 +443,7 @@ __all__ = [
     "dense_factor_an",
     "dense_factor_merge_a",
     "dense_factor_merge_an",
+    "dense_factor_ri",
     "basis_event_major",
     "chain_layout",
     "is_available",

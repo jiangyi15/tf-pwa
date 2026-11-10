@@ -2530,3 +2530,73 @@ def test_dense_factor_merge_real_index():
     F1, B1 = a1.expand_block(d1["F"], d1["B"])
     assert np.allclose(F0, F1, rtol=1e-10, atol=1e-12)
     assert np.allclose(B0, B1, rtol=1e-10, atol=1e-12)
+
+
+def test_dense_factor_real_index_op_matches_rebuild(monkeypatch):
+    """The split op reads the stored real block exactly like the rebuild.
+
+    ``method: real_index`` in the op model goes through
+    ``DenseFactorFwdRi``/``GradRi`` on ``d["F"]``/``d["B"]`` directly;
+    forcing ``use_op = False`` rebuilds the complex basis and runs the
+    general Merge op.  Both see the same data and the same record, so the
+    amplitude and the parameter gradients must agree.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import _RealIndexCompression
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+    # a spin-2 top stores pure-real columns as well as mixed ones
+    part["X"]["J"] = 2
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": "real_index"}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    amp = c.get_amplitude()
+    assert amp.merge["method"] == "real_index"
+    assert not d["F"].dtype.is_complex and not d["B"].dtype.is_complex
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+
+    used = []
+    original = op_mod.dense_factor_ri
+    monkeypatch.setattr(
+        op_mod,
+        "dense_factor_ri",
+        lambda *a, **k: used.append(1) or original(*a, **k),
+    )
+    a_op = amp(d).numpy()
+    assert used, "the split op was not exercised"
+
+    def loss_and_grad():
+        vs = amp.vm.trainable_variables
+        with tf.GradientTape() as tape:
+            tape.watch(vs)
+            loss = -tf.reduce_sum(tf.math.log(amp(d)))
+        return [g.numpy() for g in tape.gradient(loss, vs)]
+
+    g_op = loss_and_grad()
+
+    monkeypatch.setattr(_RealIndexCompression, "use_op", False)
+    a_rb = amp(d).numpy()
+    g_rb = loss_and_grad()
+    monkeypatch.undo()
+
+    assert np.allclose(a_op, a_rb, rtol=1e-10, atol=1e-10)
+    assert len(g_op) == len(g_rb) and g_op
+    for x, y in zip(g_op, g_rb):
+        assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
