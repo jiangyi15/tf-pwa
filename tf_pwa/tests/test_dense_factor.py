@@ -2055,8 +2055,12 @@ def test_dense_factor_merge_svd_rank_invalid():
     "store_dtype,method,tol",
     [
         ("complex32", "index", 5e-3),
+        # real coefficients are float16 at complex32: half the width of the
+        # packed complex form, with fp16's own precision
+        ("complex32", "real_index", 2e-3),
         ("complex32", "svd", 5e-3),
         ("complex32", "real_svd", 5e-3),
+        ("complex64", "real_index", 1e-4),
         ("complex64", "svd", 1e-4),
         # real coefficients reconstruct with a float32 matmul, whose GPU
         # (TF32) floor is ~5e-4; complex64 does not take that kernel
@@ -2178,7 +2182,12 @@ def test_dense_factor_build_batch():
 )
 @pytest.mark.parametrize(
     "method,merge_sample,build_batch",
-    [("index", 16, 16), ("svd", 16, 16), ("real_svd", 16, 16)],
+    [
+        ("index", 16, 16),
+        ("real_index", 16, 16),
+        ("svd", 16, 16),
+        ("real_svd", 16, 16),
+    ],
 )
 def test_dense_factor_merge_build_batch(
     model, method, merge_sample, build_batch
@@ -2480,3 +2489,44 @@ def test_dense_factor_build_batch_streams_the_input(monkeypatch):
     d0 = c0.data.cal_angle(p4)
     assert np.allclose(d0["F"], d1["F"], rtol=1e-12, atol=0)
     assert np.allclose(d0["B"], d1["B"], rtol=1e-12, atol=0)
+
+
+def test_dense_factor_merge_real_index():
+    """real_index stores the index columns with the zero halves packed away."""
+    decay, part = _identical_waves()
+    # a spin-2 top gives a wide basis whose stored columns include pure-real
+    # ones; the J=1 three-wave basis stores only mixed columns
+    part["X"]["J"] = 2
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": "dense_factor_merge",
+                "preprocessor": {"dense_factor_merge": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c0 = ConfigLoader(cfg({"method": "index"}))
+    c1 = ConfigLoader(cfg({"method": "real_index"}))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+
+    assert a1.merge["method"] == "real_index"
+    assert not d1["F"].dtype.is_complex
+    # fewer bytes than the complex storage of the same columns
+    assert np.prod(d1["F"].shape) * 8 < np.prod(d0["F"].shape) * 16
+    assert not d1["B"].dtype.is_complex
+    assert np.prod(d1["B"].shape) * 8 < np.prod(d0["B"].shape) * 16
+    # and the same numbers
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
+    F0, B0 = a0.expand_block(d0["F"], d0["B"])
+    F1, B1 = a1.expand_block(d1["F"], d1["B"])
+    assert np.allclose(F0, F1, rtol=1e-10, atol=1e-12)
+    assert np.allclose(B0, B1, rtol=1e-10, atol=1e-12)

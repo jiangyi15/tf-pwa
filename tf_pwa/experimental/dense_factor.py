@@ -1205,9 +1205,9 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     def _cast(self, F, B):
         """Lower the stored precision, inside the CPU scope.
 
-        An SVD record with a split basis stores real coefficients, so those
-        are cast to float32 under either option instead of being turned
-        complex; fp16 is reserved for the packed complex form.
+        A split record stores real coefficients, so those are cast to the
+        real dtype of the same width (float32 for complex64, float16 for
+        complex32) instead of being turned complex.
         """
         if self.store_dtype == "complex64":
             return (
@@ -1563,6 +1563,8 @@ def _axis_groups(X, axis, probe=2048, rtol=1e-8, atol=0.0):
     rows = np.asarray(X)
     step = max(1, rows.shape[0] // probe) if probe else 1
     A = np.moveaxis(rows[::step][:probe], axis, -1)
+    if A.shape[-1] == 0:
+        return [], []
     flat = np.ascontiguousarray(A).reshape(-1, A.shape[-1])
     scale = np.max(np.abs(flat), axis=0) if flat.size else np.zeros(0)
     reps, mapping = [], []
@@ -1620,18 +1622,20 @@ def _cast_like(x, complex_dtype, real_dtype):
 def _pack_like(x):
     """``_cast_like`` for complex32.
 
-    fp16 is reserved for the packed complex form, so a real block is kept at
-    float32 - still half of complex64, and unambiguous when unpacked.
+    A complex block becomes ``[..., 2]`` float16 halves; a real block (the
+    coefficients of a split method) is a plain float16 tensor.  The two are
+    told apart by the record, not the dtype - see ``_unpack_stored``.
     """
-    return _pack_complex16(x) if x.dtype.is_complex else tf.cast(x, tf.float32)
+    return _pack_complex16(x) if x.dtype.is_complex else tf.cast(x, tf.float16)
 
 
 def _unpack_terms(x, dtype):
     """Read a stored ``F``/``B`` as complex, whatever ``store_dtype`` is.
 
-    A real block (``real_svd`` coefficients) is already real and is passed
-    through; only the packed complex32 form uses float16, so it cannot be
-    confused with a real block.
+    This assumes the packed complex32 form.  A *real* block can also be
+    float16 (the coefficients of a split method at ``store_dtype:
+    complex32``), and the dtype alone cannot tell the two apart: callers that
+    may hold one must consult the record, as ``_unpack_stored`` does.
     """
     if x.dtype == tf.float16:  # complex32: last axis holds (real, imag)
         part = tf.float32 if dtype == tf.complex64 else tf.float64
@@ -1673,6 +1677,18 @@ def _real_dtype(dtype):
 def _unpack_real(x, dtype):
     """Read a stored real coefficient block at the arithmetic precision."""
     return tf.cast(x, _real_dtype(dtype))
+
+
+def _unpack_stored(x, merge, dtype):
+    """Read a stored tensor, knowing whether its record is real.
+
+    A split record (``real_svd``, ``real_index``) keeps real blocks, possibly
+    at float16; the dtype alone cannot separate that from the packed complex
+    form, so the record decides.
+    """
+    if merge and merge.get("method") in ("real_svd", "real_index"):
+        return _unpack_real(x, merge["dtype"])
+    return _unpack_terms(x, dtype)
 
 
 def _project(M, Vt):
@@ -1750,9 +1766,9 @@ class _IndexCompression:
 
     def compress(self, record, F, B):
         if F is not None:
-            F = tf.gather(F, record["rep_u"], axis=2)
+            F = tf.gather(F, tf.constant(record["rep_u"], tf.int32), axis=2)
         if B is not None:
-            B = tf.gather(B, record["rep_k"], axis=1)
+            B = tf.gather(B, tf.constant(record["rep_k"], tf.int32), axis=1)
         return F, B
 
     def expand(self, record, F, B):
@@ -1775,6 +1791,99 @@ class _IndexCompression:
             record["map_u"],
             record["map_i"],
             max_basis=max_basis,
+        )
+
+
+class _RealIndexCompression(_IndexCompression):
+    """``index`` with the real and imaginary parts stored as one real block.
+
+    The gathered columns are split into ``[Re | Im]`` and the same column
+    merge is applied to that block, so an all-zero column is one stored
+    column like any other duplicate, and the two parts can share a column (a
+    constant ``1``, a repeated term) even when the complex columns differ.
+    The payload is ``len(reps)`` reals per event instead of ``2 * width``
+    (measured: 17-20% less for ``F`` and 33% for ``B`` on J=1/J=2 bases, 50%
+    to 94% for ``F`` when the basis is real, amplitude unchanged at 1e-16);
+    the complex tensor is rebuilt by two gathers per batch, and the index
+    maps and the fused op are unchanged.
+    """
+
+    name = "real_index"
+
+    def prepare(self, F, B):
+        record = super().prepare(F, B)
+        record["dtype"] = F.dtype
+        record["dtype_b"] = B.dtype
+        record["np"] = int(F.shape[1])
+        for key, X, axis, rep in (
+            ("f", F, 2, record["rep_u"]),
+            ("b", B, 1, record["rep_k"]),
+        ):
+            red = tf.gather(X, tf.constant(rep, tf.int32), axis=axis)
+            flat = tf.reshape(red, (tf.shape(red)[0], -1))
+            width = int(flat.shape[1])
+            both = tf.concat([tf.math.real(flat), tf.math.imag(flat)], axis=1)
+            mapping, reps = _axis_groups(
+                both, 1, self.sample, self.rtol, self.atol
+            )
+            record[key + "_reps"] = reps
+            record[key + "_re_map"] = mapping[:width]
+            record[key + "_im_map"] = mapping[width:]
+            record[key + "_width"] = width
+        return record
+
+    def compress(self, record, F, B):
+        F = super().compress(record, F, None)[0]
+        B = super().compress(record, None, B)[1]
+        out = []
+        for X, key in ((F, "f"), (B, "b")):
+            if X is None:
+                out.append(None)
+                continue
+            flat = tf.reshape(X, (tf.shape(X)[0], -1))
+            both = tf.concat([tf.math.real(flat), tf.math.imag(flat)], axis=1)
+            out.append(
+                tf.gather(
+                    both,
+                    tf.constant(record[key + "_reps"], tf.int32),
+                    axis=1,
+                )
+            )
+        return out[0], out[1]
+
+    def _reconstruct(self, record, F, B):
+        out = []
+        for X, key, np_ in ((F, "f", record["np"]), (B, "b", None)):
+            if X is None:
+                out.append(None)
+                continue
+            dtype = record["dtype" if key == "f" else "dtype_b"]
+            part = tf.float32 if dtype == tf.complex64 else tf.float64
+            X = tf.cast(X, part)
+            re = tf.gather(
+                X, tf.constant(record[key + "_re_map"], tf.int32), axis=1
+            )
+            im = tf.gather(
+                X, tf.constant(record[key + "_im_map"], tf.int32), axis=1
+            )
+            comp = tf.complex(re, im)
+            if not dtype.is_complex:
+                comp = tf.math.real(comp)
+            width = record[key + "_width"]
+            shape = (tf.shape(comp)[0],) + (
+                (np_, width // np_) if np_ else (width,)
+            )
+            out.append(tf.reshape(comp, shape))
+        return out[0], out[1]
+
+    def expand(self, record, F, B):
+        F, B = self._reconstruct(record, F, B)
+        return _expand_block(record, F, B)
+
+    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
+        F, B = self._reconstruct(record, F, B)
+        return super().contract(
+            record, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis
         )
 
 
@@ -1856,14 +1965,13 @@ class _RealSvdCompression(_SvdCompression):
     ``W = V1 + i V2`` is rebuilt from the two halves of the basis on demand.
 
     The rebuild runs at the arithmetic dtype (``_real_dtype(record["dtype"])``),
-    not at the storage dtype: coefficients stored as float32 are upcast to
-    float64 for a complex128 model (measured 5e-8), while a complex64 model
-    rebuilds in float32 and inherits the GPU float32 matmul floor (about
-    5e-4, TF32).  Real coefficients are stored as float32 under both complex64
-    and complex32 storage - fp16 is reserved for the packed complex form, so
-    ``_unpack_terms`` can tell them apart.  "Half the payload" therefore holds
-    for complex128/complex64 storage; under complex32 a real float32 is the
-    same size as the packed complex form, and more precise.
+    not at the storage dtype: float32 coefficients are upcast to float64 for
+    a complex128 model (measured 5e-8), while a complex64 model rebuilds in
+    float32 and inherits the GPU float32 matmul floor (about 5e-4, TF32).
+    ``store_dtype`` squares the width: float32 coefficients under complex64,
+    float16 under complex32 - half the packed complex form there, with
+    float16's own precision (about 1e-3).  The record, not the dtype, says
+    the block is real (``_unpack_stored``).
 
     A real tensor (``B`` in most models) contributes an exact zero imaginary
     half; with ``merge_rtol: 0`` those zero singular values count as
@@ -1906,6 +2014,7 @@ class _NoCompression:
 _COMPRESSIONS = {
     None: _NoCompression,
     "index": _IndexCompression,
+    "real_index": _RealIndexCompression,
     "svd": _SvdCompression,
     "real_svd": _RealSvdCompression,
 }
@@ -1932,7 +2041,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
               merge_sample: 256
               merge_prepare: null
               store_dtype: complex128   # complex64 | complex32 (fp16 halves)
-              method: index             # svd | real_svd
+              method: index             # real_index | svd | real_svd
               svd_rank: null
               merge_key: null   # shared record name; the model needs it too
 
@@ -2007,11 +2116,10 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                 merge_rtol = 8 * float(np.finfo(np.complex64).eps)
             else:
                 merge_rtol = 1e-8
-        if method not in ("index", "svd", "real_svd"):
+        if method not in ("index", "real_index", "svd", "real_svd"):
             raise ValueError(
-                "method must be 'index', 'svd' or 'real_svd', got {!r}".format(
-                    method
-                )
+                "method must be 'index', 'real_index', 'svd' or "
+                "'real_svd', got {!r}".format(method)
             )
         self.method = method
         if svd_rank is not None and int(svd_rank) < 1:
@@ -2042,10 +2150,13 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             self._prepare_merge()
 
     def _make_compression(self):
-        if self.method == "index":
-            return _IndexCompression(
-                self.merge_rtol, self.merge_atol, self.merge_sample
+        if self.method in ("index", "real_index"):
+            cls = (
+                _IndexCompression
+                if self.method == "index"
+                else _RealIndexCompression
             )
+            return cls(self.merge_rtol, self.merge_atol, self.merge_sample)
         if self.method == "real_svd":
             return _RealSvdCompression(self.merge_rtol, self.svd_rank)
         return _SvdCompression(self.merge_rtol, self.svd_rank)
@@ -2061,7 +2172,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                     self.merge_id, method, self.compression.name
                 )
             )
-        if method == "index":
+        if method in ("index", "real_index"):
             width, nparam = record["n_u"], record["n_param"]
         else:
             width, nparam = record["nu"], record["nparam"]
