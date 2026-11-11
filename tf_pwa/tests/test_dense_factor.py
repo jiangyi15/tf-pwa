@@ -7,6 +7,7 @@ import tf_pwa.amp  # noqa: F401  (register models)
 import tf_pwa.amp.interpolation  # noqa: F401
 import tf_pwa.experimental.dense_factor  # noqa: F401  (install dense plugin)
 from tf_pwa.config_loader import ConfigLoader
+from tf_pwa.experimental.dense_factor import _TERMS
 from tf_pwa.phasespace import PhaseSpaceGenerator, generate_phsp
 
 
@@ -2643,3 +2644,426 @@ def test_dense_factor_merge_sample_matches_angle_options(method):
     d0 = c0.data.cal_angle(p4)
     d1 = c1.data.cal_angle(p4)
     assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_merge_basis_index():
+    """basis_index drops columns that are short exact combinations."""
+    import yaml
+
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, "config_self_cp.yml")) as f:
+        base = yaml.full_load(f)
+
+    def cfg(method):
+        return {
+            **base,
+            "data": {
+                **base["data"],
+                "format": "simple",
+                "r_boost": False,
+                "amp_model": "dense_factor_merge",
+                "preprocessor": {"dense_factor_merge": {"method": method}},
+            },
+        }
+
+    c0 = ConfigLoader(cfg("index"))
+    c1 = ConfigLoader(cfg("basis_index"))
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+    p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(200)))
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+
+    assert a1.merge["method"] == "basis_index"
+    ptr = a1.merge["f_ptr"].numpy()
+    lens = np.diff(ptr)
+    assert ptr[0] == 0
+    assert ptr[-1] == len(a1.merge["f_col"]) == len(a1.merge["f_val"])
+    assert a1.merge["f_width"] == len(ptr) - 1
+    assert lens.min() >= 1  # every column has at least its own term
+    assert lens.max() <= _TERMS
+    # the unrolled reader takes one bound for both tensors
+    assert a1.merge["terms"] == max(a1.merge["f_max"], a1.merge["b_max"])
+    assert 1 <= a1.merge["terms"] <= _TERMS
+    assert not d1["F"].dtype.is_complex
+    # real halves: more columns, fewer bytes
+    assert (
+        np.prod(d1["F"].shape) * d1["F"].dtype.size
+        < np.prod(d0["F"].shape) * d0["F"].dtype.size
+    )
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
+    F0, B0 = a0.expand_block(d0["F"], d0["B"])
+    F1, B1 = a1.expand_block(d1["F"], d1["B"])
+    assert np.allclose(F0, F1, rtol=1e-8, atol=1e-10)
+    assert np.allclose(B0, B1, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_merge_basis_index_op_matches_rebuild(monkeypatch):
+    """The sparse-basis op reads the stored block exactly like the rebuild.
+
+    ``method: basis_index`` in the op model goes through
+    ``DenseFactorFwdBi``/``GradBi`` on ``d["F"]``/``d["B"]`` directly;
+    forcing ``use_op = False`` rebuilds the complex basis and the dropped
+    columns and runs the general Merge op.  Both see the same data and the
+    same record, so the amplitude and the parameter gradients must agree.
+    """
+    import tensorflow as tf
+    import yaml
+
+    from tf_pwa.experimental.dense_factor import _BasisIndexCompression
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, "config_self_cp.yml")) as f:
+        base = yaml.full_load(f)
+
+    cfg = {
+        **base,
+        "data": {
+            **base["data"],
+            "format": "simple",
+            "r_boost": False,
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": "basis_index"}},
+        },
+    }
+    c = ConfigLoader(cfg)
+    ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+    p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(200)))
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    assert amp.merge["method"] == "basis_index"
+    assert not d["F"].dtype.is_complex and not d["B"].dtype.is_complex
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+
+    used = []
+    original = op_mod.dense_factor_bi
+    monkeypatch.setattr(
+        op_mod,
+        "dense_factor_bi",
+        lambda *a, **k: used.append(1) or original(*a, **k),
+    )
+    a_op = amp(d).numpy()
+    assert used, "the sparse-basis op was not exercised"
+
+    def loss_and_grad():
+        vs = amp.vm.trainable_variables
+        with tf.GradientTape() as tape:
+            tape.watch(vs)
+            loss = -tf.reduce_sum(tf.math.log(amp(d)))
+        return [g.numpy() for g in tape.gradient(loss, vs)]
+
+    g_op = loss_and_grad()
+
+    monkeypatch.setattr(_BasisIndexCompression, "use_op", False)
+    a_rb = amp(d).numpy()
+    g_rb = loss_and_grad()
+    monkeypatch.undo()
+
+    assert np.allclose(a_op, a_rb, rtol=1e-8, atol=1e-10)
+    assert len(g_op) == len(g_rb) and g_op
+    for x, y in zip(g_op, g_rb):
+        assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+
+def _wide_basis_model():
+    """The J=2/spin-1 model whose transform needs three terms."""
+    waves = 4
+    decay = {"X": [[f"R{i}", "c"] for i in range(waves)]}
+    part = {
+        "$top": "X",
+        "$finals": ["a", "b", "c"],
+        "X": {"J": 2, "P": -1, "mass": 5.0},
+        "a": {"J": 1, "P": -1, "mass": 0.2},
+        "b": {"J": 1, "P": -1, "mass": 0.2},
+        "c": {"J": 0, "P": -1, "mass": 0.2},
+    }
+    for i in range(waves):
+        decay[f"R{i}"] = ["a", "b"]
+        part[f"R{i}"] = {
+            "J": 1,
+            "P": -1,
+            "mass": 2.0 + 0.03 * i,
+            "width": 0.1,
+            "model": "BWR",
+        }
+    return decay, part
+
+
+def _wide_basis_cfg(decay, part, model, pre):
+    return {
+        "data": {
+            "format": "simple",
+            "amp_model": model,
+            "preprocessor": pre,
+        },
+        "decay": decay,
+        "particle": part,
+    }
+
+
+def test_dense_factor_merge_basis_index_wide():
+    """A wide J=2 basis fits three terms and keeps exactly its rank.
+
+    The fit cap is four terms, so the columns that used to be promoted
+    because they needed three are now represented by the transform.  The
+    stored basis therefore reaches the numerical rank of the reduced F (25
+    here) instead of keeping extra directions.
+    """
+    import tensorflow as tf
+
+    decay, part = _wide_basis_model()
+
+    def cfg(model, pre):
+        return _wide_basis_cfg(decay, part, model, pre)
+
+    c0 = ConfigLoader(cfg("dense_factor", "dense_factor"))
+    c1 = ConfigLoader(
+        cfg(
+            "dense_factor_merge",
+            {"dense_factor_merge": {"method": "basis_index"}},
+        )
+    )
+    a0, a1 = c0.get_amplitude(), c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d0 = c0.data.cal_angle(p4)
+    d1 = c1.data.cal_angle(p4)
+    assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
+
+    record = a1.merge
+    assert record["method"] == "basis_index"
+    ptr = record["f_ptr"].numpy()
+    lens = np.diff(ptr)
+    assert ptr[0] == 0
+    assert ptr[-1] == len(record["f_col"]) == len(record["f_val"])
+    assert record["f_width"] == len(ptr) - 1
+    assert lens.max() <= _TERMS
+    # the numerical rank of the reduced F at 1e-8
+    F = tf.gather(d0["F"], tf.constant(record["rep_u"], tf.int32), axis=2)
+    F = tf.reshape(F, (tf.shape(F)[0], -1)).numpy()
+    sv = np.linalg.svd(F, compute_uv=False)
+    rank = int(np.sum(sv > 1e-8 * sv[0]))
+    # stores exactly the numerical rank, whatever it is for this basis
+    assert len(record["f_sel"]) == rank
+
+
+def test_dense_factor_merge_basis_index_wide_op(monkeypatch):
+    """The fused op reads the three-term transform exactly like the rebuild."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import _BasisIndexCompression
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _wide_basis_model()
+
+    def cfg(model, pre):
+        return _wide_basis_cfg(decay, part, model, pre)
+
+    c0 = ConfigLoader(cfg("dense_factor", "dense_factor"))
+    c2 = ConfigLoader(
+        cfg(
+            "dense_factor_op_merge",
+            {"dense_factor_merge": {"method": "basis_index"}},
+        )
+    )
+    a0, a2 = c0.get_amplitude(), c2.get_amplitude()
+    a2.set_params(a0.get_params())
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+    d2 = c2.data.cal_angle(p4)
+    assert a2.merge["method"] == "basis_index"
+    ptr = a2.merge["f_ptr"].numpy()
+    assert np.diff(ptr).max() == 3
+    assert ptr[-1] == len(a2.merge["f_col"]) == len(a2.merge["f_val"])
+
+    used = []
+    original = op_mod.dense_factor_bi
+    monkeypatch.setattr(
+        op_mod,
+        "dense_factor_bi",
+        lambda *args, **kwargs: used.append(1) or original(*args, **kwargs),
+    )
+
+    def loss_and_grad():
+        vs = a2.vm.trainable_variables
+        with tf.GradientTape() as tape:
+            tape.watch(vs)
+            loss = -tf.reduce_sum(tf.math.log(a2(d2)))
+        return [g.numpy() for g in tape.gradient(loss, vs)]
+
+    a_op = a2(d2).numpy()
+    assert used, "the sparse-basis op was not exercised"
+    g_op = loss_and_grad()
+
+    monkeypatch.setattr(_BasisIndexCompression, "use_op", False)
+    a_rb = a2(d2).numpy()
+    g_rb = loss_and_grad()
+    monkeypatch.undo()
+
+    assert np.allclose(a_op, a_rb, rtol=1e-8, atol=1e-10)
+    assert len(g_op) == len(g_rb) and g_op
+    for x, y in zip(g_op, g_rb):
+        assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_basis_index_graph():
+    """The rebuild branches on a Python flag, so tf.function works."""
+    import tensorflow as tf
+
+    decay, part = _identical_waves()
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": "dense_factor_merge",
+                "preprocessor": {"dense_factor_merge": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c = ConfigLoader(cfg({"method": "basis_index"}))
+    amp = c.get_amplitude()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=64)
+    d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    eager = amp(d).numpy()
+    graph = tf.function(amp)(d).numpy()
+    assert np.allclose(eager, graph, rtol=1e-10, atol=1e-12)
+
+
+def _spin_one_swap():
+    """A decay with two identical spin-1 finals, whose swap is not cosmetic."""
+
+    def cfg(amp_model, pre):
+        data = {
+            "dat_order": ["B", "C", "D"],
+            "center_mass": True,
+            "format": "simple",
+            "random_z": False,
+            "r_boost": False,
+            "amp_model": amp_model,
+            "identical_particles": [["C", "D"]],
+        }
+        if pre is not None:
+            data["preprocessor"] = pre
+        return {
+            "data": data,
+            "decay": {"A": ["BC", "D"], "BC": ["B", "C"]},
+            "particle": {
+                "$top": "A",
+                "$finals": ["B", "C", "D"],
+                "A": {"J": 0.5, "P": -1, "mass": 3.0},
+                "B": {"J": 0.5, "P": -1, "mass": 0.1},
+                "C": {"J": 1, "P": -1, "mass": 0.1},
+                "D": {"J": 1, "P": -1, "mass": 0.1},
+                "BC": {
+                    "J": 0.5,
+                    "P": -1,
+                    "mass": 2.0,
+                    "width": 0.5,
+                    "model": "BWR",
+                },
+            },
+        }
+
+    return cfg
+
+
+def test_dense_merge_block_check_rejects_mismatch():
+    """A block the record cannot describe is refused before it is stored."""
+    import tensorflow as tf
+
+    decay, part = _identical_waves()
+
+    def cfg(pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": "dense_factor_merge",
+                "preprocessor": {"dense_factor_merge": pre},
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c = ConfigLoader(cfg({"method": "index"}))
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=64)
+    d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    pre = c.data.preprocessor
+    record = pre._existing_record()
+    assert record
+    # cal_angle stores the compressed block; the check runs on the expanded one
+    F, B = pre.compression.expand(record, d["F"], d["B"])
+    noise = tf.cast(tf.random.normal(tf.shape(F), dtype=tf.float64), F.dtype)
+    with pytest.raises(ValueError, match="identical-particle"):
+        pre._check_blocks(record, {"F": F, "B": B}, [{"F": F + noise, "B": B}])
+
+
+def test_dense_merge_identical_spin_one_swap():
+    """One record describes every block: the swap only changes the input.
+
+    Every block is built in the same axis convention and the helicity
+    transpose is applied to the amplitude, as ``get_amp2`` does, so the swap
+    block shares the main block's column space (rank 12 of 144 for each, 12
+    together) and one compression record is exact for all of them.  Storing
+    the transposed ``F`` instead rotates the columns out of that convention
+    and every per-column record then misreads the block.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    p4 = dict(
+        zip(
+            ["B", "C", "D"],
+            PhaseSpaceGenerator(3.0, [0.1, 0.1, 0.1]).generate(50),
+        )
+    )
+    build = _spin_one_swap()
+    c0 = ConfigLoader(build("dense_factor", {"dense_factor": {}}))
+    a0 = c0.get_amplitude()
+    d0 = c0.data.cal_angle(p4)
+    ref = a0(d0).numpy()
+
+    key = list(d0["id_swap"])[0]
+    main = d0["F"].numpy().reshape(len(ref), -1)
+    swap = d0["id_swap"][key]["F"].numpy().reshape(len(ref), -1)
+    rank = np.linalg.matrix_rank(main)
+    assert rank < main.shape[1]
+    assert np.linalg.matrix_rank(np.vstack([main, swap])) == rank
+
+    for method in ("index", "real_index", "basis_index", "svd", "real_svd"):
+        c = ConfigLoader(
+            build(
+                "dense_factor_op_merge",
+                {"dense_factor_merge": {"method": method}},
+            )
+        )
+        amp = c.get_amplitude()
+        amp.set_params(c0.get_params())
+        data = c.data.cal_angle(p4)
+        out = amp(data).numpy()
+        assert np.allclose(out, ref, rtol=1e-9, atol=1e-12), method
+        # the transpose now lives in the graph too
+        graph = tf.function(amp)(data).numpy()
+        assert np.allclose(graph, out, rtol=1e-9, atol=1e-12), method

@@ -859,23 +859,28 @@ class _DecayGroupBasis:
         return structure
 
     def swap_terms(self, F, key):
-        """Sign and particle-axis transpose of one swap's ``F`` block.
+        """Sign of one swap's ``F`` block, in the shared axis convention.
 
-        ``get_amp2`` adds ``factor * transpose(amp_swapped)``, permuting the
-        particle (helicity) axes.  ``F`` is ``[ne, prod(f_shape), nu]``, so
-        the permutation is applied to ``np`` with the chain axis kept last;
-        transposing the basis transposes the contraction.  The preprocessor
-        stores the result, so ``pdf`` only sums prepared blocks.
+        ``get_amp2`` adds ``factor * transpose(amp_swapped)``.  The transpose
+        is applied to the *amplitude* (see ``_swap_amplitude``), not to the
+        basis: every block is built in the same column convention, so one
+        compression record describes all of them.  Transposing ``F`` here
+        instead would rotate the stored columns out of that convention and
+        break any per-column transform (the fused op applies the record to
+        the block as stored).
         """
-        f_shape = list(self.get_dense_structure()["f_shape"])
-        n_axis = 1 + len(f_shape)
-        perm = list(self.get_id_swap_transpose(key, n_axis)) + [n_axis]
-        shape = tf.shape(F)
-        out = tf.reshape(F, [shape[0]] + f_shape + [shape[2]])
-        out = tf.transpose(out, perm)
-        out = tf.reshape(out, shape)
         factor = tf.cast(float(self.get_swap_factor(key)), F.dtype)
-        return out * factor
+        return F * factor
+
+    def _swap_amplitude(self, amp, key):
+        """``transpose(amp)`` over the particle axes, as ``get_amp2`` does."""
+        f_shape = tuple(self.get_dense_structure()["f_shape"])
+        n = tf.shape(amp)[0]
+        out = tf.reshape(amp, (n,) + f_shape)
+        out = tf.transpose(
+            out, self.get_id_swap_transpose(key, len(f_shape) + 1)
+        )
+        return tf.reshape(out, (n, tf.shape(amp)[1]))
 
     def build_dense_terms(self, data):
         structure = self.get_dense_structure()
@@ -1240,8 +1245,9 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
     def _fill_blocks(self, d):
         """Build ``F``/``B`` for every ``id_swap`` block of ``d``, in place.
 
-        Applies the parity factor and the particle-axis transpose, so the
-        model only has to sum the prepared blocks.  ``cp_swap`` is handled
+        Applies the parity factor only: the particle-axis transpose belongs to
+        the amplitude (``_swap_amplitude``), so every block keeps the shared
+        column convention the compression record is fitted in.  ``cp_swap`` is handled
         by the caller, which calls this again on that dict.
         """
         for key, sub in (d.get("id_swap") or {}).items():
@@ -1434,7 +1440,7 @@ class DenseFactorModel(BaseAmplitudeModel):
                         "identical-particle block {} has no F/B; the "
                         "dense_factor preprocessor must build it".format(key)
                     )
-                amp = amp + block(sub)
+                amp = amp + self.decay_group._swap_amplitude(block(sub), key)
             return amp
 
         amp = sum_swaps(data)
@@ -1686,7 +1692,11 @@ def _unpack_stored(x, merge, dtype):
     at float16; the dtype alone cannot separate that from the packed complex
     form, so the record decides.
     """
-    if merge and merge.get("method") in ("real_svd", "real_index"):
+    if merge and merge.get("method") in (
+        "real_svd",
+        "real_index",
+        "basis_index",
+    ):
         return _unpack_real(x, merge["dtype"])
     return _unpack_terms(x, dtype)
 
@@ -1747,15 +1757,146 @@ def _expand_block(merge, F, B):
     return F, B
 
 
-class _IndexCompression:
+#: Fit cap of the sparse transform.  This is only the matching-pursuit
+#: budget: the record stores the *actual* longest row of the fitted
+#: transform, which may be shorter (and is ``<= _TERMS``).
+_TERMS = 4
+
+
+def _sparse_basis(cols, rtol, probe=2048, kmax=_TERMS):
+    """A sparse exact column basis: selected columns + per-column transform.
+
+    Columns are added to the basis only when they are not already a short
+    combination of the selected ones; every other column is written over the
+    basis by matching pursuit, so the transform has at most ``kmax`` entries
+    per column.  A column whose sparse residual is still above ``rtol`` is
+    promoted to the basis, so the transform is exact to the same tolerance
+    the column merge uses.
+    """
+    n, ncol = cols.shape
+    step = max(1, n // probe) if probe else 1
+    sample = cols[::step]
+    sel, qvecs, rows = [], [], [None] * ncol
+
+    def sparse_row(v):
+        chosen, coef = [], None
+        res = v.copy()
+        nv = np.linalg.norm(v)
+        for _ in range(kmax):
+            if not sel:
+                return None
+            cors = np.array(
+                [
+                    abs(sample[:, j].conj() @ res)
+                    / max(np.linalg.norm(sample[:, j]), 1e-300)
+                    for j in sel
+                ]
+            )
+            if chosen:
+                cors[chosen] = -1.0
+            k = int(np.argmax(cors))
+            chosen.append(k)
+            A = sample[:, [sel[t] for t in chosen]]
+            coef = np.linalg.lstsq(A, v, rcond=None)[0]
+            res = v - A @ coef
+            if np.linalg.norm(res) <= rtol * nv:
+                break
+        if np.linalg.norm(res) > rtol * nv:
+            return None
+        return [(sel[t], coef[i]) for i, t in enumerate(chosen)]
+
+    for c in range(ncol):
+        v = sample[:, c]
+        if np.linalg.norm(v) == 0.0:
+            rows[c] = []
+            continue
+        r = v.copy()
+        for q in qvecs:
+            r = r - q * (q.conj() @ r)
+        if np.linalg.norm(r) > rtol * np.linalg.norm(v):
+            qvecs.append(r / np.linalg.norm(r))
+            sel.append(c)
+            rows[c] = None  # a basis column: unit row, set below
+            continue
+        row = sparse_row(v)
+        if row is None:  # needs more terms than kmax: keep it exactly
+            # its residual is below rtol, so it adds no new direction: do not
+            # perturb the orthonormal set with a noise vector
+            sel.append(c)
+            rows[c] = None
+        else:
+            rows[c] = row
+    pos = {c: i for i, c in enumerate(sel)}
+    for c in range(ncol):
+        if rows[c] is None:
+            rows[c] = [(pos[c], 1.0 + 0.0j)]
+        else:
+            rows[c] = [(pos[j], w) for j, w in rows[c]]
+    return sel, rows
+
+
+#: default value of each compression option
+_COMPRESSION_DEFAULTS = {"rtol": 0.0, "rank": None, "atol": 0.0, "sample": 0}
+
+#: the preprocessor attribute that provides each compression option
+_COMPRESSION_SOURCES = {
+    "rtol": "merge_rtol",
+    "rank": "svd_rank",
+    "atol": "merge_atol",
+    "sample": "merge_sample",
+}
+
+
+#: failures already reported, so a broken op warns once instead of per call
+_OP_FAILURES = set()
+
+
+def _warn_op_failure(method, exc):
+    """Report a failed fused call without disabling the op for the process.
+
+    A single block the kernel cannot take (a degenerate record, a shape the
+    wrapper rejects) must fall back here and leave every other record using
+    the op; only a distinct failure is reported, so the log does not grow on
+    every evaluation.
+    """
+    sig = (method, type(exc).__name__, str(exc)[:200])
+    if sig in _OP_FAILURES:
+        return
+    _OP_FAILURES.add(sig)
+    warnings.warn(
+        "the dense_factor {} op failed ({}); this call rebuilds the complex "
+        "basis instead".format(method, exc)
+    )
+
+
+class _Compression:
+    """Base of a basis compression strategy.
+
+    ``options`` is the exact set of constructor options this strategy takes:
+    the preprocessor passes only those, and ``__init__`` rejects anything
+    else, so a strategy cannot silently receive an option it ignores.
+    """
+
+    name = None
+    options = ()
+
+    def __init__(self, **opts):
+        unknown = set(opts) - set(self.options)
+        if unknown:
+            raise TypeError(
+                "{} does not take {}".format(
+                    type(self).__name__, sorted(unknown)
+                )
+            )
+        for name in self.options:
+            setattr(self, name, opts.get(name, _COMPRESSION_DEFAULTS[name]))
+
+
+class _IndexCompression(_Compression):
     """Store one representative per group of identical blocks."""
 
     name = "index"
-
-    def __init__(self, rtol=0.0, atol=0.0, sample=0):
-        self.rtol = rtol
-        self.atol = atol
-        self.sample = sample
+    options = ("rtol", "atol", "sample")
 
     def prepare(self, F, B):
         record = _find_merge(
@@ -1792,6 +1933,259 @@ class _IndexCompression:
             record["map_i"],
             max_basis=max_basis,
         )
+
+
+class _BasisIndexCompression(_IndexCompression):
+    """``index`` with a sparse exact basis, stored as one real block.
+
+    After the index merge, a sparse exact basis of the remaining columns is
+    found (``_sparse_basis``): a column is stored only if it is not already a
+    combination of at most ``_TERMS`` stored ones, and every dropped column
+    keeps a transform row of at most that many entries.  The transform is
+    stored as CSR (``ptr``/``col``/``val``, exact per-row bounds, no
+    padding), fitted on the merge
+    probe but checked on every event, and the store falls back to all columns
+    (with a warning) if the probe misled it.  The stored basis columns are then written as
+    ``[Re | Im]`` and merged like ``real_index``, so both factors apply: the
+    rank reduction of the basis and the real storage of the columns.
+
+    The complex basis and the dropped columns are rebuilt by grouping the
+    columns by their row length and scattering each term's contribution, so
+    the contraction stays a gather; neither an SVD nor a new kernel is
+    involved.  ``merge_atol`` only affects the ``[Re | Im]`` column merge,
+    not the basis fit: the fit keeps a column only for an exact relation, so
+    an absolute floor has nothing to cut.
+    """
+
+    name = "basis_index"
+
+    #: Use the fused sparse-basis op; False keeps the rebuild path (a test
+    #: knob that also proves the two agree).
+    use_op = True
+
+    #: ``None`` until the op has been probed once (see ``_contract_op``)
+    _op_ready = None
+
+    def prepare(self, F, B):
+        record = super().prepare(F, B)
+        record["dtype"] = F.dtype
+        record["dtype_b"] = B.dtype
+        record["np"] = int(F.shape[1])
+        for key, X, axis, rep in (
+            ("f", F, 2, record["rep_u"]),
+            ("b", B, 1, record["rep_k"]),
+        ):
+            red = tf.gather(X, tf.constant(rep, tf.int32), axis=axis)
+            flat = tf.reshape(red, (tf.shape(red)[0], -1))
+            fnp = flat.numpy()
+            sel, rows = _sparse_basis(fnp, self.rtol, self.sample, kmax=_TERMS)
+            if not sel:
+                # every column is zero: the basis is empty, so the store must
+                # fall back to the identity instead of writing no column
+                sel = list(range(fnp.shape[1]))
+                rows = [[(c, 1.0 + 0.0j)] for c in range(fnp.shape[1])]
+            elif len(sel) < fnp.shape[1]:
+                # the transform was fitted on a probe; check it on every event
+                # and fall back to storing all columns if the probe misled it
+                bsel = fnp[:, sel]
+                rec = np.zeros_like(fnp)
+                for c, row in enumerate(rows):
+                    for j, w in row:
+                        rec[:, c] += w * bsel[:, j]
+                err = np.linalg.norm(fnp - rec, axis=0)
+                scale = np.maximum(np.linalg.norm(fnp, axis=0), 1e-300)
+                if np.max(err / scale) > self.rtol:
+                    warnings.warn(
+                        "the sparse basis does not hold beyond the fit probe; "
+                        "basis_index stores every column"
+                    )
+                    sel = list(range(fnp.shape[1]))
+                    rows = [[(c, 1.0 + 0.0j)] for c in range(fnp.shape[1])]
+            basis = tf.gather(flat, tf.constant(sel, tf.int32), axis=1)
+            both = tf.concat(
+                [tf.math.real(basis), tf.math.imag(basis)], axis=1
+            )
+            mapping, reps = _axis_groups(
+                both, 1, self.sample, self.rtol, self.atol
+            )
+            width = len(sel)
+            record[key + "_sel"] = sel
+            record[key + "_reps"] = reps
+            record[key + "_re_map"] = tf.constant(mapping[:width], tf.int32)
+            record[key + "_im_map"] = tf.constant(mapping[width:], tf.int32)
+            # the transform as CSR: exact per-column bounds, no padding
+            lengths = [len(row) for row in rows]
+            ptr = np.zeros(len(rows) + 1, dtype=np.int32)
+            np.cumsum(lengths, out=ptr[1:])
+            nnz = int(ptr[-1])
+            col = np.zeros(nnz, dtype=np.int32)
+            value = np.zeros(nnz, dtype=np.complex128)
+            e = 0
+            for row in rows:
+                for p, w in row:
+                    col[e] = p
+                    value[e] = w
+                    e += 1
+            if (
+                e != nnz
+                or ptr[0] != 0
+                or ptr[-1] != nnz
+                or np.any(np.diff(ptr) < 0)
+                or (nnz and int(col.max()) >= len(sel))
+            ):
+                raise ValueError("malformed CSR transform")
+            record[key + "_ptr"] = tf.constant(ptr, tf.int32)
+            record[key + "_col"] = tf.constant(col, tf.int32)
+            record[key + "_val"] = tf.constant(value, tf.complex128)
+            record[key + "_max"] = max(lengths, default=0)
+            record[key + "_width"] = int(flat.shape[1])
+        # one unrolled reader serves both tensors: the widest row of either
+        record["terms"] = max(record["f_max"], record["b_max"], 1)
+        return record
+
+    def compress(self, record, F, B):
+        F = super().compress(record, F, None)[0]
+        B = super().compress(record, None, B)[1]
+        out = []
+        for X, key in ((F, "f"), (B, "b")):
+            if X is None:
+                out.append(None)
+                continue
+            flat = tf.reshape(X, (tf.shape(X)[0], -1))
+            basis = tf.gather(
+                flat, tf.constant(record[key + "_sel"], tf.int32), axis=1
+            )
+            both = tf.concat(
+                [tf.math.real(basis), tf.math.imag(basis)], axis=1
+            )
+            out.append(
+                tf.gather(
+                    both,
+                    tf.constant(record[key + "_reps"], tf.int32),
+                    axis=1,
+                )
+            )
+        return out[0], out[1]
+
+    def _rebuild(self, record, X, key, np_):
+        """Real block -> complex basis -> full reduced columns."""
+        dtype = record["dtype" if key == "f" else "dtype_b"]
+        part = tf.float32 if dtype == tf.complex64 else tf.float64
+        store = tf.cast(X, part)
+        n = tf.shape(store)[0]
+        # the maps are per column: gather the stored block, no event offset
+        basis = tf.complex(
+            tf.gather(store, record[key + "_re_map"], axis=1),
+            tf.gather(store, record[key + "_im_map"], axis=1),
+        )
+        ptr = record[key + "_ptr"]
+        col = record[key + "_col"]
+        val = record[key + "_val"]
+        width = record[key + "_width"]
+        lens = ptr[1:] - ptr[:-1]
+        full_t = tf.zeros((width, n), dtype=basis.dtype)
+        for t in range(record[key + "_max"]):
+            js = tf.where(lens > t)[:, 0]
+            e = tf.gather(ptr, js) + t
+            upd = (
+                tf.gather(basis, tf.gather(col, e), axis=1)
+                * tf.cast(tf.gather(val, e), basis.dtype)[None, :]
+            )
+            full_t = tf.tensor_scatter_nd_add(
+                full_t, js[:, None], tf.transpose(upd)
+            )
+        full = tf.transpose(full_t)
+        if np_:
+            return tf.reshape(full, (-1, np_, width // np_))
+        return full
+
+    def expand(self, record, F, B):
+        out = []
+        for X, key, np_ in ((F, "f", record["np"]), (B, "b", None)):
+            out.append(
+                None if X is None else self._rebuild(record, X, key, np_)
+            )
+        F, B = out
+        return _expand_block(record, F, B)
+
+    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
+        if self.use_op:
+            amp = self._contract_op(
+                record, F, B, C, g, off, sz, n_line, max_basis
+            )
+            if amp is not None:
+                return amp
+        F = None if F is None else self._rebuild(record, F, "f", record["np"])
+        B = None if B is None else self._rebuild(record, B, "b", None)
+        return super().contract(
+            record, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis
+        )
+
+    def _contract_op(self, record, F, B, C, g, off, sz, n_line, max_basis):
+        """The fused contraction on the stored basis block, or ``None``.
+
+        ``None`` means the caller should rebuild the complex basis (and the
+        dropped columns) and use the general Merge op: the op is not built on
+        this machine, the blocks are not the stored real pair (a complex one
+        was passed in), or there is no denominator line for the general
+        kernel.
+        """
+        from . import dense_factor_op
+
+        if F is None or B is None or n_line < 1:
+            return None
+        if F.dtype.is_complex or B.dtype.is_complex:
+            return None
+        if F.shape.rank != 2 or B.shape.rank != 2:
+            return None
+        if not 1 <= int(record.get("terms", 0)) <= _TERMS:
+            warnings.warn(
+                "basis_index has a {}-term transform; the unrolled reader "
+                "supports 1 to {}, so this call rebuilds the basis".format(
+                    record.get("terms"), _TERMS
+                )
+            )
+            return None
+        # probed once: is_available() builds (and caches) the library, so
+        # only the first call pays for it
+        if _BasisIndexCompression._op_ready is None:
+            ready = bool(dense_factor_op.is_available())
+            _BasisIndexCompression._op_ready = ready
+            if not ready:
+                warnings.warn(
+                    "the dense_factor basis-index op is not available; "
+                    "basis_index rebuilds the complex basis instead"
+                )
+        if not _BasisIndexCompression._op_ready:
+            return None
+        try:
+            return dense_factor_op.dense_factor_bi(
+                F,
+                B,
+                C,
+                g,
+                off,
+                sz,
+                record["map_u"],
+                record["map_i"],
+                record["f_re_map"],
+                record["f_im_map"],
+                record["b_re_map"],
+                record["b_im_map"],
+                record["f_ptr"],
+                record["f_col"],
+                record["f_val"],
+                record["b_ptr"],
+                record["b_col"],
+                record["b_val"],
+                record["terms"],
+                max_basis=max_basis,
+            )
+        except Exception as exc:  # environment or map mismatch
+            # one block the op cannot take must not disable it for every
+            # later model: warn once per distinct failure and rebuild here
+            _warn_op_failure("basis_index", exc)
+            return None
 
 
 class _RealIndexCompression(_IndexCompression):
@@ -1868,30 +2262,15 @@ class _RealIndexCompression(_IndexCompression):
                 continue
             dtype = record["dtype" if key == "f" else "dtype_b"]
             part = tf.float32 if dtype == tf.complex64 else tf.float64
-            # one flat gather per half: linear in ne*width, unlike an
-            # axis=1 gather or a selection matmul (which is ne*width^2)
+            # the maps are per column: gather the stored block, no event
+            # offset (a flat gather was slower here as well)
             X = tf.cast(X, part)
-            flat = tf.reshape(X, (-1,))
-            base = tf.range(tf.shape(X)[0])[:, None] * tf.shape(X)[1]
             width = record[key + "_width"]
-            re = tf.reshape(
-                tf.gather(
-                    flat,
-                    tf.reshape(base + record[key + "_re_map"][None, :], (-1,)),
-                ),
-                (-1, width),
-            )
-            im = tf.reshape(
-                tf.gather(
-                    flat,
-                    tf.reshape(base + record[key + "_im_map"][None, :], (-1,)),
-                ),
-                (-1, width),
-            )
+            re = tf.gather(X, record[key + "_re_map"], axis=1)
+            im = tf.gather(X, record[key + "_im_map"], axis=1)
             comp = tf.complex(re, im)
             if not dtype.is_complex:
                 comp = tf.math.real(comp)
-            width = record[key + "_width"]
             shape = (tf.shape(comp)[0],) + (
                 (np_, width // np_) if np_ else (width,)
             )
@@ -1947,12 +2326,9 @@ class _RealIndexCompression(_IndexCompression):
                 max_basis=max_basis,
             )
         except Exception as exc:  # environment or map mismatch
-            # a failed op must not break the model: fall back once, noisily
-            _RealIndexCompression._op_ready = False
-            warnings.warn(
-                "the dense_factor real-index op failed ({}); "
-                "real_index rebuilds the complex basis instead".format(exc)
-            )
+            # a failed op must not break the model: fall back once, noisily,
+            # without disabling the op for other records in this process
+            _warn_op_failure("real_index", exc)
             return None
 
     def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
@@ -1968,7 +2344,7 @@ class _RealIndexCompression(_IndexCompression):
         )
 
 
-class _SvdCompression:
+class _SvdCompression(_Compression):
     """Store the low-rank coefficients ``U = F V^H`` (complex SVD).
 
     ``method: real_svd`` is ``M = C W^T`` fitted with the real SVD of
@@ -1978,10 +2354,7 @@ class _SvdCompression:
     """
 
     name = "svd"
-
-    def __init__(self, rtol=0.0, rank=None):
-        self.rtol = rtol
-        self.rank = rank
+    options = ("rtol", "rank")
 
     def _cut(self, s):
         """How many directions ``rtol``/``rank`` keep."""
@@ -2095,6 +2468,7 @@ class _NoCompression:
 _COMPRESSIONS = {
     None: _NoCompression,
     "index": _IndexCompression,
+    "basis_index": _BasisIndexCompression,
     "real_index": _RealIndexCompression,
     "svd": _SvdCompression,
     "real_svd": _RealSvdCompression,
@@ -2122,7 +2496,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
               merge_sample: 256
               merge_prepare: null
               store_dtype: complex128   # complex64 | complex32 (fp16 halves)
-              method: index             # real_index | svd | real_svd
+              method: index             # basis_index | real_index | svd | real_svd
               svd_rank: null
               merge_key: null   # shared record name; the model needs it too
 
@@ -2197,10 +2571,16 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                 merge_rtol = 8 * float(np.finfo(np.complex64).eps)
             else:
                 merge_rtol = 1e-8
-        if method not in ("index", "real_index", "svd", "real_svd"):
+        if method not in (
+            "index",
+            "basis_index",
+            "real_index",
+            "svd",
+            "real_svd",
+        ):
             raise ValueError(
-                "method must be 'index', 'real_index', 'svd' or "
-                "'real_svd', got {!r}".format(method)
+                "method must be 'index', 'basis_index', 'real_index', "
+                "'svd' or 'real_svd', got {!r}".format(method)
             )
         self.method = method
         if svd_rank is not None and int(svd_rank) < 1:
@@ -2231,16 +2611,14 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             self._prepare_merge()
 
     def _make_compression(self):
-        if self.method in ("index", "real_index"):
-            cls = (
-                _IndexCompression
-                if self.method == "index"
-                else _RealIndexCompression
-            )
-            return cls(self.merge_rtol, self.merge_atol, self.merge_sample)
-        if self.method == "real_svd":
-            return _RealSvdCompression(self.merge_rtol, self.svd_rank)
-        return _SvdCompression(self.merge_rtol, self.svd_rank)
+        # the strategy declares the options it takes; read exactly those
+        cls = _COMPRESSIONS[self.method]
+        return cls(
+            **{
+                name: getattr(self, _COMPRESSION_SOURCES[name])
+                for name in cls.options
+            }
+        )
 
     def _check_record(self, record):
         """A record reused under a key must describe this same basis."""
@@ -2253,7 +2631,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
                     self.merge_id, method, self.compression.name
                 )
             )
-        if method in ("index", "real_index"):
+        if method in ("index", "basis_index", "real_index"):
             width, nparam = record["n_u"], record["n_param"]
         else:
             width, nparam = record["nu"], record["nparam"]
@@ -2266,6 +2644,18 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             raise ValueError(
                 "merge_key {!r} was fitted for {} parameters, not {}".format(
                     self.merge_id, int(nparam), int(structure["n_param"])
+                )
+            )
+        nproj = record.get("np", None)
+        if nproj is not None and int(nproj) != int(
+            np.prod(structure["f_shape"])
+        ):
+            raise ValueError(
+                "merge_key {!r} was fitted for {} helicity projections, not "
+                "{}".format(
+                    self.merge_id,
+                    int(nproj),
+                    int(np.prod(structure["f_shape"])),
                 )
             )
         return record
@@ -2347,6 +2737,56 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             )
         set_merge_record(self.merge_id, record)
 
+    def _check_blocks(self, merge, x, blocks):
+        """Every block must be described by the shared record.
+
+        The record is applied to each block, and a later ``build_batch`` chunk
+        can fall outside the fitted span, so each is checked on a slice before
+        the record is used; a block whose reconstruction is far worse than the
+        main block's raises instead of silently changing the amplitude.
+        """
+        if not blocks or getattr(self.compression, "name", None) is None:
+            return
+
+        def error(d):
+            F, B = d.get("F"), d.get("B")
+            if F is None or B is None:
+                # a block the model could not use is reported by pdf, not here
+                return 0.0
+            # spread the sample over the events: a later slice can reach
+            # directions the first 512 do not
+            step = max(1, int(F.shape[0]) // 512)
+            F = F[::step][:512]
+            B = B[::step][:512]
+            out = self.compression.compress(merge, F, B)
+            rec = self.compression.expand(merge, *out)
+            err = 0.0
+            for a, b in zip((F, B), rec):
+                if a is None:
+                    continue
+                a = np.asarray(a)
+                b = np.asarray(b)
+                err = max(
+                    err,
+                    float(np.max(np.abs(a - b)))
+                    / max(float(np.max(np.abs(a))), 1e-300),
+                )
+            return err
+
+        ref = error(x)
+        tolerated = max(5.0 * ref, 1e-6)
+        for d in blocks:
+            err = error(d)
+            if err > tolerated:
+                raise ValueError(
+                    "the {} record does not describe an identical-particle "
+                    "block: it was fitted on the main block's kinematics and "
+                    "reconstructs this block to {:.1e} against {:.1e} on the "
+                    "main block; use method: 'index'".format(
+                        self.compression.name, err, ref
+                    )
+                )
+
     def _after_blocks(self, x, blocks):
         merge = self._existing_record()
         if merge is None:
@@ -2359,6 +2799,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
             merge = get_merge_record(self.merge_id)
         if not merge:
             return
+        self._check_blocks(merge, x, blocks)
 
         def compress(d):
             F, B = self.compression.compress(merge, d.get("F"), d.get("B"))

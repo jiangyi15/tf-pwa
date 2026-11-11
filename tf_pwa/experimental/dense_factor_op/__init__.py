@@ -68,6 +68,7 @@ _A_FNS_N = {}
 _A_FNS_M = {}
 _A_FNS_NM = {}
 _A_FNS_RI = {}
+_A_FNS_BI = {}
 
 
 def _resolve(sz, max_basis, who):
@@ -181,6 +182,117 @@ def dense_factor_ri(
     nproj = _ri_nproj(fre, mu)
     fn = _cached(_A_FNS_RI, (max_basis, nproj), _make_ri)
     return fn(fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim)
+
+
+def dense_factor_bi(
+    fs,
+    bs,
+    c,
+    g,
+    off,
+    sz,
+    mu,
+    mi,
+    fre,
+    fim,
+    bre,
+    bim,
+    f_ptr,
+    f_col,
+    f_val,
+    b_ptr,
+    b_col,
+    b_val,
+    terms,
+    max_basis=None,
+):
+    """Like :func:`dense_factor_merge_an` on a sparse basis_index block.
+
+    This is the fused contraction for ``method: basis_index``: ``fs`` and
+    ``bs`` store only the *basis* columns (``[ne, nf]`` / ``[ne, nb]`` real,
+    the ``[Re | Im]`` merge of those columns), ``(fre, fim)`` / ``(bre, bim)``
+    say where the real and imaginary part of every basis column lives, and
+    the per-reduced-column sparse transform is CSR:
+
+        column j = sum_{i < ptr[j+1]-ptr[j]} val[ptr[j]+i] * basis[col[ptr[j]+i]]
+
+    ``f_ptr``/``f_col``/``f_val`` are the F transform (``f_ptr`` has
+    ``np * nu_red + 1`` entries) and ``b_ptr``/``b_col``/``b_val`` the B one
+    (``nparam_red + 1``).  Exact row bounds, no padding.  The index merge is
+    the one of the Merge ops (``mu``/``mi``); any number of denominator lines
+    is accepted.
+
+    ``np`` (the projection axis of the flattened F block) is recovered from
+    ``f_ptr``, so the maps and arrays must be constants - they are when they
+    come from a merge record.
+    """
+    f_ptr = tf.reshape(tf.cast(f_ptr, tf.int32), [-1])
+    f_col = tf.reshape(tf.cast(f_col, tf.int32), [-1])
+    f_val = tf.reshape(tf.cast(f_val, tf.complex128), [-1])
+    b_ptr = tf.reshape(tf.cast(b_ptr, tf.int32), [-1])
+    b_col = tf.reshape(tf.cast(b_col, tf.int32), [-1])
+    b_val = tf.reshape(tf.cast(b_val, tf.complex128), [-1])
+    max_basis = _resolve(sz, max_basis, "dense_factor_bi")
+    nproj = _bi_nproj(f_ptr, mu)
+    terms = int(terms)
+    if not 1 <= terms <= 4:
+        raise ValueError(
+            "terms must be 1, 2, 3 or 4 (the unrolled transform reader), "
+            "got {}".format(terms)
+        )
+    # the reader is an unrolled template: terms is part of the kernel choice
+    _check_g(g)
+    fn = _cached(
+        _A_FNS_BI,
+        (max_basis, nproj, terms),
+        _make_bi,
+    )
+    return fn(
+        fs,
+        bs,
+        c,
+        g,
+        off,
+        sz,
+        mu,
+        mi,
+        fre,
+        fim,
+        bre,
+        bim,
+        f_ptr,
+        f_col,
+        f_val,
+        b_ptr,
+        b_col,
+        b_val,
+    )
+
+
+def _bi_nproj(f_ptr, mu):
+    """``np`` of the flattened F block, from a sparse-transform record.
+
+    ``f_ptr`` has ``np * nu_red + 1`` entries, so ``ncol = len(f_ptr) - 1``.
+    The reduced chain ids in ``mu`` show ``nu_red``: no reduced group can be
+    empty, so ``nu_red`` is one more than their largest id.  All inputs are
+    constants of a merge record, so this needs no device read.
+    """
+    m = tf.get_static_value(mu)
+    p = tf.get_static_value(f_ptr)
+    if m is None or p is None:
+        raise ValueError(
+            "dense_factor_bi needs constant mu/f_ptr arrays to infer np"
+        )
+    m = np.asarray(m)
+    ncol = np.asarray(p).size - 1
+    n_u = int(np.max(m)) + 1 if m.size else 0
+    if n_u < 1 or ncol % n_u:
+        raise ValueError(
+            "the F transform has {} columns for {} reduced chains".format(
+                ncol, n_u
+            )
+        )
+    return ncol // n_u
 
 
 def _ri_nproj(fre, mu):
@@ -308,6 +420,111 @@ def _grad_ri(
     )
 
 
+def _fwd_bi(
+    fs,
+    bs,
+    c,
+    g,
+    off,
+    sz,
+    mu,
+    mi,
+    fre,
+    fim,
+    bre,
+    bim,
+    f_ptr,
+    f_col,
+    f_val,
+    b_ptr,
+    b_col,
+    b_val,
+    nproj,
+    max_basis,
+    terms,
+):
+    lib = _load()
+    fs = tf.cast(fs, tf.float64)
+    bs = tf.cast(bs, tf.float64)
+    a, d = lib.dense_factor_fwd_bi(
+        fs,
+        bs,
+        c,
+        g,
+        tf.cast(off, tf.int32),
+        tf.cast(sz, tf.int32),
+        tf.cast(mu, tf.int32),
+        tf.cast(mi, tf.int32),
+        tf.cast(fre, tf.int32),
+        tf.cast(fim, tf.int32),
+        tf.cast(bre, tf.int32),
+        tf.cast(bim, tf.int32),
+        tf.cast(f_ptr, tf.int32),
+        tf.cast(f_col, tf.int32),
+        tf.cast(f_val, tf.complex128),
+        tf.cast(b_ptr, tf.int32),
+        tf.cast(b_col, tf.int32),
+        tf.cast(b_val, tf.complex128),
+        max_basis=max_basis,
+        np=nproj,
+        terms=terms,
+    )
+    return tf.reshape(a, tf.stack([tf.shape(fs)[0], nproj])), d
+
+
+def _grad_bi(
+    fs,
+    bs,
+    c,
+    g,
+    off,
+    sz,
+    mu,
+    mi,
+    fre,
+    fim,
+    bre,
+    bim,
+    f_ptr,
+    f_col,
+    f_val,
+    b_ptr,
+    b_col,
+    b_val,
+    dla,
+    d,
+    nproj,
+    max_basis,
+    terms,
+):
+    lib = _load()
+    return lib.dense_factor_grad_bi(
+        tf.cast(fs, tf.float64),
+        tf.cast(bs, tf.float64),
+        c,
+        g,
+        tf.cast(off, tf.int32),
+        tf.cast(sz, tf.int32),
+        tf.cast(mu, tf.int32),
+        tf.cast(mi, tf.int32),
+        tf.cast(fre, tf.int32),
+        tf.cast(fim, tf.int32),
+        tf.cast(bre, tf.int32),
+        tf.cast(bim, tf.int32),
+        tf.cast(f_ptr, tf.int32),
+        tf.cast(f_col, tf.int32),
+        tf.cast(f_val, tf.complex128),
+        tf.cast(b_ptr, tf.int32),
+        tf.cast(b_col, tf.int32),
+        tf.cast(b_val, tf.complex128),
+        dla,
+        d,
+        max_basis=max_basis,
+        np=nproj,
+        terms=terms,
+    )
+
+
 def _make_a(max_basis, general=False):
     @tf.custom_gradient
     def fn(f, bt, c, g, off, sz):
@@ -400,6 +617,89 @@ def _make_ri(key):
     return fn
 
 
+def _make_bi(key):
+    max_basis, nproj, terms = key
+
+    @tf.custom_gradient
+    def fn(
+        fs,
+        bs,
+        c,
+        g,
+        off,
+        sz,
+        mu,
+        mi,
+        fre,
+        fim,
+        bre,
+        bim,
+        f_ptr,
+        f_col,
+        f_val,
+        b_ptr,
+        b_col,
+        b_val,
+    ):
+        a, d = _fwd_bi(
+            fs,
+            bs,
+            c,
+            g,
+            off,
+            sz,
+            mu,
+            mi,
+            fre,
+            fim,
+            bre,
+            bim,
+            f_ptr,
+            f_col,
+            f_val,
+            b_ptr,
+            b_col,
+            b_val,
+            nproj,
+            max_basis,
+            terms,
+        )
+
+        def grad(dla):
+            if dla is None:
+                return [None] * 18
+            dc, dg = _grad_bi(
+                fs,
+                bs,
+                c,
+                g,
+                off,
+                sz,
+                mu,
+                mi,
+                fre,
+                fim,
+                bre,
+                bim,
+                f_ptr,
+                f_col,
+                f_val,
+                b_ptr,
+                b_col,
+                b_val,
+                dla,
+                d,
+                nproj,
+                max_basis,
+                terms,
+            )
+            return [None, None, dc, dg] + [None] * 14
+
+        return a, grad
+
+    return fn
+
+
 def basis_event_major(b):
     """Transpose the dense ``B`` ``[n_param, n_event]`` to event-major.
 
@@ -444,6 +744,7 @@ __all__ = [
     "dense_factor_merge_a",
     "dense_factor_merge_an",
     "dense_factor_ri",
+    "dense_factor_bi",
     "basis_event_major",
     "chain_layout",
     "is_available",
