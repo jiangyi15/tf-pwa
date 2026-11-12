@@ -1901,7 +1901,9 @@ def test_dense_factor_merge_svd(model):
 )
 def test_dense_factor_merge_disabled_falls_back(model):
     """A sample that cannot be built disables compression, not the model."""
-    import tf_pwa.experimental.dense_factor as df
+    # the preprocessor resolves the generator in its own module, which is
+    # where the preprocessor lives now
+    import tf_pwa.experimental.dense_factor.preprocess as df_pre
 
     if model == "dense_factor_op_merge":
         from tf_pwa.experimental.dense_factor_op import is_available
@@ -1923,19 +1925,19 @@ def test_dense_factor_merge_disabled_falls_back(model):
         "particle": part,
     }
 
-    real = df.PhaseSpaceGenerator
+    real = df_pre.PhaseSpaceGenerator
 
     class _Boom:
         def __init__(self, *args, **kwargs):
             raise RuntimeError("no sample")
 
-    df.PhaseSpaceGenerator = _Boom
+    df_pre.PhaseSpaceGenerator = _Boom
     try:
         with pytest.warns(UserWarning, match="disabled"):
             c = ConfigLoader(cfg)
             amp = c.get_amplitude()
     finally:
-        df.PhaseSpaceGenerator = real
+        df_pre.PhaseSpaceGenerator = real
 
     assert amp.merge is False
     (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=10)

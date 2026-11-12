@@ -11,10 +11,14 @@ module without a cycle.  The fused op package is imported lazily inside the
 methods that call it, exactly as before.
 """
 
+import itertools
 import warnings
+import weakref
 
 import numpy as np
 import tensorflow as tf
+
+from tf_pwa.config import get_config, regist_config
 
 # ---------------------------------------------------------------------------
 # Merge identical basis blocks.  Many-wave models repeat the same kinematic
@@ -981,3 +985,55 @@ def _compression_of(record):
     if not record:  # no record, or the failure sentinel
         return _NoCompression()
     return _COMPRESSIONS[record["method"]]()
+
+
+#: name of the shared record store in the config registry
+MERGE_RECORDS = "dense_factor_merge_records"
+
+if get_config(MERGE_RECORDS, None) is None:
+    regist_config(MERGE_RECORDS, {})
+
+_MERGE_KEY_COUNTER = itertools.count()
+
+
+def basis_key(group):
+    """Fallback key: one per decay group, shared by its preprocessor/models.
+
+    It is stored on the group, so a copy of the group keeps it and every
+    model built on that basis (including the sub-models of a ``ProdPDF``,
+    which are not what ``get_amplitude`` returns) finds the same record.
+    Pass ``merge_key`` to the preprocessor and the model to choose it.
+    """
+    key = getattr(group, "_dense_factor_merge_key", None)
+    if key is None:
+        key = "dense_factor_merge:{}".format(next(_MERGE_KEY_COUNTER))
+        group._dense_factor_merge_key = key
+        # nothing can look the record up once the basis is gone; an explicit
+        # merge_key is the caller's to clear.  A copied group keeps the key
+        # but not this finalizer, so it refits after the original dies.
+        weakref.finalize(group, set_merge_record, key, None)
+    return key
+
+
+def set_merge_record(key, record):
+    """Publish (or clear, with ``None``) the record under one key."""
+    records = get_config(MERGE_RECORDS)
+    if record is None:
+        records.pop(key, None)
+    else:
+        records[key] = record
+
+
+def get_merge_record(key):
+    """The record for one key: ``None`` if none, ``False`` if disabled."""
+    return get_config(MERGE_RECORDS).get(key, None)
+
+
+def merge_record(amp):
+    """The compression record of a model's basis, found by its key.
+
+    Read from the shared space instead of an attribute set by the
+    preprocessor, so a model reached through a composed PDF (which need not
+    be the object ``get_amplitude`` returned) still finds it.
+    """
+    return get_merge_record(amp.merge_id)

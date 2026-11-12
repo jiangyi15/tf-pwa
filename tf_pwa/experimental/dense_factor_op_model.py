@@ -46,7 +46,6 @@ from tf_pwa.amp.amp import register_amp_model
 
 from .dense_factor import (
     DenseFactorModel,
-    _compression_of,
     _unpack_stored,
     _warn_op_failure,
     basis_key,

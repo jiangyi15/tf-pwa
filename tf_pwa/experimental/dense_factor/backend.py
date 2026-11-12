@@ -18,8 +18,10 @@ need (``None`` for the TF reference, which rebuilds the denominator from its
 own structure).  A callable carries its own gradient: the TF entries rely on
 autodiff, the fused ones use the op's ``tf.custom_gradient``.
 
-The module has no CUDA dependency and imports nothing heavy, so it is cheap to
-import before (or instead of) the op package.
+The module itself has no CUDA dependency and imports nothing heavy; note that
+importing it *through the package* runs the package ``__init__``, which imports
+TensorFlow and registers every model, so the standalone-import cost is the
+package's, not this module's.
 """
 
 
