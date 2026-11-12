@@ -52,7 +52,7 @@ from .dense_factor import (
     basis_key,
     merge_record,
 )
-from .dense_factor_backend import Backend, register_backend
+from .dense_factor.backend import Backend, register_backend
 
 # Importing the package is the opt-in to the compute: its ``__init__``
 # builds and loads the library (so a GPU runner's ``pytest --doctest-modules``

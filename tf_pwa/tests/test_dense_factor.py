@@ -548,20 +548,13 @@ def test_dense_particle_subclass_guard():
 
 
 def test_dense_factor_backend_standalone_import():
-    """The registry must be total for a caller that imports only it.
-
-    ``dense_factor`` fills the reference table and registers the class, but
-    the self-registration lives in the backend module: a process that imports
-    only that module (a tool, a doc build) must still get the TF fallback
-    instead of a ``KeyError``.
-    """
+    """The registry works from a fresh interpreter, whatever the import order."""
+    root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
     code = (
-        "import tf_pwa.experimental.dense_factor_backend as b\n"
-        "try:\n"
-        "    b.pick_backend(None, None)\n"
-        "except RuntimeError as e:\n"
-        "    print('raised', 'dense_factor' in str(e))\n"
-        "import tf_pwa.experimental.dense_factor  # fills the table\n"
+        "import tf_pwa.experimental.dense_factor.backend as b\n"
+        "print(b.__file__)\n"
         "print(b.pick_backend(None, None).name)\n"
         "print(b.pick_backend('index', None, ('missing',)).name)\n"
     )
@@ -570,8 +563,27 @@ def test_dense_factor_backend_standalone_import():
         capture_output=True,
         text=True,
         check=True,
+        cwd=root,
+        env={**os.environ, "PYTHONPATH": root},
     )
-    assert out.stdout.split() == ["raised", "True", "tf", "tf"]
+    lines = out.stdout.split()
+    # the child must import this tree, not an installed copy
+    assert lines[0].startswith(root) and "dense_factor/backend.py" in lines[0]
+    assert lines[1:] == ["tf", "tf"]
+
+
+def test_dense_factor_backend_missing_method(monkeypatch):
+    """A reference table without the method fails with a pointed error.
+
+    Importing a submodule runs the package ``__init__``, which fills the
+    table, so this state is only reachable through a mistake in that wiring;
+    the error names the module to import rather than a bare ``KeyError``.
+    """
+    from tf_pwa.experimental.dense_factor import backend as b
+
+    monkeypatch.delitem(b.Backend.functions, "index")
+    with pytest.raises(RuntimeError, match="dense_factor"):
+        b.pick_backend("index", None, ("missing",))
 
 
 def test_dense_factor_op_plain_model_uses_fused_op(monkeypatch):
@@ -2760,7 +2772,7 @@ def test_dense_factor_backend_registry():
     than raising.
     """
     from tf_pwa.experimental.dense_factor import _COMPRESSIONS
-    from tf_pwa.experimental.dense_factor_backend import (
+    from tf_pwa.experimental.dense_factor.backend import (
         BACKENDS,
         Backend,
         pick_backend,

@@ -1,5 +1,8 @@
 """Backend registry for the dense-factor contraction.
 
+Keep this module a leaf: the package imports it first, so importing anything
+from the package here would see a half-initialised ``__init__``.
+
 A *backend* is a table of method names (the ``_Compression`` names) to
 contraction callables.  The callable signature is fixed so the fused kernels
 and the TF reference are interchangeable::
