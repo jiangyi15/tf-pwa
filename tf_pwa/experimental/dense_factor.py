@@ -56,6 +56,11 @@ from tf_pwa.breit_wigner import (
 from tf_pwa.cal_angle import cal_angle_from_momentum
 from tf_pwa.config import get_config, regist_config
 from tf_pwa.data import data_merge, split_generator
+from tf_pwa.experimental.dense_factor_backend import (
+    BACKENDS,
+    Backend,
+    pick_backend,
+)
 from tf_pwa.particle import cp_charge_group
 from tf_pwa.phasespace import PhaseSpaceGenerator
 
@@ -1320,6 +1325,9 @@ def merge_record(amp):
 
 @register_amp_model("dense_factor")
 class DenseFactorModel(BaseAmplitudeModel):
+    #: backend order: the dense model is the reference and stays on TF
+    prefer = ("tf",)
+
     def init_params(self, name=""):
         super().init_params(name)
         dg = self.decay_group
@@ -1461,38 +1469,65 @@ class DenseFactorModel(BaseAmplitudeModel):
         return dg.sum_with_polarization(amp)
 
     def expand_block(self, F, B):
-        """Hook for models that store the basis merged."""
+        """Hook for models that store the basis merged.
+
+        The contraction expands through the strategy (``strategy.expand``),
+        so this hook is the public/test entry point and not part of
+        ``_dense_contract``: overriding it does not change the fused path.
+        """
         return F, B
 
     def _amplitude(self, F, B, C, g, dtype):
-        """``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` for one block."""
-        structure = self.decay_group.get_dense_structure()
-        F, B = self.expand_block(F, B)
-        F = _unpack_terms(F, dtype)
-        B = _unpack_terms(B, dtype)
-        n_u = structure["n_u"]
-        n_line = structure["max_internal_lines"]
-        if n_line == 0:
-            D = tf.ones((tf.shape(F)[0], n_u), dtype=dtype)
-        else:
-            values = tf.gather(tf.cast(g, B.dtype), self.sparse_index[:, 1])
-            sp = tf.sparse.SparseTensor(
-                self.sparse_index, values, self.sparse_shape
-            )
-            # B is stored event-first; the sparse matmul consumes it
-            # param-major, so the fallback pays the transpose.
-            D = tf.transpose(
-                tf.sparse.sparse_dense_matmul(sp, tf.transpose(B))
-            )
-            if n_line == 1 and self.line_mask_all:
-                D = tf.reshape(D, [tf.shape(F)[0], n_u])
-            else:
-                D = tf.reshape(D, [tf.shape(F)[0], n_u, n_line])
-                D = tf.where(self.line_mask[None, :, :], D, tf.ones_like(D))
-                D = tf.reduce_prod(D, axis=-1)
+        """``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` for one block.
 
-        W = tf.math.divide_no_nan(C[None, :], D)
-        return tf.linalg.matvec(F, W)
+        The contraction itself is the backend table's: ``prefer`` names the
+        order this model wants (``("tf",)`` here, ``("cuda", "tf")`` for the
+        fused models), and the first backend that supports the method wins.
+        See :mod:`tf_pwa.experimental.dense_factor_backend`.
+        """
+        record = self.merge if hasattr(self, "merge_id") else None
+        method = record["method"] if record else None
+        strategy = _compression_of(record)
+        # the TF reference reads the model's cached sparse layout from here
+        strategy.model = self
+        off, sz, n_line, max_basis = self._backend_layout()
+        # a backend that needs the chain layout is skipped when there is none
+        # (the normal case for the dense models); the reference rebuilds the
+        # denominator from its own structure instead
+        prefer = tuple(
+            name
+            for name in self.prefer
+            if not (
+                getattr(BACKENDS.get(name), "needs_layout", False)
+                and off is None
+            )
+        )
+        backend = pick_backend(method, record, prefer)
+        return backend.functions[method](
+            strategy,
+            record,
+            F,
+            B,
+            C,
+            g,
+            off,
+            sz,
+            n_line=n_line,
+            max_basis=max_basis,
+        )
+
+    def _backend_layout(self):
+        """``(off, sz, n_line, max_basis)`` for the fused backends.
+
+        The op models fill ``_layout`` in ``init_params``; the dense models
+        have none, and the TF reference ignores the two arrays (it rebuilds
+        the denominator from ``sparse_index``).
+        """
+        layout = getattr(self, "_layout", None)
+        if layout is not None:
+            return layout
+        structure = self.decay_group.get_dense_structure()
+        return None, None, structure["max_internal_lines"], 0
 
     def _coeff_cpu_fn(self):
         """Opt-in: build ``C``/``g`` and their VJP on CPU under XLA.
@@ -1873,8 +1908,8 @@ def _warn_op_failure(method, exc):
         return
     _OP_FAILURES.add(sig)
     warnings.warn(
-        "the dense_factor {} op failed ({}); this call rebuilds the complex "
-        "basis instead".format(method, exc)
+        "the dense_factor {} op failed ({}); this call falls back to the "
+        "reference contraction".format(method or "plain", exc)
     )
 
 
@@ -1888,6 +1923,13 @@ class _Compression:
 
     name = None
     options = ()
+    #: The model whose cached sparse layout the TF reference uses.  Bound by
+    #: ``DenseFactorModel._amplitude`` for the duration of one backend call:
+    #: that layout is per model rather than per record, and putting it on the
+    #: callable signature would hand a TF-only argument to the fused
+    #: backends, which never read it.  The instance is created per call, so
+    #: nothing leaks between models.
+    model = None
     #: True when the record stores one *real* block that the fused ops read
     #: in its stored dtype (float64/float32/fp16).  The op-model path then
     #: leaves the block alone instead of expanding it first; every other
@@ -2476,6 +2518,10 @@ class _NoCompression:
     #: a full-width block is complex, so it is always unpacked first
     stores_real_block = False
 
+    def expand(self, record, F, B):
+        """Nothing was reduced, so the stored basis is already full width."""
+        return F, B
+
     def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
         from .dense_factor_op import dense_factor_a, dense_factor_an
 
@@ -2498,6 +2544,57 @@ def _compression_of(record):
     if not record:  # no record, or the failure sentinel
         return _NoCompression()
     return _COMPRESSIONS[record["method"]]()
+
+
+def _dense_contract(
+    strategy, record, F, B, C, g, off, sz, *, n_line, max_basis
+):
+    """The TF reference contraction: expand the stored basis, then contract.
+
+    ``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` over one block.  The
+    strategy puts the stored basis back to full width (identity for a plain
+    basis), the denominator is one sparse matmul driven by the model's cached
+    ``sparse_index``/``line_mask``, and the projection is a matvec.
+
+    ``off``/``sz``/``max_basis`` are the fused backends' layout; the dense
+    body rebuilds the same denominator from ``sparse_index`` (a constant per
+    model) instead of a per-call gather, so they are accepted and ignored
+    here.  ``strategy.model`` carries the model whose layout this is (see
+    ``_Compression.model``).
+    """
+    model = strategy.model
+    dtype = C.dtype
+    F, B = strategy.expand(record, F, B)
+    F = _unpack_terms(F, dtype)
+    B = _unpack_terms(B, dtype)
+    n_u = model.decay_group.get_dense_structure()["n_u"]
+    if n_line == 0:
+        D = tf.ones((tf.shape(F)[0], n_u), dtype=dtype)
+    else:
+        values = tf.gather(tf.cast(g, B.dtype), model.sparse_index[:, 1])
+        sp = tf.sparse.SparseTensor(
+            model.sparse_index, values, model.sparse_shape
+        )
+        # B is stored event-first; the sparse matmul consumes it
+        # param-major, so the fallback pays the transpose.
+        D = tf.transpose(tf.sparse.sparse_dense_matmul(sp, tf.transpose(B)))
+        if n_line == 1 and model.line_mask_all:
+            D = tf.reshape(D, [tf.shape(F)[0], n_u])
+        else:
+            D = tf.reshape(D, [tf.shape(F)[0], n_u, n_line])
+            D = tf.where(model.line_mask[None, :, :], D, tf.ones_like(D))
+            D = tf.reduce_prod(D, axis=-1)
+
+    W = tf.math.divide_no_nan(C[None, :], D)
+    return tf.linalg.matvec(F, W)
+
+
+#: Every method the preprocessor can record has a reference contraction, so a
+#: backend that declines (or fails) always has somewhere to fall back to.
+Backend.functions.update(dict.fromkeys(_COMPRESSIONS, _dense_contract))
+assert all(
+    callable(fn) for fn in Backend.functions.values()
+), "the reference table must hold callables"
 
 
 @register_preprocessor("dense_factor_merge")
@@ -2859,6 +2956,12 @@ class DenseFactorMergeModel(DenseFactorModel):
         return merge_record(self)
 
     def expand_block(self, F, B):
+        """Expand the merged blocks through this model's strategy.
+
+        The contraction calls ``strategy.expand`` itself, so this hook is the
+        public/test entry point; overriding it does not change
+        ``_dense_contract``.
+        """
         c = self.merge
         if not c:  # nothing was reduced
             return F, B

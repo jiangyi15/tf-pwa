@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import warnings
 
 import numpy as np
@@ -543,6 +545,104 @@ def test_dense_particle_subclass_guard():
         _NoOverride.__new__(_NoOverride), {"m": 1.0}
     )
     assert "den" in basis
+
+
+def test_dense_factor_backend_standalone_import():
+    """The registry must be total for a caller that imports only it.
+
+    ``dense_factor`` fills the reference table and registers the class, but
+    the self-registration lives in the backend module: a process that imports
+    only that module (a tool, a doc build) must still get the TF fallback
+    instead of a ``KeyError``.
+    """
+    code = (
+        "import tf_pwa.experimental.dense_factor_backend as b\n"
+        "try:\n"
+        "    b.pick_backend(None, None)\n"
+        "except RuntimeError as e:\n"
+        "    print('raised', 'dense_factor' in str(e))\n"
+        "import tf_pwa.experimental.dense_factor  # fills the table\n"
+        "print(b.pick_backend(None, None).name)\n"
+        "print(b.pick_backend('index', None, ('missing',)).name)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert out.stdout.split() == ["raised", "True", "tf", "tf"]
+
+
+def test_dense_factor_op_plain_model_uses_fused_op(monkeypatch):
+    """``amp_model: dense_factor_op`` contracts through the fused op.
+
+    A plain basis has ``record = None``, so this is the one method that
+    dispatches on ``None``.  The wrong answer here is *silent*: without the
+    entry the model still produces the same numbers through the dense
+    reference, only ~4x slower, so no accuracy test can see it.  The spy is
+    the regression test; the dense model on the same data must not call the
+    op at all.
+    """
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import yaml
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, "config_self_cp.yml")) as f:
+        base = yaml.full_load(f)
+
+    def cfg(model):
+        return {
+            **base,
+            "data": {
+                **base["data"],
+                "format": "simple",
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {"dense_factor": {"force_cpu": True}},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+    p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(200)))
+
+    c = ConfigLoader(cfg("dense_factor_op"))
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+
+    calls = []
+    for name in ("dense_factor_a", "dense_factor_an"):
+        original = getattr(op_mod, name)
+
+        def spy(*args, _orig=original, _name=name, **kwargs):
+            calls.append(_name)
+            return _orig(*args, **kwargs)
+
+        monkeypatch.setattr(op_mod, name, spy)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        x_op = amp(d).numpy()
+    assert calls, "the plain op model did not use the fused op"
+    # the spy records before delegating, so a raising op would still fill
+    # `calls`; forbid the fallback and pin the variant this layout picks
+    assert not [w for w in caught if "op failed" in str(w.message)]
+    assert set(calls) == {"dense_factor_a"}
+
+    c0 = ConfigLoader(cfg("dense_factor"))
+    a0 = c0.get_amplitude()
+    a0.set_params(amp.get_params())
+    calls.clear()
+    x0 = a0(c0.data.cal_angle(p4)).numpy()
+    assert not calls, "the dense model must stay on the reference backend"
+    assert np.allclose(x_op, x0, rtol=1e-8, atol=1e-10)
 
 
 def test_dense_factor_op_model():
@@ -2648,6 +2748,47 @@ def test_dense_factor_merge_sample_matches_angle_options(method):
     d0 = c0.data.cal_angle(p4)
     d1 = c1.data.cal_angle(p4)
     assert np.allclose(a0(d0).numpy(), a1(d1).numpy(), rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_backend_registry():
+    """Every recorded method has a TF reference, and lookup always falls back.
+
+    The backend table is what ``DenseFactorModel._amplitude`` dispatches on:
+    the TF reference must cover every method the preprocessor can record (so
+    a fused backend can always decline), ``prefer`` must be honoured in order,
+    and an unknown method or an unregistered backend must land on TF rather
+    than raising.
+    """
+    from tf_pwa.experimental.dense_factor import _COMPRESSIONS
+    from tf_pwa.experimental.dense_factor_backend import (
+        BACKENDS,
+        Backend,
+        pick_backend,
+        register_backend,
+    )
+
+    assert "tf" in BACKENDS
+    assert set(_COMPRESSIONS) <= set(Backend.functions)
+    for method in _COMPRESSIONS:
+        assert callable(Backend.functions[method])
+    assert Backend.needs_layout is False
+
+    # an explicit preference is honoured; a method the fused table does not
+    # have, and a backend this process never registered, land on the reference
+    assert pick_backend(None, None, ("tf",)).name == "tf"
+    assert pick_backend("svd", {"method": "svd"}, ("cuda", "tf")).name == "tf"
+    assert pick_backend("index", None, ("missing",)).name == "tf"
+
+    class _Other(Backend):
+        name = "other"
+        functions = {"index": Backend.functions["index"]}
+
+    register_backend(_Other)
+    try:
+        assert pick_backend("index", None, ("other", "tf")).name == "other"
+        assert pick_backend("svd", None, ("other", "tf")).name == "tf"
+    finally:
+        BACKENDS.pop("other", None)
 
 
 def test_dense_factor_merge_basis_index():

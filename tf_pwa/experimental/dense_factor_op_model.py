@@ -22,8 +22,12 @@ path, polarization included.  Chains with one denominator line use
 :func:`dense_factor_a`; every other line count goes through
 :func:`dense_factor_an`, which is not bounded by the number of lines.
 
-The original ``dense_factor`` model is untouched; this module is opt-in
-and only becomes usable when the custom op can be built on the machine.
+The original ``dense_factor`` model is untouched.  Importing this module is
+the opt-in to the *compute*: the op package is built and loaded here, once,
+and the model prefers the fused backend.  If the build fails (no toolkit, no
+headers, no GPU) the module warns once and the same models run the TF
+reference contraction instead - same configuration, same numbers at full
+precision, just slower.
 
 Config::
 
@@ -34,6 +38,8 @@ Config::
           force_cpu: true
 """
 
+import warnings as _warnings
+
 import tensorflow as tf
 
 from tf_pwa.amp.amp import register_amp_model
@@ -42,15 +48,156 @@ from .dense_factor import (
     DenseFactorModel,
     _compression_of,
     _unpack_stored,
+    _warn_op_failure,
     basis_key,
     merge_record,
 )
-from .dense_factor_op import chain_layout
+from .dense_factor_backend import Backend, register_backend
+
+# Importing the package is the opt-in to the compute: its ``__init__``
+# builds and loads the library (so a GPU runner's ``pytest --doctest-modules``
+# builds during collection).  A machine without the toolkit, the headers or a
+# GPU is not an error: the class below is still registered, ``supports``
+# declines and the models run the TF reference, which is the same contraction
+# at full precision.  That case is reported when a fused model first asks for
+# the backend, not at import, so a GPU-less process that never uses these
+# models stays silent.
+try:
+    import tf_pwa.experimental.dense_factor_op as _op
+    from tf_pwa.experimental.dense_factor_op import chain_layout
+except Exception as exc:  # pragma: no cover - depends on the machine
+    _op = None
+    chain_layout = None
+    _HAVE_CUDA = False
+    _CUDA_ERROR = exc
+else:
+    _HAVE_CUDA = bool(_op.is_available())
+    _CUDA_ERROR = None
+
+_WARNED_NO_CUDA = False
+
+
+def _warn_no_cuda():
+    """Report a missing build once, when a fused model first needs it."""
+    global _WARNED_NO_CUDA
+    if _WARNED_NO_CUDA:
+        return
+    _WARNED_NO_CUDA = True
+    _warnings.warn(
+        "dense_factor_op models run on the dense backend: %s"
+        % (
+            _CUDA_ERROR
+            if _CUDA_ERROR is not None
+            else "the fused op is not built on this machine"
+        )
+    )
+
+
+class CudaBackend(Backend):
+    """The fused-op backend: only the methods the op implements.
+
+    Each entry runs the strategy's op path (``_contract_op``) on the stored
+    tensors.  An op failure is already reported once by ``_warn_op_failure``
+    inside ``_contract_op``; the entry then returns the TF reference for the
+    same record, so a block the kernel cannot take costs precision-preserving
+    time rather than a broken model.
+    """
+
+    name = "cuda"
+
+    #: every op takes ``(off, sz)``, so a model without a layout cannot use it
+    needs_layout = True
+
+    @classmethod
+    def supports(cls, method, record):
+        if not _HAVE_CUDA:
+            # a fused model is actually being built/evaluated: this is the
+            # point where the missing build matters, so report it here
+            _warn_no_cuda()
+            return False
+        return method in cls.functions
+
+    @staticmethod
+    def _contract(method):
+        def fn(strategy, record, F, B, C, g, off, sz, *, n_line, max_basis):
+            # the kernels read real denominator coefficients and at least one
+            # line; the dense reference has neither restriction
+            if g.dtype.is_complex:
+                raise NotImplementedError(
+                    "dense_factor_op needs real denominator coefficients; "
+                    "use the dense_factor model for this one"
+                )
+            if n_line < 1:
+                raise NotImplementedError(
+                    "dense_factor_op needs at least one denominator line"
+                )
+            if getattr(strategy, "use_op", True):
+                # the op wants complex blocks; a strategy that stores one real
+                # block has an op that reads it in its stored dtype, so only
+                # the others are unpacked here
+                Fo, Bo = F, B
+                if not strategy.stores_real_block:
+                    Fo = _unpack_stored(F, record, C.dtype)
+                    Bo = _unpack_stored(B, record, C.dtype)
+                own = getattr(strategy, "_contract_op", None)
+                if own is not None:
+                    amp = own(record, Fo, Bo, C, g, off, sz, n_line, max_basis)
+                    if amp is not None:
+                        return amp
+                else:
+                    # this method's op *is* the strategy's contract (index);
+                    # a raising call is an op failure, report it once
+                    try:
+                        return strategy.contract(
+                            record,
+                            Fo,
+                            Bo,
+                            C,
+                            g,
+                            off,
+                            sz,
+                            n_line=n_line,
+                            max_basis=max_basis,
+                        )
+                    except Exception as exc:
+                        _warn_op_failure(method, exc)
+            # declined (op not built, block it cannot read) or failed: the
+            # TF reference takes the *stored* tensors and expands them itself
+            return Backend.functions[method](
+                strategy,
+                record,
+                F,
+                B,
+                C,
+                g,
+                off,
+                sz,
+                n_line=n_line,
+                max_basis=max_basis,
+            )
+
+        return fn
+
+
+# ``None`` is the plain (unmerged) basis: ``_NoCompression.contract`` is the
+# ``dense_factor_a``/``dense_factor_an`` pair, so the plain op model stays on
+# the fused path.  The guards above hold for every entry: the op family takes
+# real ``g`` in all of them, and the C++ shape checks reject ``nline < 1`` for
+# the general, merge and basis-index ops alike.
+CudaBackend.functions = {
+    method: CudaBackend._contract(method)
+    for method in (None, "index", "basis_index", "real_index")
+}
+register_backend(CudaBackend)
 
 
 @register_amp_model("dense_factor_op")
 class DenseFactorOpModel(DenseFactorModel):
     """Fused-contraction variant of :class:`DenseFactorModel`."""
+
+    #: Backend order: the fused kernels first, the TF reference as the
+    #: fallback (a machine without the build, or a block the op rejects).
+    prefer = ("cuda", "tf")
 
     #: The coefficient build is 300 scalars and is much cheaper on CPU/XLA
     #: than as ~200 tiny GPU kernels; this pairing is the measured optimum.
@@ -63,7 +210,15 @@ class DenseFactorOpModel(DenseFactorModel):
         # the base init builds the group's basis, or raises for an
         # unsupported term model, so it exists from here on
         super().init_params(name)
-        self._layout = self._op_layout()
+        # The fused backend needs the layout, which comes from the op
+        # package.  Only its absence is tolerated: a model then runs the TF
+        # reference (and ``needs_layout`` keeps the fused backend out of
+        # ``prefer``) and this is the first moment the missing build matters,
+        # so the warning is reported here rather than at import.  Errors from
+        # a package that *is* importable are real bugs and propagate.
+        if _op is None:
+            _warn_no_cuda()
+        self._layout = None if _op is None else self._op_layout()
 
     def _op_layout(self):
         """``(off, sz, n_line, max_basis)``, built once in ``init_params``.
@@ -89,35 +244,6 @@ class DenseFactorOpModel(DenseFactorModel):
             sz,
             structure["max_internal_lines"],
             max(sizes) if sizes else 0,
-        )
-
-    def _amplitude(self, F, B, C, g, dtype):
-        """``A`` through the fused op; the rest of ``pdf`` is shared."""
-        if g.dtype.is_complex:
-            raise NotImplementedError(
-                "dense_factor_op needs real denominator coefficients; "
-                "use the dense_factor model for this one"
-            )
-        off, sz, n_line, max_basis = self._layout
-        if n_line < 1:
-            raise NotImplementedError(
-                "dense_factor_op needs at least one denominator line"
-            )
-        # the strategy owns the stored representation and the call
-        c = self.merge if hasattr(self, "merge_id") else None
-        # the preprocessor may also store F and B at lower precision; a
-        # split record keeps them real, which the dtype alone cannot say.
-        # a strategy that stores one real block has an op that reads it in
-        # its stored dtype (float64/float32/float16), so expanding it here
-        # would only duplicate the block at the arithmetic precision.  Every
-        # other strategy stores a complex or packed block, which has to be
-        # unpacked; the rebuild fallbacks cast what they need internally.
-        comp = _compression_of(c)
-        if not comp.stores_real_block:
-            F = _unpack_stored(F, c, dtype)
-            B = _unpack_stored(B, c, dtype)
-        return comp.contract(
-            c, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis
         )
 
 
