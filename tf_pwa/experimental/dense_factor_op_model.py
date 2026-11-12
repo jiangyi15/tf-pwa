@@ -106,10 +106,17 @@ class DenseFactorOpModel(DenseFactorModel):
         # the strategy owns the stored representation and the call
         c = self.merge if hasattr(self, "merge_id") else None
         # the preprocessor may also store F and B at lower precision; a
-        # split record keeps them real, which the dtype alone cannot say
-        F = _unpack_stored(F, c, dtype)
-        B = _unpack_stored(B, c, dtype)
-        return _compression_of(c).contract(
+        # split record keeps them real, which the dtype alone cannot say.
+        # a strategy that stores one real block has an op that reads it in
+        # its stored dtype (float64/float32/float16), so expanding it here
+        # would only duplicate the block at the arithmetic precision.  Every
+        # other strategy stores a complex or packed block, which has to be
+        # unpacked; the rebuild fallbacks cast what they need internally.
+        comp = _compression_of(c)
+        if not comp.stores_real_block:
+            F = _unpack_stored(F, c, dtype)
+            B = _unpack_stored(B, c, dtype)
+        return comp.contract(
             c, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis
         )
 

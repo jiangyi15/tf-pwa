@@ -1097,10 +1097,19 @@ class DenseFactorPreProcessor(CachedAnglePreProcessor):
 
     ``store_dtype`` picks the precision the two tensors are cached in:
     ``complex128`` (default), ``complex64`` (about 1e-7 relative) or
-    ``complex32`` (two fp16 halves, about 5e-4).  They are converted back to
-    the coefficient dtype as soon as ``pdf`` reads them, before any product,
-    so the graph the gradients traverse stays at full precision and the
-    arithmetic is always complex128.
+    ``complex32``.  For the fused ``basis_index``/``real_index`` ops the
+    stored block reaches the kernel in its own dtype (float64, float32 or
+    fp16) and is widened per value inside the kernel, so nothing is converted
+    back before the op; the remaining strategies unpack to the coefficient
+    dtype before any product.  Either way the arithmetic is complex128/float64.
+
+    Accuracy of ``complex32`` is not one number: the *packed* complex form
+    (two fp16 halves per value) sits at about 5e-4, while a *real* stored
+    block in fp16 (``real_index``, and the sparse basis of ``basis_index``)
+    is the plain fp16 floor amplified by whatever cancellation the basis
+    does, measured from about 1e-3 to about 2e-2 depending on the model
+    (4e-3 on a 20k CP sample, 1.8e-2 in the worst case seen there).  Treat
+    ``store_dtype: complex32`` as an opt-in, not a 5e-4 guarantee.
     """
 
     def __init__(
@@ -1879,6 +1888,11 @@ class _Compression:
 
     name = None
     options = ()
+    #: True when the record stores one *real* block that the fused ops read
+    #: in its stored dtype (float64/float32/fp16).  The op-model path then
+    #: leaves the block alone instead of expanding it first; every other
+    #: strategy stores a complex (or packed) block that has to be unpacked.
+    stores_real_block = False
 
     def __init__(self, **opts):
         unknown = set(opts) - set(self.options)
@@ -1957,6 +1971,7 @@ class _BasisIndexCompression(_IndexCompression):
     an absolute floor has nothing to cut.
     """
 
+    stores_real_block = True
     name = "basis_index"
 
     #: Use the fused sparse-basis op; False keeps the rebuild path (a test
@@ -2204,6 +2219,7 @@ class _RealIndexCompression(_IndexCompression):
     model, which needs a complex basis, pays for the two gathers per batch.
     """
 
+    stores_real_block = True
     name = "real_index"
 
     #: Use the fused split op; False keeps the reconstruct path (a test knob
@@ -2457,6 +2473,8 @@ class _NoCompression:
     """Nothing stored reduced: the basis is already full width."""
 
     name = None
+    #: a full-width block is complex, so it is always unpacked first
+    stores_real_block = False
 
     def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
         from .dense_factor_op import dense_factor_a, dense_factor_an
@@ -2546,7 +2564,13 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
     values.  Give a number to override it, e.g. for a basis limited by
     cancellation; ``merge_atol`` adds a fixed floor to the index comparison
     (it does not affect the SVD cut).  ``store_dtype`` caches the merged
-    blocks at that precision and converts them back before any product.
+    blocks at that precision.  ``basis_index`` and ``real_index`` hand that
+    block to the fused op unchanged (the kernel widens each stored value to
+    double while reading); the other strategies convert it back before any
+    product.  The accuracy of a real block stored in fp16 is not a fixed
+    number: it is the fp16 floor times the basis' cancellation, measured from
+    about 1e-3 to 2e-2 on the CP basis (see the ``store_dtype`` note in
+    :class:`DenseFactorPreProcessor`).
     """
 
     def __init__(

@@ -375,8 +375,8 @@ def _fwd_ri(
     fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim, nproj, max_basis
 ):
     lib = _load()
-    fs = tf.cast(fs, tf.float64)
-    bs = tf.cast(bs, tf.float64)
+    # fs/bs keep their stored dtype (float64, float32 or fp16): the kernel
+    # reads the real block in place and widens each value to double.
     a, d = lib.dense_factor_fwd_ri(
         fs,
         bs,
@@ -400,9 +400,10 @@ def _grad_ri(
     fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim, dla, d, nproj, max_basis
 ):
     lib = _load()
+    # same as _fwd_ri: the stored block keeps its dtype
     return lib.dense_factor_grad_ri(
-        tf.cast(fs, tf.float64),
-        tf.cast(bs, tf.float64),
+        fs,
+        bs,
         c,
         g,
         off,
@@ -444,8 +445,9 @@ def _fwd_bi(
     terms,
 ):
     lib = _load()
-    fs = tf.cast(fs, tf.float64)
-    bs = tf.cast(bs, tf.float64)
+    # fs/bs go through with their stored dtype (float64, float32 or fp16);
+    # the kernel reads the stored block in place and widens each value to
+    # double, so an upcast here would only copy the payload.
     a, d = lib.dense_factor_fwd_bi(
         fs,
         bs,
@@ -498,9 +500,10 @@ def _grad_bi(
     terms,
 ):
     lib = _load()
+    # same as _fwd_bi: the stored block keeps its dtype
     return lib.dense_factor_grad_bi(
-        tf.cast(fs, tf.float64),
-        tf.cast(bs, tf.float64),
+        fs,
+        bs,
         c,
         g,
         tf.cast(off, tf.int32),

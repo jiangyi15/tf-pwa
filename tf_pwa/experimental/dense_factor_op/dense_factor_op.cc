@@ -102,8 +102,10 @@ REGISTER_OP("DenseFactorGradNMerge")
 // method: real_index, and the read maps say where the real and imaginary
 // part of every reduced column lives.  Nothing is rebuilt in Python.
 REGISTER_OP("DenseFactorFwdRi")
-    .Input("fs: float64")        // [ne, nf], the real F block
-    .Input("bs: float64")        // [ne, nb], the real B block
+    // fs/bs share one element type: the stored real block, whatever
+    // store_dtype lowered it to.  The arithmetic inside stays double.
+    .Input("fs: T")              // [ne, nf], the real F block
+    .Input("bs: T")              // [ne, nb], the real B block
     .Input("c: complex128")      // [nu]
     .Input("g: float64")         // [nparam], real by construction
     .Input("off: int32")         // [nu * nline]
@@ -116,11 +118,12 @@ REGISTER_OP("DenseFactorFwdRi")
     .Input("bim: int32")         // [nparam_red], imaginary part column
     .Output("a: complex128")     // [ne * np], the amplitude
     .Output("d: complex128")     // [ne, nu]
+    .Attr("T: {double, float, half} = DT_DOUBLE")
     .Attr("max_basis: int = 16")
     .Attr("np: int = 1");        // projections per event
 REGISTER_OP("DenseFactorGradRi")
-    .Input("fs: float64")
-    .Input("bs: float64")
+    .Input("fs: T")
+    .Input("bs: T")
     .Input("c: complex128")
     .Input("g: float64")
     .Input("off: int32")
@@ -135,6 +138,7 @@ REGISTER_OP("DenseFactorGradRi")
     .Input("d: complex128")
     .Output("dc: complex128")
     .Output("dg: float64")
+    .Attr("T: {double, float, half} = DT_DOUBLE")
     .Attr("max_basis: int = 16")
     .Attr("np: int = 1");
 
@@ -143,8 +147,10 @@ REGISTER_OP("DenseFactorGradRi")
 // of them, stored as CSR (exact row bounds, no padding).  Nothing is rebuilt
 // in Python.
 REGISTER_OP("DenseFactorFwdBi")
-    .Input("fs: float64")        // [ne, nf], the real F basis block
-    .Input("bs: float64")        // [ne, nb], the real B basis block
+    // fs/bs share one element type: the stored basis block, whatever
+    // store_dtype lowered it to.  The arithmetic inside stays double.
+    .Input("fs: T")              // [ne, nf], the real F basis block
+    .Input("bs: T")              // [ne, nb], the real B basis block
     .Input("c: complex128")      // [nu]
     .Input("g: float64")         // [nparam], real by construction
     .Input("off: int32")         // [nu * nline]
@@ -163,12 +169,13 @@ REGISTER_OP("DenseFactorFwdBi")
     .Input("b_val: complex128")  // [nnz_b], weights
     .Output("a: complex128")     // [ne * np], the amplitude
     .Output("d: complex128")     // [ne, nu]
+    .Attr("T: {double, float, half} = DT_DOUBLE")
     .Attr("max_basis: int = 16")
     .Attr("np: int = 1")         // projections per event
     .Attr("terms: int = 4");     // widest transform row, unrolled
 REGISTER_OP("DenseFactorGradBi")
-    .Input("fs: float64")
-    .Input("bs: float64")
+    .Input("fs: T")
+    .Input("bs: T")
     .Input("c: complex128")
     .Input("g: float64")
     .Input("off: int32")
@@ -189,6 +196,7 @@ REGISTER_OP("DenseFactorGradBi")
     .Input("d: complex128")
     .Output("dc: complex128")
     .Output("dg: float64")
+    .Attr("T: {double, float, half} = DT_DOUBLE")
     .Attr("max_basis: int = 16")
     .Attr("np: int = 1")
     .Attr("terms: int = 4");
@@ -209,23 +217,29 @@ extern "C" void launch_dense_factor_n(
     double*, double*,
     double*, double*, cudaStream_t);
 
+// ``fs``/``bs`` are void here because their element type follows the op's
+// ``T`` attribute: double, float or half, dispatched by ``block_type``
+// (0/1/2) inside the library.
 extern "C" void launch_dense_factor_ri(
-    const double*, const double*, const double*, const double*,
+    const void*, const void*, const double*, const double*,
     const int*, const int*, const int*, const int*,
     const int*, const int*, const int*, const int*, const double*,
-    int, int, int, int, int, int, int, int, int, int, int, int,
+    int, int, int, int, int, int, int, int, int, int, int, int, int,
     double*, double*,
     double*, double*,
     double*, double*, cudaStream_t);
 
+// ``fs``/``bs`` are void here because their element type follows the op's
+// ``T`` attribute: double, float or half, dispatched by ``block_type``
+// (0/1/2) inside the library.
 extern "C" void launch_dense_factor_bi(
-    const double*, const double*, const double*, const double*,
+    const void*, const void*, const double*, const double*,
     const int*, const int*, const int*, const int*,
     const int*, const int*, const int*, const int*,
     const int*, const int*, const double*, const int*, const int*,
     const double*, const double*,
     int, int, int, int, int, int, int, int,
-    int, int, int, int, int,
+    int, int, int, int, int, int,
     double*, double*,
     double*, double*,
     double*, double*, cudaStream_t);
@@ -535,14 +549,22 @@ static Status check_shapes_ri(
     int np, int& ne, int& nu, int& nu_red, int& nline, int64& nparam,
     int64& nparam_red, int& nf, int& nb) {
   if (fs.dims() != 2) return errors::InvalidArgument("fs must be [ne,nf]");
-  if (fs.dtype() != DT_DOUBLE)
-    return errors::InvalidArgument("fs must be float64");
+  // The two stored blocks share the op's T attribute, so TF already rejects a
+  // mismatch; the explicit check keeps a clear message and pins the set of
+  // element types the kernel can read.
+  if (fs.dtype() != bs.dtype())
+    return errors::InvalidArgument(
+        "fs and bs must have the same dtype, got ", DataTypeString(fs.dtype()),
+        " and ", DataTypeString(bs.dtype()));
+  if (fs.dtype() != DT_DOUBLE && fs.dtype() != DT_FLOAT &&
+      fs.dtype() != DT_HALF)
+    return errors::InvalidArgument(
+        "fs/bs must be float64, float32 or float16 (the stored real block), "
+        "got ", DataTypeString(fs.dtype()));
   ne = (int)fs.dim_size(0);
   nf = (int)fs.dim_size(1);
   if (bs.dims() != 2 || bs.dim_size(0) != ne)
     return errors::InvalidArgument("bs must be [ne,nb]");
-  if (bs.dtype() != DT_DOUBLE)
-    return errors::InvalidArgument("bs must be float64");
   nb = (int)bs.dim_size(1);
   if (nf < 1 || nb < 1)
     return errors::InvalidArgument("fs and bs must be non-empty");
@@ -587,6 +609,26 @@ static Status check_shapes_ri(
   return OkStatus();
 }
 
+// Element type of the stored basis block -> the library's dispatch code.
+static int block_type_of(const Tensor& t) {
+  switch (t.dtype()) {
+    case DT_DOUBLE: return 0;
+    case DT_FLOAT: return 1;
+    case DT_HALF: return 2;
+    default: return -1;
+  }
+}
+
+// Raw address of a block whose element type is only known at run time.
+static const void* block_ptr(const Tensor& t) {
+  switch (t.dtype()) {
+    case DT_DOUBLE: return t.flat<double>().data();
+    case DT_FLOAT: return t.flat<float>().data();
+    case DT_HALF: return t.flat<Eigen::half>().data();
+    default: return nullptr;
+  }
+}
+
 class DenseFactorFwdRiKernel : public OpKernel {
  public:
   explicit DenseFactorFwdRiKernel(OpKernelConstruction* c) : OpKernel(c) {
@@ -622,9 +664,12 @@ class DenseFactorFwdRiKernel : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({ne*np_}), &a));
     OP_REQUIRES_OK(ctx, ctx->allocate_output(1, TensorShape({ne, nu}), &d));
     const int nblk = ne < 4096 ? 128 : 2048;
+    // -1 would silently dispatch the double kernel on a narrow block
+    OP_REQUIRES(ctx, block_type_of(fs) >= 0,
+                errors::InvalidArgument("unsupported stored-block dtype"));
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor_ri(
-        fs.flat<double>().data(), bs.flat<double>().data(),
+        block_ptr(fs), block_ptr(bs),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(),
@@ -632,7 +677,7 @@ class DenseFactorFwdRiKernel : public OpKernel {
         fre.flat<int>().data(), fim.flat<int>().data(),
         bre.flat<int>().data(), bim.flat<int>().data(), nullptr,
         ne, nu, nu_red, (int)nparam, (int)nparam_red, np_, nf, nb, nline,
-        nblk, /*mode=*/1, maxb_,
+        nblk, /*mode=*/1, maxb_, block_type_of(fs),
         reinterpret_cast<double*>(a->flat<complex128>().data()),
         reinterpret_cast<double*>(d->flat<complex128>().data()),
         nullptr, nullptr, nullptr, nullptr, s);
@@ -684,9 +729,12 @@ class DenseFactorGradRiKernel : public OpKernel {
         TensorShape({(int64)nblk*2*nu}), &dcp));
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_DOUBLE,
         TensorShape({(int64)nblk*nparam}), &dgp));
+    // -1 would silently dispatch the double kernel on a narrow block
+    OP_REQUIRES(ctx, block_type_of(fs) >= 0,
+                errors::InvalidArgument("unsupported stored-block dtype"));
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor_ri(
-        fs.flat<double>().data(), bs.flat<double>().data(),
+        block_ptr(fs), block_ptr(bs),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(),
@@ -695,7 +743,7 @@ class DenseFactorGradRiKernel : public OpKernel {
         bre.flat<int>().data(), bim.flat<int>().data(),
         reinterpret_cast<const double*>(dl.flat<complex128>().data()),
         ne, nu, nu_red, (int)nparam, (int)nparam_red, np_, nf, nb, nline,
-        nblk, /*mode=*/2, maxb_,
+        nblk, /*mode=*/2, maxb_, block_type_of(fs),
         nullptr,
         reinterpret_cast<double*>(const_cast<complex128*>(d.flat<complex128>().data())),
         dcp.flat<double>().data(), dgp.flat<double>().data(),
@@ -726,14 +774,22 @@ static Status check_shapes_bi(
     int& ne, int& nu, int& nu_red, int& nline, int64& nparam,
     int64& nparam_red, int& nf, int& nb, int& n_basis_f, int& n_basis_b) {
   if (fs.dims() != 2) return errors::InvalidArgument("fs must be [ne,nf]");
-  if (fs.dtype() != DT_DOUBLE)
-    return errors::InvalidArgument("fs must be float64");
+  // The two stored blocks share the op's T attribute, so TF already rejects a
+  // mismatch; the explicit check keeps a clear message and pins the set of
+  // element types the kernel can read.
+  if (fs.dtype() != bs.dtype())
+    return errors::InvalidArgument(
+        "fs and bs must have the same dtype, got ", DataTypeString(fs.dtype()),
+        " and ", DataTypeString(bs.dtype()));
+  if (fs.dtype() != DT_DOUBLE && fs.dtype() != DT_FLOAT &&
+      fs.dtype() != DT_HALF)
+    return errors::InvalidArgument(
+        "fs/bs must be float64, float32 or float16 (the stored basis block), "
+        "got ", DataTypeString(fs.dtype()));
   ne = (int)fs.dim_size(0);
   nf = (int)fs.dim_size(1);
   if (bs.dims() != 2 || bs.dim_size(0) != ne)
     return errors::InvalidArgument("bs must be [ne,nb]");
-  if (bs.dtype() != DT_DOUBLE)
-    return errors::InvalidArgument("bs must be float64");
   nb = (int)bs.dim_size(1);
   if (nf < 1 || nb < 1)
     return errors::InvalidArgument("fs and bs must be non-empty");
@@ -849,9 +905,12 @@ class DenseFactorFwdBiKernel : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({ne*np_}), &a));
     OP_REQUIRES_OK(ctx, ctx->allocate_output(1, TensorShape({ne, nu}), &d));
     const int nblk = ne < 4096 ? 128 : 2048;
+    // -1 would silently dispatch the double kernel on a narrow block
+    OP_REQUIRES(ctx, block_type_of(fs) >= 0,
+                errors::InvalidArgument("unsupported stored-block dtype"));
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor_bi(
-        fs.flat<double>().data(), bs.flat<double>().data(),
+        block_ptr(fs), block_ptr(bs),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(),
@@ -865,7 +924,7 @@ class DenseFactorFwdBiKernel : public OpKernel {
         nullptr,
         ne, nu, nu_red, (int)nparam, (int)nparam_red, np_, nf, nb,
         terms_, nline,
-        nblk, /*mode=*/1, maxb_,
+        nblk, /*mode=*/1, maxb_, block_type_of(fs),
         reinterpret_cast<double*>(a->flat<complex128>().data()),
         reinterpret_cast<double*>(d->flat<complex128>().data()),
         nullptr, nullptr, nullptr, nullptr, s);
@@ -931,9 +990,12 @@ class DenseFactorGradBiKernel : public OpKernel {
         TensorShape({(int64)nblk*2*nu}), &dcp));
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_DOUBLE,
         TensorShape({(int64)nblk*nparam}), &dgp));
+    // -1 would silently dispatch the double kernel on a narrow block
+    OP_REQUIRES(ctx, block_type_of(fs) >= 0,
+                errors::InvalidArgument("unsupported stored-block dtype"));
     auto s = ctx->eigen_gpu_device().stream();
     launch_dense_factor_bi(
-        fs.flat<double>().data(), bs.flat<double>().data(),
+        block_ptr(fs), block_ptr(bs),
         reinterpret_cast<const double*>(cc.flat<complex128>().data()),
         gg.flat<double>().data(),
         of.flat<int>().data(), sz.flat<int>().data(),
@@ -947,7 +1009,7 @@ class DenseFactorGradBiKernel : public OpKernel {
         reinterpret_cast<const double*>(dl.flat<complex128>().data()),
         ne, nu, nu_red, (int)nparam, (int)nparam_red, np_, nf, nb,
         terms_, nline,
-        nblk, /*mode=*/2, maxb_,
+        nblk, /*mode=*/2, maxb_, block_type_of(fs),
         nullptr,
         reinterpret_cast<double*>(const_cast<complex128*>(d.flat<complex128>().data())),
         dcp.flat<double>().data(), dgp.flat<double>().data(),

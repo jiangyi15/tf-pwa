@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import numpy as np
 import pytest
@@ -2064,8 +2065,11 @@ def test_dense_factor_merge_svd_rank_invalid():
         ("complex64", "real_index", 1e-4),
         ("complex64", "svd", 1e-4),
         # real coefficients reconstruct with a float32 matmul, whose GPU
-        # (TF32) floor is ~5e-4; complex64 does not take that kernel
-        ("complex64", "real_svd", 2e-3),
+        # (TF32) floor is ~5e-4; complex64 does not take that kernel.  The
+        # measured spread over eight unseeded draws is 1.2e-3..2.3e-3, so the
+        # old 2e-3 was only the TF32 floor plus luck; use the complex32
+        # real_svd row's tolerance (same mechanism, same floor)
+        ("complex64", "real_svd", 5e-3),
     ],
 )
 def test_dense_factor_merge_in_complex64_build(store_dtype, method, tol):
@@ -2807,6 +2811,249 @@ def _wide_basis_cfg(decay, part, model, pre):
         "decay": decay,
         "particle": part,
     }
+
+
+_STORED_OP = {
+    "basis_index": ("_BasisIndexCompression", "dense_factor_bi"),
+    "real_index": ("_RealIndexCompression", "dense_factor_ri"),
+}
+
+
+@pytest.mark.parametrize("method", ["basis_index", "real_index"])
+@pytest.mark.parametrize(
+    "store_dtype,tol",
+    [
+        # the stored block is real for both methods: float32 under complex64,
+        # fp16 under complex32.  Tolerances as in the storage tests' real-block
+        # rows, which keep the same kind of block.
+        ("complex64", 1e-4),
+        ("complex32", 2e-3),
+    ],
+)
+def test_dense_factor_merge_stored_op_narrow_store(
+    monkeypatch, method, store_dtype, tol
+):
+    """The fused op reads a float32/fp16 stored block in place.
+
+    Both stored methods keep one *real* block and lower it with
+    ``store_dtype``: ``basis_index`` as the sparse transform of the basis
+    columns, ``real_index`` as the ``[Re | Im]`` merge.  The op takes that
+    block with its own dtype and widens each value to double while reading
+    instead of receiving an upcast copy.
+
+    The test has to be able to fail, so it checks the three ways the path can
+    silently fall back: every call must receive the *narrow* dtype (the spy
+    records what the op got), a failed op must not be swallowed (the fallback
+    reporter raises here), and the op's output must actually reach the
+    amplitude (a 1e-3 bump on the op's result must move ``a(d)``).  Beyond
+    that, amplitude and parameter gradients must agree with the rebuild path
+    (same stored values), and the storage loss against the full-precision
+    dense model must stay inside the tolerance the storage tests use.
+    """
+    import tensorflow as tf
+    import yaml
+
+    import tf_pwa.experimental.dense_factor as df
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    compression = getattr(df, _STORED_OP[method][0])
+    op_name = _STORED_OP[method][1]
+    want = tf.float32 if store_dtype == "complex64" else tf.float16
+
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, "config_self_cp.yml")) as f:
+        base = yaml.full_load(f)
+
+    def cp_cfg():
+        return {
+            **base,
+            "data": {
+                **base["data"],
+                "format": "simple",
+                "r_boost": False,
+                "amp_model": "dense_factor_op_merge",
+                "preprocessor": {
+                    "dense_factor_merge": {
+                        "method": method,
+                        "store_dtype": store_dtype,
+                    }
+                },
+            },
+        }
+
+    c = ConfigLoader(cp_cfg())
+    ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+    p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(200)))
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    assert amp.merge["method"] == method
+    # the stored blocks really are narrow, not upcast before the op
+    assert d["F"].dtype == want and d["B"].dtype == want
+    assert not d["F"].dtype.is_complex and not d["B"].dtype.is_complex
+
+    original = getattr(op_mod, op_name)
+    calls = []
+
+    def spy(*args, **kwargs):
+        # record before delegating, so a raising op still shows what it got
+        calls.append((args[0].dtype, args[1].dtype))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(op_mod, op_name, spy)
+    a_op = amp(d).numpy()
+    assert calls, "the fused %s op was not exercised" % method
+    assert all(
+        fs_dt == want and bs_dt == want for fs_dt, bs_dt in calls
+    ), "the fused op got %r, expected %s for both blocks" % (
+        sorted({str(dt) for pair in calls for dt in pair}),
+        want.name,
+    )
+
+    # a failing op must not be swallowed: _contract_op warns and the model
+    # then silently rebuilds, which is exactly what hid the narrow path
+    def no_fallback(*args, **kwargs):
+        pytest.fail("the fused %s op failed: %r" % (method, args))
+
+    monkeypatch.setattr(df, "_warn_op_failure", no_fallback)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        a_checked = amp(d).numpy()
+    assert not [w for w in caught if "op failed" in str(w.message).lower()]
+    assert np.allclose(a_checked, a_op, rtol=1e-12, atol=1e-14)
+
+    # and the op's result has to reach the amplitude: bump it by 1e-3
+    # (the wrapper returns the amplitude tensor; the denominator rides along
+    # inside the custom gradient, so there is nothing else to preserve)
+    def bumped(*args, **kwargs):
+        return original(*args, **kwargs) * (1.0 + 1e-3)
+
+    monkeypatch.setattr(op_mod, op_name, bumped)
+    a_bumped = amp(d).numpy()
+    monkeypatch.setattr(op_mod, op_name, original)
+    moved = np.abs(a_bumped - a_op).max() / np.abs(a_op).max()
+    assert moved > 1e-4, "the op result does not reach a(d) (moved %g)" % moved
+
+    def loss_and_grad(cfg_amp, data):
+        vs = cfg_amp.vm.trainable_variables
+        with tf.GradientTape() as tape:
+            tape.watch(vs)
+            loss = -tf.reduce_sum(tf.math.log(cfg_amp(data)))
+        return [g.numpy() for g in tape.gradient(loss, vs)]
+
+    g_op = loss_and_grad(amp, d)
+
+    # the same stored values through the rebuild path
+    monkeypatch.setattr(compression, "use_op", False)
+    a_rb = amp(d).numpy()
+    g_rb = loss_and_grad(amp, d)
+    monkeypatch.undo()
+
+    assert np.allclose(a_op, a_rb, rtol=1e-8, atol=1e-10)
+    assert len(g_op) == len(g_rb) and g_op
+    for x, y in zip(g_op, g_rb):
+        assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+    # storage loss against the full-precision dense model, on the same model
+    # and data the storage tolerances were measured on
+    decay, part = _identical_waves()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+
+    def small_cfg(model, pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": model,
+                "preprocessor": pre,
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c0 = ConfigLoader(small_cfg("dense_factor", "dense_factor"))
+    a0 = c0.get_amplitude()
+    x0 = a0(c0.data.cal_angle(p4)).numpy()
+    c1 = ConfigLoader(
+        small_cfg(
+            "dense_factor_op_merge",
+            {
+                "dense_factor_merge": {
+                    "method": method,
+                    "store_dtype": store_dtype,
+                }
+            },
+        )
+    )
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    d1 = c1.data.cal_angle(p4)
+    assert d1["F"].dtype == want
+    x1 = a1(d1).numpy()
+    assert np.allclose(x1, x0, rtol=tol, atol=10 * tol)
+    assert tf.reduce_all(tf.math.is_finite(x1))
+
+
+@pytest.mark.parametrize("method", ["basis_index", "real_index"])
+def test_dense_factor_merge_narrow_store_dense_model(method):
+    """The dense merge model reads a whole fp16 stored block.
+
+    No fused op on this path: the compression expands the stored block back
+    to the coefficient dtype itself, so ``basis_index``/``real_index`` at
+    ``store_dtype: complex32`` need their own coverage (the op tests exercise
+    the kernel, not the expansion).
+    """
+    import tensorflow as tf
+
+    if not tf.config.list_physical_devices("GPU"):
+        pytest.skip("no GPU")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    p4 = {"a": p_a, "b": p_b, "c": p_c}
+
+    def cfg(model, pre):
+        return {
+            "data": {
+                "format": "simple",
+                "amp_model": model,
+                "preprocessor": pre,
+            },
+            "decay": decay,
+            "particle": part,
+        }
+
+    c0 = ConfigLoader(cfg("dense_factor", "dense_factor"))
+    a0 = c0.get_amplitude()
+    x0 = a0(c0.data.cal_angle(p4)).numpy()
+
+    c1 = ConfigLoader(
+        cfg(
+            "dense_factor_merge",
+            {
+                "dense_factor_merge": {
+                    "method": method,
+                    "store_dtype": "complex32",
+                }
+            },
+        )
+    )
+    a1 = c1.get_amplitude()
+    a1.set_params(a0.get_params())
+    d1 = c1.data.cal_angle(p4)
+    assert d1["F"].dtype == tf.float16 and d1["B"].dtype == tf.float16
+    assert a1.merge["method"] == method
+    x1 = a1(d1).numpy()
+    # the real-block storage tolerance used for complex32
+    assert np.allclose(x1, x0, rtol=2e-3, atol=2e-2)
+    assert tf.reduce_all(tf.math.is_finite(x1))
 
 
 def test_dense_factor_merge_basis_index_wide():

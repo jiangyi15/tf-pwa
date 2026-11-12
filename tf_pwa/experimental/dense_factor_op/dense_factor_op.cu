@@ -1,4 +1,5 @@
 #include <cuda_runtime.h>
+#include <cuda_fp16.h>
 
 #define NWARP 8
 #define SHMEM_LIMIT 49152   /* default dynamic shared memory per block */
@@ -85,6 +86,35 @@ __device__ __forceinline__ double2 warp_sum_width(double ar, double ai)
         ai += __shfl_down_sync(0xffffffffu, ai, o, W);
     }
     return make_double2(ar, ai);
+}
+
+// The stored basis block is float64, float32 or fp16 depending on the
+// plugin's store_dtype; the arithmetic stays double either way, so every
+// read widens to double here and nothing else in the kernel changes.
+template <typename BT>
+__device__ __forceinline__ double bload(const BT* __restrict__ p, long long i);
+
+template <>
+__device__ __forceinline__ double bload<double>(const double* __restrict__ p,
+                                                long long i) {
+    return p[i];
+}
+template <>
+__device__ __forceinline__ double bload<float>(const float* __restrict__ p,
+                                               long long i) {
+    return (double)p[i];
+}
+template <>
+__device__ __forceinline__ double bload<__half>(const __half* __restrict__ p,
+                                                long long i) {
+    return __half2float(p[i]);
+}
+
+// The forward can give a lane one projection instead of one chain when the
+// projection axis fits in a warp and is at least as wide as the chain axis.
+// The kernel branch and the shared-tile size in run_bi share this predicate.
+__host__ __device__ inline bool bi_transposed(int np, int nu) {
+    return np <= 32 && np >= nu;
 }
 
 template <int S, bool REG>
@@ -468,18 +498,20 @@ __global__ void dense_grad_kernel_n(
 // ---------------------------------------------------------------------------
 
 // One complex basis column of the real block: FS[e, RE[j]] + i FS[e, IM[j]].
+template <typename BT>
 __device__ __forceinline__ double2 ri_col(
-    const double* __restrict__ FS, long long fo,
+    const BT* __restrict__ FS, long long fo,
     const int* __restrict__ RE, const int* __restrict__ IM, long long j)
 {
-    return make_double2(FS[fo + (long long)RE[j]], FS[fo + (long long)IM[j]]);
+    return make_double2(bload<BT>(FS, fo + (long long)RE[j]),
+                        bload<BT>(FS, fo + (long long)IM[j]));
 }
 
 // ``line_den_merge`` on a real block: the reduced column ``MI[o+i]`` is a
 // pair of stored real columns, one for each half.
-template <int S>
+template <int S, typename BT>
 __device__ __forceinline__ void line_den_merge_ri(
-    const double* __restrict__ BS, const int* __restrict__ MI,
+    const BT* __restrict__ BS, const int* __restrict__ MI,
     const int* __restrict__ BRE, const int* __restrict__ BIM,
     const double* __restrict__ G,
     long long bo, int o, int s, double& dr, double& di)
@@ -490,16 +522,16 @@ __device__ __forceinline__ void line_den_merge_ri(
         if (i < s) {
             const int r = MI[o+i];
             const double g = G[o+i];
-            dr += g*BS[bo + BRE[r]];
-            di += g*BS[bo + BIM[r]];
+            dr += g*bload<BT>(BS, bo + BRE[r]);
+            di += g*bload<BT>(BS, bo + BIM[r]);
         }
     }
 }
 
-template <int S, bool REG>
+template <int S, bool REG, typename BT>
 __global__ void dense_fwd_ri_kernel(
-    const double* __restrict__ FS,   // [ne, nf], the real F block
-    const double* __restrict__ BS,   // [ne, nb], the real B block
+    const BT* __restrict__ FS,       // [ne, nf], the real F block
+    const BT* __restrict__ BS,       // [ne, nb], the real B block
     const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
     const int* __restrict__ MU, const int* __restrict__ MI,
@@ -533,7 +565,7 @@ __global__ void dense_fwd_ri_kernel(
                         const int o = off[u*nline + l], s = sz[u*nline + l];
                         if (s > 0) {
                             double fr, fi;
-                            line_den_merge_ri<S>(BS, MI, BRE, BIM, G,
+                            line_den_merge_ri<S, BT>(BS, MI, BRE, BIM, G,
                                                    bo, o, s, fr, fi);
                             const double nr = dr*fr - di*fi;
                             const double ni = dr*fi + di*fr;
@@ -553,7 +585,7 @@ __global__ void dense_fwd_ri_kernel(
                 for (int k = 0; k < MAXUPW; k++) {
                     const int u = lane + 32*k;
                     if (u < nu) {
-                        const double2 f = ri_col(
+                        const double2 f = ri_col<BT>(
                             FS, fo, FRE, FIM,
                             (long long)p*nu_red + fu[k]);
                         ar += f.x*wc[k].x - f.y*wc[k].y;
@@ -571,7 +603,7 @@ __global__ void dense_fwd_ri_kernel(
                     const int o = off[u*nline + l], s = sz[u*nline + l];
                     if (s > 0) {
                         double fr, fi;
-                        line_den_merge_ri<S>(BS, MI, BRE, BIM, G,
+                        line_den_merge_ri<S, BT>(BS, MI, BRE, BIM, G,
                                                bo, o, s, fr, fi);
                         const double nr = dr*fr - di*fi;
                         const double ni = dr*fi + di*fr;
@@ -587,7 +619,7 @@ __global__ void dense_fwd_ri_kernel(
             for (int p = 0; p < np; p++) {
                 double ar = 0.0, ai = 0.0;
                 for (int u = lane; u < nu; u += 32) {
-                    const double2 f = ri_col(
+                    const double2 f = ri_col<BT>(
                         FS, fo, FRE, FIM, (long long)p*nu_red + MU[u]);
                     const double2 wv = Wl[u];
                     ar += f.x*wv.x - f.y*wv.y;
@@ -601,9 +633,9 @@ __global__ void dense_fwd_ri_kernel(
     }
 }
 
-template <int S>
+template <int S, typename BT>
 __global__ void dense_grad_ri_kernel(
-    const double* __restrict__ FS, const double* __restrict__ BS,
+    const BT* __restrict__ FS, const BT* __restrict__ BS,
     const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
     const int* __restrict__ MU, const int* __restrict__ MI,
@@ -638,14 +670,14 @@ __global__ void dense_grad_ri_kernel(
                 double orr = 1.0, oi = 0.0;
                 if (has) {
                     double dr, di;
-                    line_den_merge_ri<S>(BS, MI, BRE, BIM, G,
+                    line_den_merge_ri<S, BT>(BS, MI, BRE, BIM, G,
                                            bo, o, s, dr, di);
                     #pragma unroll
                     for (int i = 0; i < S; i++)
                         if (i < s) {
                             const int r = MI[o+i];
-                            bvr[i] = BS[bo + BRE[r]];
-                            bvi[i] = BS[bo + BIM[r]];
+                            bvr[i] = bload<BT>(BS, bo + BRE[r]);
+                            bvi[i] = bload<BT>(BS, bo + BIM[r]);
                         }
                     const double dn = dr*dr + di*di;
                     orr = (dv.x*dr + dv.y*di) / dn;
@@ -655,7 +687,7 @@ __global__ void dense_grad_ri_kernel(
                 double gwr = 0.0, gwi = 0.0;
                 for (int p = 0; p < np; p++) {
                     const double2 da = DLA[ao+p];
-                    const double2 f = ri_col(
+                    const double2 f = ri_col<BT>(
                         FS, fo, FRE, FIM, (long long)p*nu_red + fu);
                     gwr += da.x*f.x + da.y*f.y;
                     gwi += da.y*f.x - da.x*f.y;
@@ -713,9 +745,9 @@ __global__ void dense_grad_ri_kernel(
 // One reduced column of a stored real block: exact CSR row ``j``, whose
 // entries are ``VAL[i] * basis[COL[i]]`` for ``PTR[j] <= i < PTR[j+1]``.  The
 // basis column ``p`` is ``STORE[so + RE[p]] + i STORE[so + IM[p]]``.
-template <int T>
+template <int T, typename BT>
 __device__ __forceinline__ double2 bi_col(
-    const double* __restrict__ STORE, long long so,
+    const BT* __restrict__ STORE, long long so,
     const int* __restrict__ RE, const int* __restrict__ IM,
     const int* __restrict__ PTR, const int* __restrict__ COL,
     const double2* __restrict__ VAL, long long j)
@@ -730,8 +762,8 @@ __device__ __forceinline__ double2 bi_col(
         const int p = COL[i];
         const double2 w = VAL[i];
         const double2 b =
-            make_double2(STORE[so + (long long)RE[p]],
-                         STORE[so + (long long)IM[p]]);
+            make_double2(bload<BT>(STORE, so + (long long)RE[p]),
+                         bload<BT>(STORE, so + (long long)IM[p]));
         out.x += w.x*b.x - w.y*b.y;
         out.y += w.x*b.y + w.y*b.x;
     }
@@ -740,9 +772,9 @@ __device__ __forceinline__ double2 bi_col(
 
 // ``line_den_merge`` on a basis-index real block: the reduced column
 // ``MI[o+i]`` is the sparse CSR transform ``BI_COL`` of the stored basis.
-template <int S, int T>
+template <int S, int T, typename BT>
 __device__ __forceinline__ void line_den_merge_bi(
-    const double* __restrict__ BS, const int* __restrict__ MI,
+    const BT* __restrict__ BS, const int* __restrict__ MI,
     const int* __restrict__ BRE, const int* __restrict__ BIM,
     const int* __restrict__ PTR, const int* __restrict__ COL,
     const double2* __restrict__ VAL,
@@ -755,17 +787,17 @@ __device__ __forceinline__ void line_den_merge_bi(
         if (i < s) {
             const int r = MI[o+i];
             const double g = G[o+i];
-            const double2 b = bi_col<T>(BS, bo, BRE, BIM, PTR, COL, VAL, r);
+            const double2 b = bi_col<T, BT>(BS, bo, BRE, BIM, PTR, COL, VAL, r);
             dr += g*b.x;
             di += g*b.y;
         }
     }
 }
 
-template <int S, bool REG, int T>
+template <int S, bool REG, int T, typename BT>
 __global__ void dense_fwd_bi_kernel(
-    const double* __restrict__ FS,   // [ne, nf], the real F block
-    const double* __restrict__ BS,   // [ne, nb], the real B block
+    const BT* __restrict__ FS,       // [ne, nf], the real F block
+    const BT* __restrict__ BS,       // [ne, nb], the real B block
     const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
     const int* __restrict__ MU, const int* __restrict__ MI,
@@ -789,7 +821,7 @@ __global__ void dense_fwd_bi_kernel(
     const int rw = nu >= 32 ? 32 : (nu <= 8 ? 8 : (nu <= 16 ? 16 : 32));
     // V4: lanes hold projections instead of chains when the projection axis
     // fits in a warp and has at least as many entries as there are chains
-    const bool transposed = np <= 32 && np >= nu;
+    const bool transposed = bi_transposed(np, nu);
     double2* Wl = wsh + (size_t)wid * nu;
 
     for (int e = gwarp; e < ne; e += nwarp) {
@@ -808,7 +840,7 @@ __global__ void dense_fwd_bi_kernel(
                         const int o = off[u*nline + l], s = sz[u*nline + l];
                         if (s > 0) {
                             double fr, fi;
-                            line_den_merge_bi<S, T>(BS, MI, BRE, BIM,
+                            line_den_merge_bi<S, T, BT>(BS, MI, BRE, BIM,
                                                  PB_PTR, PB_COL, PB_VAL,
                                                  G, bo, o, s, fr, fi);
                             const double nr = dr*fr - di*fi;
@@ -835,7 +867,7 @@ __global__ void dense_fwd_bi_kernel(
                     const long long row0 = (long long)lane * nu_red;
                     for (int u = 0; u < nu; u++) {
                         const double2 w = Wl[u];
-                        const double2 f = bi_col<T>(
+                        const double2 f = bi_col<T, BT>(
                             FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL,
                             row0 + MU[u]);
                         ar += f.x*w.x - f.y*w.y;
@@ -850,7 +882,7 @@ __global__ void dense_fwd_bi_kernel(
                     for (int k = 0; k < MAXUPW; k++) {
                         const int u = lane + 32*k;
                         if (u < nu) {
-                            const double2 f = bi_col<T>(
+                            const double2 f = bi_col<T, BT>(
                                 FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL,
                                 (long long)p*nu_red + fu[k]);
                             ar += f.x*wc[k].x - f.y*wc[k].y;
@@ -871,7 +903,7 @@ __global__ void dense_fwd_bi_kernel(
                     const int o = off[u*nline + l], s = sz[u*nline + l];
                     if (s > 0) {
                         double fr, fi;
-                        line_den_merge_bi<S, T>(BS, MI, BRE, BIM,
+                        line_den_merge_bi<S, T, BT>(BS, MI, BRE, BIM,
                                              PB_PTR, PB_COL, PB_VAL,
                                              G, bo, o, s, fr, fi);
                         const double nr = dr*fr - di*fi;
@@ -889,7 +921,7 @@ __global__ void dense_fwd_bi_kernel(
             for (int p = 0; p < np; p++) {
                 double ar = 0.0, ai = 0.0;
                 for (int u = lane; u < nu; u += 32) {
-                    const double2 f = bi_col<T>(
+                    const double2 f = bi_col<T, BT>(
                         FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL,
                         (long long)p*nu_red + MU[u]);
                     const double2 wv = Wl[u];
@@ -906,9 +938,9 @@ __global__ void dense_fwd_bi_kernel(
     }
 }
 
-template <int S, int T>
+template <int S, int T, typename BT>
 __global__ void dense_grad_bi_kernel(
-    const double* __restrict__ FS, const double* __restrict__ BS,
+    const BT* __restrict__ FS, const BT* __restrict__ BS,
     const double2* __restrict__ C, const double* __restrict__ G,
     const int* __restrict__ off, const int* __restrict__ sz, int nline,
     const int* __restrict__ MU, const int* __restrict__ MI,
@@ -953,7 +985,7 @@ __global__ void dense_grad_bi_kernel(
                     #pragma unroll
                     for (int i = 0; i < S; i++)
                         if (i < s) {
-                            const double2 b = bi_col<T>(
+                            const double2 b = bi_col<T, BT>(
                                 BS, bo, BRE, BIM, PB_PTR, PB_COL, PB_VAL,
                                 MI[o+i]);
                             bvr[i] = b.x;
@@ -965,7 +997,7 @@ __global__ void dense_grad_bi_kernel(
                 int row = fu;   // row id is event invariant: row += nu_red
                 for (int p = 0; p < np; p++, row += nu_red) {
                     const double2 da = DLA[ao+p];
-                    const double2 f = bi_col<T>(
+                    const double2 f = bi_col<T, BT>(
                         FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL, row);
                     gwr += da.x*f.x + da.y*f.y;
                     gwi += da.y*f.x - da.x*f.y;
@@ -1154,15 +1186,20 @@ extern "C" void launch_dense_factor_n(
 // ---------------------------------------------------------------------------
 
 struct RiArgs {
-    const double *fs, *bs, *cr, *gtr; const int *off, *sz;
+    // ``fs``/``bs`` are the stored real block; their element type is the
+    // ``block_type`` argument of the launcher (0 double, 1 float, 2 half).
+    const void *fs, *bs;
+    const double *cr, *gtr; const int *off, *sz;
     const int *mur, *mir, *fre, *fim, *bre, *bim; const double *dla;
     int ne, nu, nu_red, nparam, nparam_red, np, nf, nb, nline, nblk;
     double *a_out, *d_out, *dc_part, *dg_part, *dc_out, *dg_out;
     cudaStream_t s;
 };
 
-template <int S, bool REG>
+template <int S, bool REG, typename BT>
 static void run_ri(const RiArgs& a, int mode) {
+    const BT* FS = reinterpret_cast<const BT*>(a.fs);
+    const BT* BS = reinterpret_cast<const BT*>(a.bs);
     const double2* C = reinterpret_cast<const double2*>(a.cr);
     const double* G = a.gtr;
     double2* A = reinterpret_cast<double2*>(a.a_out);
@@ -1172,8 +1209,8 @@ static void run_ri(const RiArgs& a, int mode) {
     int nb_f = a.ne < 4096 ? (a.ne + wpb - 1) / wpb : 2048;
     if (nb_f < 1) nb_f = 1;
     if (mode != 2)
-        dense_fwd_ri_kernel<S, REG><<<nb_f, wpb*32, shmem, a.s>>>(
-            a.fs, a.bs, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
+        dense_fwd_ri_kernel<S, REG, BT><<<nb_f, wpb*32, shmem, a.s>>>(
+            FS, BS, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
             a.fre, a.fim, a.bre, a.bim,
             a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.nf, a.nb,
             A, D);
@@ -1181,8 +1218,8 @@ static void run_ri(const RiArgs& a, int mode) {
         cudaMemsetAsync(a.dg_part, 0,
                         (size_t)a.nblk * a.nparam * sizeof(double), a.s);
         int gb = a.nu <= 128 ? 128 : 256;
-        dense_grad_ri_kernel<S><<<a.nblk, gb, 0, a.s>>>(
-            a.fs, a.bs, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
+        dense_grad_ri_kernel<S, BT><<<a.nblk, gb, 0, a.s>>>(
+            FS, BS, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
             a.fre, a.fim, a.bre, a.bim, a.dla, D,
             a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.nf, a.nb,
             a.dc_part, a.dg_part);
@@ -1193,36 +1230,46 @@ static void run_ri(const RiArgs& a, int mode) {
     }
 }
 
-template <bool REG>
+template <bool REG, typename BT>
 static void dispatch_ri_s(const RiArgs& a, int mode, int maxs) {
     switch (maxs) {
-        case 1: run_ri<1, REG>(a, mode); break;
-        case 2: run_ri<2, REG>(a, mode); break;
-        case 3: run_ri<3, REG>(a, mode); break;
-        case 4: run_ri<4, REG>(a, mode); break;
-        case 5: run_ri<5, REG>(a, mode); break;
-        case 6: run_ri<6, REG>(a, mode); break;
-        case 7: run_ri<7, REG>(a, mode); break;
-        case 8: run_ri<8, REG>(a, mode); break;
-        default: run_ri<16, REG>(a, mode); break;
+        case 1: run_ri<1, REG, BT>(a, mode); break;
+        case 2: run_ri<2, REG, BT>(a, mode); break;
+        case 3: run_ri<3, REG, BT>(a, mode); break;
+        case 4: run_ri<4, REG, BT>(a, mode); break;
+        case 5: run_ri<5, REG, BT>(a, mode); break;
+        case 6: run_ri<6, REG, BT>(a, mode); break;
+        case 7: run_ri<7, REG, BT>(a, mode); break;
+        case 8: run_ri<8, REG, BT>(a, mode); break;
+        default: run_ri<16, REG, BT>(a, mode); break;
     }
 }
 
-static void dispatch_ri(const RiArgs& a, int mode, int maxs) {
+template <typename BT>
+static void dispatch_ri_block(const RiArgs& a, int mode, int maxs) {
     if (a.nu <= 32 * MAXUPW)
-        dispatch_ri_s<true>(a, mode, maxs);
+        dispatch_ri_s<true, BT>(a, mode, maxs);
     else
-        dispatch_ri_s<false>(a, mode, maxs);
+        dispatch_ri_s<false, BT>(a, mode, maxs);
+}
+
+// ``block_type`` is the element type of fs/bs: 0 double, 1 float, 2 half.
+static void dispatch_ri(const RiArgs& a, int mode, int maxs, int block_type) {
+    switch (block_type) {
+        case 1: dispatch_ri_block<float>(a, mode, maxs); break;
+        case 2: dispatch_ri_block<__half>(a, mode, maxs); break;
+        default: dispatch_ri_block<double>(a, mode, maxs); break;
+    }
 }
 
 extern "C" void launch_dense_factor_ri(
-    const double* fs, const double* bs, const double* cr, const double* gtr,
+    const void* fs, const void* bs, const double* cr, const double* gtr,
     const int* off, const int* sz, const int* mur, const int* mir,
     const int* fre, const int* fim, const int* bre, const int* bim,
     const double* dla,
     int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
     int nf, int nb, int nline,
-    int nblk, int mode, int maxs,
+    int nblk, int mode, int maxs, int block_type,
     double* a_out, double* d_out,
     double* dc_part, double* dg_part,
     double* dc_out, double* dg_out, cudaStream_t s)
@@ -1230,7 +1277,7 @@ extern "C" void launch_dense_factor_ri(
     RiArgs a{fs, bs, cr, gtr, off, sz, mur, mir, fre, fim, bre, bim, dla,
                ne, nu, nu_red, nparam, nparam_red, np, nf, nb, nline, nblk,
                a_out, d_out, dc_part, dg_part, dc_out, dg_out, s};
-    dispatch_ri(a, mode, maxs);
+    dispatch_ri(a, mode, maxs, block_type);
 }
 
 // ---------------------------------------------------------------------------
@@ -1239,7 +1286,10 @@ extern "C" void launch_dense_factor_ri(
 // ---------------------------------------------------------------------------
 
 struct BiArgs {
-    const double *fs, *bs, *cr, *gtr; const int *off, *sz;
+    // ``fs``/``bs`` are the stored basis blocks; their element type is the
+    // ``block_type`` argument of the launcher (0 double, 1 float, 2 half).
+    const void *fs, *bs;
+    const double *cr, *gtr; const int *off, *sz;
     const int *mur, *mir, *fre, *fim, *bre, *bim;
     const int *f_ptr, *f_col, *b_ptr, *b_col;
     const double2 *f_val, *b_val;
@@ -1250,8 +1300,10 @@ struct BiArgs {
     cudaStream_t s;
 };
 
-template <int S, bool REG, int T>
+template <int S, bool REG, int T, typename BT>
 static void run_bi(const BiArgs& a, int mode) {
+    const BT* FS = reinterpret_cast<const BT*>(a.fs);
+    const BT* BS = reinterpret_cast<const BT*>(a.bs);
     const double2* C = reinterpret_cast<const double2*>(a.cr);
     const double* G = a.gtr;
     double2* A = reinterpret_cast<double2*>(a.a_out);
@@ -1259,14 +1311,14 @@ static void run_bi(const BiArgs& a, int mode) {
     int wpb = REG ? NWARP : pick_wpb(a.nu);
     // The W tile is needed by the non-REG path and by the transposed REG
     // forward; the plain REG path must not pay for it.
-    const bool transposed = a.np <= 32 && a.nu <= a.np;
+    const bool transposed = bi_transposed(a.np, a.nu);
     size_t shmem = (REG && !transposed) ? 0
                                        : (size_t)wpb * a.nu * sizeof(double2);
     int nb_f = a.ne < 4096 ? (a.ne + wpb - 1) / wpb : 2048;
     if (nb_f < 1) nb_f = 1;
     if (mode != 2)
-        dense_fwd_bi_kernel<S, REG, T><<<nb_f, wpb*32, shmem, a.s>>>(
-            a.fs, a.bs, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
+        dense_fwd_bi_kernel<S, REG, T, BT><<<nb_f, wpb*32, shmem, a.s>>>(
+            FS, BS, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
             a.fre, a.fim, a.bre, a.bim,
             a.f_ptr, a.f_col, a.f_val, a.b_ptr, a.b_col, a.b_val,
             a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np, a.nf, a.nb,
@@ -1275,8 +1327,8 @@ static void run_bi(const BiArgs& a, int mode) {
         cudaMemsetAsync(a.dg_part, 0,
                         (size_t)a.nblk * a.nparam * sizeof(double), a.s);
         int gb = a.nu <= 128 ? 128 : 256;
-        dense_grad_bi_kernel<S, T><<<a.nblk, gb, 0, a.s>>>(
-            a.fs, a.bs, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
+        dense_grad_bi_kernel<S, T, BT><<<a.nblk, gb, 0, a.s>>>(
+            FS, BS, C, G, a.off, a.sz, a.nline, a.mur, a.mir,
             a.fre, a.fim, a.bre, a.bim,
             a.f_ptr, a.f_col, a.f_val, a.b_ptr, a.b_col, a.b_val,
             a.dla, D, a.ne, a.nu, a.nu_red, a.nparam, a.nparam_red, a.np,
@@ -1288,41 +1340,51 @@ static void run_bi(const BiArgs& a, int mode) {
     }
 }
 
-template <bool REG, int T>
+template <bool REG, int T, typename BT>
 static void dispatch_bi_t(const BiArgs& a, int mode, int maxs) {
     switch (maxs) {
-        case 1: run_bi<1, REG, T>(a, mode); break;
-        case 2: run_bi<2, REG, T>(a, mode); break;
-        case 3: run_bi<3, REG, T>(a, mode); break;
-        case 4: run_bi<4, REG, T>(a, mode); break;
-        case 5: run_bi<5, REG, T>(a, mode); break;
-        case 6: run_bi<6, REG, T>(a, mode); break;
-        case 7: run_bi<7, REG, T>(a, mode); break;
-        case 8: run_bi<8, REG, T>(a, mode); break;
-        default: run_bi<16, REG, T>(a, mode); break;
+        case 1: run_bi<1, REG, T, BT>(a, mode); break;
+        case 2: run_bi<2, REG, T, BT>(a, mode); break;
+        case 3: run_bi<3, REG, T, BT>(a, mode); break;
+        case 4: run_bi<4, REG, T, BT>(a, mode); break;
+        case 5: run_bi<5, REG, T, BT>(a, mode); break;
+        case 6: run_bi<6, REG, T, BT>(a, mode); break;
+        case 7: run_bi<7, REG, T, BT>(a, mode); break;
+        case 8: run_bi<8, REG, T, BT>(a, mode); break;
+        default: run_bi<16, REG, T, BT>(a, mode); break;
     }
 }
 
-template <bool REG>
+template <bool REG, typename BT>
 static void dispatch_bi_s(const BiArgs& a, int mode, int maxs) {
     switch (a.terms) {
-        case 1: dispatch_bi_t<REG, 1>(a, mode, maxs); break;
-        case 2: dispatch_bi_t<REG, 2>(a, mode, maxs); break;
-        case 3: dispatch_bi_t<REG, 3>(a, mode, maxs); break;
-        default: dispatch_bi_t<REG, 4>(a, mode, maxs); break;
+        case 1: dispatch_bi_t<REG, 1, BT>(a, mode, maxs); break;
+        case 2: dispatch_bi_t<REG, 2, BT>(a, mode, maxs); break;
+        case 3: dispatch_bi_t<REG, 3, BT>(a, mode, maxs); break;
+        default: dispatch_bi_t<REG, 4, BT>(a, mode, maxs); break;
     }
 }
 
-static void dispatch_bi(const BiArgs& a, int mode, int maxs) {
+template <typename BT>
+static void dispatch_bi_block(const BiArgs& a, int mode, int maxs) {
     if (a.nu <= 32 * MAXUPW)
-        dispatch_bi_s<true>(a, mode, maxs);
+        dispatch_bi_s<true, BT>(a, mode, maxs);
     else
-        dispatch_bi_s<false>(a, mode, maxs);
+        dispatch_bi_s<false, BT>(a, mode, maxs);
+}
+
+// ``block_type`` is the element type of fs/bs: 0 double, 1 float, 2 half.
+static void dispatch_bi(const BiArgs& a, int mode, int maxs, int block_type) {
+    switch (block_type) {
+        case 1: dispatch_bi_block<float>(a, mode, maxs); break;
+        case 2: dispatch_bi_block<__half>(a, mode, maxs); break;
+        default: dispatch_bi_block<double>(a, mode, maxs); break;
+    }
 }
 
 
 extern "C" void launch_dense_factor_bi(
-    const double* fs, const double* bs, const double* cr, const double* gtr,
+    const void* fs, const void* bs, const double* cr, const double* gtr,
     const int* off, const int* sz, const int* mur, const int* mir,
     const int* fre, const int* fim, const int* bre, const int* bim,
     const int* f_ptr, const int* f_col, const double* f_val,
@@ -1330,7 +1392,7 @@ extern "C" void launch_dense_factor_bi(
     const double* dla,
     int ne, int nu, int nu_red, int nparam, int nparam_red, int np,
     int nf, int nb, int terms,
-    int nline, int nblk, int mode, int maxs,
+    int nline, int nblk, int mode, int maxs, int block_type,
     double* a_out, double* d_out,
     double* dc_part, double* dg_part,
     double* dc_out, double* dg_out, cudaStream_t s)
@@ -1342,5 +1404,5 @@ extern "C" void launch_dense_factor_bi(
              dla, ne, nu, nu_red, nparam, nparam_red, np, nf, nb,
              terms, nline, nblk,
              a_out, d_out, dc_part, dg_part, dc_out, dg_out, s};
-    dispatch_bi(a, mode, maxs);
+    dispatch_bi(a, mode, maxs, block_type);
 }
