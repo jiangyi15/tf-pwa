@@ -112,8 +112,9 @@ __device__ __forceinline__ double bload<__half>(const __half* __restrict__ p,
 
 // The forward can give a lane one projection instead of one chain when the
 // projection axis fits in a warp and is at least as wide as the chain axis.
-// The kernel branch and the shared-tile size in run_bi share this predicate.
-__host__ __device__ inline bool bi_transposed(int np, int nu) {
+// Both stored-block forwards (basis_index and real_index) and their shared
+// tile sizing use this one predicate, so they cannot diverge.
+__host__ __device__ inline bool fwd_transposed(int np, int nu) {
     return np <= 32 && np >= nu;
 }
 
@@ -547,6 +548,11 @@ __global__ void dense_fwd_ri_kernel(
     const int wpb   = blockDim.x >> 5;
     const int gwarp = blockIdx.x * wpb + wid;
     const int nwarp = gridDim.x * wpb;
+    // V3: chains live in lanes 0..nu-1, so a narrower reduction tree suffices
+    const int rw = nu >= 32 ? 32 : (nu <= 8 ? 8 : (nu <= 16 ? 16 : 32));
+    // V4: lanes hold projections instead of chains when the projection axis
+    // fits in a warp and has at least as many entries as there are chains
+    const bool transposed = fwd_transposed(np, nu);
     double2* Wl = wsh + (size_t)wid * nu;
 
     for (int e = gwarp; e < ne; e += nwarp) {
@@ -573,27 +579,53 @@ __global__ void dense_fwd_ri_kernel(
                         }
                     }
                     if (D_out) D_out[(long long)e*nu + u] = make_double2(dr, di);
+                    // V1: one reciprocal instead of two divisions
                     const double den = dr*dr + di*di;
+                    const double inv = 1.0 / den;
                     const double2 c = C[u];
-                    wc[k] = make_double2((c.x*dr + c.y*di) / den,
-                                         (c.y*dr - c.x*di) / den);
+                    wc[k] = make_double2((c.x*dr + c.y*di) * inv,
+                                         (c.y*dr - c.x*di) * inv);
+                    // the tile only exists on the transposed path
+                    if (transposed) Wl[u] = wc[k];
                 }
             }
-            for (int p = 0; p < np; p++) {
-                double ar = 0.0, ai = 0.0;
-                #pragma unroll
-                for (int k = 0; k < MAXUPW; k++) {
-                    const int u = lane + 32*k;
-                    if (u < nu) {
-                        const double2 f = ri_col<BT>(
-                            FS, fo, FRE, FIM,
-                            (long long)p*nu_red + fu[k]);
-                        ar += f.x*wc[k].x - f.y*wc[k].y;
-                        ai += f.x*wc[k].y + f.y*wc[k].x;
+            __syncwarp();
+            if (transposed) {
+                // V4: one lane per projection.  np fits in a warp, so each
+                // lane reads W from the shared tile and sums over the chains
+                // instead of paying the per-projection warp reduction
+                // (12 SHFL x np per event); the amplitude stores coalesce.
+                if (lane < np) {
+                    double ar = 0.0, ai = 0.0;
+                    const long long row0 = (long long)lane * nu_red;
+                    for (int u = 0; u < nu; u++) {
+                        const double2 w = Wl[u];
+                        const double2 f = ri_col<BT>(FS, fo, FRE, FIM,
+                                                     row0 + MU[u]);
+                        ar += f.x*w.x - f.y*w.y;
+                        ai += f.x*w.y + f.y*w.x;
                     }
+                    A_out[(long long)e*np + lane] = make_double2(ar, ai);
                 }
-                const double2 A = warp_sum2(ar, ai);
-                if (lane == 0) A_out[(long long)e*np + p] = A;
+            } else {
+                for (int p = 0; p < np; p++) {
+                    double ar = 0.0, ai = 0.0;
+                    #pragma unroll
+                    for (int k = 0; k < MAXUPW; k++) {
+                        const int u = lane + 32*k;
+                        if (u < nu) {
+                            const double2 f = ri_col<BT>(
+                                FS, fo, FRE, FIM,
+                                (long long)p*nu_red + fu[k]);
+                            ar += f.x*wc[k].x - f.y*wc[k].y;
+                            ai += f.x*wc[k].y + f.y*wc[k].x;
+                        }
+                    }
+                    const double2 A = rw == 8 ? warp_sum_width<8>(ar, ai)
+                                    : rw == 16 ? warp_sum_width<16>(ar, ai)
+                                               : warp_sum_width<32>(ar, ai);
+                    if (lane == 0) A_out[(long long)e*np + p] = A;
+                }
             }
         } else {
             for (int u = lane; u < nu; u += 32) {
@@ -612,8 +644,9 @@ __global__ void dense_fwd_ri_kernel(
                 }
                 if (D_out) D_out[(long long)e*nu + u] = make_double2(dr, di);
                 const double den = dr*dr + di*di;
-                Wl[u] = make_double2((c.x*dr + c.y*di) / den,
-                                     (c.y*dr - c.x*di) / den);
+                const double inv = 1.0 / den;   // one reciprocal, not two
+                Wl[u] = make_double2((c.x*dr + c.y*di) * inv,
+                                     (c.y*dr - c.x*di) * inv);
             }
             __syncwarp();
             for (int p = 0; p < np; p++) {
@@ -625,7 +658,9 @@ __global__ void dense_fwd_ri_kernel(
                     ar += f.x*wv.x - f.y*wv.y;
                     ai += f.x*wv.y + f.y*wv.x;
                 }
-                const double2 A = warp_sum2(ar, ai);
+                const double2 A = rw == 8 ? warp_sum_width<8>(ar, ai)
+                                : rw == 16 ? warp_sum_width<16>(ar, ai)
+                                           : warp_sum_width<32>(ar, ai);
                 if (lane == 0) A_out[(long long)e*np + p] = A;
             }
         }
@@ -685,15 +720,18 @@ __global__ void dense_grad_ri_kernel(
                 }
 
                 double gwr = 0.0, gwi = 0.0;
-                for (int p = 0; p < np; p++) {
+                int row = fu;   // row id is event invariant: row += nu_red
+                for (int p = 0; p < np; p++, row += nu_red) {
                     const double2 da = DLA[ao+p];
-                    const double2 f = ri_col<BT>(
-                        FS, fo, FRE, FIM, (long long)p*nu_red + fu);
+                    const double2 f = ri_col<BT>(FS, fo, FRE, FIM, row);
                     gwr += da.x*f.x + da.y*f.y;
                     gwi += da.y*f.x - da.x*f.y;
                 }
+                // den^-1 once; pn == den^2 so 1/pn == inv*inv: four divisions
+                // per (event, chain) become one
                 const double den = tr*tr + ti*ti;
-                const double icr = tr/den, ici = ti/den;
+                const double inv = 1.0 / den;
+                const double icr = tr*inv, ici = ti*inv;
                 if (l == 0) {
                     dcr += gwr*icr - gwi*ici;
                     dci += gwr*ici + gwi*icr;
@@ -701,8 +739,8 @@ __global__ void dense_grad_ri_kernel(
                 const double gir = c.x*gwr + c.y*gwi;
                 const double gii = c.x*gwi - c.y*gwr;
                 const double pr = tr*tr - ti*ti, pi = -2.0*tr*ti;
-                const double pn = pr*pr + pi*pi;
-                const double ipr = pr/pn, ipi = -pi/pn;
+                const double pinv = inv*inv;
+                const double ipr = pr*pinv, ipi = -pi*pinv;
                 const double gdenr = -(gir*ipr - gii*ipi);
                 const double gdeni = -(gir*ipi + gii*ipr);
 
@@ -821,7 +859,7 @@ __global__ void dense_fwd_bi_kernel(
     const int rw = nu >= 32 ? 32 : (nu <= 8 ? 8 : (nu <= 16 ? 16 : 32));
     // V4: lanes hold projections instead of chains when the projection axis
     // fits in a warp and has at least as many entries as there are chains
-    const bool transposed = bi_transposed(np, nu);
+    const bool transposed = fwd_transposed(np, nu);
     double2* Wl = wsh + (size_t)wid * nu;
 
     for (int e = gwarp; e < ne; e += nwarp) {
@@ -1205,7 +1243,11 @@ static void run_ri(const RiArgs& a, int mode) {
     double2* A = reinterpret_cast<double2*>(a.a_out);
     double2* D = reinterpret_cast<double2*>(a.d_out);
     int wpb = REG ? NWARP : pick_wpb(a.nu);
-    size_t shmem = REG ? 0 : (size_t)wpb * a.nu * sizeof(double2);
+    // the W tile is needed by the non-REG path and by the transposed REG
+    // forward; the plain REG path must not pay for it
+    const bool transposed = fwd_transposed(a.np, a.nu);
+    size_t shmem = (REG && !transposed) ? 0
+                                       : (size_t)wpb * a.nu * sizeof(double2);
     int nb_f = a.ne < 4096 ? (a.ne + wpb - 1) / wpb : 2048;
     if (nb_f < 1) nb_f = 1;
     if (mode != 2)
@@ -1311,7 +1353,7 @@ static void run_bi(const BiArgs& a, int mode) {
     int wpb = REG ? NWARP : pick_wpb(a.nu);
     // The W tile is needed by the non-REG path and by the transposed REG
     // forward; the plain REG path must not pay for it.
-    const bool transposed = bi_transposed(a.np, a.nu);
+    const bool transposed = fwd_transposed(a.np, a.nu);
     size_t shmem = (REG && !transposed) ? 0
                                        : (size_t)wpb * a.nu * sizeof(double2);
     int nb_f = a.ne < 4096 ? (a.ne + wpb - 1) / wpb : 2048;
