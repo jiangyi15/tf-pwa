@@ -71,6 +71,22 @@ __device__ __forceinline__ double2 warp_sum2(double ar, double ai)
                         __shfl_sync(0xffffffffu, ai, 0));
 }
 
+// Same sum over the first W lanes of the warp, without the final broadcast.
+// ``basis_index`` puts chain u in lane u and stores the amplitude only from
+// lane 0, so reducing inside the W-lane group (W = next power of two >= nu,
+// capped at 32) halves the SHFL count of ``warp_sum2``; every lane of the warp
+// still executes the instruction.  Only the basis-index kernels use it.
+template <int W>
+__device__ __forceinline__ double2 warp_sum_width(double ar, double ai)
+{
+    #pragma unroll
+    for (int o = W >> 1; o > 0; o >>= 1) {
+        ar += __shfl_down_sync(0xffffffffu, ar, o, W);
+        ai += __shfl_down_sync(0xffffffffu, ai, o, W);
+    }
+    return make_double2(ar, ai);
+}
+
 template <int S, bool REG>
 __global__ void dense_fwd_kernel(
     const double2* __restrict__ F,   // [ne * np * nu]
@@ -769,6 +785,11 @@ __global__ void dense_fwd_bi_kernel(
     const int wpb   = blockDim.x >> 5;
     const int gwarp = blockIdx.x * wpb + wid;
     const int nwarp = gridDim.x * wpb;
+    // V3: chains live in lanes 0..nu-1, so a narrower reduction tree suffices
+    const int rw = nu >= 32 ? 32 : (nu <= 8 ? 8 : (nu <= 16 ? 16 : 32));
+    // V4: lanes hold projections instead of chains when the projection axis
+    // fits in a warp and has at least as many entries as there are chains
+    const bool transposed = np <= 32 && np >= nu;
     double2* Wl = wsh + (size_t)wid * nu;
 
     for (int e = gwarp; e < ne; e += nwarp) {
@@ -797,26 +818,50 @@ __global__ void dense_fwd_bi_kernel(
                     }
                     if (D_out) D_out[(long long)e*nu + u] = make_double2(dr, di);
                     const double den = dr*dr + di*di;
+                    const double inv = 1.0 / den;   // one reciprocal, not two
                     const double2 c = C[u];
-                    wc[k] = make_double2((c.x*dr + c.y*di) / den,
-                                         (c.y*dr - c.x*di) / den);
+                    wc[k] = make_double2((c.x*dr + c.y*di) * inv,
+                                         (c.y*dr - c.x*di) * inv);
+                    if (transposed) Wl[u] = wc[k];
                 }
             }
-            for (int p = 0; p < np; p++) {
-                double ar = 0.0, ai = 0.0;
-                #pragma unroll
-                for (int k = 0; k < MAXUPW; k++) {
-                    const int u = lane + 32*k;
-                    if (u < nu) {
+            if (transposed) {
+                // One lane per projection: np lanes read W from the shared
+                // tile and sum over the chains, so the per-projection warp
+                // reduction disappears and the amplitude stores coalesce.
+                __syncwarp();
+                if (lane < np) {
+                    double ar = 0.0, ai = 0.0;
+                    const long long row0 = (long long)lane * nu_red;
+                    for (int u = 0; u < nu; u++) {
+                        const double2 w = Wl[u];
                         const double2 f = bi_col<T>(
                             FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL,
-                            (long long)p*nu_red + fu[k]);
-                        ar += f.x*wc[k].x - f.y*wc[k].y;
-                        ai += f.x*wc[k].y + f.y*wc[k].x;
+                            row0 + MU[u]);
+                        ar += f.x*w.x - f.y*w.y;
+                        ai += f.x*w.y + f.y*w.x;
                     }
+                    A_out[(long long)e*np + lane] = make_double2(ar, ai);
                 }
-                const double2 A = warp_sum2(ar, ai);
-                if (lane == 0) A_out[(long long)e*np + p] = A;
+            } else {
+                for (int p = 0; p < np; p++) {
+                    double ar = 0.0, ai = 0.0;
+                    #pragma unroll
+                    for (int k = 0; k < MAXUPW; k++) {
+                        const int u = lane + 32*k;
+                        if (u < nu) {
+                            const double2 f = bi_col<T>(
+                                FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL,
+                                (long long)p*nu_red + fu[k]);
+                            ar += f.x*wc[k].x - f.y*wc[k].y;
+                            ai += f.x*wc[k].y + f.y*wc[k].x;
+                        }
+                    }
+                    const double2 A = rw == 8 ? warp_sum_width<8>(ar, ai)
+                                    : rw == 16 ? warp_sum_width<16>(ar, ai)
+                                               : warp_sum_width<32>(ar, ai);
+                    if (lane == 0) A_out[(long long)e*np + p] = A;
+                }
             }
         } else {
             for (int u = lane; u < nu; u += 32) {
@@ -836,8 +881,9 @@ __global__ void dense_fwd_bi_kernel(
                 }
                 if (D_out) D_out[(long long)e*nu + u] = make_double2(dr, di);
                 const double den = dr*dr + di*di;
-                Wl[u] = make_double2((c.x*dr + c.y*di) / den,
-                                     (c.y*dr - c.x*di) / den);
+                const double inv = 1.0 / den;   // one reciprocal, not two
+                Wl[u] = make_double2((c.x*dr + c.y*di) * inv,
+                                     (c.y*dr - c.x*di) * inv);
             }
             __syncwarp();
             for (int p = 0; p < np; p++) {
@@ -850,7 +896,9 @@ __global__ void dense_fwd_bi_kernel(
                     ar += f.x*wv.x - f.y*wv.y;
                     ai += f.x*wv.y + f.y*wv.x;
                 }
-                const double2 A = warp_sum2(ar, ai);
+                const double2 A = rw == 8 ? warp_sum_width<8>(ar, ai)
+                                : rw == 16 ? warp_sum_width<16>(ar, ai)
+                                           : warp_sum_width<32>(ar, ai);
                 if (lane == 0) A_out[(long long)e*np + p] = A;
             }
         }
@@ -888,6 +936,8 @@ __global__ void dense_grad_bi_kernel(
             #pragma unroll
             for (int i = 0; i < S; i++) { dgr[i] = 0.0; }
 
+            // unrolling exposes a second event's loads to the scheduler
+            #pragma unroll 2
             for (int e = blockIdx.x; e < ne; e += gridDim.x) {
                 const long long bo = (long long)e * nb;
                 const long long fo = (long long)e * nf;
@@ -895,13 +945,11 @@ __global__ void dense_grad_bi_kernel(
                 const double2 dv = D[(long long)e*nu + u];
                 const double tr = dv.x, ti = dv.y;
 
+                // D already holds the forward denominator for (e, u), so the
+                // ratios (d.d)/|d|^2 and (d x d)/|d|^2 are exactly (1, 0):
+                // only the B entries themselves are needed, once
                 double bvr[S], bvi[S];
-                double orr = 1.0, oi = 0.0;
                 if (has) {
-                    double dr, di;
-                    line_den_merge_bi<S, T>(BS, MI, BRE, BIM,
-                                         PB_PTR, PB_COL, PB_VAL,
-                                         G, bo, o, s, dr, di);
                     #pragma unroll
                     for (int i = 0; i < S; i++)
                         if (i < s) {
@@ -911,22 +959,22 @@ __global__ void dense_grad_bi_kernel(
                             bvr[i] = b.x;
                             bvi[i] = b.y;
                         }
-                    const double dn = dr*dr + di*di;
-                    orr = (dv.x*dr + dv.y*di) / dn;
-                    oi = (dv.y*dr - dv.x*di) / dn;
                 }
 
                 double gwr = 0.0, gwi = 0.0;
-                for (int p = 0; p < np; p++) {
+                int row = fu;   // row id is event invariant: row += nu_red
+                for (int p = 0; p < np; p++, row += nu_red) {
                     const double2 da = DLA[ao+p];
                     const double2 f = bi_col<T>(
-                        FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL,
-                        (long long)p*nu_red + fu);
+                        FS, fo, FRE, FIM, PF_PTR, PF_COL, PF_VAL, row);
                     gwr += da.x*f.x + da.y*f.y;
                     gwi += da.y*f.x - da.x*f.y;
                 }
+                // den^-1 once; pn == den^2 so 1/pn == inv*inv: four divisions
+                // per (event, chain) become one
                 const double den = tr*tr + ti*ti;
-                const double icr = tr/den, ici = ti/den;
+                const double inv = 1.0 / den;
+                const double icr = tr*inv, ici = ti*inv;
                 if (l == 0) {
                     dcr += gwr*icr - gwi*ici;
                     dci += gwr*ici + gwi*icr;
@@ -934,14 +982,14 @@ __global__ void dense_grad_bi_kernel(
                 const double gir = c.x*gwr + c.y*gwi;
                 const double gii = c.x*gwi - c.y*gwr;
                 const double pr = tr*tr - ti*ti, pi = -2.0*tr*ti;
-                const double pn = pr*pr + pi*pi;
-                const double ipr = pr/pn, ipi = -pi/pn;
+                const double pinv = inv*inv;
+                const double ipr = pr*pinv, ipi = -pi*pinv;
                 const double gdenr = -(gir*ipr - gii*ipi);
                 const double gdeni = -(gir*ipi + gii*ipr);
 
                 if (has) {
-                    const double glr = gdenr*orr + gdeni*oi;
-                    const double gli = gdeni*orr - gdenr*oi;
+                    const double glr = gdenr;
+                    const double gli = gdeni;
                     #pragma unroll
                     for (int i = 0; i < S; i++) {
                         if (i < s) {
@@ -1209,7 +1257,11 @@ static void run_bi(const BiArgs& a, int mode) {
     double2* A = reinterpret_cast<double2*>(a.a_out);
     double2* D = reinterpret_cast<double2*>(a.d_out);
     int wpb = REG ? NWARP : pick_wpb(a.nu);
-    size_t shmem = REG ? 0 : (size_t)wpb * a.nu * sizeof(double2);
+    // The W tile is needed by the non-REG path and by the transposed REG
+    // forward; the plain REG path must not pay for it.
+    const bool transposed = a.np <= 32 && a.nu <= a.np;
+    size_t shmem = (REG && !transposed) ? 0
+                                       : (size_t)wpb * a.nu * sizeof(double2);
     int nb_f = a.ne < 4096 ? (a.ne + wpb - 1) / wpb : 2048;
     if (nb_f < 1) nb_f = 1;
     if (mode != 2)
