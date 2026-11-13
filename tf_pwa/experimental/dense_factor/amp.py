@@ -8,18 +8,42 @@ The contraction is dispatched through :mod:`.backend` (the TF reference by
 default); the strategies and their records come from :mod:`.compress`.
 """
 
+from types import MappingProxyType
+
 import numpy as np
 import tensorflow as tf
 
 from tf_pwa.amp.amp import BaseAmplitudeModel, register_amp_model
 
-from .backend import BACKENDS, Backend, pick_backend
+from .backend import (
+    BACKENDS,
+    get_op,
+    get_prepare,
+    pick_backend,
+    register_backend,
+    register_op,
+)
 from .compress import (
     _COMPRESSIONS,
     _compression_of,
     _unpack_terms,
+    _warn_op_failure,
     basis_key,
     merge_record,
+)
+
+#: Every key ``get_layout`` provides; a backend reads the subset it needs.
+#: ``off``/``sz`` are ``None`` on the dense models (no fused kernel layout).
+LAYOUT_KEYS = (
+    "off",
+    "sz",
+    "n_line",
+    "max_basis",  # fused kernels
+    "n_u",
+    "sparse_index",
+    "sparse_shape",  # TF reference
+    "line_mask",
+    "line_mask_all",
 )
 
 
@@ -30,6 +54,9 @@ class DenseFactorModel(BaseAmplitudeModel):
 
     def init_params(self, name=""):
         super().init_params(name)
+        # the per-record static op inputs: a re-init drops stale entries (the
+        # record identity check in ``_prepare_op`` covers a refit)
+        self._prepared = {}
         dg = self.decay_group
         structure = dg.get_dense_structure()
         n_u = structure["n_u"]
@@ -60,6 +87,20 @@ class DenseFactorModel(BaseAmplitudeModel):
         self.line_mask = tf.constant(line_mask)
         self.line_mask_all = bool(np.all(line_mask))
 
+        self._layout = MappingProxyType(
+            {
+                "off": None,
+                "sz": None,
+                "n_line": max_internal_lines,
+                "max_basis": 0,
+                "n_u": n_u,
+                "sparse_index": self.sparse_index,
+                "sparse_shape": self.sparse_shape,
+                "line_mask": self.line_mask,
+                "line_mask_all": self.line_mask_all,
+            }
+        )
+
         self._coeff_fn = None
         if n_u > 0 and n_param > 0:
 
@@ -70,6 +111,18 @@ class DenseFactorModel(BaseAmplitudeModel):
                 self._coeff_fn = tf.function(_build_coeff)
             except Exception:
                 self._coeff_fn = None
+
+    def get_layout(self):
+        """The layout this model's backends need, as a read-only mapping.
+
+        Model-owned and built once in ``init_params`` -- eager tensors here are
+        captured as constants by any graph that uses them, while a constant
+        created during a trace belongs to that ``FuncGraph``.  Keys are
+        ``LAYOUT_KEYS`` (``off``/``sz`` are ``None`` without a fused kernel
+        layout).  It is a ``MappingProxyType``, so a backend that tries to
+        write it raises instead of silently changing the model.
+        """
+        return self._layout
 
     def cp_transform(self):
         """``(frac, change)`` for the CP-conjugate amplitude, like get_amp3."""
@@ -177,6 +230,29 @@ class DenseFactorModel(BaseAmplitudeModel):
         """
         return F, B
 
+    def _prepare_op(self, name, method, strategy, record, layout):
+        """The static op inputs for (backend, method), cached per record.
+
+        Keyed by the backend as well, so a prepared computed for one backend
+        can never be served to another.  The record identity is the staleness
+        check: a refit produces a new record and rebuilds.  A prepare that
+        raises is reported once and treated as absent, so the op infers as
+        before instead of failing the evaluation.
+        """
+        fn = get_prepare(name, method)
+        if fn is None:
+            return None
+        hit = self._prepared.get((name, method))
+        if hit is not None and hit[0] is record:
+            return hit[1]
+        try:
+            prepared = fn(strategy, record, layout)
+        except Exception as exc:
+            _warn_op_failure("{}/{}".format(name, method), exc)
+            prepared = None
+        self._prepared[(name, method)] = (record, prepared)
+        return prepared
+
     def _amplitude(self, F, B, C, g, dtype):
         """``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` for one block.
 
@@ -188,46 +264,17 @@ class DenseFactorModel(BaseAmplitudeModel):
         record = self.merge if hasattr(self, "merge_id") else None
         method = record["method"] if record else None
         strategy = _compression_of(record)
-        # the TF reference reads the model's cached sparse layout from here
-        strategy.model = self
-        off, sz, n_line, max_basis = self._backend_layout()
-        # a backend that needs the chain layout is skipped when there is none
-        # (the normal case for the dense models); the reference rebuilds the
-        # denominator from its own structure instead
-        prefer = tuple(
-            name
-            for name in self.prefer
-            if not (
-                getattr(BACKENDS.get(name), "needs_layout", False)
-                and off is None
-            )
+        layout = self.get_layout()
+        # every backend gets the same arguments; a fused entry that cannot
+        # use this model's layout (``layout["off"] is None``) declines and
+        # the reference runs for that call
+        name = pick_backend(method, self.prefer)
+        # the backend's static inputs are derived once per record, not per
+        # call: the ops' template bounds are then plain ints
+        prepared = self._prepare_op(name, method, strategy, record, layout)
+        return get_op(name, method)(
+            strategy, record, F, B, C, g, layout, prepared
         )
-        backend = pick_backend(method, record, prefer)
-        return backend.functions[method](
-            strategy,
-            record,
-            F,
-            B,
-            C,
-            g,
-            off,
-            sz,
-            n_line=n_line,
-            max_basis=max_basis,
-        )
-
-    def _backend_layout(self):
-        """``(off, sz, n_line, max_basis)`` for the fused backends.
-
-        The op models fill ``_layout`` in ``init_params``; the dense models
-        have none, and the TF reference ignores the two arrays (it rebuilds
-        the denominator from ``sparse_index``).
-        """
-        layout = getattr(self, "_layout", None)
-        if layout is not None:
-            return layout
-        structure = self.decay_group.get_dense_structure()
-        return None, None, structure["max_internal_lines"], 0
 
     def _coeff_cpu_fn(self):
         """Opt-in: build ``C``/``g`` and their VJP on CPU under XLA.
@@ -279,55 +326,66 @@ class DenseFactorModel(BaseAmplitudeModel):
         return fn
 
 
-def _dense_contract(
-    strategy, record, F, B, C, g, off, sz, *, n_line, max_basis
-):
+def _dense_contract(strategy, record, F, B, C, g, layout, prepared=None):
     """The TF reference contraction: expand the stored basis, then contract.
 
     ``A[e, p] = sum_u F[e, p, u] C[u] / den[u, e]`` over one block.  The
     strategy puts the stored basis back to full width (identity for a plain
-    basis), the denominator is one sparse matmul driven by the model's cached
-    ``sparse_index``/``line_mask``, and the projection is a matvec.
-
-    ``off``/``sz``/``max_basis`` are the fused backends' layout; the dense
-    body rebuilds the same denominator from ``sparse_index`` (a constant per
-    model) instead of a per-call gather, so they are accepted and ignored
-    here.  ``strategy.model`` carries the model whose layout this is (see
-    ``_Compression.model``).
+    basis), the denominator is one sparse matmul driven by the model-owned
+    ``sparse_index``/``line_mask`` in ``layout``, and the projection is a
+    matvec.  ``off``/``sz`` are the fused kernels' keys and are ignored here:
+    the dense body rebuilds the same denominator from ``sparse_index`` (a
+    constant per model) instead of a per-call gather.  ``prepared`` is the
+    fused backend's static-input dict; the reference derives everything it
+    needs from the tensors, so it is ignored.
     """
-    model = strategy.model
     dtype = C.dtype
     F, B = strategy.expand(record, F, B)
     F = _unpack_terms(F, dtype)
     B = _unpack_terms(B, dtype)
-    n_u = model.decay_group.get_dense_structure()["n_u"]
+    n_u = layout["n_u"]
+    sparse_index = layout["sparse_index"]
+    sparse_shape = layout["sparse_shape"]
+    line_mask = layout["line_mask"]
+    line_mask_all = layout["line_mask_all"]
+    n_line = layout["n_line"]
     if n_line == 0:
         D = tf.ones((tf.shape(F)[0], n_u), dtype=dtype)
     else:
-        values = tf.gather(tf.cast(g, B.dtype), model.sparse_index[:, 1])
-        sp = tf.sparse.SparseTensor(
-            model.sparse_index, values, model.sparse_shape
-        )
+        values = tf.gather(tf.cast(g, B.dtype), sparse_index[:, 1])
+        sp = tf.sparse.SparseTensor(sparse_index, values, sparse_shape)
         # B is stored event-first; the sparse matmul consumes it
         # param-major, so the fallback pays the transpose.
         D = tf.transpose(tf.sparse.sparse_dense_matmul(sp, tf.transpose(B)))
-        if n_line == 1 and model.line_mask_all:
+        if n_line == 1 and line_mask_all:
             D = tf.reshape(D, [tf.shape(F)[0], n_u])
         else:
             D = tf.reshape(D, [tf.shape(F)[0], n_u, n_line])
-            D = tf.where(model.line_mask[None, :, :], D, tf.ones_like(D))
+            D = tf.where(line_mask[None, :, :], D, tf.ones_like(D))
             D = tf.reduce_prod(D, axis=-1)
 
     W = tf.math.divide_no_nan(C[None, :], D)
     return tf.linalg.matvec(F, W)
 
 
-#: Every method the preprocessor can record has a reference contraction, so a
-#: backend that declines (or fails) always has somewhere to fall back to.
-Backend.functions.update(dict.fromkeys(_COMPRESSIONS, _dense_contract))
-assert all(
-    callable(fn) for fn in Backend.functions.values()
-), "the reference table must hold callables"
+#: The reference backend: the same contraction for every recorded method.
+#: It is the fallback for any backend that declines or fails, so its table
+#: must cover everything the preprocessor can record.
+register_backend("tf")
+for _method in _COMPRESSIONS:
+    register_op("tf", _method)(_dense_contract)
+del _method
+
+_missing = set(_COMPRESSIONS) - set(BACKENDS["tf"]["functions"])
+if _missing:
+    raise RuntimeError(
+        "the TF reference is missing contractions for {}".format(
+            sorted(_missing)
+        )
+    )
+if not all(callable(get_op("tf", method)) for method in _COMPRESSIONS):
+    raise RuntimeError("the reference table must hold callables")
+del _missing
 
 
 @register_amp_model("dense_factor_merge")

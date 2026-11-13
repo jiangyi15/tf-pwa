@@ -339,10 +339,11 @@ _OP_FAILURES = set()
 def _warn_op_failure(method, exc):
     """Report a failed fused call without disabling the op for the process.
 
-    A single block the kernel cannot take (a degenerate record, a shape the
-    wrapper rejects) must fall back here and leave every other record using
-    the op; only a distinct failure is reported, so the log does not grow on
-    every evaluation.
+    Called by the fused backend (``dense_factor_op_model``), which owns the
+    op execution; a single block the kernel cannot take (a degenerate record,
+    a shape the wrapper rejects) must fall back there and leave every other
+    record using the op.  Only a distinct failure is reported, so the log
+    does not grow on every evaluation.
     """
     sig = (method, type(exc).__name__, str(exc)[:200])
     if sig in _OP_FAILURES:
@@ -364,13 +365,6 @@ class _Compression:
 
     name = None
     options = ()
-    #: The model whose cached sparse layout the TF reference uses.  Bound by
-    #: ``DenseFactorModel._amplitude`` for the duration of one backend call:
-    #: that layout is per model rather than per record, and putting it on the
-    #: callable signature would hand a TF-only argument to the fused
-    #: backends, which never read it.  The instance is created per call, so
-    #: nothing leaks between models.
-    model = None
     #: True when the record stores one *real* block that the fused ops read
     #: in its stored dtype (float64/float32/fp16).  The op-model path then
     #: leaves the block alone instead of expanding it first; every other
@@ -412,25 +406,6 @@ class _IndexCompression(_Compression):
     def expand(self, record, F, B):
         return _expand_block(record, F, B)
 
-    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
-        from ..dense_factor_op import (
-            dense_factor_merge_a,
-            dense_factor_merge_an,
-        )
-
-        fn = dense_factor_merge_a if n_line == 1 else dense_factor_merge_an
-        return fn(
-            F,
-            B,
-            C,
-            g,
-            off,
-            sz,
-            record["map_u"],
-            record["map_i"],
-            max_basis=max_basis,
-        )
-
 
 class _BasisIndexCompression(_IndexCompression):
     """``index`` with a sparse exact basis, stored as one real block.
@@ -457,12 +432,10 @@ class _BasisIndexCompression(_IndexCompression):
     stores_real_block = True
     name = "basis_index"
 
-    #: Use the fused sparse-basis op; False keeps the rebuild path (a test
-    #: knob that also proves the two agree).
+    #: Whether the fused backend may contract this record; ``False`` forces
+    #: the reference path (a test knob that also proves the two agree).  The
+    #: backend reads it, the strategy itself never calls an op.
     use_op = True
-
-    #: ``None`` until the op has been probed once (see ``_contract_op``)
-    _op_ready = None
 
     def prepare(self, F, B):
         record = super().prepare(F, B)
@@ -606,85 +579,6 @@ class _BasisIndexCompression(_IndexCompression):
         F, B = out
         return _expand_block(record, F, B)
 
-    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
-        if self.use_op:
-            amp = self._contract_op(
-                record, F, B, C, g, off, sz, n_line, max_basis
-            )
-            if amp is not None:
-                return amp
-        F = None if F is None else self._rebuild(record, F, "f", record["np"])
-        B = None if B is None else self._rebuild(record, B, "b", None)
-        return super().contract(
-            record, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis
-        )
-
-    def _contract_op(self, record, F, B, C, g, off, sz, n_line, max_basis):
-        """The fused contraction on the stored basis block, or ``None``.
-
-        ``None`` means the caller should rebuild the complex basis (and the
-        dropped columns) and use the general Merge op: the op is not built on
-        this machine, the blocks are not the stored real pair (a complex one
-        was passed in), or there is no denominator line for the general
-        kernel.
-        """
-        from .. import dense_factor_op
-
-        if F is None or B is None or n_line < 1:
-            return None
-        if F.dtype.is_complex or B.dtype.is_complex:
-            return None
-        if F.shape.rank != 2 or B.shape.rank != 2:
-            return None
-        if not 1 <= int(record.get("terms", 0)) <= _TERMS:
-            warnings.warn(
-                "basis_index has a {}-term transform; the unrolled reader "
-                "supports 1 to {}, so this call rebuilds the basis".format(
-                    record.get("terms"), _TERMS
-                )
-            )
-            return None
-        # probed once: is_available() builds (and caches) the library, so
-        # only the first call pays for it
-        if _BasisIndexCompression._op_ready is None:
-            ready = bool(dense_factor_op.is_available())
-            _BasisIndexCompression._op_ready = ready
-            if not ready:
-                warnings.warn(
-                    "the dense_factor basis-index op is not available; "
-                    "basis_index rebuilds the complex basis instead"
-                )
-        if not _BasisIndexCompression._op_ready:
-            return None
-        try:
-            return dense_factor_op.dense_factor_bi(
-                F,
-                B,
-                C,
-                g,
-                off,
-                sz,
-                record["map_u"],
-                record["map_i"],
-                record["f_re_map"],
-                record["f_im_map"],
-                record["b_re_map"],
-                record["b_im_map"],
-                record["f_ptr"],
-                record["f_col"],
-                record["f_val"],
-                record["b_ptr"],
-                record["b_col"],
-                record["b_val"],
-                record["terms"],
-                max_basis=max_basis,
-            )
-        except Exception as exc:  # environment or map mismatch
-            # one block the op cannot take must not disable it for every
-            # later model: warn once per distinct failure and rebuild here
-            _warn_op_failure("basis_index", exc)
-            return None
-
 
 class _RealIndexCompression(_IndexCompression):
     """``index`` with the real and imaginary parts stored as one real block.
@@ -705,12 +599,10 @@ class _RealIndexCompression(_IndexCompression):
     stores_real_block = True
     name = "real_index"
 
-    #: Use the fused split op; False keeps the reconstruct path (a test knob
-    #: that also proves the two agree).
+    #: Whether the fused backend may contract this record; ``False`` forces
+    #: the reference path (a test knob that also proves the two agree).  The
+    #: backend reads it, the strategy itself never calls an op.
     use_op = True
-
-    #: ``None`` until the op has been probed once (see ``_contract_op``)
-    _op_ready = None
 
     def prepare(self, F, B):
         record = super().prepare(F, B)
@@ -780,68 +672,6 @@ class _RealIndexCompression(_IndexCompression):
         F, B = self._reconstruct(record, F, B)
         return _expand_block(record, F, B)
 
-    def _contract_op(self, record, F, B, C, g, off, sz, n_line, max_basis):
-        """The fused contraction on the stored real blocks, or ``None``.
-
-        ``None`` means the caller should rebuild the complex basis and use
-        the general Merge op: the op is not built on this machine, the
-        blocks are not the stored real pair (a complex one was passed in),
-        or there is no denominator line for the general kernel.
-        """
-        from .. import dense_factor_op
-
-        if n_line < 1:
-            return None
-        # probed once: is_available() builds (and caches) the library, so
-        # only the first call pays for it
-        if _RealIndexCompression._op_ready is None:
-            ready = bool(dense_factor_op.is_available())
-            _RealIndexCompression._op_ready = ready
-            if not ready:
-                warnings.warn(
-                    "the dense_factor real-index op is not available; "
-                    "real_index rebuilds the complex basis instead"
-                )
-        if not _RealIndexCompression._op_ready:
-            return None
-        if F.dtype.is_complex or B.dtype.is_complex:
-            return None
-        if F.shape.rank != 2 or B.shape.rank != 2:
-            return None
-        try:
-            return dense_factor_op.dense_factor_ri(
-                F,
-                B,
-                C,
-                g,
-                off,
-                sz,
-                record["map_u"],
-                record["map_i"],
-                record["f_re_map"],
-                record["f_im_map"],
-                record["b_re_map"],
-                record["b_im_map"],
-                max_basis=max_basis,
-            )
-        except Exception as exc:  # environment or map mismatch
-            # a failed op must not break the model: fall back once, noisily,
-            # without disabling the op for other records in this process
-            _warn_op_failure("real_index", exc)
-            return None
-
-    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
-        if self.use_op:
-            amp = self._contract_op(
-                record, F, B, C, g, off, sz, n_line, max_basis
-            )
-            if amp is not None:
-                return amp
-        F, B = self._reconstruct(record, F, B)
-        return super().contract(
-            record, F, B, C, g, off, sz, n_line=n_line, max_basis=max_basis
-        )
-
 
 class _SvdCompression(_Compression):
     """Store the low-rank coefficients ``U = F V^H`` (complex SVD).
@@ -899,14 +729,6 @@ class _SvdCompression(_Compression):
     def expand(self, record, F, B):
         return _expand_svd(record, F, B)
 
-    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
-        # the stored coefficients are rebuilt here, then the plain op runs
-        F, B = _expand_svd(record, F, B)
-        from ..dense_factor_op import dense_factor_a, dense_factor_an
-
-        fn = dense_factor_a if n_line == 1 else dense_factor_an
-        return fn(F, B, C, g, off, sz, max_basis=max_basis)
-
 
 class _RealSvdCompression(_SvdCompression):
     """``svd`` with ``M = C W^T``: real coefficients, complex basis.
@@ -962,12 +784,6 @@ class _NoCompression:
     def expand(self, record, F, B):
         """Nothing was reduced, so the stored basis is already full width."""
         return F, B
-
-    def contract(self, record, F, B, C, g, off, sz, *, n_line, max_basis):
-        from ..dense_factor_op import dense_factor_a, dense_factor_an
-
-        fn = dense_factor_a if n_line == 1 else dense_factor_an
-        return fn(F, B, C, g, off, sz, max_basis=max_basis)
 
 
 _COMPRESSIONS = {

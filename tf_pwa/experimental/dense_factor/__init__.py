@@ -62,8 +62,14 @@ from tf_pwa.phasespace import PhaseSpaceGenerator
 # isort: off
 from .backend import (
     BACKENDS,
-    Backend,
+    PREPARE,
+    get_op,
+    get_prepare,
     pick_backend,
+    register_backend,
+    register_op,
+    register_prepare,
+    supports,
 )
 
 # The compression strategies and the record store live in a sibling module.
@@ -151,6 +157,7 @@ from .preprocess import (  # noqa: F401
     DenseFactorPreProcessor,
 )
 from .amp import (  # noqa: F401
+    LAYOUT_KEYS,
     _dense_contract,
     DenseFactorMergeModel,
     DenseFactorModel,

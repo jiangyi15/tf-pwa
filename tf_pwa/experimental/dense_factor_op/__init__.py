@@ -161,7 +161,20 @@ def dense_factor_merge_an(f, bt, c, g, off, sz, map_u, map_i, max_basis=None):
 
 
 def dense_factor_ri(
-    fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim, max_basis=None
+    fs,
+    bs,
+    c,
+    g,
+    off,
+    sz,
+    mu,
+    mi,
+    fre,
+    fim,
+    bre,
+    bim,
+    max_basis=None,
+    nproj=None,
 ):
     """Like :func:`dense_factor_merge_an` on the stored real blocks.
 
@@ -175,11 +188,15 @@ def dense_factor_ri(
 
     ``np`` (the projection axis of the flattened F block) is recovered from
     the map lengths, so the maps must be constants - they are when they come
-    from a merge record.
+    from a merge record.  ``nproj`` may be supplied by a record-derived
+    prepare; the inference is the fallback for direct callers.
     """
     max_basis = _resolve(sz, max_basis, "dense_factor_ri")
     _check_g(g)
-    nproj = _ri_nproj(fre, mu)
+    if nproj is not None:
+        nproj = int(nproj)
+    else:
+        nproj = _ri_nproj(fre, mu)
     fn = _cached(_A_FNS_RI, (max_basis, nproj), _make_ri)
     return fn(fs, bs, c, g, off, sz, mu, mi, fre, fim, bre, bim)
 
@@ -205,6 +222,7 @@ def dense_factor_bi(
     b_val,
     terms,
     max_basis=None,
+    nproj=None,
 ):
     """Like :func:`dense_factor_merge_an` on a sparse basis_index block.
 
@@ -224,8 +242,18 @@ def dense_factor_bi(
 
     ``np`` (the projection axis of the flattened F block) is recovered from
     ``f_ptr``, so the maps and arrays must be constants - they are when they
-    come from a merge record.
+    come from a merge record.  ``nproj`` may be supplied by a record-derived
+    prepare; the inference is the fallback for direct callers.
     """
+    # ``nproj`` is a template bound, so resolve it before the casts/reshapes
+    # below: inside a ``tf.function`` those build ordinary graph ops whose
+    # static value is unavailable, while a record tensor is a captured
+    # constant.  Resolving afterwards silently disabled the fused path
+    # whenever the amplitude was traced.
+    if nproj is not None:
+        nproj = int(nproj)
+    else:
+        nproj = _bi_nproj(f_ptr, mu)
     f_ptr = tf.reshape(tf.cast(f_ptr, tf.int32), [-1])
     f_col = tf.reshape(tf.cast(f_col, tf.int32), [-1])
     f_val = tf.reshape(tf.cast(f_val, tf.complex128), [-1])
@@ -233,7 +261,6 @@ def dense_factor_bi(
     b_col = tf.reshape(tf.cast(b_col, tf.int32), [-1])
     b_val = tf.reshape(tf.cast(b_val, tf.complex128), [-1])
     max_basis = _resolve(sz, max_basis, "dense_factor_bi")
-    nproj = _bi_nproj(f_ptr, mu)
     terms = int(terms)
     if not 1 <= terms <= 4:
         raise ValueError(

@@ -555,8 +555,8 @@ def test_dense_factor_backend_standalone_import():
     code = (
         "import tf_pwa.experimental.dense_factor.backend as b\n"
         "print(b.__file__)\n"
-        "print(b.pick_backend(None, None).name)\n"
-        "print(b.pick_backend('index', None, ('missing',)).name)\n"
+        "print(b.pick_backend(None, ('cuda', 'tf')))\n"
+        "print(b.pick_backend('index', ('missing', 'tf')))\n"
     )
     out = subprocess.run(
         [sys.executable, "-c", code],
@@ -575,15 +575,16 @@ def test_dense_factor_backend_standalone_import():
 def test_dense_factor_backend_missing_method(monkeypatch):
     """A reference table without the method fails with a pointed error.
 
-    Importing a submodule runs the package ``__init__``, which fills the
-    table, so this state is only reachable through a mistake in that wiring;
-    the error names the module to import rather than a bare ``KeyError``.
+    Importing a submodule runs the package ``__init__``, which registers the
+    TF backend, so this state is only reachable through a mistake in that
+    wiring; the error names the module to import rather than a bare
+    ``KeyError``.
     """
     from tf_pwa.experimental.dense_factor import backend as b
 
-    monkeypatch.delitem(b.Backend.functions, "index")
+    monkeypatch.delitem(b.BACKENDS["tf"]["functions"], "index")
     with pytest.raises(RuntimeError, match="dense_factor"):
-        b.pick_backend("index", None, ("missing",))
+        b.pick_backend("index", ("missing",))
 
 
 def test_dense_factor_op_plain_model_uses_fused_op(monkeypatch):
@@ -655,6 +656,179 @@ def test_dense_factor_op_plain_model_uses_fused_op(monkeypatch):
     x0 = a0(c0.data.cal_angle(p4)).numpy()
     assert not calls, "the dense model must stay on the reference backend"
     assert np.allclose(x_op, x0, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_op_model_without_layout_uses_reference(monkeypatch):
+    """A fused model with no layout declines and runs the reference.
+
+    Selection is uniform now: every backend gets the model-owned ``layout``
+    dict, so the fused entry is the one that notices ``off is None``, reports
+    once and returns the TF reference for that call instead of failing.
+    """
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import yaml
+
+    import tf_pwa.experimental.dense_factor as df
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, "config_self_cp.yml")) as f:
+        base = yaml.full_load(f)
+
+    cfg = {
+        **base,
+        "data": {
+            **base["data"],
+            "format": "simple",
+            "r_boost": False,
+            "amp_model": "dense_factor_op",
+            "preprocessor": {"dense_factor": {"force_cpu": True}},
+        },
+    }
+    ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+    p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(100)))
+    c = ConfigLoader(cfg)
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    assert amp._layout is not None
+
+    fused = amp(d).numpy()
+
+    # the fused backend is still selected, and declines inside the entry
+    monkeypatch.setattr(
+        amp, "get_layout", lambda: dict(amp._layout, off=None, sz=None)
+    )
+    snapshot = set(df._OP_FAILURES)
+    df._OP_FAILURES.clear()
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            reference = amp(d).numpy()
+    finally:
+        df._OP_FAILURES.clear()
+        df._OP_FAILURES.update(snapshot)
+
+    said = [
+        str(w.message) for w in caught if "no fused layout" in str(w.message)
+    ]
+    assert len(said) == 1, said
+    assert "using the reference contraction" in said[0]
+    assert np.allclose(reference, fused, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_layout_keys():
+    """``get_layout`` is the model-owned dict every backend reads.
+
+    The plain dense model has no fused layout (``off``/``sz`` are ``None``);
+    the op model fills those two keys from the op package.  Both expose the
+    same key set and cache the dict rather than rebuilding it per call.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import LAYOUT_KEYS
+
+    cfg = _config(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BW",
+            "running_width": False,
+        }
+    )
+    cfg = {
+        **cfg,
+        "data": {
+            **cfg["data"],
+            "preprocessor": "dense_factor",
+            "amp_model": "dense_factor",
+        },
+    }
+    c = ConfigLoader(cfg)
+    amp = c.get_amplitude()
+    layout = amp.get_layout()
+    assert tuple(sorted(layout)) == tuple(sorted(LAYOUT_KEYS))
+    assert amp.get_layout() is layout
+    assert layout["off"] is None and layout["sz"] is None
+    assert isinstance(layout["n_line"], int)
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    cfg2 = {
+        **cfg,
+        "data": {
+            **cfg["data"],
+            "amp_model": "dense_factor_op",
+            "preprocessor": {"dense_factor": {"force_cpu": True}},
+        },
+    }
+    amp2 = ConfigLoader(cfg2).get_amplitude()
+    layout2 = amp2.get_layout()
+    assert tuple(sorted(layout2)) == tuple(sorted(LAYOUT_KEYS))
+    assert amp2.get_layout() is layout2
+    assert isinstance(layout2["off"], tf.Tensor)
+    assert isinstance(layout2["sz"], tf.Tensor)
+    assert layout2["off"].dtype.is_integer
+    assert layout2["sz"].dtype.is_integer
+    assert isinstance(layout2["n_line"], int)
+    assert isinstance(layout2["max_basis"], int)
+
+
+def test_dense_factor_strategy_has_no_model(monkeypatch):
+    """The model is not threaded through the strategy any more.
+
+    The layout travels as the dict argument; a strategy that carried the
+    model would be a second, per-call owner of the same data.
+    """
+    from tf_pwa.experimental.dense_factor import _Compression, backend
+
+    assert not hasattr(_Compression, "model")
+
+    seen = []
+    original = backend.get_op("tf", None)
+
+    def spy(strategy, *args, **kwargs):
+        seen.append(strategy)
+        return original(strategy, *args, **kwargs)
+
+    monkeypatch.setitem(backend.BACKENDS["tf"]["functions"], None, spy)
+
+    cfg = _config(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BW",
+            "running_width": False,
+        }
+    )
+    cfg = {
+        **cfg,
+        "data": {
+            **cfg["data"],
+            "preprocessor": "dense_factor",
+            "amp_model": "dense_factor",
+        },
+    }
+    c = ConfigLoader(cfg)
+    (p_b, p_d), p_c = generate_phsp(4.6, ((2.0, (1.0, 0.4)), 0.5), N=10)
+    amp = c.get_amplitude()
+    amp(c.data.cal_angle({"B": p_b, "D": p_d, "C": p_c}))
+
+    assert seen
+    for strategy in seen:
+        assert getattr(strategy, "model", None) is None
 
 
 def test_dense_factor_op_model():
@@ -2656,9 +2830,10 @@ def test_dense_factor_real_index_op_matches_rebuild(monkeypatch):
 
     ``method: real_index`` in the op model goes through
     ``DenseFactorFwdRi``/``GradRi`` on ``d["F"]``/``d["B"]`` directly;
-    forcing ``use_op = False`` rebuilds the complex basis and runs the
-    general Merge op.  Both see the same data and the same record, so the
-    amplitude and the parameter gradients must agree.
+    forcing ``use_op = False`` makes the backend hand the record to the TF
+    reference, which expands the stored block itself.  Both see the same data
+    and the same record, so the amplitude and the parameter gradients must
+    agree.
     """
     import tensorflow as tf
 
@@ -2767,42 +2942,89 @@ def test_dense_factor_merge_sample_matches_angle_options(method):
 def test_dense_factor_backend_registry():
     """Every recorded method has a TF reference, and lookup always falls back.
 
-    The backend table is what ``DenseFactorModel._amplitude`` dispatches on:
-    the TF reference must cover every method the preprocessor can record (so
-    a fused backend can always decline), ``prefer`` must be honoured in order,
-    and an unknown method or an unregistered backend must land on TF rather
-    than raising.
+    ``_amplitude`` dispatches on the flat registry: the TF table must cover
+    every method the preprocessor can record (so a fused backend can always
+    decline), ``prefer`` must be honoured in order, and a backend this
+    process never registered must land on TF rather than raising.
     """
-    from tf_pwa.experimental.dense_factor import _COMPRESSIONS
+    from tf_pwa.experimental.dense_factor import _COMPRESSIONS, BACKENDS
     from tf_pwa.experimental.dense_factor.backend import (
-        BACKENDS,
-        Backend,
+        get_op,
         pick_backend,
-        register_backend,
+        register_op,
+        supports,
     )
 
     assert "tf" in BACKENDS
-    assert set(_COMPRESSIONS) <= set(Backend.functions)
+    assert set(_COMPRESSIONS) <= set(BACKENDS["tf"]["functions"])
     for method in _COMPRESSIONS:
-        assert callable(Backend.functions[method])
-    assert Backend.needs_layout is False
+        assert callable(get_op("tf", method))
+    # the slot is just the function table: no capability flags
+    assert set(BACKENDS["tf"]) == {"functions"}
 
-    # an explicit preference is honoured; a method the fused table does not
-    # have, and a backend this process never registered, land on the reference
-    assert pick_backend(None, None, ("tf",)).name == "tf"
-    assert pick_backend("svd", {"method": "svd"}, ("cuda", "tf")).name == "tf"
-    assert pick_backend("index", None, ("missing",)).name == "tf"
+    # an explicit preference is honoured, and a backend this process never
+    # registered is skipped for the next name in ``prefer``
+    assert pick_backend(None, ("tf",)) == "tf"
+    assert pick_backend("svd", ("missing", "tf")) == "tf"
+    assert pick_backend("index", ("missing", "tf")) == "tf"
 
-    class _Other(Backend):
-        name = "other"
-        functions = {"index": Backend.functions["index"]}
+    @register_op("other", "index")
+    def _other_index(strategy, record, F, B, C, g, layout, prepared):
+        return get_op("tf", "index")(
+            strategy, record, F, B, C, g, layout, prepared
+        )
 
-    register_backend(_Other)
     try:
-        assert pick_backend("index", None, ("other", "tf")).name == "other"
-        assert pick_backend("svd", None, ("other", "tf")).name == "tf"
+        assert get_op("other", "index") is _other_index
+        assert supports("other", "index") is True
+        assert supports("other", "basis_index") is False
+        assert pick_backend("index", ("other", "tf")) == "other"
+        assert pick_backend("svd", ("other", "tf")) == "tf"
     finally:
         BACKENDS.pop("other", None)
+
+    assert "other" not in BACKENDS
+
+
+def test_dense_factor_backend_registers_only_overrides():
+    """A backend registers only the methods it overrides.
+
+    A method it leaves out stays absent, so ``supports`` declines it and
+    ``pick_backend`` asks the reference instead of the backend that does not
+    provide the contraction.
+    """
+    from tf_pwa.experimental.dense_factor import BACKENDS
+    from tf_pwa.experimental.dense_factor.backend import (
+        get_op,
+        pick_backend,
+        register_op,
+        supports,
+    )
+
+    @register_op("only_one", "index")
+    def _only_index(strategy, record, F, B, C, g, layout, prepared):
+        return get_op("tf", "index")(
+            strategy, record, F, B, C, g, layout, prepared
+        )
+
+    try:
+        # one method registered: the other five are simply absent
+        assert set(BACKENDS["only_one"]["functions"]) == {"index"}
+        assert get_op("only_one", "index") is _only_index
+        assert supports("only_one", "index") is True
+        assert supports("only_one", "basis_index") is False
+        assert pick_backend("index", ("only_one", "tf")) == "only_one"
+        assert (
+            pick_backend(
+                "basis_index",
+                ("only_one", "tf"),
+            )
+            == "tf"
+        )
+    finally:
+        BACKENDS.pop("only_one", None)
+
+    assert "only_one" not in BACKENDS
 
 
 def test_dense_factor_merge_basis_index():
@@ -2863,9 +3085,10 @@ def test_dense_factor_merge_basis_index_op_matches_rebuild(monkeypatch):
 
     ``method: basis_index`` in the op model goes through
     ``DenseFactorFwdBi``/``GradBi`` on ``d["F"]``/``d["B"]`` directly;
-    forcing ``use_op = False`` rebuilds the complex basis and the dropped
-    columns and runs the general Merge op.  Both see the same data and the
-    same record, so the amplitude and the parameter gradients must agree.
+    forcing ``use_op = False`` makes the backend hand the record to the TF
+    reference, which rebuilds the complex basis and the dropped columns.  Both
+    see the same data and the same record, so the amplitude and the parameter
+    gradients must agree.
     """
     import tensorflow as tf
     import yaml
@@ -2930,6 +3153,458 @@ def test_dense_factor_merge_basis_index_op_matches_rebuild(monkeypatch):
     assert len(g_op) == len(g_rb) and g_op
     for x, y in zip(g_op, g_rb):
         assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_basis_index_op_traced_uses_fused_op(monkeypatch):
+    """The sparse-basis entry stays fused when the amplitude is traced.
+
+    ``dense_factor_bi`` recovers its ``nproj`` template bound from
+    ``f_ptr``.  Resolving it after the casts/reshapes made
+    ``tf.get_static_value`` return ``None`` inside a ``tf.function``, so the
+    op declined and every traced amplitude silently ran the reference.  The
+    spy plus the absent fallback warning is the regression test.
+    """
+    import tensorflow as tf
+    import yaml
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    here = os.path.dirname(__file__)
+    with open(os.path.join(here, "config_self_cp.yml")) as f:
+        base = yaml.full_load(f)
+
+    cfg = {
+        **base,
+        "data": {
+            **base["data"],
+            "format": "simple",
+            "r_boost": False,
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": "basis_index"}},
+        },
+    }
+    c = ConfigLoader(cfg)
+    ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+    p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(200)))
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+
+    used = []
+    original = op_mod.dense_factor_bi
+    monkeypatch.setattr(
+        op_mod,
+        "dense_factor_bi",
+        lambda *a, **k: used.append(1) or original(*a, **k),
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        a = tf.function(lambda: amp(d))().numpy()
+    assert used, "the traced amplitude did not use the fused basis_index op"
+    assert not [w for w in caught if "op failed" in str(w.message)]
+    assert np.all(np.isfinite(a))
+
+
+def _prepare_cfg(method):
+    """A known-good op model for ``method``: the CP toy or the spin-2 toy."""
+    if method == "basis_index":
+        import yaml
+
+        here = os.path.dirname(__file__)
+        with open(os.path.join(here, "config_self_cp.yml")) as f:
+            base = yaml.full_load(f)
+        cfg = {
+            **base,
+            "data": {
+                **base["data"],
+                "format": "simple",
+                "r_boost": False,
+                "amp_model": "dense_factor_op_merge",
+                "preprocessor": {
+                    "dense_factor_merge": {"method": "basis_index"}
+                },
+            },
+        }
+        ps = PhaseSpaceGenerator(4.6, [0.139, 0.139, 3.0])
+        p4 = dict(zip(["pip", "pim", "jpsi"], ps.generate(200)))
+        return ConfigLoader(cfg), p4
+
+    decay, part = _identical_waves()
+    # the spin-2 top stores pure-real columns as well as mixed ones
+    part["X"]["J"] = 2
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": "real_index"}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    return ConfigLoader(cfg), {"a": p_a, "b": p_b, "c": p_c}
+
+
+@pytest.mark.parametrize(
+    "method,op_name",
+    [("basis_index", "dense_factor_bi"), ("real_index", "dense_factor_ri")],
+)
+def test_dense_factor_op_prepare_static_inputs(monkeypatch, method, op_name):
+    """The op inputs are derived once per record, not per call.
+
+    ``nproj`` used to be recovered inside the op with ``tf.get_static_value``:
+    a device sync in eager, and unavailable inside a ``tf.function``.  The
+    record already holds ``np`` as an int, so the prepare derives it once and
+    the model caches it per record; a fresh record (a refit) rebuilds it.
+    """
+    from tf_pwa.experimental.dense_factor import _compression_of
+    from tf_pwa.experimental.dense_factor.backend import PREPARE
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    c, p4 = _prepare_cfg(method)
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    record = amp.merge
+    assert record["method"] == method
+    layout = amp.get_layout()
+
+    key = ("cuda", method)
+    assert key in PREPARE
+    prepared = PREPARE[key](_compression_of(record), record, layout)
+    assert prepared["nproj"] == record["np"]
+    assert all(type(v) is int for v in prepared.values())
+    if method == "basis_index":
+        # ``n_line``/``max_basis`` are the positional layout arguments, so
+        # they are not duplicated here
+        assert set(prepared) == {"nproj", "terms"}
+        assert prepared["terms"] == record["terms"]
+        width = len(record["f_ptr"]) - 1
+    else:
+        assert set(prepared) == {"nproj"}
+        width = record["f_re_map"].shape[0]
+    # the prepare keeps the self-check ``_bi_nproj``/``_ri_nproj`` used to
+    # make: the value drives a reshape, so it is pinned by the maps
+    n_u = int(np.asarray(record["map_u"]).max()) + 1
+    assert prepared["nproj"] * n_u == width
+
+    # a stale ``np`` is rejected: the op then infers from the same maps
+    bad = dict(record)
+    bad["np"] = record["np"] + 1
+    assert PREPARE[key](_compression_of(record), bad, layout) is None
+
+    # the layout is a read-only mapping: a backend cannot rewrite it
+    with pytest.raises(TypeError):
+        layout["off"] = 1
+
+    # the prepare runs once for two evaluations; a fresh record rebuilds it
+    counts = []
+    original_prepare = PREPARE[key]
+
+    def counted(strategy, rec, lay):
+        counts.append(1)
+        return original_prepare(strategy, rec, lay)
+
+    monkeypatch.setitem(PREPARE, key, counted)
+
+    # the op must receive the value rather than infer it
+    seen = []
+    original_op = getattr(op_mod, op_name)
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("nproj"))
+        return original_op(*args, **kwargs)
+
+    monkeypatch.setattr(op_mod, op_name, spy)
+
+    def _no_infer(*args, **kwargs):
+        raise AssertionError("{} was reached".format(op_name))
+
+    infer = "_bi_nproj" if method == "basis_index" else "_ri_nproj"
+    monkeypatch.setattr(op_mod, infer, _no_infer)
+
+    x1 = amp(d).numpy()
+    x2 = amp(d).numpy()
+    assert np.allclose(x1, x2, rtol=1e-12, atol=0)
+    assert len(counts) == 1
+    assert seen and set(seen) == {record["np"]}
+
+    fresh = dict(record)
+    monkeypatch.setattr(type(amp), "merge", property(lambda self: fresh))
+    amp(d)
+    assert len(counts) == 2
+    assert seen[-1] == fresh["np"]
+
+
+def test_dense_factor_op_prepare_terms_is_load_bearing(monkeypatch):
+    """The entry reads ``terms`` from the prepare, not from the record.
+
+    The record still carries a valid ``terms`` here, so a prepare that says
+    ``terms = 0`` can only stop the fused op if the entry actually reads the
+    prepared dict.
+    """
+    from tf_pwa.experimental.dense_factor.backend import PREPARE
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    c, p4 = _prepare_cfg("basis_index")
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    assert 1 <= amp.merge["terms"] <= _TERMS  # the record's own value is valid
+
+    key = ("cuda", "basis_index")
+    monkeypatch.setitem(
+        PREPARE,
+        key,
+        lambda strategy, record, layout: {
+            "nproj": int(record["np"]),
+            "terms": 0,
+        },
+    )
+
+    calls = []
+    original = op_mod.dense_factor_bi
+
+    def spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(op_mod, "dense_factor_bi", spy)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        a = amp(d).numpy()
+
+    assert not calls, "the fused op ran despite the prepared terms"
+    said = [
+        str(w.message)
+        for w in caught
+        if "supports 1 to {}".format(_TERMS) in str(w.message)
+    ]
+    assert said, [str(w.message) for w in caught]
+    assert "0-term transform" in said[0]
+    assert np.all(np.isfinite(a))
+
+
+def test_dense_factor_op_prepare_failure_falls_back_to_inference(monkeypatch):
+    """A raising prepare warns once and lets the op infer, not fail.
+
+    The prepare is a cache, not a precondition: a record the prepare cannot
+    read must still evaluate, through the op's own ``_bi_nproj`` inference.
+    """
+    from tf_pwa.experimental.dense_factor.backend import PREPARE
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor as df
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    c, p4 = _prepare_cfg("basis_index")
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    ref = amp(d).numpy()
+
+    key = ("cuda", "basis_index")
+    calls = []
+
+    def boom(strategy, record, layout):
+        calls.append(1)
+        raise RuntimeError("prepare boom")
+
+    monkeypatch.setitem(PREPARE, key, boom)
+    # the reference evaluation above filled the per-record cache
+    amp._prepared.clear()
+
+    saved = set(df._OP_FAILURES)
+    df._OP_FAILURES.clear()
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            got = amp(d).numpy()
+    finally:
+        df._OP_FAILURES.clear()
+        df._OP_FAILURES.update(saved)
+
+    assert calls == [1]
+    said = [str(w.message) for w in caught if "op failed" in str(w.message)]
+    assert len(said) == 1 and "prepare boom" in said[0]
+    assert np.allclose(got, ref, rtol=1e-12, atol=0)
+
+
+def test_dense_factor_op_real_svd_failure_names_the_method(monkeypatch):
+    """A fused failure is reported under ``real_svd``, not ``svd``.
+
+    ``_run_expand`` serves both methods; the reference lookup and the
+    warn-once key must use the record's own method.
+    """
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor as df
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": "real_svd"}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    amp = c.get_amplitude()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("op boom")
+
+    monkeypatch.setattr(op_mod, "dense_factor_a", boom)
+
+    saved = set(df._OP_FAILURES)
+    df._OP_FAILURES.clear()
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            got = amp(d).numpy()
+    finally:
+        df._OP_FAILURES.clear()
+        df._OP_FAILURES.update(saved)
+
+    said = [str(w.message) for w in caught if "op failed" in str(w.message)]
+    assert len(said) == 1 and "real_svd" in said[0]
+    assert np.all(np.isfinite(got))
+
+
+@pytest.mark.parametrize("method", ["svd", "real_svd"])
+def test_dense_factor_op_svd_stays_fused(monkeypatch, method):
+    """``svd``/``real_svd`` still contract through the fused plain op.
+
+    ``_run_expand`` used to label both methods ``"svd"``; the numbers are the
+    same on the reference fallback, so only a spy on the op pins the fused
+    path.
+    """
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": method}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    amp = c.get_amplitude()
+    assert amp.merge["method"] == method
+
+    calls = []
+    for name in ("dense_factor_a", "dense_factor_an"):
+        original = getattr(op_mod, name)
+
+        def spy(*args, _orig=original, _name=name, **kwargs):
+            calls.append(_name)
+            return _orig(*args, **kwargs)
+
+        monkeypatch.setattr(op_mod, name, spy)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        a = amp(d).numpy()
+
+    assert set(calls) == {"dense_factor_a"}
+    assert not [w for w in caught if "op failed" in str(w.message)]
+    assert np.all(np.isfinite(a))
+
+
+@pytest.mark.parametrize("method", ["basis_index", "real_index"])
+def test_dense_factor_op_stored_pair_warns_once(method):
+    """A block the op cannot read is a loud decline, not a silent fallback.
+
+    ``_stored_pair`` rejects a complex block (a mis-wired preprocessor) or a
+    rank that is not the stored pair.  Returning ``None`` without a word
+    disabled the fused path invisibly; the warn-once report names the reason
+    and the call still falls back to the reference.
+    """
+    import tensorflow as tf
+
+    import tf_pwa.experimental.dense_factor as df
+    from tf_pwa.experimental.dense_factor import _compression_of, get_op
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    c, p4 = _prepare_cfg(method)
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    record = amp.merge
+    layout = amp.get_layout()
+    strategy = _compression_of(record)
+    C, g, _ = amp._coefficients(d)
+
+    # a complex view of the stored pair: the values are the same, the block
+    # is not the real pair the kernel reads
+    F = tf.cast(d["F"], tf.complex128)
+    B = tf.cast(d["B"], tf.complex128)
+    entry = get_op("cuda", method)
+    reference = get_op("tf", method)
+
+    snapshot = set(df._OP_FAILURES)
+    df._OP_FAILURES.clear()
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            got = entry(strategy, record, F, B, C, g, layout, None)
+            again = entry(strategy, record, F, B, C, g, layout, None)
+        said = [
+            str(w.message) for w in caught if "op failed" in str(w.message)
+        ]
+        assert len(said) == 1, said  # reported once, the second call dedupes
+        assert "not the real pair" in said[0]
+    finally:
+        df._OP_FAILURES.clear()
+        df._OP_FAILURES.update(snapshot)
+
+    expected = reference(strategy, record, F, B, C, g, layout, None)
+    assert got is not None and again is not None
+    assert np.allclose(got.numpy(), again.numpy(), rtol=1e-12, atol=0)
+    assert np.allclose(got.numpy(), expected.numpy(), rtol=1e-8, atol=1e-10)
 
 
 def _wide_basis_model():
@@ -3070,8 +3745,8 @@ def test_dense_factor_merge_stored_op_narrow_store(
         want.name,
     )
 
-    # a failing op must not be swallowed: _contract_op warns and the model
-    # then silently rebuilds, which is exactly what hid the narrow path
+    # a failing op must not be swallowed: the backend warns and the model
+    # then silently uses the reference, which is what hid the narrow path
     def no_fallback(*args, **kwargs):
         pytest.fail("the fused %s op failed: %r" % (method, args))
 
