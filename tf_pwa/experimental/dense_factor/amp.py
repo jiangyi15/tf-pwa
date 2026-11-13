@@ -288,7 +288,6 @@ class DenseFactorModel(BaseAmplitudeModel):
             return cached
         dg = self.decay_group
         structure = self.decay_group.get_dense_structure()
-        variables = list(self.vm.trainable_variables)
 
         @tf.function(jit_compile=True)
         def _fwd():
@@ -296,13 +295,11 @@ class DenseFactorModel(BaseAmplitudeModel):
                 return dg.build_dense_coeff(structure)
 
         @tf.function(jit_compile=True)
-        def _vjp(dc, dgv):
+        def _vjp(dc, dgv, vs):
             with tf.device("/CPU:0"):
                 with tf.GradientTape() as tape:
                     c, g = dg.build_dense_coeff(structure)
-                return tape.gradient(
-                    [c, g], variables, output_gradients=[dc, dgv]
-                )
+                return tape.gradient([c, g], vs, output_gradients=[dc, dgv])
 
         @tf.custom_gradient
         def fn():
@@ -311,14 +308,13 @@ class DenseFactorModel(BaseAmplitudeModel):
             def grad(dc, dgv, variables=None):
                 dc = tf.zeros_like(c) if dc is None else dc
                 dgv = tf.zeros_like(g) if dgv is None else dgv
-                grads = _vjp(dc, dgv)
+                # ``variables`` is the list the tape used, and TF wants the
+                # gradients back in that order: differentiate exactly it, so
+                # no id map (and no assumption that the model's trainable set
+                # never changes -- ``set_fix`` may unfix a parameter later)
                 if variables is None:
-                    return (), grads
-                by_id = {
-                    id(v): x
-                    for v, x in zip(self.vm.trainable_variables, grads)
-                }
-                return (), [by_id[id(v)] for v in variables]
+                    variables = list(self.vm.trainable_variables)
+                return (), _vjp(dc, dgv, list(variables))
 
             return (c, g), grad
 

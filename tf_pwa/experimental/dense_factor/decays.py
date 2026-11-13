@@ -417,8 +417,6 @@ class _DecayGroupBasis:
             # likewise the CP transform, which only walks the group
             "cp": self._cp_transform(),
         }
-        # the basis transform of B; kept next to the terms that apply it
-        self.M2 = tf.eye(off, dtype=tf.float64)
         return structure
 
     def swap_terms(self, F, key):
@@ -522,7 +520,6 @@ class _DecayGroupBasis:
         ]
         if B_cols:
             B = tf.stack(B_cols, axis=-1)
-            B = tf.matmul(B, tf.cast(self.M2, B.dtype), transpose_b=True)
         else:
             B = tf.zeros((n_data, 0), dtype=F_chains[0].dtype)
         dtype = get_config("complex_dtype")

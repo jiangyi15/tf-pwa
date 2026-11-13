@@ -143,8 +143,7 @@ def dense_factor_an(f, bt, c, g, off, sz, max_basis=None):
 
     ``off``/``sz`` hold ``n_chain * n_line`` entries (``n_line`` is
     inferred from their length); a line with ``sz == 0`` is absent and
-    multiplies the denominator by one.  ``n_line`` is not bounded and may be
-    zero.
+    multiplies the denominator by one.  ``n_line`` is not bounded above.
     """
     max_basis = _resolve(sz, max_basis, "dense_factor_an")
     _check_g(g)

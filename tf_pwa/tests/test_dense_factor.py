@@ -3499,6 +3499,244 @@ def test_dense_factor_op_real_svd_failure_names_the_method(monkeypatch):
     assert np.all(np.isfinite(got))
 
 
+def _two_line_cfg(amp_model="dense_factor_op_merge"):
+    """A sequential chain with two denominator lines.
+
+    ``basis_index`` is the fused method under test; the widths are the only
+    free parameters, so ``dg`` is what a tape sees.
+    """
+    return {
+        "data": {
+            "format": "simple",
+            "r_boost": False,
+            "amp_model": amp_model,
+            "preprocessor": {"dense_factor_merge": {"method": "basis_index"}},
+        },
+        "decay": {
+            "B": [["R1", "X"]],
+            "R1": [["R2", "Y"]],
+            "R2": ["P", "Q"],
+        },
+        "particle": {
+            "$top": {"B": {"J": 1, "P": -1, "mass": 5.0}},
+            "$finals": {
+                "X": {"J": 0, "P": -1, "mass": 0.30},
+                "Y": {"J": 0, "P": -1, "mass": 0.25},
+                "P": {"J": 0, "P": -1, "mass": 0.20},
+                "Q": {"J": 0, "P": -1, "mass": 0.20},
+            },
+            "R1": {"J": 1, "P": -1, "m0": 3.0, "g0": 0.10, "model": "BWR"},
+            "R2": {"J": 1, "P": -1, "m0": 1.5, "g0": 0.10, "model": "BWR"},
+        },
+    }
+
+
+def test_dense_factor_merge_basis_index_multiline_gradient():
+    """``dg`` for ``basis_index`` with more than one denominator line.
+
+    The fused bi gradient treated the accumulated denominator as the line's
+    own, which is exact only for a single line: the forward and ``dC`` agree
+    while ``dg`` is wrong.  The widths are the only free parameters of this
+    chain, so ``dg`` is what the tape sees.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import _BasisIndexCompression
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    cfg = _two_line_cfg()
+    ps = PhaseSpaceGenerator(5.0, [0.30, 0.25, 0.20, 0.20])
+    p4 = dict(zip(["X", "Y", "P", "Q"], ps.generate(100)))
+    c = ConfigLoader(cfg)
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    assert amp.decay_group.get_dense_structure()["max_internal_lines"] == 2
+    # the widths are the free parameters, so ``dg`` is on the tape; unfix
+    # before the first call, while the coefficient closure is being built
+    amp.vm.set_fix("R1_width", unfix=True)
+    amp.vm.set_fix("R2_width", unfix=True)
+
+    def run():
+        vs = amp.vm.trainable_variables
+        with tf.GradientTape() as tape:
+            tape.watch(vs)
+            loss = -tf.reduce_sum(tf.math.log(amp(d)))
+        return amp(d).numpy(), [g.numpy() for g in tape.gradient(loss, vs)]
+
+    x_op, g_op = run()
+    assert len(g_op) == 2, "the widths must be the taped parameters"
+
+    _BasisIndexCompression.use_op = False
+    try:
+        x_rb, g_rb = run()
+    finally:
+        _BasisIndexCompression.use_op = True
+
+    assert np.allclose(x_op, x_rb, rtol=1e-10, atol=1e-12)
+    for x, y in zip(g_op, g_rb):
+        assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_unfix_after_first_call():
+    """Unfixing a parameter after an evaluation must not break the gradient.
+
+    The coefficient-CPU closure used to map its gradients by variable id
+    against the model's *current* trainable list, which ``set_fix`` can
+    change: unfixing a width afterwards raised ``KeyError``.  The gradient
+    function now differentiates the list TF hands it and returns it in
+    order.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    ps = PhaseSpaceGenerator(5.0, [0.30, 0.25, 0.20, 0.20])
+    p4 = dict(zip(["X", "Y", "P", "Q"], ps.generate(50)))
+    c = ConfigLoader(_two_line_cfg())
+    d = c.data.cal_angle(p4)
+    amp = c.get_amplitude()
+    amp(d)  # the first call builds the coefficient closure
+    assert not amp.vm.trainable_variables
+
+    amp.vm.set_fix("R1_width", unfix=True)
+    amp.vm.set_fix("R2_width", unfix=True)
+    vs = amp.vm.trainable_variables
+    assert len(vs) == 2
+
+    with tf.GradientTape() as tape:
+        tape.watch(vs)
+        loss = -tf.reduce_sum(tf.math.log(amp(d)))
+    grads = tape.gradient(loss, vs)
+    assert len(grads) == 2
+    for x in grads:
+        assert x is not None and bool(tf.reduce_all(tf.math.is_finite(x)))
+        assert float(tf.reduce_max(tf.abs(x))) > 0.0
+
+
+def test_dense_factor_op_merge_full_width_block_declines():
+    """A merge record applied to a full-width block must not permute it.
+
+    The reference passes such a block through unchanged (``_expand_block``),
+    so the fused entry has to decline rather than replay the maps on it.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import _OP_FAILURES
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    from tf_pwa.experimental.dense_factor_op_model import _op_merge
+
+    record = {"n_u": 2, "n_param": 3}
+    F = tf.zeros((4, 1, 3))
+    B = tf.zeros((4, 4))
+    C = tf.zeros(2, tf.complex128)
+    g = tf.zeros(3)
+    off = tf.constant([0, 0], tf.int32)
+    sz = tf.constant([0, 0], tf.int32)
+
+    saved = set(_OP_FAILURES)
+    _OP_FAILURES.clear()
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            out = _op_merge(None, record, F, B, C, g, off, sz, 1, 1)
+        out2 = _op_merge(None, record, F, B, C, g, off, sz, 1, 1)
+    finally:
+        _OP_FAILURES.clear()
+        _OP_FAILURES.update(saved)
+
+    assert out is None
+    said = [str(w.message) for w in caught if "op failed" in str(w.message)]
+    assert len(said) == 1 and "reduced block" in said[0]
+    assert out2 is None  # the warning is deduped, the decline is not
+
+
+def test_dense_factor_op_complex64_uses_fused_op(monkeypatch):
+    """A complex64 process still contracts through the fused kernel.
+
+    The kernels are complex128 only, so the entry upcasts the coefficients
+    at the kernel boundary and casts the amplitude back; a complex64 model
+    must therefore stay fused instead of falling back forever on a dtype
+    error.
+    """
+    from tf_pwa.config import get_config, set_config
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    def cfg(model):
+        return {
+            "data": {
+                "format": "simple",
+                "random_z": False,
+                "r_boost": False,
+                "amp_model": model,
+                "preprocessor": {"dense_factor": {"force_cpu": True}},
+            },
+            "decay": {"B": [["R", "X"]], "R": ["A", "C"]},
+            "particle": {
+                "$top": {"B": {"J": 1, "P": -1, "mass": 5.0}},
+                "$finals": {
+                    "X": {"J": 0, "P": -1, "mass": 0.20},
+                    "A": {"J": 1, "P": -1, "mass": 0.30},
+                    "C": {"J": 1, "P": -1, "mass": 0.30},
+                },
+                "R": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+            },
+        }
+
+    ps = PhaseSpaceGenerator(5.0, [0.20, 0.30, 0.30])
+    p4 = dict(zip(["X", "A", "C"], ps.generate(100)))
+    old = get_config("complex_dtype")
+    set_config("complex_dtype", "complex64")
+    try:
+        c = ConfigLoader(cfg("dense_factor_op"))
+        d = c.data.cal_angle(p4)
+        amp = c.get_amplitude()
+
+        calls = []
+        for name in ("dense_factor_a", "dense_factor_an"):
+            original = getattr(op_mod, name)
+
+            def spy(*a, _orig=original, _name=name, **k):
+                calls.append(_name)
+                return _orig(*a, **k)
+
+            monkeypatch.setattr(op_mod, name, spy)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            x = amp(d).numpy()
+        assert set(calls) == {"dense_factor_a"}
+        assert not [w for w in caught if "op failed" in str(w.message)]
+        assert x.dtype == np.float32
+
+        c0 = ConfigLoader(cfg("dense_factor"))
+        a0 = c0.get_amplitude()
+        a0.set_params(amp.get_params())
+        x0 = a0(c0.data.cal_angle(p4)).numpy()
+        assert np.allclose(x, x0, rtol=1e-4, atol=1e-6)
+    finally:
+        set_config("complex_dtype", old)
+
+
 @pytest.mark.parametrize("method", ["svd", "real_svd"])
 def test_dense_factor_op_svd_stays_fused(monkeypatch, method):
     """``svd``/``real_svd`` still contract through the fused plain op.

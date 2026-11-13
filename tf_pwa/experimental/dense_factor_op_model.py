@@ -136,6 +136,7 @@ def _wrap(method, run, strategy, record, F, B, C, g, layout, prepared):
             ),
         )
     elif getattr(strategy, "use_op", True):
+        out_dtype = C.dtype
         try:
             amp = run(
                 strategy,
@@ -156,6 +157,10 @@ def _wrap(method, run, strategy, record, F, B, C, g, layout, prepared):
             _warn_op_failure(method, exc)
         else:
             if amp is not None:
+                # the kernels contract in complex128; a complex64 model gets
+                # its own dtype back so the surrounding graph stays uniform
+                if amp.dtype != out_dtype:
+                    amp = tf.cast(amp, out_dtype)
                 return amp
     # declined (the block is not what the op reads) or failed: the TF
     # reference takes the *stored* tensors and expands them itself
@@ -163,6 +168,28 @@ def _wrap(method, run, strategy, record, F, B, C, g, layout, prepared):
 
 
 # -- the op calls (the raw kernel invocation, no guards) --------------------
+def _kernel_inputs(F, B, C, g):
+    """``(F, B, C, g)`` at the dtypes the kernels take.
+
+    The kernels are complex128 only, while ``complex_dtype: complex64``
+    lowers the model's coefficients.  A complex64 tensor is upcast here (and
+    the amplitude cast back by the caller), so the fused path stays usable
+    instead of dying on a dtype check; real stored blocks keep their storage
+    dtype, which the kernels read in place.  The upcast is transient.
+    """
+
+    def c128(x):
+        if x is None or not x.dtype.is_complex or x.dtype == tf.complex128:
+            return x
+        return tf.cast(x, tf.complex128)
+
+    if C.dtype != tf.complex128:
+        C = tf.cast(C, tf.complex128)
+    if g.dtype != tf.float64:
+        g = tf.cast(g, tf.float64)
+    return c128(F), c128(B), C, g
+
+
 def _op_plain(
     strategy, record, F, B, C, g, off, sz, n_line, max_basis, prepared=None
 ):
@@ -176,6 +203,18 @@ def _op_merge(
 ):
     F = _unpack_stored(F, record, C.dtype)
     B = _unpack_stored(B, record, C.dtype)
+    # the maps index the *reduced* block; a full-width block is passed through
+    # unchanged by the reference (``_expand_block``), which this kernel cannot
+    # replay without permuting the chains, so decline and rebuild
+    if F is None or B is None or int(F.shape[2]) != int(record["n_u"]):
+        _warn_op_failure(
+            "index",
+            ValueError(
+                "the merge op needs the reduced block; this call expands it"
+            ),
+        )
+        return None
+    F, B, C, g = _kernel_inputs(F, B, C, g)
     fn = _op.dense_factor_merge_a if n_line == 1 else _op.dense_factor_merge_an
     return fn(
         F,
@@ -216,6 +255,7 @@ def _op_basis_index(
             )
         )
         return None
+    F, B, C, g = _kernel_inputs(F, B, C, g)
     return _op.dense_factor_bi(
         F,
         B,
@@ -253,6 +293,7 @@ def _op_real_index(
             ),
         )
         return None
+    F, B, C, g = _kernel_inputs(F, B, C, g)
     return _op.dense_factor_ri(
         F,
         B,
@@ -309,8 +350,6 @@ def _checked_nproj(record, width_key, offset=0):
 def _prepare_basis_index(strategy, record, layout):
     if record is None or "np" not in record:
         return None
-    if layout["off"] is None:
-        return None
     nproj = _checked_nproj(record, "f_ptr", offset=1)
     if nproj is None:
         return None
@@ -320,8 +359,6 @@ def _prepare_basis_index(strategy, record, layout):
 @register_prepare("cuda", "real_index")
 def _prepare_real_index(strategy, record, layout):
     if record is None or "np" not in record:
-        return None
-    if layout["off"] is None:
         return None
     nproj = _checked_nproj(record, "f_re_map")
     if nproj is None:
@@ -422,6 +459,7 @@ else:
 # ``_plain_op``/``_stored_pair`` helpers used by the entries above.
 def _plain_op(F, B, C, g, off, sz, n_line, max_basis):
     """The plain contraction: one op call, no basis transformation."""
+    F, B, C, g = _kernel_inputs(F, B, C, g)
     fn = _op.dense_factor_a if n_line == 1 else _op.dense_factor_an
     return fn(F, B, C, g, off, sz, max_basis=max_basis)
 

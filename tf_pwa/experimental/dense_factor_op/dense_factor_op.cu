@@ -1015,11 +1015,20 @@ __global__ void dense_grad_bi_kernel(
                 const double2 dv = D[(long long)e*nu + u];
                 const double tr = dv.x, ti = dv.y;
 
-                // D already holds the forward denominator for (e, u), so the
-                // ratios (d.d)/|d|^2 and (d x d)/|d|^2 are exactly (1, 0):
-                // only the B entries themselves are needed, once
+                // the line's fraction of the accumulated denominator: the
+                // forward D is the product over lines, so the gradient of
+                // line l carries the factor conj(D) / |den_l|^2, i.e.
+                // (1, 0) only when there is a single line
                 double bvr[S], bvi[S];
+                double orr = 1.0, oi = 0.0;
                 if (has) {
+                    double dr, di;
+                    line_den_merge_bi<S, T, BT>(BS, MI, BRE, BIM,
+                                                PB_PTR, PB_COL, PB_VAL,
+                                                G, bo, o, s, dr, di);
+                    const double dn = dr*dr + di*di;
+                    orr = (dv.x*dr + dv.y*di) / dn;
+                    oi = (dv.y*dr - dv.x*di) / dn;
                     #pragma unroll
                     for (int i = 0; i < S; i++)
                         if (i < s) {
@@ -1058,8 +1067,8 @@ __global__ void dense_grad_bi_kernel(
                 const double gdeni = -(gir*ipi + gii*ipr);
 
                 if (has) {
-                    const double glr = gdenr;
-                    const double gli = gdeni;
+                    const double glr = gdenr*orr + gdeni*oi;
+                    const double gli = gdeni*orr - gdenr*oi;
                     #pragma unroll
                     for (int i = 0; i < S; i++) {
                         if (i < s) {
