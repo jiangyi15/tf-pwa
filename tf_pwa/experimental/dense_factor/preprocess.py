@@ -6,7 +6,8 @@ reduced basis and publishes its record.  Both register themselves on import.
 
 They import the strategies and the record store from :mod:`.compress`; the one
 place that needs the amplitude model (``_strip`` checks the model type) imports
-it lazily, so this module does not depend on :mod:`.amp`.
+it lazily, so this module does not depend on
+:mod:`tf_pwa.experimental.dense_factor.amp`.
 """
 
 import contextlib
