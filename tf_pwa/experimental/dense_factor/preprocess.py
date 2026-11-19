@@ -21,8 +21,22 @@ from tf_pwa.amp.preprocess import (
     CachedAnglePreProcessor,
     register_preprocessor,
 )
+from tf_pwa.config import get_config
 from tf_pwa.data import data_merge, split_generator
 from tf_pwa.phasespace import PhaseSpaceGenerator
+
+
+def _dtype_eps():
+    """Real epsilon of the arithmetic dtype (``complex_dtype``)."""
+    name = str(get_config("complex_dtype"))
+    if "complex32" in name:
+        real = np.float16
+    elif "complex64" in name:
+        real = np.float32
+    else:
+        real = np.float64
+    return np.finfo(real).eps
+
 
 from .compress import (
     _COMPRESSION_SOURCES,
@@ -277,7 +291,7 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
         data:
           preprocessor:
             dense_factor_merge:
-              merge_rtol: null   # automatic: 1e-8, or ~1e-6 with complex64
+              merge_rtol: null   # automatic: 1e-8, independent of store_dtype
               merge_atol: 0.0
               merge_sample: 256
               merge_prepare: null
@@ -325,12 +339,16 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
     sides agree by construction.  A record already under the key is checked
     against this basis and method before it is reused.
 
-    ``merge_rtol`` defaults to null, i.e. automatic and
-    fixed at init from ``store_dtype``: ``1e-8``, or ``8*eps`` when the
-    tensors are stored in complex64 (about ``1e-6``) or complex32 (about
-    ``8e-3``), because the comparison can only be as fine as the stored
-    values.  Give a number to override it, e.g. for a basis limited by
-    cancellation; ``merge_atol`` adds a fixed floor to the index comparison
+    ``merge_rtol`` defaults to ``max(1e-8, 8*eps)`` of the **arithmetic**
+    dtype (``complex_dtype``) and does not follow ``store_dtype``: the merge
+    is fitted on the basis at ``complex_dtype``, before the cast, so the
+    tolerance describes the data (and the probe), while the storage precision
+    is a separate, elementwise error.  A cast collapses differences, it does
+    not create them, so a low-precision store is no reason to merge more --
+    and for ``svd`` the cut is amplified by ``1/den``: at complex32 a
+    ``8*eps`` tolerance dropped a real direction and took the amplitude from
+    `6e-3` (the storage floor) to `1.6e-1` on a 50-wave basis.  Give a number
+    to override it, e.g. for a basis limited by cancellation; ``merge_atol`` adds a fixed floor to the index comparison
     (it does not affect the SVD cut).  ``store_dtype`` caches the merged
     blocks at that precision.  ``basis_index`` and ``real_index`` hand that
     block to the fused op unchanged (the kernel widens each stored value to
@@ -355,14 +373,11 @@ class DenseFactorMergePreProcessor(DenseFactorPreProcessor):
     ):
         super().__init__(*args, **kwargs)
         if merge_rtol is None:
-            # the comparison can only be as fine as what will be stored; the
-            # flag, not the tensor, decides that, so this is fixed at init
-            if self.store_dtype == "complex32":
-                merge_rtol = 8 * float(np.finfo(np.float16).eps)
-            elif self.store_dtype == "complex64":
-                merge_rtol = 8 * float(np.finfo(np.complex64).eps)
-            else:
-                merge_rtol = 1e-8
+            # the basis is compared before any cast, at the arithmetic
+            # dtype: store_dtype changes the stored block, not the data the
+            # grouping sees, and a cast collapses differences rather than
+            # creating them.  The floor is the arithmetic precision.
+            merge_rtol = max(1e-8, 8 * float(_dtype_eps()))
         if method not in (
             "index",
             "basis_index",

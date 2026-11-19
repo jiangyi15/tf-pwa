@@ -205,6 +205,233 @@ def test_dense_factor_flatte_c():
     )
 
 
+def test_dense_factor_flatte_gen():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "FlatteGen",
+            "mass_list": [[1.0, 0.4], [0.5, 0.5]],
+        }
+    )
+
+
+def test_dense_factor_flatte_gen_l_list():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "FlatteGen",
+            "mass_list": [[1.0, 0.4], [0.5, 0.5]],
+            "l_list": [0, 1],
+        }
+    )
+
+
+def test_dense_factor_flatte_gen_no_bprime():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "FlatteGen",
+            "mass_list": [[1.0, 0.4], [0.5, 0.5]],
+            "l_list": [0, 1],
+            "has_bprime": False,
+        }
+    )
+
+
+def test_dense_factor_flatte_gen_no_q0():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "FlatteGen",
+            "mass_list": [[1.0, 0.4], [0.5, 0.5]],
+            "l_list": [0, 1],
+            "no_q0": True,
+        }
+    )
+
+
+def test_dense_factor_flatte_gen_no_m0():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "FlatteGen",
+            "mass_list": [[1.0, 0.4], [0.5, 0.5]],
+            "l_list": [0, 1],
+            "no_m0": True,
+        }
+    )
+
+
+def test_dense_factor_flatte_gen_cut_phsp():
+    # the second channel opens above the fixed m_R = m0 of ``_compare``, so
+    # its term is really zeroed (a channel below m0 would exercise nothing)
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "FlatteGen",
+            "mass_list": [[1.0, 0.4], [1.2, 1.2]],
+            "l_list": [0, 1],
+            "cut_phsp": True,
+        }
+    )
+
+
+def test_dense_factor_flatte_2():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "Flatte2",
+            "mass_list": [[1.0, 0.4], [0.5, 0.5]],
+        }
+    )
+
+
+def test_dense_factor_flatte_2_l_list():
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "m0": 2.0,
+            "model": "Flatte2",
+            "mass_list": [[1.0, 0.4], [0.5, 0.5]],
+            "l_list": [0, 1],
+        }
+    )
+
+
+def test_dense_factor_bwr_ls():
+    _compare(
+        {
+            "J": 1,
+            "P": -1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BWR_LS",
+        },
+        decay_opts={"ls_list": [[0, 0], [1, 0]]},
+    )
+
+
+def test_dense_factor_bwr_ls_fix_bug1():
+    _compare(
+        {
+            "J": 1,
+            "P": -1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BWR_LS",
+            "fix_bug1": True,
+        },
+        decay_opts={"ls_list": [[0, 0], [1, 0]]},
+    )
+
+
+def test_dense_factor_bwr_ls_barrier_factor_norm():
+    """The LS numerator uses ``γ_i`` (not ``γ_i/q0^l``) under this option."""
+    _compare(
+        {
+            "J": 1,
+            "P": -1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BWR_LS",
+        },
+        decay_opts={"ls_list": [[0, 0], [1, 0]], "barrier_factor_norm": True},
+    )
+
+
+def test_dense_factor_bwr_ls_unsupported_option():
+    cfg = _config(
+        {
+            "J": 1,
+            "P": -1,
+            "m0": 2.0,
+            "g0": 0.1,
+            "model": "BWR_LS",
+        },
+        decay_opts={"ls_list": [[0, 0], [1, 0]], "has_ql": False},
+    )
+    cfg2 = {
+        **cfg,
+        "data": {
+            **cfg["data"],
+            "preprocessor": "dense_factor",
+            "amp_model": "dense_factor",
+        },
+    }
+    with pytest.raises(NotImplementedError, match="BWR_LS"):
+        ConfigLoader(cfg2)
+
+
+def _width_file(tmp_path, name="width.npy"):
+    import numpy as np
+
+    m = np.linspace(1.8, 4.4, 53)
+    data = np.stack([m, np.cos(5 * m), np.sin(5 * m)], axis=-1)
+    path = tmp_path / name
+    np.save(path, data)
+    return str(path)
+
+
+def test_dense_factor_width_linear(tmp_path):
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "mass": 2.0,
+            "width": 0.2,
+            "model": "width_linear_npy",
+            "file": _width_file(tmp_path),
+        }
+    )
+
+
+def test_dense_factor_width_linear_txt(tmp_path):
+    import numpy as np
+
+    m = np.linspace(1.8, 4.4, 53)
+    path = tmp_path / "width.txt"
+    np.savetxt(path, np.stack([m, np.cos(5 * m), np.sin(5 * m)], axis=-1))
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "mass": 2.0,
+            "width": 0.2,
+            "model": "width_linear_txt",
+            "file": str(path),
+        }
+    )
+
+
+def test_dense_factor_width_linear_scale(tmp_path):
+    _compare(
+        {
+            "J": 0,
+            "P": 1,
+            "mass": 2.0,
+            "width": 0.2,
+            "model": "width_linear_npy",
+            "width_scale": True,
+            "file": _width_file(tmp_path, "width_scale.npy"),
+        }
+    )
+
+
 def test_dense_factor_gs():
     _compare(
         {
@@ -3621,6 +3848,57 @@ def test_dense_factor_unfix_after_first_call():
     for x in grads:
         assert x is not None and bool(tf.reduce_all(tf.math.is_finite(x)))
         assert float(tf.reduce_max(tf.abs(x))) > 0.0
+
+
+def _rtol_cfg(store, method="index"):
+    return {
+        "data": {
+            "format": "simple",
+            "r_boost": False,
+            "amp_model": "dense_factor_merge",
+            "preprocessor": {
+                "dense_factor_merge": {"method": method, "store_dtype": store}
+            },
+        },
+        "decay": {"B": [["R", "X"]], "R": ["A", "C"]},
+        "particle": {
+            "$top": {"B": {"J": 1, "P": -1, "mass": 5.0}},
+            "$finals": {
+                "X": {"J": 0, "P": -1, "mass": 0.20},
+                "A": {"J": 1, "P": -1, "mass": 0.30},
+                "C": {"J": 1, "P": -1, "mass": 0.30},
+            },
+            "R": {"J": 1, "P": -1, "m0": 2.0, "g0": 0.10, "model": "BWR"},
+        },
+    }
+
+
+def test_dense_factor_merge_rtol_follows_complex_dtype():
+    from tf_pwa.config import get_config, set_config
+
+    old = get_config("complex_dtype")
+    set_config("complex_dtype", "complex64")
+    try:
+        c = ConfigLoader(_rtol_cfg("complex128"))
+        assert c.data.preprocessor.merge_rtol == pytest.approx(
+            8 * np.finfo(np.float32).eps
+        )
+    finally:
+        set_config("complex_dtype", old)
+
+
+@pytest.mark.parametrize("store", ["complex128", "complex64", "complex32"])
+def test_dense_factor_merge_rtol_ignores_store_dtype(store):
+    """The merge tolerance describes the complex128 basis, not the store.
+
+    The grouping is fitted before the cast, so a low-precision store must not
+    loosen it: a cast collapses differences, it does not create them.  A
+    looser `svd` cut is worse than useless -- at complex32 it dropped a real
+    direction and the `1/den` amplification took the amplitude error from the
+    storage floor to ~1e-1.
+    """
+    c = ConfigLoader(_rtol_cfg(store))
+    assert c.data.preprocessor.merge_rtol == pytest.approx(1e-8)
 
 
 def test_dense_factor_op_merge_full_width_block_declines():

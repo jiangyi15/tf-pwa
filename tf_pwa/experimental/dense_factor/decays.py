@@ -534,7 +534,10 @@ class _DecayGroupBasis:
 
         ``frac`` is the product of the C parities of the particles that the
         CP map leaves in place; ``change`` is the particle permutation of the
-        ones that move.
+        ones that move.  A particle object with no ``C`` attribute at all
+        falls back to ``-1`` (the core's ``get_amp3`` expression); a particle
+        whose ``C`` is ``None`` -- the ``Particle`` default, and what the core
+        turns into a bare ``TypeError`` -- is rejected here with the name.
         """
         if not getattr(self, "cp_particles", None):
             return 1.0, ()
@@ -548,7 +551,18 @@ class _DecayGroupBasis:
         ):
             for i, j in zip(a, b):
                 if i == j:
-                    frac = frac * getattr(name_map[i], "C", -1)
+                    # ``get_amp3`` multiplies by -1 when the attribute is
+                    # absent; a particle that carries ``C = None`` (the
+                    # default) would turn the product into a bare TypeError,
+                    # so name it
+                    c = getattr(name_map[i], "C", -1)
+                    if c is None:
+                        raise ValueError(
+                            "particle {} has no C parity, which the CP "
+                            "transform needs; set C in the particle "
+                            "config".format(i)
+                        )
+                    frac = frac * c
                 else:
                     change.append((i, j))
         return float(frac), tuple(change)
