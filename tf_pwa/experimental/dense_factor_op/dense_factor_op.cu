@@ -1457,3 +1457,170 @@ extern "C" void launch_dense_factor_bi(
              a_out, d_out, dc_part, dg_part, dc_out, dg_out, s};
     dispatch_bi(a, mode, maxs, block_type);
 }
+
+// ---------------------------------------------------------------------------
+// Expand-to-complex entry point: a stored real SVD coefficient block expanded
+// to the complex basis in one pass.
+//
+// ``real_svd`` stores ``C [ne, k]`` real and the basis ``V [k, 2n]`` real, the
+// first ``n`` columns of a row holding the real part of every complex column
+// and the last ``n`` the imaginary part (``[Re | Im]``, the layout
+// ``_split_complex`` stores).  Expanding it in TF costs a real ``[ne, 2n]``
+// matmul plus a join into ``[ne, n]`` complex; this kernel writes only the
+// complex result::
+//
+//     out[e, j] = complex(sum_k C[e,k] * V[k, j], sum_k C[e,k] * V[k, n+j])
+//
+// The arithmetic follows the *basis*: ``VT`` is its real element type and the
+// accumulator and the output (``double2``/``float2``) have that width, so a
+// complex64 model keeps its float32 basis instead of being widened.  ``C``
+// keeps its storage dtype (``CT``) and is converted on read, which may narrow
+// it (fp16/fp32 under a float32 basis) or widen it (fp16/fp32 under fp64).
+//
+// No backward: the block is data, the fit parameters are the contraction
+// coefficients the general kernels differentiate.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+constexpr int EXPAND_TX = 32;  // columns per block (one warp)
+constexpr int EXPAND_TY = 8;   // event slots per block
+constexpr int EXPAND_EV = 4;   // events per thread: 32 rows per block
+
+// The complex store of one output element: double2 for a double basis,
+// float2 for a float one.
+template <typename VT>
+struct expand_pair;
+template <>
+struct expand_pair<double> {
+    using type = double2;
+};
+template <>
+struct expand_pair<float> {
+    using type = float2;
+};
+
+template <typename VT>
+__device__ __forceinline__ typename expand_pair<VT>::type expand_make(VT x,
+                                                                     VT y) {
+    typename expand_pair<VT>::type v;
+    v.x = x;
+    v.y = y;
+    return v;
+}
+
+// A block owns a 32x32 tile of the output, ``EXPAND_TY * EXPAND_EV`` rows by
+// ``EXPAND_TX`` columns, so every ``V[k, j]`` a block reads is reused over
+// the rows of its tile.  A thread walks its 32-column lane over four rows:
+// ``V`` is loaded once per ``k`` and multiplied by four ``C`` values, which
+// keeps the basis traffic (the small tensor, re-read per event in the naive
+// mapping) down to one pass per tile.  ``C`` is the large tensor, read once
+// per tile as well, through the shared tile when it fits.
+template <typename VT, typename CT>
+__global__ void dense_expand_kernel(
+    const CT* __restrict__ C,        // [ne, k], the stored real block
+    const VT* __restrict__ V,        // [k, 2n], the stored real basis
+    int ne, int k, int n,
+    int tile,                        // 1: C is staged in shared memory
+    typename expand_pair<VT>::type* __restrict__ out)  // [ne, n]
+{
+    // the tile is staged as VT, the type the products run in
+    extern __shared__ char shraw[];
+    VT* sh = reinterpret_cast<VT*>(shraw);
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+    // events on the x axis: grid.y caps at 2^16 blocks, grid.x does not
+    const int j = (int)blockIdx.y * EXPAND_TX + tx;
+    const int e0 = (int)blockIdx.x * (EXPAND_TY * EXPAND_EV);
+    // partial last tile of rows: the launch grid can overshoot by a tile
+    int nrow = EXPAND_TY * EXPAND_EV;
+    if (nrow > ne - e0) nrow = ne - e0;
+    if (tile) {
+        // one row of the tile per k values; every thread loads a slice
+        const int ntile = nrow * k;
+        for (int t = ty * EXPAND_TX + tx; t < ntile;
+             t += EXPAND_TX * EXPAND_TY) {
+            const int s = t / k;
+            const int q = t - s * k;
+            sh[t] = (VT)bload<CT>(C, (long long)(e0 + s) * k + q);
+        }
+        __syncthreads();
+    }
+    if (j >= n) return;
+    VT re[EXPAND_EV], im[EXPAND_EV];
+    #pragma unroll
+    for (int r = 0; r < EXPAND_EV; r++) {
+        re[r] = (VT)0;
+        im[r] = (VT)0;
+    }
+    for (int q = 0; q < k; q++) {
+        // the two halves of the row: real part of column j, imaginary part
+        const VT vr = V[(long long)q * 2 * n + j];
+        const VT vi = V[(long long)q * 2 * n + n + j];
+        #pragma unroll
+        for (int r = 0; r < EXPAND_EV; r++) {
+            const int s = ty + EXPAND_TY * r;
+            if (s >= nrow) break;
+            const VT c = tile
+                ? sh[(long long)s * k + q]
+                : (VT)bload<CT>(C, (long long)(e0 + s) * k + q);
+            re[r] += c * vr;
+            im[r] += c * vi;
+        }
+    }
+    #pragma unroll
+    for (int r = 0; r < EXPAND_EV; r++) {
+        const int s = ty + EXPAND_TY * r;
+        if (s >= nrow) break;
+        out[(long long)(e0 + s) * n + j] = expand_make<VT>(re[r], im[r]);
+    }
+}
+
+template <typename VT, typename CT>
+static void run_expand(const void* cr, const void* vr, void* out, int ne,
+                       int k, int n, cudaStream_t s) {
+    // C is the event-major block [ne, k], i.e. the large one, and V is a
+    // [k, 2n] constant: stage the tile of C in shared when it fits.
+    const size_t tile_bytes =
+        (size_t)EXPAND_TY * EXPAND_EV * (size_t)k * sizeof(VT);
+    const int tile = tile_bytes <= SHMEM_LIMIT ? 1 : 0;
+    const dim3 block(EXPAND_TX, EXPAND_TY);
+    const dim3 grid((ne + EXPAND_TY * EXPAND_EV - 1) /
+                        (EXPAND_TY * EXPAND_EV),
+                    (n + EXPAND_TX - 1) / EXPAND_TX);
+    const size_t shmem = tile ? tile_bytes : 0;
+    dense_expand_kernel<VT, CT><<<grid, block, shmem, s>>>(
+        static_cast<const CT*>(cr), static_cast<const VT*>(vr), ne, k, n,
+        tile, reinterpret_cast<typename expand_pair<VT>::type*>(out));
+}
+
+// ``CT`` is the element type of c: 0 double, 1 float, 2 half.  ``VT`` is the
+// element type of the basis: 0 double, 1 float.  The op rejects a c wider
+// than the basis, so the double/float pairing below is never reached; it is
+// still a correct conversion instead of a reinterpretation.
+static void dispatch_expand(const void* cr, const void* vr, void* out, int ne,
+                            int k, int n, int ctype, int vtype,
+                            cudaStream_t s) {
+    if (vtype == 1) {
+        switch (ctype) {
+            case 1: run_expand<float, float>(cr, vr, out, ne, k, n, s); break;
+            case 2: run_expand<float, __half>(cr, vr, out, ne, k, n, s); break;
+            default: run_expand<float, double>(cr, vr, out, ne, k, n, s); break;
+        }
+    } else {
+        switch (ctype) {
+            case 1: run_expand<double, float>(cr, vr, out, ne, k, n, s); break;
+            case 2: run_expand<double, __half>(cr, vr, out, ne, k, n, s); break;
+            default: run_expand<double, double>(cr, vr, out, ne, k, n, s); break;
+        }
+    }
+}
+
+}  // namespace
+
+extern "C" void launch_dense_factor_expand(const void* cr, const void* vr,
+                                           void* out, int ne, int k, int n,
+                                           int ctype, int vtype,
+                                           cudaStream_t s) {
+    dispatch_expand(cr, vr, out, ne, k, n, ctype, vtype, s);
+}

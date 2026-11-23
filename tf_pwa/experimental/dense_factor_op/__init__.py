@@ -23,6 +23,12 @@ model expresses as ``sparse_dense_matmul`` + ``divide`` + ``matvec``,
 becomes one pass over the data with analytic gradients instead of building
 a large autodiff graph; the probability is a density-matrix contraction on
 top of ``A``, shared with the dense model.
+
+:func:`dense_factor_expand` is the forward-only companion of the same
+backend: it expands the stored real low-rank block of a ``real_svd`` record
+straight to the complex basis, at the arithmetic width (complex128 for a
+float64 basis, complex64 for a float32 one), instead of a real matmul plus a
+join.
 """
 
 import numpy as np
@@ -729,6 +735,76 @@ def _make_bi(key):
     return fn
 
 
+def dense_factor_expand(c, v):
+    """Expand a stored real SVD block to the complex basis, in one pass.
+
+    ``real_svd`` stores the numerator/denominator coefficients as a real
+    block ``c [ne, k]`` and the basis as a real matrix ``v [k, 2n]``, whose
+    first ``n`` columns hold the real part of every complex column and the
+    last ``n`` the imaginary part (the ``[Re | Im]`` layout
+    ``_split_complex`` stores).  The reference expands it as a real
+    ``[ne, 2n]`` matmul followed by a join into ``[ne, n]`` complex; this op
+    computes the same result in one write::
+
+        out[e, j] = sum_k c[e,k] * (v[k,j] + i v[k,n+j])
+
+    The width follows ``v``, which follows the model's arithmetic dtype
+    (``_real_dtype``): a float64 basis gives complex128, a float32 basis
+    gives complex64 -- the same precision the reference's fp32 matmul has,
+    not a widened copy of it.  ``c`` keeps its storage dtype (float64,
+    float32 or float16) and is converted on read; it may be narrower than
+    ``v`` but never wider.  The shape is validated: ``v`` must be
+    ``[k, 2n]`` for a ``[ne, k]`` block.
+
+    The expansion is **data-side**: ``c``/``v`` are the stored record and a
+    constant of the model, while the fit parameters are the contraction
+    coefficients ``C``/``g`` that :func:`dense_factor_a` differentiates.
+    There is deliberately no backward: the custom gradient raises instead of
+    returning zeros, so a model that tries to differentiate through the
+    stored basis fails loudly rather than training on a silent zero.
+    """
+    c = tf.convert_to_tensor(c)
+    v = tf.convert_to_tensor(v)
+    if c.dtype.is_complex or v.dtype.is_complex:
+        raise TypeError(
+            "dense_factor_expand reads the stored *real* block of a "
+            "real_svd record; got {} and {}".format(c.dtype, v.dtype)
+        )
+    if v.shape.rank != 2:
+        raise ValueError("v must be [k, 2n], got shape {}".format(v.shape))
+    if v.dtype not in _EXPAND_OUT:
+        raise ValueError(
+            "v must be float64 or float32 (the arithmetic real dtype), got "
+            "{}".format(v.dtype)
+        )
+    return _expand(c, v)
+
+
+#: The complex result of a basis of this element type: the arithmetic width
+#: of the model the basis came from.
+_EXPAND_OUT = {tf.float64: tf.complex128, tf.float32: tf.complex64}
+
+
+@tf.custom_gradient
+def _expand(c, v):
+    # T/VT are inferred from the tensors; U (the output width) is the one
+    # attr the op cannot infer, so the wrapper states it
+    out = _load().dense_factor_expand(c, v, U=_EXPAND_OUT[v.dtype])
+
+    def grad(dy):
+        # The stored block and the stored basis are data, not parameters:
+        # the fit parameters are the contraction coefficients C/g, which the
+        # plain op differentiates.  Refusing here makes an accidental
+        # gradient request fail loudly instead of zeroing it silently.
+        raise NotImplementedError(
+            "dense_factor_expand has no backward: it expands the stored "
+            "basis of a real_svd record, which is data and constant with "
+            "respect to the loss; differentiate the contraction op instead"
+        )
+
+    return out, grad
+
+
 def basis_event_major(b):
     """Transpose the dense ``B`` ``[n_param, n_event]`` to event-major.
 
@@ -774,6 +850,7 @@ __all__ = [
     "dense_factor_merge_an",
     "dense_factor_ri",
     "dense_factor_bi",
+    "dense_factor_expand",
     "basis_event_major",
     "chain_layout",
     "is_available",

@@ -1287,6 +1287,159 @@ def test_dense_factor_op_gradient():
     check(2, [0, 2, 0, 0], [2, 2, 2, 0], 2, 4)
 
 
+@pytest.mark.parametrize(
+    "shape", [(257, 1, 5), (257, 7, 9), (1000, 61, 72), (200, 201, 40)]
+)
+def test_dense_factor_expand_matches_join(shape):
+    """``dense_factor_expand`` writes the same complex block as matmul+join.
+
+    ``real_svd`` expands ``C [ne, k]`` against the stored real basis
+    ``V [k, 2n]``; the reference does a real ``[ne, 2n]`` matmul and then a
+    join.  The fused op computes the sum in one pass, so it must agree to
+    round-off with that same arithmetic.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import (
+        dense_factor_expand,
+        is_available,
+    )
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    ne, k, n = shape
+    rng = np.random.default_rng(shape)
+    c = rng.standard_normal((ne, k))
+    v = rng.standard_normal((k, 2 * n))
+    with tf.device("/GPU:0"):
+        c = tf.constant(c)
+        v = tf.constant(v)
+        m = tf.matmul(c, v)  # the reference expand: [ne, 2n] real
+        ref = tf.complex(m[:, :n], m[:, n:]).numpy()
+        got = dense_factor_expand(c, v).numpy()
+    assert got.shape == (ne, n)
+    assert got.dtype == np.complex128
+    rel = np.max(np.abs(got - ref)) / (np.max(np.abs(ref)) + 1e-30)
+    assert rel < 1e-12
+
+
+@pytest.mark.parametrize("stored,tol", [("float32", 1e-6), ("float16", 2e-3)])
+def test_dense_factor_expand_stored_dtype(stored, tol):
+    """A float32/float16 stored block is widened and matches its own values.
+
+    ``store_dtype`` lowers the stored coefficients without touching the
+    basis; the kernel reads the block in place and widens each value, so the
+    result is the float64 expansion *of the stored values*, not of the ones
+    that were rounded away.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import (
+        dense_factor_expand,
+        is_available,
+    )
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    ne, k, n = 257, 7, 9
+    rng = np.random.default_rng(7)
+    c = tf.constant(rng.standard_normal((ne, k)), dtype=getattr(tf, stored))
+    v = tf.constant(rng.standard_normal((k, 2 * n)), dtype=tf.float64)
+    with tf.device("/GPU:0"):
+        m = tf.matmul(tf.cast(c, tf.float64), v)
+        ref = tf.complex(m[:, :n], m[:, n:]).numpy()
+        got = dense_factor_expand(c, v)
+        assert got.dtype == tf.complex128
+        got = got.numpy()
+    assert got.shape == (ne, n)
+    rel = np.max(np.abs(got - ref)) / (np.max(np.abs(ref)) + 1e-30)
+    assert rel < tol
+
+
+@pytest.mark.parametrize("shape", [(257, 1, 5), (257, 7, 9), (1000, 61, 72)])
+@pytest.mark.parametrize("stored", ["float32", "float16"])
+def test_dense_factor_expand_float_basis(shape, stored):
+    """A float32 basis writes complex64 at the reference's own precision.
+
+    The basis follows the arithmetic dtype, so a complex64 model must not be
+    widened to fp64: the op accumulates in float32, like ``tf.matmul`` on the
+    same basis.  TF32 is switched off for the comparison (and restored in a
+    ``finally``), so the reference is a true fp32 matmul rather than a TF32
+    one and the bound is the fp32 round-off of a different summation order
+    (1e-5), not the 2e-3 TF32 floor.  A float64 stored block against a
+    float32 basis is a record mismatch and is rejected.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import (
+        dense_factor_expand,
+        is_available,
+    )
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    ne, k, n = shape
+    rng = np.random.default_rng(shape)
+    c = tf.constant(rng.standard_normal((ne, k)), dtype=getattr(tf, stored))
+    v = tf.constant(rng.standard_normal((k, 2 * n)), dtype=tf.float32)
+    old = tf.config.experimental.tensor_float_32_execution_enabled()
+    tf.config.experimental.enable_tensor_float_32_execution(False)
+    try:
+        with tf.device("/GPU:0"):
+            # the reference widens the stored block to the arithmetic real
+            # dtype (float32) before the matmul, as _expand_svd does
+            m = tf.matmul(tf.cast(c, tf.float32), v)
+            ref = tf.complex(m[:, :n], m[:, n:]).numpy()
+            got = dense_factor_expand(c, v)
+            assert got.dtype == tf.complex64
+            got = got.numpy()
+    finally:
+        tf.config.experimental.enable_tensor_float_32_execution(old)
+
+    assert got.shape == (ne, n)
+    rel = np.max(np.abs(got - ref)) / (np.max(np.abs(ref)) + 1e-30)
+    assert rel < 1e-5
+
+    # a block wider than the basis cannot come from a matching record
+    with tf.device("/GPU:0"):
+        with pytest.raises(
+            tf.errors.InvalidArgumentError, match="no wider than the basis"
+        ):
+            dense_factor_expand(tf.zeros((4, k), tf.float64), v)
+
+
+def test_dense_factor_expand_has_no_backward():
+    """The stored basis is data: a gradient request fails instead of zeroing."""
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor_op import (
+        dense_factor_expand,
+        is_available,
+    )
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    rng = np.random.default_rng(3)
+    c = tf.Variable(rng.standard_normal((17, 3)))
+    v = tf.constant(rng.standard_normal((3, 12)))
+    with tf.device("/GPU:0"):
+        with tf.GradientTape() as tape:
+            loss = tf.reduce_sum(tf.math.real(dense_factor_expand(c, v)))
+        with pytest.raises(NotImplementedError, match="no backward"):
+            tape.gradient(loss, c)
+
+    # a shape the record cannot have produced is rejected, not misread
+    with tf.device("/GPU:0"):
+        with pytest.raises(
+            tf.errors.InvalidArgumentError, match=r"v must be \[k,2n\]"
+        ):
+            dense_factor_expand(c, tf.zeros((4, 12), tf.float64))
+
+
 def test_dense_factor_op_shared_parameters():
     """Two LS terms share one chain's parameter block; gradients must sum."""
     import tensorflow as tf
@@ -4064,6 +4217,192 @@ def test_dense_factor_op_svd_stays_fused(monkeypatch, method):
     assert set(calls) == {"dense_factor_a"}
     assert not [w for w in caught if "op failed" in str(w.message)]
     assert np.all(np.isfinite(a))
+
+
+@pytest.mark.parametrize("method", ["real_svd", "svd"])
+def test_dense_factor_op_svd_expand_matches_reference(monkeypatch, method):
+    """``real_svd`` expands through the fused op; neither path moves.
+
+    ``_op_expand`` sends a ``real_svd`` split record to
+    ``dense_factor_expand`` and keeps the reference expand for ``svd``.
+    Forcing ``use_op = False`` hands the same record to the TF reference,
+    which expands the stored block itself, so the amplitude and the
+    parameter gradients must agree between the two paths.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.experimental.dense_factor import _SvdCompression
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": method}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    c = ConfigLoader(cfg)
+    (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+    d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+    amp = c.get_amplitude()
+    assert amp.merge["method"] == method
+
+    used = []
+    original = op_mod.dense_factor_expand
+    monkeypatch.setattr(
+        op_mod,
+        "dense_factor_expand",
+        lambda *a, **k: used.append(1) or original(*a, **k),
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        a_op = amp(d).numpy()
+
+    if method == "real_svd":
+        assert used, "the fused expand was not exercised"
+        # the op's output has to be what the contraction reads, not a block
+        # that is computed and then dropped: a zeroed first block must move
+        # the amplitude (scaling both blocks by the same factor cancels)
+        broken = []
+
+        def zero_first(*args, **kwargs):
+            out = original(*args, **kwargs)
+            if not broken:
+                broken.append(1)
+                return tf.zeros_like(out)
+            return out
+
+        monkeypatch.setattr(op_mod, "dense_factor_expand", zero_first)
+        a_broken = amp(d).numpy()
+        monkeypatch.setattr(op_mod, "dense_factor_expand", original)
+        assert not np.allclose(a_broken, a_op, rtol=1e-9, atol=0)
+    else:
+        # ``svd`` stores a complex block; the real-coefficient op cannot read
+        # it, so the reference expand must stay in charge
+        assert not used, "svd must keep the reference expand"
+    assert not [w for w in caught if "op failed" in str(w.message)]
+
+    def loss_and_grad():
+        vs = amp.vm.trainable_variables
+        with tf.GradientTape() as tape:
+            tape.watch(vs)
+            loss = -tf.reduce_sum(tf.math.log(amp(d)))
+        return float(loss), [g.numpy() for g in tape.gradient(loss, vs)]
+
+    l_op, g_op = loss_and_grad()
+
+    monkeypatch.setattr(_SvdCompression, "use_op", False, raising=False)
+    a_rb = amp(d).numpy()
+    l_rb, g_rb = loss_and_grad()
+    monkeypatch.undo()
+
+    assert np.allclose(a_op, a_rb, rtol=1e-10, atol=1e-12)
+    assert np.allclose(l_op, l_rb, rtol=1e-12)
+    assert len(g_op) == len(g_rb) and g_op
+    for x, y in zip(g_op, g_rb):
+        assert np.allclose(x, y, rtol=1e-8, atol=1e-10)
+
+
+def test_dense_factor_op_svd_expand_serves_complex64(monkeypatch):
+    """A complex64 ``real_svd`` model expands through the fused op.
+
+    The op's width follows the basis, so the record's float32 basis is read
+    as fp32 and the result is complex64 -- the reference's own precision,
+    not a widened copy of it.  The path must therefore stay fused, with the
+    narrow dtypes reaching the kernel, and the amplitude and parameter
+    gradients must match the reference expand (complex64 tolerances, 1e-4).
+    TF32 is switched off for the comparison (and restored in a ``finally``):
+    the reference expand is a float32 ``tf.matmul``, whose TF32 floor is the
+    ~5e-4 the complex64 storage notes quote, while the op accumulates in
+    exact fp32; with TF32 off the comparison is the two fp32 summation
+    orders and sits at 1e-6.
+    """
+    import tensorflow as tf
+
+    from tf_pwa.config import get_config, set_config
+    from tf_pwa.experimental.dense_factor import _SvdCompression
+    from tf_pwa.experimental.dense_factor_op import is_available
+
+    if not is_available():
+        pytest.skip("dense_factor_op cannot be built on this machine")
+
+    import tf_pwa.experimental.dense_factor_op as op_mod
+    import tf_pwa.experimental.dense_factor_op_model  # noqa: F401
+
+    decay, part = _identical_waves()
+    cfg = {
+        "data": {
+            "format": "simple",
+            "amp_model": "dense_factor_op_merge",
+            "preprocessor": {"dense_factor_merge": {"method": "real_svd"}},
+        },
+        "decay": decay,
+        "particle": part,
+    }
+    old = get_config("complex_dtype")
+    tf32 = tf.config.experimental.tensor_float_32_execution_enabled()
+    set_config("complex_dtype", "complex64")
+    tf.config.experimental.enable_tensor_float_32_execution(False)
+    try:
+        c = ConfigLoader(cfg)
+        (p_a, p_b), p_c = generate_phsp(5.0, ((2.0, (0.2, 0.2)), 0.2), N=100)
+        d = c.data.cal_angle({"a": p_a, "b": p_b, "c": p_c})
+        amp = c.get_amplitude()
+        # the record of a complex64 model stores a float32 basis
+        assert amp.merge["dtype"] == tf.complex64
+        assert amp.merge["Vf"].dtype == tf.float32
+
+        seen = []
+        original = op_mod.dense_factor_expand
+
+        def spy(c, v, **kwargs):
+            out = original(c, v, **kwargs)
+            seen.append((c.dtype, v.dtype, out.dtype))
+            return out
+
+        monkeypatch.setattr(op_mod, "dense_factor_expand", spy)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            a_op = amp(d).numpy()
+        assert seen, "the fused expand was not exercised"
+        # the narrow block and basis reach the kernel and stay narrow
+        assert all(x == (tf.float32, tf.float32, tf.complex64) for x in seen)
+        assert not [w for w in caught if "op failed" in str(w.message)]
+
+        def loss_and_grad():
+            vs = amp.vm.trainable_variables
+            with tf.GradientTape() as tape:
+                tape.watch(vs)
+                loss = -tf.reduce_sum(tf.math.log(amp(d)))
+            return float(loss), [g.numpy() for g in tape.gradient(loss, vs)]
+
+        l_op, g_op = loss_and_grad()
+
+        monkeypatch.setattr(_SvdCompression, "use_op", False, raising=False)
+        a_rb = amp(d).numpy()
+        l_rb, g_rb = loss_and_grad()
+        monkeypatch.undo()
+    finally:
+        set_config("complex_dtype", old)
+        tf.config.experimental.enable_tensor_float_32_execution(tf32)
+
+    def rel(a, b):
+        return np.max(np.abs(a - b)) / (np.max(np.abs(b)) + 1e-30)
+
+    assert rel(a_op, a_rb) < 1e-4
+    assert rel(l_op, l_rb) < 1e-4
+    assert len(g_op) == len(g_rb) and g_op
+    for x, y in zip(g_op, g_rb):
+        assert rel(x, y) < 1e-4
 
 
 @pytest.mark.parametrize("method", ["basis_index", "real_index"])

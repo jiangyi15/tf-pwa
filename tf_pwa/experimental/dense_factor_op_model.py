@@ -312,10 +312,78 @@ def _op_real_index(
     )
 
 
+def _fused_expand(record, F, B):
+    """Expand a ``real_svd`` store with :func:`dense_factor_expand`.
+
+    Returns ``(F, B)`` at full width, or ``None`` when this record is not
+    what the op reads (``svd``, a block that is already expanded or complex,
+    a shape mismatch, a basis that is not the record's arithmetic width, no
+    build): the caller then uses the reference expand.  complex128 and
+    complex64 records both qualify -- the op writes the arithmetic width, so
+    a complex64 model keeps its fp32 expansion instead of being widened.
+    The shapes are checked statically -- the record maps ``Vf``/``Vb`` onto
+    the stored widths, so a mismatch means the block is not that record's
+    store -- and a dynamic one is left to the reference as well.
+    """
+    if _op is None or not hasattr(_op, "dense_factor_expand"):
+        return None
+    if record is None or record.get("method") != "real_svd":
+        return None
+    if not record.get("split"):
+        return None
+    if F is None or B is None:
+        return None
+    if F.dtype.is_complex or B.dtype.is_complex:
+        return None
+    if F.shape.rank != 2 or B.shape.rank != 2:
+        return None
+    nproj, nu = int(record["np"]), int(record["nu"])
+    n = nproj * nu
+    nparam = int(record["nparam"])
+    kf, kb = F.shape[1], B.shape[1]
+    if kf is None or kb is None:
+        return None
+    Vf, Vb = record["Vf"], record["Vb"]
+    if Vf.shape.rank != 2 or Vb.shape.rank != 2:
+        return None
+    if Vf.shape[0] is None or Vb.shape[0] is None:
+        return None
+    if (int(Vf.shape[0]), int(Vf.shape[1])) != (kf, 2 * n):
+        return None
+    if (int(Vb.shape[0]), int(Vb.shape[1])) != (kb, 2 * nparam):
+        return None
+    # The op's complex width follows the record's arithmetic dtype, which is
+    # also the dtype of the basis it will read: float64 -> complex128,
+    # float32 -> complex64.  The two blocks must agree (a record fitted at
+    # different widths is not one store), and a real arithmetic dtype would
+    # keep only the left half of the join: both are a decline, not a
+    # conversion.
+    arithmetic = record["dtype"]
+    if arithmetic not in (tf.complex128, tf.complex64):
+        return None
+    if record["dtype_b"] != arithmetic:
+        return None
+    basis_dtype = tf.float64 if arithmetic == tf.complex128 else tf.float32
+    if Vf.dtype != basis_dtype or Vb.dtype != basis_dtype:
+        return None
+    # the op rejects a block wider than the basis; decline it here so a
+    # legitimate record never goes through a failed call
+    wide = tf.float64 if basis_dtype == tf.float32 else None
+    if wide is not None and (F.dtype == wide or B.dtype == wide):
+        return None
+    F = _op.dense_factor_expand(F, Vf)
+    B = _op.dense_factor_expand(B, Vb)
+    return tf.reshape(F, (tf.shape(F)[0], nproj, nu)), B
+
+
 def _op_expand(
     strategy, record, F, B, C, g, off, sz, n_line, max_basis, prepared=None
 ):
-    F, B = strategy.expand(record, F, B)
+    expanded = _fused_expand(record, F, B)
+    if expanded is None:
+        F, B = strategy.expand(record, F, B)
+    else:
+        F, B = expanded
     return _plain_op(F, B, C, g, off, sz, n_line, max_basis)
 
 
@@ -378,6 +446,8 @@ def _prepare_real_index(strategy, record, layout):
 #   ``basis_index``      ``dense_factor_bi``, on the stored sparse basis
 #   ``real_index``       ``dense_factor_ri``, on the stored real block
 #   ``svd``/``real_svd`` expand the low-rank coefficients, then the plain op
+#                        (``real_svd`` expands them with the fused
+#                        ``dense_factor_expand``; ``svd`` stays on TF)
 @register_op("cuda", None)
 def _run_plain(strategy, record, F, B, C, g, layout, prepared):
     """A full-width basis: the plain op reads it as passed."""
@@ -431,7 +501,12 @@ def _run_real_index(strategy, record, F, B, C, g, layout, prepared):
 @register_op("cuda", "svd")
 @register_op("cuda", "real_svd")
 def _run_expand(strategy, record, F, B, C, g, layout, prepared):
-    """``svd``/``real_svd``: expand the store, then the plain op."""
+    """``svd``/``real_svd``: expand the store, then the plain op.
+
+    A ``real_svd`` store expands through the fused ``dense_factor_expand``
+    (one pass to the complex block, no real ``[ne, 2n]`` intermediate);
+    ``svd`` keeps the TF expand because its stored block is complex.
+    """
     # the real method, so the warn-once key, the message and the reference
     # lookup are ``real_svd`` for a ``real_svd`` record
     method = record["method"] if record else "svd"

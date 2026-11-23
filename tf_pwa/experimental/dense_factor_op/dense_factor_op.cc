@@ -1,4 +1,6 @@
 #define EIGEN_USE_GPU
+#include <limits>
+
 #include <cuda_runtime.h>
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
@@ -201,6 +203,24 @@ REGISTER_OP("DenseFactorGradBi")
     .Attr("np: int = 1")
     .Attr("terms: int = 4");
 
+// The expand-to-complex op: a stored real SVD block ``C [ne, k]`` against
+// the stored real basis ``V [k, 2n]``, in one pass to the complex ``[ne, n]``.
+// Forward only: both inputs are data of the model, not parameters.
+//
+// The width follows the basis, which follows the model's arithmetic dtype:
+// a float64 basis writes complex128, a float32 basis writes complex64.  ``c``
+// keeps its storage dtype (float64, float32 or fp16) and is converted on
+// read; it must not be wider than the basis.  ``U`` restates the output dtype
+// the ``VT`` mapping implies, because the op has no type-inference function
+// (the Python wrapper derives it from ``v``).
+REGISTER_OP("DenseFactorExpand")
+    .Input("c: T")              // [ne, k], the stored real coefficient block
+    .Input("v: VT")             // [k, 2n], the stored real basis, [Re | Im]
+    .Output("out: U")           // [ne, n]
+    .Attr("T: {double, float, half} = DT_DOUBLE")
+    .Attr("VT: {double, float} = DT_DOUBLE")
+    .Attr("U: {complex128, complex64} = DT_COMPLEX128");
+
 extern "C" void launch_dense_factor(
     const double*, const double*, const double*, const double*,
     const int*, const int*, const int*, const int*, const double*,
@@ -208,6 +228,13 @@ extern "C" void launch_dense_factor(
     double*, double*,
     double*, double*,
     double*, double*, cudaStream_t);
+
+// ``cr``/``vr``/``out`` are void because their element types follow the op's
+// attributes: ``cr`` is ``T`` (``ctype``: 0 double, 1 float, 2 half), ``vr``
+// is ``VT`` (``vtype``: 0 double, 1 float) and ``out`` is the matching
+// complex width.
+extern "C" void launch_dense_factor_expand(
+    const void*, const void*, void*, int, int, int, int, int, cudaStream_t);
 
 extern "C" void launch_dense_factor_n(
     const double*, const double*, const double*, const double*,
@@ -1022,3 +1049,93 @@ class DenseFactorGradBiKernel : public OpKernel {
 };
 REGISTER_KERNEL_BUILDER(Name("DenseFactorGradBi").Device(DEVICE_GPU),
                             DenseFactorGradBiKernel);
+
+/* The expand-to-complex op.
+ *
+ * ``real_svd`` stores a real coefficient block ``C [ne, k]`` and a real basis
+ * ``V [k, 2n]`` whose first ``n`` columns hold the real part of every complex
+ * column and the last ``n`` the imaginary part.  The result is the complex
+ * basis ``[ne, n]``::
+ *
+ *     out[e, j] = sum_k C[e,k] * (V[k,j] + i V[k,n+j])
+ *
+ * computed in one pass, so the ``[ne, 2n]`` real intermediate and the join
+ * of the reference path are never written.  The arithmetic runs in the
+ * basis's element type: a float64 basis writes complex128, a float32 basis
+ * writes complex64, so a complex64 model keeps its fp32 basis (and the
+ * reference's own precision) instead of being widened.
+ *
+ * There is no gradient: both inputs are data of the model, and the fit
+ * parameters are the contraction coefficients the other kernels
+ * differentiate. */
+class DenseFactorExpandKernel : public OpKernel {
+ public:
+  explicit DenseFactorExpandKernel(OpKernelConstruction* c) : OpKernel(c) {}
+  void Compute(OpKernelContext* ctx) override {
+    const Tensor& c = ctx->input(0);
+    const Tensor& v = ctx->input(1);
+    OP_REQUIRES(ctx, c.dims() == 2,
+                errors::InvalidArgument("c must be [ne,k]"));
+    OP_REQUIRES(ctx, v.dims() == 2,
+                errors::InvalidArgument("v must be [k,2n]"));
+    OP_REQUIRES(ctx, v.dtype() == DT_DOUBLE || v.dtype() == DT_FLOAT,
+                errors::InvalidArgument(
+                    "v must be float64 or float32 (the stored real basis), "
+                    "got ", DataTypeString(v.dtype())));
+    const bool basis_f32 = v.dtype() == DT_FLOAT;
+    OP_REQUIRES(ctx,
+                c.dtype() == DT_DOUBLE || c.dtype() == DT_FLOAT ||
+                    c.dtype() == DT_HALF,
+                errors::InvalidArgument(
+                    "c must be float64, float32 or float16 (the stored real "
+                    "block), got ", DataTypeString(c.dtype())));
+    // The kernel would convert either way, but a block wider than the basis
+    // can only come from a mismatched record: it would quietly gain precision
+    // the arithmetic dtype does not have, at the cost of the narrow op.
+    OP_REQUIRES(ctx, !(c.dtype() == DT_DOUBLE && basis_f32),
+                errors::InvalidArgument(
+                    "c is float64 while v is float32: the stored block must "
+                    "be no wider than the basis (store_dtype: complex64 or "
+                    "complex32 for a complex64 model)"));
+    const int64_t k = c.dim_size(1);
+    OP_REQUIRES(ctx, v.dim_size(0) == k,
+                errors::InvalidArgument(
+                    "v must be [k,2n] for a [ne,", k, "] block, got ",
+                    v.dim_size(0), " rows"));
+    OP_REQUIRES(ctx, v.dim_size(1) % 2 == 0,
+                errors::InvalidArgument(
+                    "v must be [k,2n] ([Re | Im]); its width ",
+                    v.dim_size(1), " is odd"));
+    const int64_t ne = c.dim_size(0);
+    const int64_t n = v.dim_size(1) / 2;
+    OP_REQUIRES(ctx, k >= 1 && n >= 1,
+                errors::InvalidArgument(
+                    "the stored block must be non-empty"));
+    OP_REQUIRES(ctx, ne * n <= std::numeric_limits<int>::max(),
+                errors::InvalidArgument("output is too large for one launch"));
+    // -1 would silently dispatch the double kernel on a narrow block
+    OP_REQUIRES(ctx, block_type_of(c) >= 0,
+                errors::InvalidArgument("unsupported stored-block dtype"));
+    Tensor* out = nullptr;
+    // the declared output dtype is the ``U`` attr; it must be the complex
+    // width of the basis, since that is what the kernel writes
+    OP_REQUIRES_OK(ctx, ctx->allocate_output(0, TensorShape({ne, n}), &out));
+    OP_REQUIRES(ctx, out->dtype() == (basis_f32 ? DT_COMPLEX64 : DT_COMPLEX128),
+                errors::InvalidArgument(
+                    "the output must follow v: complex128 for a float64 "
+                    "basis, complex64 for a float32 one; got ",
+                    DataTypeString(out->dtype())));
+    if (ne == 0) return;
+    void* op = basis_f32
+                   ? reinterpret_cast<void*>(out->flat<complex64>().data())
+                   : reinterpret_cast<void*>(out->flat<complex128>().data());
+    auto s = ctx->eigen_gpu_device().stream();
+    launch_dense_factor_expand(
+        block_ptr(c),
+        basis_f32 ? static_cast<const void*>(v.flat<float>().data())
+                  : static_cast<const void*>(v.flat<double>().data()),
+        op, (int)ne, (int)k, (int)n, block_type_of(c), basis_f32 ? 1 : 0, s);
+  }
+};
+REGISTER_KERNEL_BUILDER(Name("DenseFactorExpand").Device(DEVICE_GPU),
+                            DenseFactorExpandKernel);
